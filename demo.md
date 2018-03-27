@@ -20,6 +20,47 @@ In the end, the three flows we really need to implement non-trivially for the de
 * settlement of main-chain vs side-chain swap (including account creation / deletion?)
 * adversarial exit (with the simplest invariants only, both success / failure cases)
 
+### Payment Flow
+
+Actors: Alice (sender), Bob (recipient), Trent (facilitator).
+
+Preconditions:
+* Alice has an account on Trent's side-chain. The account is voluntary, and has balance X.
+* Bob has an account on Trent's side-chain. The account is voluntary, and has balance Y.
+
+Alice wants to send amount Z to Bob.
+Trent charges a fee F.
+Trent has a current limit of L.
+Z+F <= X.
+Z+F <= L.
+
+Alice will send to Bob a "certified check".
+
+1- Alice write a message M1, signed by her, that says:
+  "Trent, please pay Z to Bob and receivee your fee F.
+  My previous state with you was P.
+  This message is written at time T0 (identified by main chain state M, side-chain state S).
+  This message is valid until date T1. -- signed by Alice"
+
+2- Alice sends message M1 to Trent for underwriting.
+
+3- Trents verifies that M1 is correct, then signs a message M2 certifying M1:
+  "I, Trent, certify M1 as valid and promise to make good on it in my next update to the main chain.
+  Latest side-chain update was PS. My current TXID is T. My new limit for this cycle is NL."
+
+4- Trent commits M2 to his side-chain.
+
+5- Trent sends M2 to Alice (and Bob?)
+
+6- Alice sends M2 to Bob.
+
+7- Bob sends M2 to the Gossip Network, waits to check there is no double-spend by Trent.
+
+8- Bob accepts the payment, and starts servicing Alice.
+
+9- Trent updates the main chain and the payment is fully cleared.
+
+
 ## Other questions to get right
 
 ### Predicting court fees as prelude to determining bond.
