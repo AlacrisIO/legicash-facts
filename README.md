@@ -6,11 +6,11 @@ by [Legicash](http://legi.cash/)
 ### Toolchain
 
 Using [OPAM](https://opam.ocaml.org/), install the following:
-  * OCaml 4.06.0
+  * OCaml 4.06.1 (Tezos requires this version)
   * jbuilder (dune)
   * ocamlformat
   * Merlin
-  * Touareg
+  * Tuareg
 
 ### Coding Style
 
