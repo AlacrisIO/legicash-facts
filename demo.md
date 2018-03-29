@@ -257,17 +257,25 @@ How do we deal with failing managers who withhold signature on an ongoing transa
 
 ## Bibliography
 
-[Alice and Bob](https://en.wikipedia.org/wiki/Alice_and_Bob)
+* [Alice and Bob](https://en.wikipedia.org/wiki/Alice_and_Bob)
 
-https://wiki.xenproject.org/wiki/OCaml_Best_Practices_for_Developers
-http://dpt.sourceforge.net/conventions.html
-https://ocaml.org/learn/tutorials/guidelines.html
-https://www.cs.cornell.edu/courses/cs3110/2011sp/Handouts/style.htm
-https://caml.inria.fr/resources/doc/guides/guidelines.en.html
-https://www.seas.upenn.edu/~cis341/current/programming_style.shtml
-https://cs.brown.edu/courses/cs017/content/docs/ocaml-style.pdf
+* OCaml style guides:
+ [Jane Street](https://opensource.janestreet.com/standards/),
+ [OCaml.org](https://ocaml.org/learn/tutorials/guidelines.html),
+ [INRIA](https://caml.inria.fr/resources/doc/guides/guidelines.en.html),
+ [Xen Hypervisor](https://wiki.xenproject.org/wiki/OCaml_Best_Practices_for_Developers),
+ [Decision Procedure Toolkit](http://dpt.sourceforge.net/conventions.html),
+ [Cornell CS3110](https://www.cs.cornell.edu/courses/cs3110/2011sp/Handouts/style.htm),
+ [UPenn CIS341](https://www.seas.upenn.edu/~cis341/current/programming_style.shtml),
+ [Brown CS017](https://cs.brown.edu/courses/cs017/content/docs/ocaml-style.pdf).
 
-http://www.csc.villanova.edu/~japaridz/CL/#Subsection3a1
+* Computability Logic:
+ [Computability Logic](http://www.csc.villanova.edu/~japaridz/CL/)
 
-https://github.com/kframework/k-legacy/tree/master/k-distribution/tutorial/1_k/1_lambda/lesson_2
+* K Framework:
+ https://github.com/kframework/k-legacy/tree/master/k-distribution/tutorial/1_k/1_lambda/lesson_2
+
+* OCaml @ Jane Street:
+ [documentation](https://ocaml.janestreet.com/ocaml-core/latest/doc/index.html),
+ [OCaml Labs](http://ocamllabs.io/),
 
