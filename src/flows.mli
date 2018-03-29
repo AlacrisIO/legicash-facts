@@ -4,6 +4,8 @@ exception Timeout of string
 
 exception Double_spend of string
 
+type 'a result = Success of 'a | Failure of exn
+
 (* unique identifier for all parties, that is, customers and facilitators *)
 
 type public_key
@@ -18,8 +20,7 @@ type chain_state
 
 type side_chain_state
 
-type account_state =
-  {active: bool; balance: token_amount; change_number: revision_id}
+type account_state = {active: bool; balance: token_amount; change_number: revision_id}
 
 (* associate users with their accounts *)
 
@@ -43,13 +44,11 @@ type check_t =
   ; invoice_id: memo
   ; expedited: bool }
 
-type int256 =
-  {field1: Int64.t; field2: Int64.t; field3: Int64.t; field4: Int64.t}
+type int256 = {field1: Int64.t; field2: Int64.t; field3: Int64.t; field4: Int64.t}
 
 type signature_t = int256
 
-type 'a signed =
-  | Signed of {payload: 'a; signer: public_key; signature: signature_t}
+type 'a signed = Signed of {payload: 'a; signer: public_key; signature: signature_t}
 
 type certified_check_t =
   { facilitator: public_key
@@ -62,8 +61,8 @@ type facilitator_state =
   ; accounts: account_tbl
   ; current_change_number: revision_id
   ; current_limit: token_amount
-  ; (* how much limit is unspent during this cycle *)
-  per_account_limit: token_amount
+  (* how much limit is unspent during this cycle *)
+  ; per_account_limit: token_amount
   ; chain_root: chain_state
   ; (* when did we last update? *)
   last_posted_side_chain_root: side_chain_state
@@ -88,34 +87,35 @@ type message =
   (* invariant: signer same as facilitator *)
   | Certified_check of certified_check_t signed
   (* invariant: signer same as both facilitators *)
-  | Double_spend_denunciation of
-      certified_check_t signed * certified_check_t signed
+  | Double_spend_denunciation of certified_check_t signed * certified_check_t signed
   | Settlement_proposal of settlement_proposal_t signed
 
-val send_check_for_certification : check_t signed -> certified_check_t signed
+(* endpoint + state of communication + possibility of reconnection *)
+type conversation
+
+(* step 2 of Payment Flow *)
+val send_check_for_certification : check_t signed -> conversation -> certified_check_t signed
 (** side effects:
     - communicate over the network to facilitator mentioned in the check
     - get back a signed certified check from the facilitator
     - maybe raise a Timeout exception
  *)
 
-type destination
-
 (* message-sending operations *)
-(* for all the following operations, can raise a Timeout exception *)
+(* for all the following operations, can return a Timeout exception *)
 (* Alice does this to Bob. Does Trent do it to Alice, or does he have a separate interface??? *)
 
-val send_certified_check : certified_check_t signed -> destination -> unit
+(* step 5,6,7 of Payment Flow *)
+(* TODO: maybe pack more info in result for success case *)
+val send_certified_check : certified_check_t signed -> conversation -> unit result
 
 (** side effects:
     - communicate with the gossip network to check that the certified check isn't a double-spend
-    - maybe raise a Double_spend exception
+    - maybe return a Double_spend exception
+    - because parametric in conversation, can also be used to check double-spending on gossip network
  *)
 
-val gossip_certified_check : certified_check_t signed -> unit
-(** Bob does that for his due diligence *)
-
-val commit_side_chain_state : unit -> unit
+val commit_side_chain_state : unit -> unit result
 (** for a facilitator, commit the state of the side-chain to the main-chain *)
 
 (* flow operations *)
