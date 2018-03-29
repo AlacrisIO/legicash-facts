@@ -1,3 +1,3 @@
 # Legicash FaCTS
 
-Fast Cryptocurrency Transactions, Securely
+Fast Cryptocurrency Transactions, Securely http://legi.cash/
