@@ -19,7 +19,16 @@ We'll be using ocamlformat, but otherwise following the
 
 ### Tezos dependencies
 
-If you want to build Tezos, use OPAM to install:
+Note: Tezos provides its own install and build instructions at
+
+  http://doc.tzalpha.net/introduction/howto.html
+  
+which describes how to use a Tezos-specific OPAM switch and 
+automated installation of dependencies. That did not succeed for 
+@psteckler1, and maybe it's better not to tie the OPAM environment 
+to Tezos, in case other substrates are used.
+
+So, to build Tezos, use OPAM to install:
   * calendar
   * cohttp-lwt-unix
   * depext
