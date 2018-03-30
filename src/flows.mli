@@ -4,7 +4,7 @@ exception Timeout of string
 
 exception Double_spend of string
 
-type 'a result = Success of 'a | Failure of exn
+type 'a legi_result = ('a,exn) result
 
 (* unique identifier for all parties, that is, customers and facilitators *)
 
@@ -115,7 +115,7 @@ val send_check_for_certification :
 (* TODO: maybe pack more info in result for success case *)
 
 val send_certified_check :
-  certified_check_t signed -> conversation -> unit result
+  certified_check_t signed -> conversation -> unit legi_result
 
 (** side effects:
     - communicate with the gossip network to check that the certified check isn't a double-spend
@@ -123,7 +123,7 @@ val send_certified_check :
     - because parametric in conversation, can also be used to check double-spending on gossip network
  *)
 
-val commit_side_chain_state : unit -> unit result
+val commit_side_chain_state : unit -> unit legi_result
 (** for a facilitator, commit the state of the side-chain to the main-chain *)
 
 (* flow operations *)
