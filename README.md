@@ -50,3 +50,13 @@ To install Tezos, you also need, via OPAM:
   * opam-installer
 
 With that additional package installed, you can run *make install*.
+
+To build Tezos documentation, install via OPAM:
+  * odoc
+  
+Then run *make doc-html* from the Tezos root directory. There are some 
+errors that appear, but documentation is generated. 
+
+For the docs, you may also need to install some Sphinx packages for Python 
+(@psteckler1 already had some Sphinx packages installed, so not clear which 
+ones you might need).
