@@ -43,3 +43,10 @@ Also, clone *leveldb* from https://github.com/mfp/ocaml-leveldb, and build
 using *omake*. There is an OPAM package for *leveldb*, but it is out-of-date, and
 does not build with OCaml 4.06.1. For your Linux distro, you may need to install
 *libsnappy-dev* for this build to succeed.
+
+With all of the above installed, you can run *make*.
+
+To install Tezos, you also need, via OPAM:
+  * opam-installer
+
+With that additional package installed, you can run *make install*.
