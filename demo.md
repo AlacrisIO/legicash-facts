@@ -1,27 +1,31 @@
 # Plan for our demo
 
+[[_TOC_]]
+
 ## Flows to get right
 
-We identified twelve flows in Legicash FaCTS. We can stub most of them.
+We identified the following flows in Legicash FaCTS.
+For the M1 demo, we can stub most of them,
+and here are those we believe are really essential:
 
-* create facilitator (stub?)
-* close facilitator (stub)
-* update facilitator sidechain state + pay penalties (stub?)
-* open account (stub?)
-* close account (need to do the adversarial kind)
-* send payment (need to do)
-* settle payment between side chains (need to do)
-* settle payment from main chain to side chain (need to do)
-* settle payment from side chain to main chain (need to do)
-* denounce facilitator (minor / major) (stub)
-* mass transfer account (voluntary / involuntary) (stub)
-* Trent closes facilitator
+* Payment Flow (It's the whole point)
+* Enter Settlement Flow / Account Creation (Necessary)
+* Adversarial Exit Flow (Must illustrate interactive proof)
 
-In the end, the three flows we really need to implement non-trivially for the demo are:
+These are necessary for the M2 Feature Complete release:
+* Cross-Facilitator Settlement Flow (necessary to scale multi-side-chains)
+* Exit Settlement Flow (necessary for practical use of facilitators)
+* Facilitator Invalidation Flow (necessary for security)
+* Involuntary Transfer Assignment Flow (necessary for security that scales and is fair)
+* Mass Transfers (necessary for security that scales)
 
-* payment
-* settlement of main-chain vs side-chain swap (including account creation / deletion?)
-* adversarial exit (with the simplest invariants only, both success / failure cases)
+Smaller flows necessary for M2:
+* Create Facilitator (very incomplete version for M1)
+* Update facilitator sidechain state + pay penalties (partial for M1)
+* Close facilitator (necessary for facilitators to get their money back)
+* Activate account (stub for M1?)
+* Denounce facilitator (both minor and major violations, no double jeopardy)
+
 
 ### Payment Flow
 
@@ -62,6 +66,55 @@ Alice will send to Bob a "certified check".
 8. Bob accepts the payment, and starts servicing Alice.
 
 9. Trent updates the main chain and the payment is fully cleared.
+
+### Enter Settlement Flow / Account Creation
+
+Actors: Alice (sender), Trent (facilitator)
+
+Preconditions:
+* Alice has an account on the main chain with balance X+F+R.
+* Trent has an account for Alice (voluntary or involuntary) with balance Y (or no account, and balance 0)
+* Trent already has an open contract on the main
+
+Postconditions:
+* Alice has an account on the main chain with balance R.
+* Alice has a voluntary account on Trent's side-chain with balance X+Y.
+* Trent receives fee F from Alice.
+
+1. Alice sends X+F to Trent's contract on the main chain
+2. Trent write M1...
+3. Trent commits M1 to side-chain
+4. Trent sends M1 to Alice (OKish if fails)
+5. Trent commits M1 to main chain
+
+1 is enough for Alice to have her money back even if Trent fails.
+If 5 didn't happen, Alice still can get her money back, which
+the adversarial exit thing must take into account.
+
+
+### Adversarial Exit Flow
+
+Actors: Bob (recipient), Trent (facilitator)
+
+Preconditions:
+* Bob has an account on Trent's side-chain with balance X.
+* Bob has an account on the main-chain with balance F or more.
+
+Postconditions:
+* Bob has an account on the main chain with balance X.
+* Bob has no account on Trent's side-chain (balance 0).
+* Bob pays up to F in court fees.
+* Trent pays up to G in court fees.
+
+1. Bob sends claim to Trent's contract on the main chain with all details
+ (including list of pending transactions). Details may be posted on court registry
+ instead of included in extenso in court proceedings.
+2. a. If details invalid or incomplete,
+  Trent contests and gets Bob thrown out "come back with your file in order"
+  b. Trent goes missing or invalid. See Facilitator invalidation story, then go back to 2c.
+  c. Trent has to post his side of the story, with a side-chain state update.
+3. Interactive proof without mutable state, in predictable, finite number of steps.
+4. Sanction.
 
 
 ### Cross-Facilitator Settlement Flow
@@ -107,31 +160,6 @@ Now, the adversarial exit flow HAS to take into account the potentially incomple
 NB: is it worth going more than 2 facilitators, in the style of the Lightning Network?
 
 
-### Enter Settlement Flow / Account Creation
-
-Actors: Alice (sender), Trent (facilitator)
-
-Preconditions:
-* Alice has an account on the main chain with balance X+F+R.
-* Trent has an account for Alice (voluntary or involuntary) with balance Y (or no account, and balance 0)
-* Trent already has an open contract on the main
-
-Postconditions:
-* Alice has an account on the main chain with balance R.
-* Alice has a voluntary account on Trent's side-chain with balance X+Y.
-* Trent receives fee F from Alice.
-
-1. Alice sends X+F to Trent's contract on the main chain
-2. Trent write M1...
-3. Trent commits M1 to side-chain
-4. Trent sends M1 to Alice (OKish if fails)
-5. Trent commits M1 to main chain
-
-1 is enough for Alice to have her money back even if Trent fails.
-If 5 didn't happen, Alice still can get her money back, which
-the adversarial exit thing must take into account.
-
-
 ### Exit Settlement Flow
 
 Actors: Bob (recipient), Trent (facilitator)
@@ -165,31 +193,6 @@ the adversarial exit thing must take into account.
    in case of double-spending conflict. PLUS pending lawsuits.
    [People with lawsuit data better make sure any relevant data is posted in those updates.]
 4. Bankrupcy proceedings via mass voluntary and involuntary transfers [TODO: EXPAND!]
-
-
-### Adversarial Exit Flow
-
-Actors: Bob (recipient), Trent (facilitator)
-
-Preconditions:
-* Bob has an account on Trent's side-chain with balance X.
-* Bob has an account on the main-chain with balance F or more.
-
-Postconditions:
-* Bob has an account on the main chain with balance X.
-* Bob has no account on Trent's side-chain (balance 0).
-* Bob pays up to F in court fees.
-* Trent pays up to G in court fees.
-
-1. Bob sends claim to Trent's contract on the main chain with all details
- (including list of pending transactions). Details may be posted on court registry
- instead of included in extenso in court proceedings.
-2. a. If details invalid or incomplete,
-  Trent contests and gets Bob thrown out "come back with your file in order"
-  b. Trent goes missing or invalid. See Facilitator invalidation story, then go back to 2c.
-  c. Trent has to post his side of the story, with a side-chain state update.
-3. Interactive proof without mutable state, in predictable, finite number of steps.
-4. Sanction.
 
 
 ### Involuntary Transfer Assignment Flow
@@ -254,8 +257,37 @@ can we identify what API entry points Tezos or Ethereum would need to add?
 A signature by a manager is a promise to include some data in the next version of the database.
 How do we deal with failing managers who withhold signature on an ongoing transaction?
 
+### Dealing with UTXOs
+
+Plasma tries very hard to preserve a notion of UTXOs.
+However, any non-trivial series of payments on the side-chain becomes impossible,
+short of repeating the same series on the main chain (under the ownership of the contract to itself),
+which would totally defeat the purpose of scaling.
+That's absurd, and
+[more absurdity ensues](https://ethresear.ch/t/one-proposal-for-plasma-cash-with-coin-splitting-and-merging/1447)
+trying to make it work.
+The [Plasma Cash](https://ethresear.ch/t/plasma-cash-plasma-with-much-less-per-user-data-checking/1298)
+proposal even does away with divisibility of tokens,
+making regular payments impractical and micropayments impossible.
+
+At least for our first version, the solution is to NOT deal with UTXOs,
+and instead always keep all the money in the chain consolidated at all times.
+*If* the main chain model allows for UTXOs being sent to the chain
+without the chain agreeing to it via some function call
+(TODO: what is the case for Tezos? Ethereum? Cardano?)
+then said UTXOs are not validated as part of the user account
+until the user (or, in a marketing gesture, the manager) pays a fee (inside the side-chain)
+that covers the cost (on the main chain) of merging the UTXO into THE UTXO for the side-chain
+as part of the next side-chain state update.
+
 
 ## Bibliography
+
+* Plasma:
+  [Plasma](http://plasma.io),
+  [ETH Research on Plasma](https://ethresear.ch/search?q=plasma),
+  [Construction of a Plasma Chain 0x1](https://blog.omisego.network/construction-of-a-plasma-chain-0x1-614f6ebd1612),
+  [Plasma MVP git](https://github.com/omisego/plasma-mvp.git)
 
 * [Alice and Bob](https://en.wikipedia.org/wiki/Alice_and_Bob)
 
@@ -278,4 +310,3 @@ How do we deal with failing managers who withhold signature on an ongoing transa
 * OCaml @ Jane Street:
  [documentation](https://ocaml.janestreet.com/ocaml-core/latest/doc/index.html),
  [OCaml Labs](http://ocamllabs.io/),
-
