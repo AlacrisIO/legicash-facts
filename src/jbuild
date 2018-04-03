@@ -3,6 +3,5 @@
 (jbuild_version 1)
 
 (executable
- ((name test_file)))
-
-      
+ ((name test_file)
+  (libraries (tezos-stdlib tezos-crypto))))

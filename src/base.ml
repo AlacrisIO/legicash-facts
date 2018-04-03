@@ -1,13 +1,13 @@
 (* base.mli -- base types for Legicash platform *)
 
 exception Timeout of string
+
 exception Double_spend of string
 
 type 'a legi_result = ('a, exn) result
 
 (** unique identifier for all parties, that is, customers and facilitators *)
-type public_key
-(* = Crypto_box.public_key *)
+type public_key = Tezos_crypto.Crypto_box.public_key
 
 type int256 =
   {field1: Int64.t; field2: Int64.t; field3: Int64.t; field4: Int64.t}
