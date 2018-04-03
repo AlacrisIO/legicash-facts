@@ -91,6 +91,11 @@ Postconditions:
 If 5 didn't happen, Alice still can get her money back, which
 the adversarial exit thing must take into account.
 
+TODO: in a future version, use contracts on the side-chain,
+with a contract that if Alice sends money to Trent2 on the main chain
+(or in another side-chain, e.g. announcing some USD transactions),
+then Trent will credit Alice on his side-chain.
+
 
 ### Adversarial Exit Flow
 
@@ -243,6 +248,41 @@ NB: Modal operator fork down (arecurrence) or fork up (coarecurrence)
 
 ### Predicting court fees as prelude to determining bond.
 
+The bond for someone starting a lawsuit should be expected with very high probability
+to more than cover all legal fees in the lawsuit,
+multiplied by a factor sufficient to impose a penalty on frivolous lawsuits (to be determined).
+
+The legal fees are proportional to the maximum depth of the argument by
+the expected price of the legal fees, within so many standard deviations.
+We can deduce the maximum depth of the argument from the formula being argued itself.
+As for the expected price of the legal fees:
+in a short-term contract, the price that the loser will pay the winner in legal fees
+should be agreed upon by the participants based when signing the contract,
+based on recent court fees and their recent standard deviation and historical spikes.
+For long-term contracts, they would better depend on an oracle;
+but then what if they rise higher than the bond posted by either party?
+What if it is hard to make such an oracle?
+If the blockchain has a builtin oracle for court fees, or some otherwise trusted oracle, great.
+If not, one way is to trust and agree as valid in a far enough future
+the past utterances of an oracle the validity of which all parties can check a posteriori;
+if the oracle ever lies, the participants can exit the contract
+before lying oracle values become effective;
+the limitation is that this supposes that participants can effectively price in advance
+(based on more basically trusted oracles) an exit from the contract
+without either party being a clear loser.
+Based on the same kind of oracles, parties may be required to up their ante and post a higher bond,
+or be considered in default with some penalty and/or loss of license as a consequence
+(or reputation, if applicable).
+
+If two third-party lawsuits for the same case (or subcase) are registered within the same block,
+one of them is anterior, and will take precedence.
+The other ones must be retracted in favor of whichever anterior third-party argument is valid,
+within a retraction window;
+or they will themselves be found frivolous if the anterior lawsuit concludes the case.
+Just like every two-party case can always be settled,
+every third-party lawsuit can be retracted in favor of an anterior one.
+
+
 ### Getting the logic model right
 
 The programming / logic model has to deal with
@@ -280,33 +320,3 @@ until the user (or, in a marketing gesture, the manager) pays a fee (inside the 
 that covers the cost (on the main chain) of merging the UTXO into THE UTXO for the side-chain
 as part of the next side-chain state update.
 
-
-## Bibliography
-
-* Plasma:
-  [Plasma](http://plasma.io),
-  [ETH Research on Plasma](https://ethresear.ch/search?q=plasma),
-  [Construction of a Plasma Chain 0x1](https://blog.omisego.network/construction-of-a-plasma-chain-0x1-614f6ebd1612),
-  [Plasma MVP git](https://github.com/omisego/plasma-mvp.git)
-
-* [Alice and Bob](https://en.wikipedia.org/wiki/Alice_and_Bob)
-
-* OCaml style guides:
- [Jane Street](https://opensource.janestreet.com/standards/),
- [OCaml.org](https://ocaml.org/learn/tutorials/guidelines.html),
- [INRIA](https://caml.inria.fr/resources/doc/guides/guidelines.en.html),
- [Xen Hypervisor](https://wiki.xenproject.org/wiki/OCaml_Best_Practices_for_Developers),
- [Decision Procedure Toolkit](http://dpt.sourceforge.net/conventions.html),
- [Cornell CS3110](https://www.cs.cornell.edu/courses/cs3110/2011sp/Handouts/style.htm),
- [UPenn CIS341](https://www.seas.upenn.edu/~cis341/current/programming_style.shtml),
- [Brown CS017](https://cs.brown.edu/courses/cs017/content/docs/ocaml-style.pdf).
-
-* Computability Logic:
- [Computability Logic](http://www.csc.villanova.edu/~japaridz/CL/)
-
-* K Framework:
- https://github.com/kframework/k-legacy/tree/master/k-distribution/tutorial/1_k/1_lambda/lesson_2
-
-* OCaml @ Jane Street:
- [documentation](https://ocaml.janestreet.com/ocaml-core/latest/doc/index.html),
- [OCaml Labs](http://ocamllabs.io/),
