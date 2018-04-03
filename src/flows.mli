@@ -1,14 +1,13 @@
 (* types for LegiCash flows *)
 
 exception Timeout of string
-
 exception Double_spend of string
 
 type 'a legi_result = ('a,exn) result
 
 (* unique identifier for all parties, that is, customers and facilitators *)
 
-type public_key
+type public_key (* = Crypto_box.public_key *)
 
 (* represents account balance *)
 
@@ -175,7 +174,7 @@ type account_status_t = {
     (* Number of times the account was previously closed or opened.
        If the number is even, the account is closed.
        If the number is odd, the account is open. *)
-    count : Int32;
+    count : Int32.t;
   }
 
 type account_status_confirmation_t = {
@@ -185,15 +184,15 @@ type account_status_confirmation_t = {
 
 type message_for_enter_settlement_flow_t =
   (* Step 1: Alice signs the new desired status and sends it to Trent. *)
-  | Account_status_change_request of account_status_t signed;
+  | Account_status_change_request of account_status_t signed
   (* Step 2: Trent signs the request, stores the confirmation, sends the confirmation to Alice. *)
-  | Account_status_change_confirmation of account_status_confirmation_t signed;
+  | Account_status_change_confirmation of account_status_confirmation_t signed
   (* Step 3: Alice sends money to Trent's contract on the main chain, using the normal mechanism,
      Plus some annotation to signify the public_key of the address on the side-chain,
      and including some fees to pre-pay UTXO consolidation.
      Otherwise, her UTXO is locked and all she can do is take it out.
    *)
-   (* Step 5: Trent commits transaction to side-chain *)
+   (* Step 5: Trent commits transaction to side-chain
 Alice sends money to Trent's contract on the main chain, using the normal mechanism *)
 
 
@@ -201,7 +200,7 @@ Alice sends money to Trent's contract on the main chain, using the normal mechan
  *)
 
 
-
+(*
 Preconditions:
 * Alice has an account on the main chain with balance X+F+R.
 * Trent has an account for Alice (voluntary or involuntary) with balance Y (or no account, and balance 0)
