@@ -1,0 +1,13 @@
+before_script:
+  # Debian packages
+  - apt-get update -y
+  - apt-get install -y unzip aspcud opam
+  # Install OPAM, OCaml
+  - opam init
+  - opam switch 4.06.1
+  - eval `opam config env`
+    
+build-legicash:
+  script:
+    - ./scripts/install-tezos.sh
+    - make
