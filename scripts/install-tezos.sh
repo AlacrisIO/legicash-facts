@@ -11,7 +11,7 @@ apt-get install -y libsnappy-dev
 opam install -y calendar cohttp-lwt-unix depext ezjsonm ipaddr && \
 opam install -y irmin jbuilder leveldb lwt mtime nocrypto && \
 opam install -y ocp-ocamlres ocplib-endian ocplib-json-typed && \
-opam install -y omake ounit re ssl stringext
+opam install -y omake opam-installer ounit re ssl stringext
 
 git clone https://gitlab.com/tezos/tezos.git && \
     cd tezos && \
