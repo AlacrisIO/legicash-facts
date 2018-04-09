@@ -8,23 +8,23 @@ We identified the following flows in Legicash FaCTS.
 For the M1 demo, we can stub most of them,
 and here are those we believe are really essential:
 
-* Payment Flow (It's the whole point)
-* Enter Settlement Flow / Account Creation (Necessary)
-* Adversarial Exit Flow (Must illustrate interactive proof)
+  1. Enter Settlement Flow / Account Creation (Necessary)
+  2. Payment Flow (It's the whole point)
+  3. Adversarial Exit Flow (Must illustrate interactive proof)
 
 These are necessary for the M2 Feature Complete release:
-* Cross-Facilitator Settlement Flow (necessary to scale multi-side-chains)
-* Exit Settlement Flow (necessary for practical use of facilitators)
-* Facilitator Invalidation Flow (necessary for security)
-* Involuntary Transfer Assignment Flow (necessary for security that scales and is fair)
-* Mass Transfers (necessary for security that scales)
+  4. Cross-Facilitator Settlement Flow (necessary to scale multi-side-chains)
+  5. Exit Settlement Flow (necessary for practical use of facilitators)
+  6. Facilitator Invalidation Flow (necessary for security)
+  7. Involuntary Transfer Assignment Flow (necessary for security that scales and is fair)
+  8. Mass Transfers (necessary for security that scales)
 
 Smaller flows necessary for M2:
-* Create Facilitator (very incomplete version for M1)
-* Update facilitator sidechain state + pay penalties (partial for M1)
-* Close facilitator (necessary for facilitators to get their money back)
-* Activate account (stub for M1?)
-* Denounce facilitator (both minor and major violations, no double jeopardy)
+  9. Create Facilitator (very incomplete version for M1)
+  10. Update facilitator sidechain state + pay penalties (partial for M1)
+  11. Close facilitator (necessary for facilitators to get their money back)
+  12. Activate account (stub for M1?)
+  13. Denounce facilitator (both minor and major violations, no double jeopardy)
 
 
 ### Payment Flow
@@ -81,11 +81,14 @@ Postconditions:
 * Alice has a voluntary account on Trent's side-chain with balance X+Y.
 * Trent receives fee F from Alice.
 
-1. Alice sends X+F to Trent's contract on the main chain
-2. Trent write M1...
-3. Trent commits M1 to side-chain
-4. Trent sends M1 to Alice (OKish if fails)
-5. Trent commits M1 to main chain
+1. Alice sends a signed account (re)activation request to Trent.
+2. Trents signs the request, stores the confirmation, sends the confirmation to Alice.
+3. Alice sends X+F to Trent's contract on the main chain
+4. Alice waits for confirmation then sends deposit request to Trent
+4. Trent writes deposit confirmation M1...
+5. Trent commits M1 to side-chain
+6. Trent sends M1 to Alice (OKish if fails)
+7. Trent commits M1 to main chain
 
 1 is enough for Alice to have her money back even if Trent fails.
 If 5 didn't happen, Alice still can get her money back, which
@@ -299,24 +302,31 @@ How do we deal with failing managers who withhold signature on an ongoing transa
 
 ### Dealing with UTXOs
 
-Plasma tries very hard to preserve a notion of UTXOs.
+Bitcoin maintains a model of UTXOs. Ethereum and Tezos just have account balances.
+(TODO: look what Cardano uses. I bet also account balances and not UTXOs for contract sanity.)
+At first we only intend to support Ethereum and Tezos, that don't use UTXOs;
+but in the future we may want to support Bitcoin, that does.
+
+Plasma tries very hard to preserve a notion of UTXOs so as to avoid double-exit.
 However, any non-trivial series of payments on the side-chain becomes impossible,
 short of repeating the same series on the main chain (under the ownership of the contract to itself),
 which would totally defeat the purpose of scaling.
 That's absurd, and
 [more absurdity ensues](https://ethresear.ch/t/one-proposal-for-plasma-cash-with-coin-splitting-and-merging/1447)
-trying to make it work.
+trying to make that work.
 The [Plasma Cash](https://ethresear.ch/t/plasma-cash-plasma-with-much-less-per-user-data-checking/1298)
-proposal even does away with divisibility of tokens,
+proposal even does away with divisibility of UTXOs,
 making regular payments impractical and micropayments impossible.
 
-At least for our first version, the solution is to NOT deal with UTXOs,
-and instead always keep all the money in the chain consolidated at all times.
-*If* the main chain model allows for UTXOs being sent to the chain
-without the chain agreeing to it via some function call
-(TODO: what is the case for Tezos? Ethereum? Cardano?)
+Our solution (at least for now) is to NOT deal with UTXOs,
+and instead always keep all the money in the contract consolidated
+at all (or most) times in a single UTXO (if the main chain has UTXOs).
+*If* the main chain model both has UTXOs and allows for them to be sent to a contract
+without the contract agreeing to it via some function call
 then said UTXOs are not validated as part of the user account
 until the user (or, in a marketing gesture, the manager) pays a fee (inside the side-chain)
-that covers the cost (on the main chain) of merging the UTXO into THE UTXO for the side-chain
+that covers the cost (on the main chain) of merging the UTXO into "the" UTXO for the contract
 as part of the next side-chain state update.
-
+We don't need to introduce UTXOs for our exit model, because
+we instead use a court registry, and map/reduce over parallel proofs
+as a way to compute proven-correct exit balances.
