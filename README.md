@@ -5,12 +5,29 @@ by [Legicash](http://legi.cash/)
 
 ### Toolchain
 
-Using [OPAM](https://opam.ocaml.org/), install the following:
+First, we need some basic libraries that can be installed as follows on Debian-based distributions:
+```
+sudo apt-get install -y libgmp-dev libleveldb-dev libsnappy-dev
+```
+
+Then, using [OPAM](https://opam.ocaml.org/), we need to install the following:
   * OCaml 4.06.1 (Tezos requires this version)
-  * jbuilder (dune)
+  * jbuilder (a.k.a. dune)
   * ocamlformat
   * Merlin
   * Tuareg
+
+```
+opam update
+opam switch 4.06.1
+eval `opam config env`
+opam pin -y add ocplib-json-typed --dev # temporary
+opam install -y jbuilder ocamlformat merlin tuareg \
+    calendar cohttp-lwt-unix depext ezjsonm ipaddr \
+    irmin jbuilder leveldb lwt mtime nocrypto \
+    ocp-ocamlres ocplib-endian ocplib-json-typed \
+    omake opam-installer ounit re ssl stringext
+```
 
 ### Coding Style
 
