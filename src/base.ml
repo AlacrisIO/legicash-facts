@@ -1,8 +1,10 @@
-(* base.mli -- base types for Legicash platform *)
+(* base.ml -- base types for Legicash platform *)
 
+(*
 exception Timeout of string
 
 exception Double_spend of string
+*)
 
 type 'a legi_result = ('a, exn) result
 
@@ -10,29 +12,36 @@ type 'a legi_result = ('a, exn) result
 type public_key = Tezos_crypto.Crypto_box.public_key
 
 type int256 =
-  {field1: Int64.t; field2: Int64.t; field3: Int64.t; field4: Int64.t}
+  { field1: Int64.t
+  ; field2: Int64.t
+  ; field3: Int64.t
+  ; field4: Int64.t }
 
-type signature_t = int256
+type 'a signature = int256
 
-type digest_t = int256
-
-(** represents account balance *)
-type token_amount
-
-type revision_t = Int64.t
-
-(** Hash of the header for the height. *)
-type duration_t = Int32.t
+val is_signature_valid: public_key -> 'a -> 'a signature -> bool = raise "foo"
 
 type 'a signed =
-  | Signed of {payload: 'a; signer: public_key; signature: signature_t}
+  { payload: 'a
+  ; signature: 'a signature }
 
-(** Number of consensus, if linear block-based. Timestamp if DAG-based? *)
-type main_chain_height_t = Int32.t
+type 'a digest = int256
 
-type main_chain_state = digest_t
+(** represents account balance *)
+type token_amount (* = tez *)
 
-type side_chain_state = digest_t
+type revision = Int64.t
 
-(** endpoint + state of communication + possibility of reconnection *)
+type timestamp = Int64.t (* TODO: use same as Tezos *)
+
+type duration = Int32.t
+
+type main_chain_heigth = Int32.t
+
+type main_chain_state
+
+type main_chain_transaction
+
+type main_chain_transaction_confirmation
+
 type conversation

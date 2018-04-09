@@ -2,181 +2,255 @@
 
 open Base
 
-type account_state =
-  {active: bool; balance: token_amount; change_number: revision_t}
+(** state stored by a user *)
+type user_state
 
-(* associate users with their accounts *)
+(** function from 'a to 'b that acts on a user_state *)
+type ('a, 'b) user_action = user_state * 'a -> user_state * 'b legi_result
 
-type account_tbl = (public_key, account_state) Hashtbl.t
+(** state stored by a facilitator *)
+type facilitator_state
 
+(** function from 'a to 'b that acts on a facilitator_state *)
+type ('a, 'b) facilitator_action =
+  facilitator_state * 'a -> facilitator_state * 'b legi_result
+
+(** side chain state is a public extract of the facilitator state regularly posted on the main chain *)
+type side_chain_state
+
+(** side chain update to be posted on the main chain *)
+type side_chain_update
+
+(** state stored by a verifier *)
+type verifier_state
+
+(** function from 'a to 'b that acts on a verifier_state *)
+type ('a, 'b) verifier_action =
+  verifier_state * 'a -> verifier_state * 'b legi_result
+
+val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
+(** constantly watch the main chain and search for prosecutable issues relating to facilitators *)
+
+(** state for a single user account at a single facilitator *)
+type account_state
+
+(** single operation on an account *)
+type account_operation
+
+(** memo to include in a check *)
 type memo = string option
 
-type check_t =
-  { sender: public_key
-  ; recipient: public_key
+(** message from user to user *)
+type user_to_user_message
+
+(** message from user to facilitator *)
+type user_to_facilitator_message
+
+(** message from facilitator to user *)
+type facilitator_to_user_message
+
+(** message from facilitator to facilitator *)
+type facilitator_to_facilitator_message
+
+(** integer that uniquely identifies a type of message *)
+type message_type
+
+(** header for all transactions
+    Future Optimization: when storing the transaction in memory or on disk,
+    common data that can be deduced from context is omitted from storage and computed instead.
+    But when signing the transaction and showing the evidence of the transaction to clients,
+    the full data is included.
+ *)
+type tx_header =
+  { message_type: message_type (* Type of the message *)
+  ; tx_revision: revision
+  (* transaction revision for the facilitator *) }
+
+(** header for all requests
+    Request header.
+    Every client request that initiates a transaction comes with a request window,
+    that puts a cap on the validity of the request in terms of inclusion in the main chain.
+    Thus, the other parties cannot hold the requestor's resource indefinitely on hold.
+    Additionally, the request may contains reference to the root of the main chain consensus,
+    so that it is clear which fork the transaction happens in;
+    in some cases, it might be OK to be active in multiple forks;
+    in other cases, it might lead to the requestor being punished in both.
+    Note that the request_window_t data could be summarized in a hash,
+    so the details can be omitted in future state logs, saving space;
+    but the content would still need to be published for present validation,
+    so that is a space loss in the short run (and/or for long-term archivers).
+    Alternatively, to save space, the root may not be stored in places where the validity
+    requires the root to be the same as *the* known consensual root at the given date.
+ *)
+type rx_header =
+  { message_type: message_type
   ; facilitator: public_key
-  ; amount: token_amount
-  ; fee: token_amount
-  ; prev_change_number: revision_t
-  ; current_change_number: revision_t
-  ; chain_root: main_chain_state
-  ; side_chain_root: side_chain_state
-  ; expires_at: duration_t
-  ; invoice_id: memo
-  ; expedited: bool }
+  ; requester: public_key
+  ; confirmed_main_chain_state_digest: main_chain_state digest
+  ; confirmed_main_chain_state_timestamp: timestamp
+  ; confirmed_side_chain_state_digest: side_chain_state digest
+  ; validity_within: duration }
+(* Flow 1: Opening an account *)
 
-type certified_check_t =
-  { facilitator: public_key
-  ; side_chain_revision: revision_t
-  ; previous_side_chain_revision: revision_t
-  ; spending_limit: token_amount }
+(** Account activity status request / result *)
+type account_activity_status =
+  { rx_header: rx_header
+  ; count: revision
+  (* Number of times the account was previously closed or opened. 0 is never opened. *)
+  }
 
-type facilitator_state =
-  { bond_posted: token_amount
-  ; accounts: account_tbl
-  ; current_change_number: revision_t
-  ; current_limit:
-      token_amount (* how much limit is unspent during this cycle *)
-  ; per_account_limit: token_amount
-  ; chain_root: main_chain_state
-  ; (* when did we last update? *)
-  last_posted_side_chain_root: side_chain_state
-  ; (* what did we last post? *)
-  pending_transactions: certified_check_t signed list
-  (* Q: indexed by expedited or not? *)
-  (* pending lawsuits ? *) }
-
-type settlement_proposal_t =
-  { sender: public_key
-  ; sender_facilitator: public_key
-  ; recipient: public_key
-  ; recipient_facilitator: public_key }
-
-(* associate facilitators with their accounts *)
-
-type facilitator_tbl = (public_key, facilitator_state) Hashtbl.t
-
-type message =
-  (* invariant: signer same as sender *)
-  | Signed_check of check_t signed
-  (* invariant: signer same as facilitator *)
-  | Certified_check of certified_check_t signed
-  (* invariant: signer same as both facilitators *)
-  | Double_spend_denunciation of
-      certified_check_t signed * certified_check_t signed
-  | Settlement_proposal of settlement_proposal_t signed
-
-(* step 2 of Payment Flow *)
-
-val send_check_for_certification :
-  check_t signed -> conversation -> certified_check_t signed
-(** side effects:
-    - communicate over the network to facilitator mentioned in the check
-    - get back a signed certified check from the facilitator
-    - maybe raise a Timeout exception
+val open_account : (unit, account_activity_status signed) user_action
+(** Flow 1 Step 1: ensure an account is open.
+    Idempotent.
+    (current type assumes a single facilitator per user)
  *)
 
-(* message-sending operations *)
-(* for all the following operations, can return a Timeout exception *)
-(* Alice does this to Bob. Does Trent do it to Alice, or does he have a separate interface??? *)
-(* step 5,6,7 of Payment Flow *)
-(* TODO: maybe pack more info in result for success case *)
+val close_account : (unit, account_activity_status signed) user_action
+(** Ensure an account is closed.
+    Idempotent.
+    (current type assumes a single facilitator per user)
+ *)
 
-val send_certified_check :
-  certified_check_t signed -> conversation -> unit legi_result
+val is_account_activity_status_open : account_activity_status -> bool
+(** An account status is open if it was opened one more time than it was closed,
+    i.e. iff its revision number is odd.
+ *)
 
-(** side effects:
+val confirm_account_activity_status :
+  ( account_activity_status signed
+  , account_activity_status_confirmation signed )
+  facilitator_action
+(** Flow 1 Step 2: Confirm account status for facilitator *)
+
+val deposit : (token_amount, main_chain_transaction) user_action
+(** Flow 1 Step 3: user sends money on the main chain *)
+
+(** deposit request *)
+type deposit_request =
+  { header: rx_header
+  ; amount: token_amount
+  ; fee: token_amount
+  ; tx_confirmation: main_chain_transaction_confirmation }
+
+val request_deposit :
+  (token_amount * main_chain_transaction, deposit_request signed) user_action
+(** Flow 1 Step 4: user pays entry fee on the side chain *)
+
+(** Type for deposit confirmation *)
+type deposit_confirmation = {header: tx_header; request: deposit_request}
+
+val confirm_deposit :
+  (deposit_request signed, deposit_confirmation signed) facilitator_action
+(** Flow 1 Step 5: facilitator acknowledges deposit, stores it and sends it to user *)
+
+(* Flow 2: Payment *)
+
+(** invoice
+    TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
+ *)
+type invoice = {recipient: public_key; amount: token_amount; memo: memo}
+
+(** check to be signed by the sender *)
+type check =
+  {header: rx_header; invoice: invoice; fee: token_amount; expedited: bool}
+
+val create_check : (invoice, check signed) user_action
+(** Flow 2 Step 1: Alice fills in the details of a check from an initial invoice, then signs it.
+    In practice, the system interactively offers the user the facilitators, fees, delays, etc.,
+    available to pay the merchant and let him decide.
+ *)
+
+(** certified check to be signed by the facilitator *)
+type certified_check =
+  {header: tx_header; signed_check: check signed; spending_limit: token_amount}
+
+val certify_check : (check signed, certified_check signed) facilitator_action
+(** Flow 2 Step 2: Trent verifies that everything's fine and signs a certified check,
+    store it to database and returns it to Alice who transmits it to Bob.
+ *)
+
+(** Flow 2 Step 3: Bob does due diligence by publishing the certified check to the Gossip
+    network's shard that watches Trent and waits for propagation and non-contradiction
+    Maybe he asks gossip nodes for signed affidavits of non-contradiction?
+    Contradiction would be a positive proof of double-spend or other irregularity by Trent
+    (numbers that don't match).
+    For affidavits to be actually useful, they would have to be recognized during the
+    subsequent liquidation process of a failed Trent,
+    i.e. the gossipers would be court clerks.
+    Do we also want to detect lies by clerks and liquidate them?
+    There's no end to the madness!
+
+    side effects:
     - communicate with the gossip network to check that the certified check isn't a double-spend
     - maybe return a Double_spend exception
     - because parametric in conversation, can also be used to check double-spending on gossip network
  *)
 
-val commit_side_chain_state : unit -> unit legi_result
-(** for a facilitator, commit the state of the side-chain to the main-chain *)
+val publish_certified_check : (certified_check signed, unit) user_action
 
-(* flow operations *)
+val accept_payment : (certified_check signed, unit) user_action
+(** Flow 2 Step 4: Bob accepts the payment, notifies Alice and delivers the service *)
 
-type x_facilitator_preconditions
+(** message-sending operations *)
 
-(* difference for main_chain_height_t *)
-(* Transaction header.
-   Every transaction in a Legicash side-chain starts with the same header.
-   Future Optimization: when storing the transaction in memory or on disk,
-   common data that can be deduced from context is omitted from storage and computed instead.
-   But when signing the transaction and showing the evidence of the transaction to clients,
-   the full data is included.
+val send_message : 'a -> conversation -> unit legi_result
+(** Send a message
+    TODO: somehow use bounded polymorphism to restrict 'a to marshallizable classes?
+    TODO: To be implemented but not exposed
  *)
 
-type tx_header_t =
-  { message_type: Int32.t
-  ; (* Type of the message *)
-  tx_revision: revision_t
-  (* *) }
+val account_activity_status_request_signed :
+  account_activity_status_request signed -> conversation -> unit legi_result
 
-(* Request header.
-   Every client request that initiates a transaction comes with a request window,
-   that puts a cap on the validity of the request in terms of inclusion in the main chain.
-   Thus, the other parties cannot hold the requestor's resource indefinitely on hold.
-   Additionally, the request may contains reference to the root of the main chain consensus,
-   so that it is clear which fork the transaction happens in;
-   in some cases, it might be OK to be active in multiple forks;
-   in other cases, it might lead to the requestor being punished in both.
-   Note that the request_window_t data could be summarized in a hash,
-   so the details can be omitted in future state logs, saving space;
-   but the content would still need to be published for present validation,
-   so that is a space loss in the short run (and/or for long-term archivers).
-   Alternatively, to save space, the root may not be stored in places where the validity
-   requires the root to be the same as *the* known consensual root at the given date.
+val account_activity_status_confirmation_signed :
+  account_activity_status_confirmation signed -> conversation
+  -> unit legi_result
+
+val send_check_signed : check signed -> conversation -> unit legi_result
+
+val send_certified_check_signed :
+  certified_check signed -> conversation -> unit legi_result
+
+(* TODO: and send functions for all messages of all flows. *)
+
+val commit_side_chain_state : (unit, unit) facilitator_action
+(** For a facilitator, commit the state of the side-chain to the main-chain *)
+
+(* Flow 3: Individual Adversarial Exit *)
+
+val initiate_individual_exit : (unit, main_chain_transaction) user_action
+(** Flow 3 Step 1: Alice posts an account_activity_status request for closing the account
+ on the *main chain*.
  *)
 
-type rx_header_t =
-  {root: main_chain_state; date: main_chain_height_t; timeout: duration_t}
+(* val embed_request: (user_request, main_chain_transaction) user_action *)
 
-type account_status_t =
-  { (* Number of times the account was previously closed or opened. *)
-  rx_header: rx_header_t
-  ; count: Int32.t }
-
-val account_open : account_status_t -> bool
-
-(* number is even iff the account is closed, odd iff the account closed *)
-
-type account_status_confirmation_t =
-  {tx_header: tx_header_t; request: account_status_t signed}
-
-type message_for_enter_settlement_flow_t =
-  (* Step 1: Alice signs the new desired status and sends it to Trent. *)
-  | Account_status_change_request of account_status_t signed
-  (* Step 2: Trent signs the request, stores the confirmation, sends the confirmation to Alice. *)
-  | Account_status_change_confirmation of account_status_confirmation_t signed
-(* Step 3: Alice sends money to Trent's contract on the main chain, using the normal mechanism,
-     Plus some annotation to signify the public_key of the address on the side-chain,
-     and including some fees to pre-pay UTXO consolidation.
-     Otherwise, her UTXO is locked and all she can do is take it out.
-   *)
-(* Step 5: Trent commits transaction to side-chain
-Alice sends money to Trent's contract on the main chain, using the normal mechanism *)
-(* Actors: Alice (sender), Trent (facilitator)
+val check_main_chain_for_exits :
+  (unit, account_activity_status list) facilitator_action
+(** Flow 3 Step 2: Trent, who follows the main chain, checks for such exit requests.
+    When one is found, Trent is on notice to post an update of his side-chain within
+    an allowed deadline, that features a confirmation for these requests.
+    Alternatively, Trent fails, and bankruptcy proceedings start — see Flow 6, 7 and 8.
  *)
-(*
-Preconditions:
-* Alice has an account on the main chain with balance X+F+R.
-* Trent has an account for Alice (voluntary or involuntary) with balance Y (or no account, and balance 0)
-* Trent already has an open contract on the main
 
-Postconditions:
-* Alice has an account on the main chain with balance R.
-* Alice has a voluntary account on Trent's side-chain with balance X+Y.
-* Trent receives fee F from Alice.
+(** Flow 3 Step 3: Alice, who can see the final state of her account,
+    posts on the main chain a demand for the final funds.
+    This is signed then posted on the *main chain* by invoking the contract.
+    This puts Trent and all verifiers on notice to check that Alice isn't lying,
+    and post a lawsuit within a timeout window.
+ *)
+type account_liquidation_request = {header: rx_header; details: invoice}
 
-1. Alice sends X+F to Trent's contract on the main chain
-2. Trent write M1...
-3. Trent commits M1 to side-chain
-4. Trent sends M1 to Alice (OKish if fails)
-5. Trent commits M1 to main chain
+val request_account_liquidation : (invoice, main_chain_transaction) user_action
 
-1 is enough for Alice to have her money back even if Trent fails.
-If 5 didn't happen, Alice still can get her money back, which
-the adversarial exit thing must take into account.
+(** Flow 3 Step 4: Trent signs and posts a confirmation on his side-chain.
+ *)
+type account_liquidation_confirmation =
+  {header: tx_header; request: account_liquidation_request}
 
+val collect_account_liquidation_funds :
+  (unit, main_chain_transaction) user_action
+(** Flow 3 Step 5: After no one speaks up during a challenge period,
+    Alice invokes the contract on the main chain that actually pays the recipient
+    specified in her invoice.
  *)
