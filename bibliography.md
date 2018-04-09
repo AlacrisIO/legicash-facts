@@ -43,3 +43,15 @@
 * Byzantine Fault Tolerance:
  [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015)
 
+* Scaling:
+ [Ethereum wiki Sharding FAQ](https://github.com/ethereum/wiki/wiki/Sharding-FAQ),
+ [Ethereum Sharding introduction and implementations](https://github.com/ethereum/wiki/wiki/Sharding-introduction-and-implementations).
+
+* Oracles:
+ [Truthcoin on Oracles vs Contracts](http://www.truthcoin.info/blog/contracts-oracles-sidechains/)
+ (lots of great ideas, lots of more dubious ideas; great food for thought).
+
+* Contracts in Tezos:
+  [Michelson: the language of Smart Contracts in Tezos (PDF)](https://www.tezos.com/static/papers/language.pdf),
+  [Michelson-lang.com](https://www.michelson-lang.com/),
+  [Tezos Forum on Smart contracts](https://forums.tezos.community/c/smart-contracts).
