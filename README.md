@@ -48,6 +48,12 @@ So, to build Tezos, use OPAM to install:
   * ssl
   * stringext
 
+For now, you should also run 
+
+    opam pin add ocplib-json-typed --dev 
+
+Once the dev version becomes current, this step should be unnecessary.
+
 Also, clone *leveldb* from https://github.com/mfp/ocaml-leveldb, and build
 using *omake*. There is an OPAM package for *leveldb*, but it is out-of-date, and
 does not build with OCaml 4.06.1. For your Linux distro, you may need to install
