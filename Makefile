@@ -24,4 +24,8 @@ test_file : src/test_file.ml
 	$(SHOW) "Running jbuilder on sources"
 	$(HIDE) $(BUILDER) build --root=src test_file.exe
 
+clean : src/test_file.ml
+	$(SHOW) "Cleaning via jbuilder"
+	$(HIDE) $(BUILDER) clean --root=src
+
 
