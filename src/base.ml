@@ -1,10 +1,8 @@
 (* base.ml -- base types for Legicash platform *)
 
-(*
+exception Not_implemented
 exception Timeout of string
-
 exception Double_spend of string
-*)
 
 type 'a legi_result = ('a, exn) result
 
@@ -19,7 +17,7 @@ type int256 =
 
 type 'a signature = int256
 
-val is_signature_valid: public_key -> 'a -> 'a signature -> bool = raise "foo"
+let is_signature_valid key payload signature = raise Not_implemented
 
 type 'a signed =
   { payload: 'a
@@ -36,7 +34,7 @@ type timestamp = Int64.t (* TODO: use same as Tezos *)
 
 type duration = Int32.t
 
-type main_chain_heigth = Int32.t
+type main_chain_height = Int32.t
 
 type main_chain_state
 

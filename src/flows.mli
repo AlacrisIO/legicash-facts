@@ -93,31 +93,37 @@ type rx_header =
 (* Flow 1: Opening an account *)
 
 (** Account activity status request / result *)
-type account_activity_status =
+type account_activity_status_request =
   { rx_header: rx_header
   ; count: revision
   (* Number of times the account was previously closed or opened. 0 is never opened. *)
   }
 
-val open_account : (unit, account_activity_status signed) user_action
+type account_activity_status_confirmation =
+  { header: tx_header
+  ; status: account_activity_status_request }
+
+val open_account : (unit, account_activity_status_request signed) user_action
 (** Flow 1 Step 1: ensure an account is open.
     Idempotent.
     (current type assumes a single facilitator per user)
  *)
 
-val close_account : (unit, account_activity_status signed) user_action
+val close_account : (unit, account_activity_status_request signed) user_action
 (** Ensure an account is closed.
     Idempotent.
     (current type assumes a single facilitator per user)
  *)
 
-val is_account_activity_status_open : account_activity_status -> bool
+val is_account_activity_status_open : account_activity_status_request -> bool
 (** An account status is open if it was opened one more time than it was closed,
     i.e. iff its revision number is odd.
  *)
 
+
+
 val confirm_account_activity_status :
-  ( account_activity_status signed
+  ( account_activity_status_request signed
   , account_activity_status_confirmation signed )
   facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
@@ -226,7 +232,7 @@ val initiate_individual_exit : (unit, main_chain_transaction) user_action
 (* val embed_request: (user_request, main_chain_transaction) user_action *)
 
 val check_main_chain_for_exits :
-  (unit, account_activity_status list) facilitator_action
+  (unit, account_activity_status_request list) facilitator_action
 (** Flow 3 Step 2: Trent, who follows the main chain, checks for such exit requests.
     When one is found, Trent is on notice to post an update of his side-chain within
     an allowed deadline, that features a confirmation for these requests.
