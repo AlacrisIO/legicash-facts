@@ -1,4 +1,6 @@
-(* base.mli -- base types for Legicash platform *)
+(* base.ml -- base types for Legicash platform *)
+
+exception Not_implemented
 
 exception Timeout of string
 
@@ -12,27 +14,33 @@ type public_key = Tezos_crypto.Crypto_box.public_key
 type int256 =
   {field1: Int64.t; field2: Int64.t; field3: Int64.t; field4: Int64.t}
 
-type signature_t = int256
+type 'a signature = int256
 
-type digest_t = int256
+let is_signature_valid key payload signature = raise Not_implemented
+
+type 'a signed = {payload: 'a; signature: 'a signature}
+
+type 'a digest = int256
 
 (** represents account balance *)
 type token_amount
 
-type revision_t = Int64.t
+(* = tez *)
 
-(** Hash of the header for the height. *)
-type duration_t = Int32.t
+type revision = Int64.t
 
-type 'a signed =
-  | Signed of {payload: 'a; signer: public_key; signature: signature_t}
+type timestamp = Int64.t
 
-(** Number of consensus, if linear block-based. Timestamp if DAG-based? *)
-type main_chain_height_t = Int32.t
+(* TODO: use same as Tezos *)
 
-type main_chain_state = digest_t
+type duration = Int32.t
 
-type side_chain_state = digest_t
+type main_chain_height = Int32.t
 
-(** endpoint + state of communication + possibility of reconnection *)
+type main_chain_state
+
+type main_chain_transaction
+
+type main_chain_transaction_confirmation
+
 type conversation
