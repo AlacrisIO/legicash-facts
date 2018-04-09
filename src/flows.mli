@@ -100,8 +100,7 @@ type account_activity_status_request =
   }
 
 type account_activity_status_confirmation =
-  { header: tx_header
-  ; status: account_activity_status_request }
+  {header: tx_header; status: account_activity_status_request}
 
 val open_account : (unit, account_activity_status_request signed) user_action
 (** Flow 1 Step 1: ensure an account is open.
@@ -119,8 +118,6 @@ val is_account_activity_status_open : account_activity_status_request -> bool
 (** An account status is open if it was opened one more time than it was closed,
     i.e. iff its revision number is odd.
  *)
-
-
 
 val confirm_account_activity_status :
   ( account_activity_status_request signed

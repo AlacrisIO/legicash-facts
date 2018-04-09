@@ -8,12 +8,9 @@ type message_type = Int32.t
 
 type side_chain_state =
   { previous_main_chain_state: main_chain_state digest
-  ; previous_side_chain_state: side_chain_state digest
-  }
+  ; previous_side_chain_state: side_chain_state digest }
 
-type tx_header =
-  { message_type: message_type
-  ; tx_revision: revision }
+type tx_header = {message_type: message_type; tx_revision: revision}
 
 type rx_header =
   { message_type: message_type
@@ -40,6 +37,7 @@ type account_state =
 type account_operation
 
 type user_state
+
 type ('a, 'b) user_action = user_state * 'a -> user_state * 'b legi_result
 
 type verifier_state
@@ -48,8 +46,8 @@ type ('a, 'b) verifier_action =
   verifier_state * 'a -> verifier_state * 'b legi_result
 
 type facilitator_state =
-  { latest_registered_state: facilitator_state signature
-  ; latest_parent_state: main_chain_state signature
+  { latest_registered_state: facilitator_state digest
+  ; latest_parent_state: main_chain_state digest
   ; account_states: (public_key, account_state) Hashtbl.t
   ; account_operations: (public_key, account_operation list) Hashtbl.t
   ; bond_posted: token_amount
@@ -132,14 +130,10 @@ type x_facilitator_preconditions
 
 let send_message payload conv = raise Not_implemented
 
-type account_activity_status_request =
-  { rx_header: rx_header
-  ; count: revision
-  }
+type account_activity_status_request = {rx_header: rx_header; count: revision}
 
 type account_activity_status_confirmation =
-  { header: tx_header
-  ; status: account_activity_status_request }
+  {header: tx_header; status: account_activity_status_request}
 
 type deposit_request =
   { header: rx_header
@@ -147,40 +141,57 @@ type deposit_request =
   ; fee: token_amount
   ; tx_confirmation: main_chain_transaction_confirmation }
 
-type deposit_confirmation =
-  {header: tx_header
-  ; request: deposit_request}
+type deposit_confirmation = {header: tx_header; request: deposit_request}
 
-type account_liquidation_request =
-  { header: rx_header
-  ; details: invoice}
+type account_liquidation_request = {header: rx_header; details: invoice}
+
 type account_liquidation_confirmation =
   {header: tx_header; request: account_liquidation_request}
 
 (** missing types to be implemented *)
 
 type facilitator_to_facilitator_message
+
 type user_to_user_message
 
 (** missing values to be implemented *)
 
 let collect_account_liquidation_funds = Obj.magic 42
+
 let request_account_liquidation = Obj.magic 42
+
 let check_main_chain_for_exits = Obj.magic 42
+
 let initiate_individual_exit = Obj.magic 42
+
 let send_certified_check_signed = Obj.magic 42
+
 let send_check_signed = Obj.magic 42
+
 let account_activity_status_confirmation_signed = Obj.magic 42
+
 let account_activity_status_request_signed = Obj.magic 42
+
 let accept_payment = Obj.magic 42
+
 let publish_certified_check = Obj.magic 42
+
 let certify_check = Obj.magic 42
+
 let create_check = Obj.magic 42
+
 let confirm_deposit = Obj.magic 42
+
 let request_deposit = Obj.magic 42
+
 let deposit = Obj.magic 42
+
 let confirm_account_activity_status = Obj.magic 42
+
 let is_account_activity_status_open = Obj.magic 42
+
 let close_account = Obj.magic 42
+
 let open_account = Obj.magic 42
+
 let detect_main_chain_facilitator_issues = Obj.magic 42
