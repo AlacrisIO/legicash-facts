@@ -2,6 +2,8 @@
 
 exception Not_implemented
 
+let bottom () : 'a = raise Not_implemented
+
 open Base
 
 type message_type = Int32.t
@@ -156,42 +158,46 @@ type user_to_user_message
 
 (** missing values to be implemented *)
 
-let collect_account_liquidation_funds = Obj.magic 42
+let collect_account_liquidation_funds = bottom ()
 
-let request_account_liquidation = Obj.magic 42
+let request_account_liquidation = bottom ()
 
-let check_main_chain_for_exits = Obj.magic 42
+let check_main_chain_for_exits = bottom ()
 
-let initiate_individual_exit = Obj.magic 42
+let initiate_individual_exit = bottom ()
 
-let send_certified_check_signed = Obj.magic 42
+let send_certified_check_signed = bottom ()
 
-let send_check_signed = Obj.magic 42
+let send_check_signed = bottom ()
 
-let account_activity_status_confirmation_signed = Obj.magic 42
+let account_activity_status_confirmation_signed = bottom ()
 
-let account_activity_status_request_signed = Obj.magic 42
+let account_activity_status_request_signed = bottom ()
 
-let accept_payment = Obj.magic 42
+let accept_payment = bottom ()
 
-let publish_certified_check = Obj.magic 42
+let publish_certified_check = bottom ()
 
-let certify_check = Obj.magic 42
+let certify_check = bottom ()
 
-let create_check = Obj.magic 42
+let create_check = bottom ()
 
-let confirm_deposit = Obj.magic 42
+let confirm_deposit = bottom ()
 
-let request_deposit = Obj.magic 42
+let request_deposit = bottom ()
 
-let deposit = Obj.magic 42
+let deposit = bottom ()
 
-let confirm_account_activity_status = Obj.magic 42
+let confirm_account_activity_status = bottom ()
 
-let is_account_activity_status_open = Obj.magic 42
+let is_account_activity_status_open = bottom ()
 
-let close_account = Obj.magic 42
+let close_account = bottom ()
 
-let open_account = Obj.magic 42
+let open_account = bottom ()
 
-let detect_main_chain_facilitator_issues = Obj.magic 42
+let detect_main_chain_facilitator_issues = bottom ()
+
+let confirm_account_liquidation = bottom ()
+
+let collect_account_liquidation_funds = bottom ()

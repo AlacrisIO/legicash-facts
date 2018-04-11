@@ -251,6 +251,11 @@ val request_account_liquidation : (invoice, main_chain_transaction) user_action
 type account_liquidation_confirmation =
   {header: tx_header; request: account_liquidation_request}
 
+val confirm_account_liquidation :
+  ( account_liquidation_request signed
+  , account_liquidation_confirmation )
+  facilitator_action
+
 val collect_account_liquidation_funds :
   (unit, main_chain_transaction) user_action
 (** Flow 3 Step 5: After no one speaks up during a challenge period,
