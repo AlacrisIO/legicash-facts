@@ -4,18 +4,22 @@ exception Not_implemented
 
 let bottom () : 'a = raise Not_implemented
 
-let list_of_option = function None -> [] | Some x -> [x]
-(* TODO: find which is canonical according to the style guide between this and
+(** TODO: find which is canonical according to the style guide between this and
 let list_of_option x = match x with None -> [] | Some x -> [x]
   and/or define a new style guide rule with motivation.
  *)
+let list_of_option = function None -> [] | Some x -> [x]
 
 open Base
+
+
+
 
 (** Witness for confirmation
     For a rx from Alice, the tx from Trent
     For a main chain tx, the block from Judy
-    TODO: use GADTs?
+    TODO: use GADTs, where type parameter indicates
+      who is affected (facilitator or customer)
  *)
 type operation_confirmation =
   Transaction (* TODO: of tx from Trent *)
@@ -61,7 +65,7 @@ type operation
 type episteme =
   { operation: operation
   ; consensus_stage: knowledge_stage
-  ; actor_stages: (public_key, knowledge_stage) alist }
+  ; facilitator_stage: knowledge_stage (* where there is no facilitator, it is always Unknown *) }
 
 type message_type = Int32.t
 
@@ -151,7 +155,7 @@ type user_state =
   ; pending_operations: episteme list
 
   (* Only store the confirmed state, and have any updates in pending *)
-  ; facilitators: (public_key, user_account_status) Hashtbl.t
+  ; facilitators: (public_key, facilitator_account_state_per_user) Hashtbl.t
   }
 
 type ('a, 'b) user_action = user_state * 'a -> user_state * 'b legi_result
@@ -164,7 +168,7 @@ type ('a, 'b) verifier_action =
 type facilitator_state =
   { latest_registered_state: facilitator_state digest
   ; latest_parent_state: main_chain_state digest
-  ; account_states: (public_key, account_state) Hashtbl.t
+  ; account_states: (public_key, facilitator_account_state_per_user) Hashtbl.t
   ; account_operations: (public_key, account_operation list) Hashtbl.t
   ; bond_posted: token_amount
   ; current_revision: revision (* incremented at every change *)
@@ -236,13 +240,13 @@ type message =
 
 (* type client_state = xxx *)
 
-let make_check_for_certification check conv = raise Not_implemented
+let make_check_for_certification check conv = bottom ()
 
-let send_certified_check check conv = raise Not_implemented
+let send_certified_check check conv = bottom ()
 
-let commit_side_chain_state = raise Not_implemented
+let commit_side_chain_state = bottom ()
 
-let send_message payload conv = raise Not_implemented
+let send_message payload conv = bottom ()
 
 type account_activity_status_request = {rx_header: rx_header; count: revision}
 
@@ -273,22 +277,40 @@ let is_account_confirmed_open state =
     None => false
   | Some rx => is_account_activity_status_open rx
 
+let apply_operation state change =
+  bottom ()
+
+let apply_operations state changes =
+  reduce apply_operation state change
+
+let is_valid_episteme episteme =
+  match episteme.consensus_stage with Rejected _ -> false | _ -> true
+
+let optimistic_state state =
+  let relevant_changes = filter is_valid_episteme state.pending in
+  apply_operations state relevant_changes
+
+let user_activity_revision_for_facilitator user_state =
+  match os.facilitators.get(facilitator_pk) with None -> 0 | Some x -> x.active
+
+let mk_rx_episteme rx = mk_episteme rx Unknown Unknown
+
+let mk_tx_episteme tx = mk_episteme tx Unknown (Confirmed tx)
+
+let add_episteme state episteme =
+  update_pending state (fun pending -> episteme :: pending)
+
 (**
   TODO: take into account not just the facilitator name, but the fee schedule, too.
   TODO: exception if facilitator dishonest.
  *)
-let open_account (state, public_key) =
-  let all_activity_status_operations =
-    (list_of_option state.latest_activity_status_confirmation) @
-      (List.filter is_activity_status_operation state.pending) in
-  let all_activity_operations
-  if is_account_confirmed_open state
-
-  let latest_request = state.latest_activity_status_request in
-  
-  match latest_request with
-  | None => 
-  if is_activity_status_request
+let open_account (state, facilitator_pk) =
+  let os = optimistic_state state in
+  let revision = user_activity_revision_for_facilitator os in
+  if is_odd revision
+  then (state, None)
+  else let rx = make_account_status_request state facilitator_pk (revision + 1) in
+       (add_episteme state (mk_rx_episteme rx), Some rx)
 
 (** missing values to be implemented *)
 
@@ -326,8 +348,10 @@ let deposit = bottom ()
 
 let confirm_account_activity_status = bottom ()
 
+let is_odd x = (x % 2) == 1
+
 let is_account_activity_status_open account_activity_status_request =
-  ((account_activity_status_request.status) % 2) == 1
+  is_odd account_activity_status_request.status
 
 let detect_main_chain_facilitator_issues = bottom ()
 

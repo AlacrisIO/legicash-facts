@@ -102,14 +102,16 @@ type account_activity_status_request =
 type account_activity_status_confirmation =
   {header: tx_header; status: account_activity_status_request}
 
-val open_account : (public_key, account_activity_status_request signed) user_action
+val open_account :
+  (public_key, account_activity_status_request signed) user_action
 
 (** Flow 1 Step 1: ensure an account is open.
     Idempotent.
     (current type assumes a single facilitator per user)
  *)
 
-val close_account : (public_key, account_activity_status_request signed) user_action
+val close_account :
+  (public_key, account_activity_status_request signed) user_action
 
 (** Ensure an account is closed.
     Idempotent.
