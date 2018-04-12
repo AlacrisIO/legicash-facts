@@ -10,27 +10,29 @@ including its relationship to the main-chain:
   * Schema validation (ML types): the type of the side-chain state is correct by construction
     * all the transitive digests point to data of the correct type
     * each update contains a new current state and a list of transactions from the previous state
-    * the state patricia merkle trie of accounts mapped to account states
+    * the state is patricia merkle trie of accounts mapped to account states
   * Fine structure validation (dependent types):
     * account balances are non-negative
-    * account balances sum up to less than the total number of tokens
+    * account balances sum up to less than the total number of tokens (less than the total on the contract)
     * transaction numbers are consecutive
     * timestamps are increasing
     * transactions preserve total token amount in the accounts at stake
     * transactions and requests are properly signed by the proper participants
     * authorization only happens on active accounts
     * updates indeed lead from the previous state to the current state
+  * Consistency:
+    * No two pieces of conflicting history are ever found (i.e. no double-spending)
+      (in the gossip network, on the main chain, etc.)
   * Relationship with main chain:
     * the state of the side-chain is regularly updated on the main chain
     * the revision of side-chain updates is non-decreasing
     * a recent state of the main-chain is referred to by the side-chain and its transactions
     * the referred states of the main-chain are ones where the suitable state of the side-chain was updated
     * the referred state of the main-chain is non-decreasing
-    * there are no conflicting updates
+    * account balances sum up to less than the total on the contract
     * all confirmed main-chain transactions are accounted for in the side-chain within a timeout
   * Relationship with user chain:
     * the state of the user-account is always making progress
-    * there are no double-spends
 
 
 ## Facilitator Repudiation
