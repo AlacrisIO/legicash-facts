@@ -2,7 +2,66 @@
 
 exception Not_implemented
 
+let bottom () : 'a = raise Not_implemented
+
+let list_of_option = function None -> [] | Some x -> [x]
+(* TODO: find which is canonical according to the style guide between this and
+let list_of_option x = match x with None -> [] | Some x -> [x]
+  and/or define a new style guide rule with motivation.
+ *)
+
 open Base
+
+(** Witness for confirmation
+    For a rx from Alice, the tx from Trent
+    For a main chain tx, the block from Judy
+    TODO: use GADTs?
+ *)
+type operation_confirmation =
+  Transaction (* TODO: of tx from Trent *)
+| Block (* TODO: block from Judy *)
+
+(** Witness for proof that Trent is a liar
+ *)
+type fraud_proof
+
+(** Witness for rejection
+    For a rx from Alice, timeout or Trent is a liar
+    For a main chain tx, timeout
+ *)
+type operation_rejection =
+  Timeout
+| Fraud of fraud_proof
+
+(** Stage of knowledge of one actor about an operation
+
+  Main chain status: we assume Judy is honest and stable and never goes from Confirmed to Rejected.
+  Transitions for the consensus:
+    Unknown => Pending, Confirmed, Rejected
+    Pending => Confirmed, Rejected
+
+  Self status: Alice assumes she is honest and stable, but she relies on Trent who can lie.
+  We don't need to represent self-status: if we don't know about it, we have nothing to represent;
+  and if we do know about it, there is no transition about that, only about the status of Trent and Judy.
+
+  Trent status: Alice weakly assumes honesty of Trent (or wouldn't even bother dealing with Trent),
+  but has to take into account the possibility that Trent goes rogue at some point,
+  and status of some operations go from Confirmed to Rejected via incompetence or malice.
+ *)
+type knowledge_stage =
+  Unknown (* 0. that actor never heard of it *)
+| In_flight (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
+| Confirmed of operation_confirmation (* 2. that actor confirmed it *)
+| Rejected of operation_rejection (* 3. that actor rejected it, timed out, or lied, etc. *)
+
+(** TODO: pure object hierarchy for rx and tx on main chain or side chain *)
+type operation
+
+(** TODO: operation + knowledge about the operation *)
+type episteme =
+  { operation: operation
+  ; consensus_stage: knowledge_stage
+  ; actor_stages: (public_key, knowledge_stage) alist }
 
 type message_type = Int32.t
 
@@ -31,12 +90,69 @@ type check =
 type certified_check =
   {header: tx_header; signed_check: check signed; spending_limit: token_amount}
 
-type account_state =
-  {active: revision; balance: token_amount; revision: revision}
+type facilitator_account_state_per_user =
+  { active: revision
+  ; balance: token_amount
+  ; revision: revision}
+
+type user_account_state_per_facilitator =
+  { (* do we know the facilitator to be a liar? If so, Rejected *)
+    facilitator_validity: knowledge_stage
+  ; (* Current revision of our interactions with facilitator *)
+    revision: revision
+  ; (* Are we open or closed? (TODO: per facilitator) *)
+    latest_activity_status_confirmation: account_activity_status_confirmation option
+  ; (* How much do we have on the side-chain? (TODO: per facilitator) *)
+    latest_side_chain_confirmed_balance: token_amount
+  }
 
 type account_operation
 
-type user_state
+
+(** User state (for Alice)
+    For now, only one facilitator; but in the future, allow for many.
+
+    Because the system is asynchronous and trustless, we must always maintain multiple views
+    of the state of the system, and the status of each change in the system.
+
+    main chain status:
+      J0 => J1, J2, J3; J1 => J2, J3; J2; J3
+
+    side chain status:
+      T0 => T1, T2, T3; T1 => T2, T3; T2 => T3 (ouch); T3 pulls in Ursula(!)
+        (T2.J0: unknown to Judy yet
+         OR T2.J1: almost confirmed by Judy (seen on the main blockchain, not confirmed yet)
+         OR T2.J2: confirmed all the way to Judy
+         OR T3.J0: Trent is a liar, we've got to do something about it
+         OR T3.U1: Trent is a liar, we sent the claim to Ursula (may Ursulas), etc.
+         OR T3.U2.J0: SOME Ursula accepted to replace Trent, Judy doesn't know
+         OR T3.U2.J1: SOME Ursula accepted to replace Trent, posted to Judy, who didn't confirm yet
+         OR T3.U2.J2: SOME Ursula accepted to replace Trent, posted to Judy, who confirmed
+         OR T3.J3: LOSER: overridden by another lie of Trent that made it to Judy first.
+         OR T3.U3.J0: ALL Ursulas are dishonest, do your own thing, quick,
+                   do an individual exit or become a facilitator yourself, etc.
+         OR T3.U3.J1: ALL Ursulas are dishonest, did our thing, waiting for confirmation.
+         OR T3.U3.J2: ALL Ursulas are dishonest, did our thing, won.)
+
+   A. We start from the last state S confirmed by Judy (summary of all operations of status J2).
+   B. We want to maintain a list/set of operations that currently matter to the user.
+      WHEN the operations are either confirmed or rejected by Judy (status J2 or J3),
+      then the user may flush them out of active memory (but they are logged to disk for accounting).
+   C. The operations are indexed somehow by knowledge_stage of Trent, Judy, etc.? by type?
+   D. The user can play all the operations, and get an idea of what's confirmed,
+      what's the expected result if everything goes right,
+      what are the upper and lower bounds if some things go wrong.
+   E. If Trent lies, we want to be able to divert the unconfirmed *incoming* transactions
+      to Ursula and/or Judy (TODO: and their dependency history if any?)
+ *)
+type user_state =
+  { latest_main_chain_confirmation: main_chain_state digest
+  ; latest_main_chain_confirmed_balance: token_amount
+  ; pending_operations: episteme list
+
+  (* Only store the confirmed state, and have any updates in pending *)
+  ; facilitators: (public_key, user_account_status) Hashtbl.t
+  }
 
 type ('a, 'b) user_action = user_state * 'a -> user_state * 'b legi_result
 
@@ -126,8 +242,6 @@ let send_certified_check check conv = raise Not_implemented
 
 let commit_side_chain_state = raise Not_implemented
 
-type x_facilitator_preconditions
-
 let send_message payload conv = raise Not_implemented
 
 type account_activity_status_request = {rx_header: rx_header; count: revision}
@@ -154,44 +268,69 @@ type facilitator_to_facilitator_message
 
 type user_to_user_message
 
+let is_account_confirmed_open state =
+  match state.latest_activity_status_confirmation in
+    None => false
+  | Some rx => is_account_activity_status_open rx
+
+(**
+  TODO: take into account not just the facilitator name, but the fee schedule, too.
+  TODO: exception if facilitator dishonest.
+ *)
+let open_account (state, public_key) =
+  let all_activity_status_operations =
+    (list_of_option state.latest_activity_status_confirmation) @
+      (List.filter is_activity_status_operation state.pending) in
+  let all_activity_operations
+  if is_account_confirmed_open state
+
+  let latest_request = state.latest_activity_status_request in
+  
+  match latest_request with
+  | None => 
+  if is_activity_status_request
+
 (** missing values to be implemented *)
 
-let collect_account_liquidation_funds = Obj.magic 42
+let close_account = bottom ()
 
-let request_account_liquidation = Obj.magic 42
+let collect_account_liquidation_funds = bottom ()
 
-let check_main_chain_for_exits = Obj.magic 42
+let request_account_liquidation = bottom ()
 
-let initiate_individual_exit = Obj.magic 42
+let check_main_chain_for_exits = bottom ()
 
-let send_certified_check_signed = Obj.magic 42
+let initiate_individual_exit = bottom ()
 
-let send_check_signed = Obj.magic 42
+let send_certified_check_signed = bottom ()
 
-let account_activity_status_confirmation_signed = Obj.magic 42
+let send_check_signed = bottom ()
 
-let account_activity_status_request_signed = Obj.magic 42
+let account_activity_status_confirmation_signed = bottom ()
 
-let accept_payment = Obj.magic 42
+let account_activity_status_request_signed = bottom ()
 
-let publish_certified_check = Obj.magic 42
+let accept_payment = bottom ()
 
-let certify_check = Obj.magic 42
+let publish_certified_check = bottom ()
 
-let create_check = Obj.magic 42
+let certify_check = bottom ()
 
-let confirm_deposit = Obj.magic 42
+let create_check = bottom ()
 
-let request_deposit = Obj.magic 42
+let confirm_deposit = bottom ()
 
-let deposit = Obj.magic 42
+let request_deposit = bottom ()
 
-let confirm_account_activity_status = Obj.magic 42
+let deposit = bottom ()
 
-let is_account_activity_status_open = Obj.magic 42
+let confirm_account_activity_status = bottom ()
 
-let close_account = Obj.magic 42
+let is_account_activity_status_open account_activity_status_request =
+  ((account_activity_status_request.status) % 2) == 1
 
-let open_account = Obj.magic 42
+let detect_main_chain_facilitator_issues = bottom ()
 
-let detect_main_chain_facilitator_issues = Obj.magic 42
+let confirm_account_liquidation = bottom ()
+
+let collect_account_liquidation_funds = bottom ()

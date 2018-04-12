@@ -54,4 +54,5 @@
 * Contracts in Tezos:
   [Michelson: the language of Smart Contracts in Tezos (PDF)](https://www.tezos.com/static/papers/language.pdf),
   [Michelson-lang.com](https://www.michelson-lang.com/),
-  [Tezos Forum on Smart contracts](https://forums.tezos.community/c/smart-contracts).
+  [Tezos Forum on Smart contracts](https://forums.tezos.community/c/smart-contracts),
+  [Michelson contracts need access to blockchain state](https://gitlab.com/tezos/tezos/issues/158).

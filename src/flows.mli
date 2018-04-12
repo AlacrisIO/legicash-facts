@@ -102,13 +102,15 @@ type account_activity_status_request =
 type account_activity_status_confirmation =
   {header: tx_header; status: account_activity_status_request}
 
-val open_account : (unit, account_activity_status_request signed) user_action
+val open_account : (public_key, account_activity_status_request signed) user_action
+
 (** Flow 1 Step 1: ensure an account is open.
     Idempotent.
     (current type assumes a single facilitator per user)
  *)
 
-val close_account : (unit, account_activity_status_request signed) user_action
+val close_account : (public_key, account_activity_status_request signed) user_action
+
 (** Ensure an account is closed.
     Idempotent.
     (current type assumes a single facilitator per user)
@@ -250,6 +252,11 @@ val request_account_liquidation : (invoice, main_chain_transaction) user_action
  *)
 type account_liquidation_confirmation =
   {header: tx_header; request: account_liquidation_request}
+
+val confirm_account_liquidation :
+  ( account_liquidation_request signed
+  , account_liquidation_confirmation )
+  facilitator_action
 
 val collect_account_liquidation_funds :
   (unit, main_chain_transaction) user_action
