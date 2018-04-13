@@ -32,10 +32,10 @@ val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
 (** constantly watch the main chain and search for prosecutable issues relating to facilitators *)
 
 (** state for a single user account at a single facilitator *)
-type account_state
+(* type account_state *)
 
 (** single operation on an account *)
-type account_operation
+(* type account_operation *)
 
 (** memo to include in a check *)
 type memo = string option
@@ -53,7 +53,7 @@ type facilitator_to_user_message
 type facilitator_to_facilitator_message
 
 (** integer that uniquely identifies a type of message *)
-type message_type
+(* type message_type *)
 
 (** header for all transactions
     Future Optimization: when storing the transaction in memory or on disk,
@@ -61,10 +61,7 @@ type message_type
     But when signing the transaction and showing the evidence of the transaction to clients,
     the full data is included.
  *)
-type tx_header =
-  { message_type: message_type (* Type of the message *)
-  ; tx_revision: revision
-  (* transaction revision for the facilitator *) }
+type tx_header
 
 (** header for all requests
     Request header.
@@ -82,14 +79,7 @@ type tx_header =
     Alternatively, to save space, the root may not be stored in places where the validity
     requires the root to be the same as *the* known consensual root at the given date.
  *)
-type rx_header =
-  { message_type: message_type
-  ; facilitator: public_key
-  ; requester: public_key
-  ; confirmed_main_chain_state_digest: main_chain_state digest
-  ; confirmed_main_chain_state_timestamp: timestamp
-  ; confirmed_side_chain_state_digest: side_chain_state digest
-  ; validity_within: duration }
+type rx_header
 (* Flow 1: Opening an account *)
 
 (** Account activity status request / result *)
@@ -157,6 +147,7 @@ val confirm_deposit :
  *)
 type invoice = {recipient: public_key; amount: token_amount; memo: memo}
 
+(*
 (** check to be signed by the sender *)
 type check =
   {header: rx_header; invoice: invoice; fee: token_amount; expedited: bool}
@@ -166,7 +157,8 @@ val create_check : (invoice, check signed) user_action
     In practice, the system interactively offers the user the facilitators, fees, delays, etc.,
     available to pay the merchant and let him decide.
  *)
-
+ *)
+(*
 (** certified check to be signed by the facilitator *)
 type certified_check =
   {header: tx_header; signed_check: check signed; spending_limit: token_amount}
@@ -174,6 +166,7 @@ type certified_check =
 val certify_check : (check signed, certified_check signed) facilitator_action
 (** Flow 2 Step 2: Trent verifies that everything's fine and signs a certified check,
     store it to database and returns it to Alice who transmits it to Bob.
+ *)
  *)
 
 (** Flow 2 Step 3: Bob does due diligence by publishing the certified check to the Gossip
@@ -192,12 +185,12 @@ val certify_check : (check signed, certified_check signed) facilitator_action
     - maybe return a Double_spend exception
     - because parametric in conversation, can also be used to check double-spending on gossip network
  *)
-
+(*
 val publish_certified_check : (certified_check signed, unit) user_action
 
 val accept_payment : (certified_check signed, unit) user_action
 (** Flow 2 Step 4: Bob accepts the payment, notifies Alice and delivers the service *)
-
+ *)
 (** message-sending operations *)
 
 val send_message : 'a -> conversation -> unit legi_result
@@ -212,12 +205,12 @@ val account_activity_status_request_signed :
 val account_activity_status_confirmation_signed :
   account_activity_status_confirmation signed -> conversation
   -> unit legi_result
-
-val send_check_signed : check signed -> conversation -> unit legi_result
-
+(*
+val send_check_signed : check signed -> conversation -> unit legi_result *)
+(*
 val send_certified_check_signed :
   certified_check signed -> conversation -> unit legi_result
-
+ *)
 (* TODO: and send functions for all messages of all flows. *)
 
 val commit_side_chain_state : (unit, unit) facilitator_action

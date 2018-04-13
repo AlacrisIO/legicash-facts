@@ -93,7 +93,7 @@ type side_chain_operation =
 (** headers for a request to a facilitator
     provide a reference to the past and a timeout in the future
     *)
-type rx_header =
+and rx_header =
   { facilitator: public_key
   ; requester: public_key
   ; confirmed_main_chain_state_digest: main_chain_state digest
@@ -104,8 +104,8 @@ type rx_header =
 (** request to a facilitator:
     an operation, plus headers that provide a reference to the past and a timeout
     *)
-type side_chain_request =
-{ rx_headers: rx_headers
+and side_chain_request =
+{ rx_header: rx_header
 ; side_chain_operation: side_chain_operation }
 
 (** headers for a confirmation from a facilitator:
@@ -113,16 +113,31 @@ type side_chain_request =
     Should we also provide log(n) digests to the previous confirmation
     whose revision is a multiple of 2**k for all k?
     *)
-type tx_header =
+and tx_header =
   { tx_revision: revision
   ; spending_limit: token_amount }
 
 (** A transaction confirmation from a facilitator:
     a request, plus headers that help validate against fraud.
     *)
-type side_chain_confirmation =
-{ tx_headers: tx_headers
+and side_chain_confirmation =
+{ tx_header: tx_header
 ; signed_request: side_chain_request signed }
+
+(** public state of a user's account in the facilitator's side-chain *)
+and facilitator_account_state_per_user =
+  { active: revision
+  ; balance: token_amount
+  ; user_revision: revision }
+
+(** public state of a facilitator side-chain, as posted to the court registry and main chain
+    *)
+and side_chain_state =
+  { previous_main_chain_state: main_chain_state digest (* Tezos state *)
+  ; previous_side_chain_state: side_chain_state digest (* state previously posted on the above *)
+  ; user_accounts: (public_key, facilitator_account_state_per_user) patricia_merkle_trie
+  ; operations: (revision, side_chain_confirmation) patricia_merkle_trie }
+
 
 (** side chain operation + knowledge about the operation *)
 type side_chain_episteme =
@@ -135,25 +150,11 @@ type main_chain_episteme =
   { main_chain_request: main_chain_request
   ; maybe_main_chain_confirmation: main_chain_confirmation option }
 
-(** public state of a user's account in the facilitator's side-chain *)
-type facilitator_account_state_per_user =
-  { active: revision
-  ; balance: token_amount
-  ; user_revision: revision }
-
-(** public state of a facilitator side-chain, as posted to the court registry and main chain
-    *)
-type side_chain_state =
-  { previous_main_chain_state: main_chain_state digest (* Tezos state *)
-  ; previous_side_chain_state: side_chain_state digest (* state previously posted on the above *)
-  ; user_accounts: (public_key, facilitator_account_state_per_user) patricia_merkle_trie
-  ; operations: (revision, side_chain_confirmation) patricia_merkle_trie }
-
 (** private state a user keeps for his account with a facilitator *)
 type user_account_state_per_facilitator =
   { (* do we know the facilitator to be a liar? If so, Rejected *)
     facilitator_validity: knowledge_stage
-  ; confirmed state: facilitator_account_state_per_user
+  ; confirmed_state: facilitator_account_state_per_user
   ; pending_operations: side_chain_episteme list }
 
 (** User state (for Alice)
@@ -225,7 +226,7 @@ type facilitator_state =
   ; bond_posted: token_amount
   ; current_limit: token_amount (* expedited limit still unspent since confirmation *)
   ; account_states: (public_key, facilitator_account_state_per_user) patricia_merkle_trie
-  ; pending_operations: (revision, account_operation list) patricia_merkle_trie
+  ; pending_operations: (revision, side_chain_episteme list) patricia_merkle_trie
   ; current_revision: revision (* incremented at every change *)
   ; fee_structure: facilitator_fee_structure }
 
@@ -279,45 +280,53 @@ type facilitator_to_facilitator_message
 
 type user_to_user_message
 
-let is_account_confirmed_open state =
-  match state.latest_activity_status_confirmation in
-    None => false
-  | Some rx => is_account_activity_status_open rx
+exception Invalid_side_chain_operation of side_chain_operation
+
+(*
+let new_facilitator_state =
+  {
+  }
+ *)
 
 let apply_operation state change =
   bottom ()
 
 let apply_operations state changes =
-  reduce apply_operation state change
+  bottom () (* reduce apply_operation state change *)
 
 let is_valid_episteme episteme =
-  match episteme.consensus_stage with Rejected _ -> false | _ -> true
+  bottom () (* match episteme.consensus_stage with Rejected _ -> false | _ -> true *)
 
 let optimistic_state state =
-  let relevant_changes = filter is_valid_episteme state.pending in
-  apply_operations state relevant_changes
+  bottom ()
+(* let relevant_changes = filter is_valid_episteme state.pending in
+  apply_operations state relevant_changes *)
 
-let user_activity_revision_for_facilitator user_state =
-  match os.facilitators.get(facilitator_pk) with None -> 0 | Some x -> x.active
+let user_activity_revision_for_facilitator user_state = bottom ()
+(* match user_state.facilitators.get(facilitator_pk) with None -> 0 | Some x -> x.active *)
 
+(*
 let mk_rx_episteme rx = mk_episteme rx Unknown Unknown
 
 let mk_tx_episteme tx = mk_episteme tx Unknown (Confirmed tx)
-
+ *)
 let add_episteme state episteme =
-  update_pending state (fun pending -> episteme :: pending)
+  bottom ()
+(*  update_pending state (fun pending -> episteme :: pending)*)
 
 (**
   TODO: take into account not just the facilitator name, but the fee schedule, too.
   TODO: exception if facilitator dishonest.
  *)
 let open_account (state, facilitator_pk) =
+  bottom ()
+  (*
   let os = optimistic_state state in
   let revision = user_activity_revision_for_facilitator os in
   if is_odd revision
   then (state, None)
   else let rx = make_account_status_request state facilitator_pk (revision + 1) in
-       (add_episteme state (mk_rx_episteme rx), Some rx)
+       (add_episteme state (mk_rx_episteme rx), Some rx) *)
 
 (** missing values to be implemented *)
 
@@ -355,10 +364,8 @@ let deposit = bottom ()
 
 let confirm_account_activity_status = bottom ()
 
-let is_odd x = (x % 2) == 1
-
 let is_account_activity_status_open account_activity_status_request =
-  is_odd account_activity_status_request.status
+  bottom () (* is_odd_64 account_activity_status_request.status *)
 
 let detect_main_chain_facilitator_issues = bottom ()
 
