@@ -3,18 +3,17 @@
 open Base
 open Lib
 
-
-
-
 (** Witness for confirmation
     For a rx from Alice, the tx from Trent
     For a main chain tx, the block from Judy
     TODO: use GADTs, where type parameter indicates
       who is affected (facilitator or customer)
  *)
+(*
 type operation_confirmation =
   Transaction (* TODO: of tx from Trent *)
 | Block (* TODO: block from Judy *)
+*)
 
 (** Witness for proof that Trent is a liar
  *)
@@ -24,9 +23,9 @@ type fraud_proof
     For a rx from Alice, timeout or Trent is a liar
     For a main chain tx, timeout
  *)
-type operation_rejection =
+(*type operation_rejection =
   Timeout
-| Fraud of fraud_proof
+| Fraud of fraud_proof*)
 
 (** Stage of knowledge of one actor about an operation
 
@@ -42,67 +41,120 @@ type operation_rejection =
   Trent status: Alice weakly assumes honesty of Trent (or wouldn't even bother dealing with Trent),
   but has to take into account the possibility that Trent goes rogue at some point,
   and status of some operations go from Confirmed to Rejected via incompetence or malice.
+
+  confirmation/rejection: either we move that to a functor so we have the proper kind,
+  or we leave that aside.
  *)
 type knowledge_stage =
   Unknown (* 0. that actor never heard of it *)
 | In_flight (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
-| Confirmed of operation_confirmation (* 2. that actor confirmed it *)
-| Rejected of operation_rejection (* 3. that actor rejected it, timed out, or lied, etc. *)
+| Confirmed (* of operation_confirmation *) (* 2. that actor confirmed it *)
+| Rejected (* of operation_rejection *) (* 3. that actor rejected it, timed out, or lied, etc. *)
 
-(** TODO: pure object hierarchy for rx and tx on main chain or side chain *)
-type operation
+(** request sent to the main chain *)
+type main_chain_request
 
-(** TODO: operation + knowledge about the operation *)
-type episteme =
-  { operation: operation
-  ; consensus_stage: knowledge_stage
-  ; facilitator_stage: knowledge_stage (* where there is no facilitator, it is always Unknown *) }
+(** an old enough block on the main chain
+    TODO: maybe also include a path and/or merkle tree from there?
+    *)
+type main_chain_confirmation = main_chain_state digest
 
-type message_type = Int32.t
+(** memo identifying the invoice
+    The merchant chooses this memo to match payments to invoices on his side;
+    the customer must include the proper memo on its payment *)
+type memo = string option
 
-type side_chain_state =
-  { previous_main_chain_state: main_chain_state digest
-  ; previous_side_chain_state: side_chain_state digest }
+(** invoice sent from payee to payer *)
+type invoice = {recipient: public_key; amount: token_amount; memo: memo}
 
-type tx_header = {message_type: message_type; tx_revision: revision}
+(** an operation on a facilitator side-chain *)
+type side_chain_operation =
+| Activity_status of revision
+| Payment of
+  { payment_invoice: invoice
+  ; payment_fee: token_amount
+  ; expedited: bool }
+| Deposit of
+  { deposit_amount: token_amount
+  ; deposit_fee: token_amount
+  ; main_chain_request: main_chain_request
+  ; main_chain_confirmation: main_chain_confirmation }
+| Withdrawal of
+  { withdrawal_invoice: invoice
+  ; withdrawal_fee: token_amount }
+(*
+| Settlement_proposal of
+  { sender: public_key
+  ; sender_facilitator: public_key
+  ; recipient: public_key
+  ; recipient_facilitator: public_key }
+*)
 
+(** headers for a request to a facilitator
+    provide a reference to the past and a timeout in the future
+    *)
 type rx_header =
-  { message_type: message_type
-  ; facilitator: public_key
+  { facilitator: public_key
   ; requester: public_key
   ; confirmed_main_chain_state_digest: main_chain_state digest
   ; confirmed_main_chain_state_timestamp: timestamp
   ; confirmed_side_chain_state_digest: side_chain_state digest
   ; validity_within: duration }
 
-type memo = string option
+(** request to a facilitator:
+    an operation, plus headers that provide a reference to the past and a timeout
+    *)
+type side_chain_request =
+{ rx_headers: rx_headers
+; side_chain_operation: side_chain_operation }
 
-type invoice = {recipient: public_key; amount: token_amount; memo: memo}
+(** headers for a confirmation from a facilitator:
+    give a revision so contradiction is trivial to check.
+    Should we also provide log(n) digests to the previous confirmation
+    whose revision is a multiple of 2**k for all k?
+    *)
+type tx_header =
+  { tx_revision: revision
+  ; spending_limit: token_amount }
 
-type check =
-  {header: rx_header; invoice: invoice; fee: token_amount; expedited: bool}
+(** A transaction confirmation from a facilitator:
+    a request, plus headers that help validate against fraud.
+    *)
+type side_chain_confirmation =
+{ tx_headers: tx_headers
+; signed_request: side_chain_request signed }
 
-type certified_check =
-  {header: tx_header; signed_check: check signed; spending_limit: token_amount}
+(** side chain operation + knowledge about the operation *)
+type side_chain_episteme =
+  { side_chain_request: side_chain_request signed
+  ; maybe_side_chain_confirmation: side_chain_confirmation signed option
+  ; maybe_main_chain_confirmation: main_chain_confirmation option }
 
+(** main chain operation + knowledge about the operation *)
+type main_chain_episteme =
+  { main_chain_request: main_chain_request
+  ; maybe_main_chain_confirmation: main_chain_confirmation option }
+
+(** public state of a user's account in the facilitator's side-chain *)
 type facilitator_account_state_per_user =
   { active: revision
   ; balance: token_amount
-  ; revision: revision}
+  ; user_revision: revision }
 
+(** public state of a facilitator side-chain, as posted to the court registry and main chain
+    *)
+type side_chain_state =
+  { previous_main_chain_state: main_chain_state digest (* Tezos state *)
+  ; previous_side_chain_state: side_chain_state digest (* state previously posted on the above *)
+  ; user_accounts: (public_key, facilitator_account_state_per_user) patricia_merkle_trie
+  ; operations: (revision, side_chain_confirmation) patricia_merkle_trie }
+
+(** private state a user keeps for his account with a facilitator *)
 type user_account_state_per_facilitator =
   { (* do we know the facilitator to be a liar? If so, Rejected *)
     facilitator_validity: knowledge_stage
-  ; (* Current revision of our interactions with facilitator *)
-    revision: revision
-  ; (* Are we open or closed? (TODO: per facilitator) *)
-    latest_activity_status_confirmation: account_activity_status_confirmation option
-  ; (* How much do we have on the side-chain? (TODO: per facilitator) *)
-    latest_side_chain_confirmed_balance: token_amount
-  }
-
-type account_operation
-
+  ; confirmed state: facilitator_account_state_per_user
+  ; pending_operations: side_chain_episteme list }
 
 (** User state (for Alice)
     For now, only one facilitator; but in the future, allow for many.
@@ -143,7 +195,7 @@ type account_operation
 type user_state =
   { latest_main_chain_confirmation: main_chain_state digest
   ; latest_main_chain_confirmed_balance: token_amount
-  ; pending_operations: episteme list
+  ; main_chain_pending_operations: main_chain_episteme list
 
   (* Only store the confirmed state, and have any updates in pending *)
   ; facilitators: (public_key, facilitator_account_state_per_user) Hashtbl.t
@@ -156,23 +208,26 @@ type verifier_state
 type ('a, 'b) verifier_action =
   verifier_state * 'a -> verifier_state * 'b legi_result
 
+(** Fee structure for a facilitator
+    NB: an important constraint is that we need to advertise this fee structure to users
+    *)
+type facilitator_fee_structure =
+  { deposit_fee: token_amount (* fee to accept a deposit *)
+  ; per_account_limit: token_amount (* limit for pending expedited transactions per user *)
+  ; fee_per_billion: int (* function token_amount -> token_amount ? *)
+  }
+
+(** private state of a facilitator
+    TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
+    *)
 type facilitator_state =
-  { latest_registered_state: facilitator_state digest
-  ; latest_parent_state: main_chain_state digest
-  ; account_states: (public_key, facilitator_account_state_per_user) Hashtbl.t
-  ; account_operations: (public_key, account_operation list) Hashtbl.t
+  { confirmed_state: side_chain_state (* latest confirmed public state *)
   ; bond_posted: token_amount
+  ; current_limit: token_amount (* expedited limit still unspent since confirmation *)
+  ; account_states: (public_key, facilitator_account_state_per_user) patricia_merkle_trie
+  ; pending_operations: (revision, account_operation list) patricia_merkle_trie
   ; current_revision: revision (* incremented at every change *)
-  ; current_limit:
-      token_amount (* expedited limit still unspent during this cycle *)
-  ; per_account_limit: token_amount
-  ; confirmed_chain_state: main_chain_state
-  ; (* when did we last update? *)
-  last_posted_side_chain_root: side_chain_state
-  ; (* what did we last post? *)
-  pending_transactions: certified_check signed list
-  (* Q: indexed by expedited or not? *)
-  (* pending lawsuits ? *) }
+  ; fee_structure: facilitator_fee_structure }
 
 type ('a, 'b) facilitator_action =
   facilitator_state * 'a -> facilitator_state * 'b legi_result
@@ -185,51 +240,12 @@ type side_chain_update =
   { current_side_chain_state: side_chain_state digest
   ; availability_proof: court_clerk_confirmation list }
 
-type check_t =
-  { sender: public_key
-  ; recipient: public_key
-  ; facilitator: public_key
-  ; amount: token_amount
-  ; fee: token_amount
-  ; prev_change_number: revision
-  ; current_change_number: revision
-  ; chain_root: main_chain_state
-  ; side_chain_root: side_chain_state
-  ; expires_at: duration
-  ; invoice_id: memo
-  ; expedited: bool }
-
-type certified_check_t =
-  { facilitator: public_key
-  ; side_chain_revision: revision
-  ; previous_side_chain_revision: revision
-  ; spending_limit: token_amount }
-
-type settlement_proposal_t =
-  { sender: public_key
-  ; sender_facilitator: public_key
-  ; recipient: public_key
-  ; recipient_facilitator: public_key }
 
 (* associate facilitators with their accounts *)
-
-type facilitator_tbl = (public_key, facilitator_state) Hashtbl.t
 
 type user_to_facilitator_message
 
 type facilitator_to_user_message
-
-type message =
-  (* invariant: signer same as sender *)
-  | Signed_check of check_t signed
-  (* invariant: signer same as facilitator *)
-  | Certified_check of certified_check_t signed
-  (* invariant: signer same as both facilitators *)
-  | Double_spend_denunciation of
-      certified_check_t signed * certified_check_t signed
-  | Settlement_proposal of settlement_proposal_t signed
-
-(* type client_state = xxx *)
 
 let make_check_for_certification check conv = bottom ()
 
