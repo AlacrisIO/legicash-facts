@@ -5,7 +5,16 @@ exception Timeout of string
 exception Double_spend of string
 
 (** 'a or exception *)
-type 'a legi_result
+type 'a legi_result = ('a, exn) result
+
+(** function from 'a to 'b that acts on a user_state *)
+type ('a, 'b, 'c) action = 'c * 'a -> 'c * 'b legi_result
+
+(** run the action, with side-effects and all *)
+val effect_action: ('a, 'b, 'c) action -> 'c ref -> 'a -> 'b
+
+(** compose two actions *)
+val compose_actions: ('b, 'c, 's) action -> ('a, 'b, 's) action -> ('a, 'c, 's) action
 
 (** unique identifier for all parties, that is, customers and facilitators *)
 type public_key

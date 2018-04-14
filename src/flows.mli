@@ -7,7 +7,8 @@ open Main_chain
 type user_state
 
 (** function from 'a to 'b that acts on a user_state *)
-type ('a, 'b) user_action = user_state * 'a -> user_state * 'b legi_result
+type ('a, 'b) user_action = ('a, 'b, user_state) action
+
 
 (** state stored by a facilitator *)
 type facilitator_state
@@ -15,6 +16,15 @@ type facilitator_state
 (** function from 'a to 'b that acts on a facilitator_state *)
 type ('a, 'b) facilitator_action =
   facilitator_state * 'a -> facilitator_state * 'b legi_result
+
+(** operation on the side chain *)
+type side_chain_operation
+
+(** user request for operation on the side chain *)
+type side_chain_request
+
+(** facilitator confirmation of transaction for the request *)
+type side_chain_confirmation
 
 (** side chain state is a public extract of the facilitator state regularly posted on the main chain *)
 type side_chain_state
@@ -33,7 +43,7 @@ val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
 (** constantly watch the main chain and search for prosecutable issues relating to facilitators *)
 
 (** state for a single user account at a single facilitator *)
-(* type account_state *)
+type facilitator_account_state_per_user
 
 (** single operation on an account *)
 (* type account_operation *)
@@ -52,9 +62,6 @@ type facilitator_to_user_message
 
 (** message from facilitator to facilitator *)
 type facilitator_to_facilitator_message
-
-(** integer that uniquely identifies a type of message *)
-(* type message_type *)
 
 (** header for all transactions
     Future Optimization: when storing the transaction in memory or on disk,
@@ -81,6 +88,9 @@ type tx_header
     requires the root to be the same as *the* known consensual root at the given date.
  *)
 type rx_header
+
+val issue_user_request: (side_chain_operation, side_chain_request) user_action
+
 (* Flow 1: Opening an account *)
 
 (** Account activity status request / result *)

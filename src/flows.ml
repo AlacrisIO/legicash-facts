@@ -170,12 +170,11 @@ type user_state =
   ; facilitators: (public_key, facilitator_account_state_per_user) Hashtbl.t
   }
 
-type ('a, 'b) user_action = user_state * 'a -> user_state * 'b legi_result
+type ('a, 'b) user_action = ('a, 'b, user_state) action
 
 type verifier_state
 
-type ('a, 'b) verifier_action =
-  verifier_state * 'a -> verifier_state * 'b legi_result
+type ('a, 'b) verifier_action = ('a, 'b, verifier_state) action
 
 (** Fee structure for a facilitator
     NB: an important constraint is that we need to advertise this fee structure to users
@@ -198,8 +197,7 @@ type facilitator_state =
   ; current_revision: revision (* incremented at every change *)
   ; fee_structure: facilitator_fee_structure }
 
-type ('a, 'b) facilitator_action =
-  facilitator_state * 'a -> facilitator_state * 'b legi_result
+type ('a, 'b) facilitator_action = ('a, 'b, facilitator_state) action
 
 type court_clerk_confirmation =
   {clerk: public_key; signature: side_chain_state signature}
@@ -215,6 +213,19 @@ type side_chain_update =
 type user_to_facilitator_message
 
 type facilitator_to_user_message
+
+let make_rx_header user_state = bottom ()
+
+let mk_rx_episteme rx = bottom ()
+
+let mk_tx_episteme tx = bottom ()
+
+let add_user_episteme (user_state: user_state) episteme = bottom ()
+(*  update_pending state (fun pending -> episteme :: pending)*)
+
+let issue_user_request = fun (user_state, side_chain_operation) ->
+  let request = {rx_header = make_rx_header user_state; side_chain_operation = side_chain_operation} in
+  (add_user_episteme user_state (mk_rx_episteme request), Ok request)
 
 let make_check_for_certification check conv = bottom ()
 
@@ -271,15 +282,6 @@ let optimistic_state state =
 
 let user_activity_revision_for_facilitator user_state = bottom ()
 (* match user_state.facilitators.get(facilitator_pk) with None -> 0 | Some x -> x.active *)
-
-(*
-let mk_rx_episteme rx = mk_episteme rx Unknown Unknown
-
-let mk_tx_episteme tx = mk_episteme tx Unknown (Confirmed tx)
- *)
-let add_episteme state episteme =
-  bottom ()
-(*  update_pending state (fun pending -> episteme :: pending)*)
 
 (**
   TODO: take into account not just the facilitator name, but the fee schedule, too.
