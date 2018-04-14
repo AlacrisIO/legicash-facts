@@ -1,31 +1,12 @@
 (* LegiCash flows *)
 
 open Base
+open Main_chain
 open Lib
 
-(** Witness for confirmation
-    For a rx from Alice, the tx from Trent
-    For a main chain tx, the block from Judy
-    TODO: use GADTs, where type parameter indicates
-      who is affected (facilitator or customer)
- *)
-(*
-type operation_confirmation =
-  Transaction (* TODO: of tx from Trent *)
-| Block (* TODO: block from Judy *)
-*)
-
-(** Witness for proof that Trent is a liar
+(** Internal witness for proof that Trent is a liar
  *)
 type fraud_proof
-
-(** Witness for rejection
-    For a rx from Alice, timeout or Trent is a liar
-    For a main chain tx, timeout
- *)
-(*type operation_rejection =
-  Timeout
-| Fraud of fraud_proof*)
 
 (** Stage of knowledge of one actor about an operation
 
@@ -46,18 +27,10 @@ type fraud_proof
   or we leave that aside.
  *)
 type knowledge_stage =
-  Unknown (* 0. that actor never heard of it *)
-| In_flight (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
+| Unknown (* 0. that actor never heard of it *)
+| Pending (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
 | Confirmed (* of operation_confirmation *) (* 2. that actor confirmed it *)
 | Rejected (* of operation_rejection *) (* 3. that actor rejected it, timed out, or lied, etc. *)
-
-(** request sent to the main chain *)
-type main_chain_request
-
-(** an old enough block on the main chain
-    TODO: maybe also include a path and/or merkle tree from there?
-    *)
-type main_chain_confirmation = main_chain_state digest
 
 (** memo identifying the invoice
     The merchant chooses this memo to match payments to invoices on his side;
@@ -83,7 +56,7 @@ type side_chain_operation =
   { withdrawal_invoice: invoice
   ; withdrawal_fee: token_amount }
 (*
-| Settlement_proposal of
+| Settlement of
   { sender: public_key
   ; sender_facilitator: public_key
   ; recipient: public_key
@@ -143,11 +116,6 @@ and side_chain_state =
 type side_chain_episteme =
   { side_chain_request: side_chain_request signed
   ; maybe_side_chain_confirmation: side_chain_confirmation signed option
-  ; maybe_main_chain_confirmation: main_chain_confirmation option }
-
-(** main chain operation + knowledge about the operation *)
-type main_chain_episteme =
-  { main_chain_request: main_chain_request
   ; maybe_main_chain_confirmation: main_chain_confirmation option }
 
 (** private state a user keeps for his account with a facilitator *)
@@ -265,7 +233,7 @@ type deposit_request =
   { header: rx_header
   ; amount: token_amount
   ; fee: token_amount
-  ; tx_confirmation: main_chain_transaction_confirmation }
+  ; tx_confirmation: main_chain_confirmation }
 
 type deposit_confirmation = {header: tx_header; request: deposit_request}
 
@@ -282,11 +250,10 @@ type user_to_user_message
 
 exception Invalid_side_chain_operation of side_chain_operation
 
-(*
-let new_facilitator_state =
-  {
-  }
- *)
+let new_facilitator_account_state_per_user =
+  { active = Int64.zero
+  ; balance = Int64.zero
+  ; user_revision = Int64.zero }
 
 let apply_operation state change =
   bottom ()

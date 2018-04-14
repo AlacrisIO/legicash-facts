@@ -24,9 +24,6 @@ type 'a signed
 (** a cryptographic digest, "hash", for an object of type 'a *)
 type 'a digest
 
-(** represents account balance in a the particular currency (tez, eth, etc.) *)
-type token_amount
-
 (** count of changes in an object.
     A positive integer less than 2**63, incremented at every change to a notional object's state.
     In Quake, we used to call that the mod-count (modification count).
@@ -35,25 +32,14 @@ type token_amount
     Not for now: the server can use the global clock for the server.
  *)
 
-type revision
+(** sequence number for changes in a side-chain *)
+type revision = Int64.t
 
 (** type of a timestamp *)
 type timestamp
 
 (** type for a duration in terms of consensus cycles, for use in timeouts *)
 type duration
-
-(** Number of consensus rounds if linear block-based. Timestamp if DAG-based? *)
-type main_chain_height
-
-(** State of a main chain block. In tezos, it's a Block_header.t *)
-type main_chain_state
-
-(** Transaction to be posted on the main chain *)
-type main_chain_transaction
-
-(** Confirmation of a transaction on the main chain *)
-type main_chain_transaction_confirmation
 
 (** A conversation between two parties
     The type embodies an endpoint + state of communication + possibility of reconnection

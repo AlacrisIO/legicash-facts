@@ -1,6 +1,7 @@
 (* complex types for LegiCash flows *)
 
 open Base
+open Main_chain
 
 (** state stored by a user *)
 type user_state
@@ -119,7 +120,7 @@ val confirm_account_activity_status :
   facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
-val deposit : (token_amount, main_chain_transaction) user_action
+val deposit : (token_amount, main_chain_request) user_action
 (** Flow 1 Step 3: user sends money on the main chain *)
 
 (** deposit request *)
@@ -127,10 +128,10 @@ type deposit_request =
   { header: rx_header
   ; amount: token_amount
   ; fee: token_amount
-  ; tx_confirmation: main_chain_transaction_confirmation }
+  ; tx_confirmation: main_chain_confirmation }
 
 val request_deposit :
-  (token_amount * main_chain_transaction, deposit_request signed) user_action
+  (token_amount * main_chain_confirmation, deposit_request signed) user_action
 (** Flow 1 Step 4: user pays entry fee on the side chain *)
 
 (** Type for deposit confirmation *)
@@ -218,7 +219,7 @@ val commit_side_chain_state : (unit, unit) facilitator_action
 
 (* Flow 3: Individual Adversarial Exit *)
 
-val initiate_individual_exit : (unit, main_chain_transaction) user_action
+val initiate_individual_exit : (unit, main_chain_request) user_action
 (** Flow 3 Step 1: Alice posts an account_activity_status request for closing the account
  on the *main chain*.
  *)
@@ -241,7 +242,7 @@ val check_main_chain_for_exits :
  *)
 type account_liquidation_request = {header: rx_header; details: invoice}
 
-val request_account_liquidation : (invoice, main_chain_transaction) user_action
+val request_account_liquidation : (invoice, main_chain_request) user_action
 
 (** Flow 3 Step 4: Trent signs and posts a confirmation on his side-chain.
  *)
@@ -254,7 +255,7 @@ val confirm_account_liquidation :
   facilitator_action
 
 val collect_account_liquidation_funds :
-  (unit, main_chain_transaction) user_action
+  (unit, main_chain_request) user_action
 (** Flow 3 Step 5: After no one speaks up during a challenge period,
     Alice invokes the contract on the main chain that actually pays the recipient
     specified in her invoice.

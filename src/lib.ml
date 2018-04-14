@@ -8,9 +8,10 @@ let list_of_option x = match x with None -> [] | Some x -> [x]
   and/or define a new style guide rule with motivation.
  *)
 
-(** Let's cheat for now
-    Tezos has something we should use
-    *)
+(** A pure mapping from 'a to 'b suitable for use in interactive merkle proofs
+    Let's cheat for now.
+    TODO: Tezos must have something we should use.
+ *)
 type ('a, 'b) patricia_merkle_trie = ('a, 'b) Hashtbl.t
 
 let is_odd_64 x = (Int64.logand x Int64.one) == Int64.one
