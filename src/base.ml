@@ -25,9 +25,9 @@ let compose_actions c_of_b b_of_a (s, a) =
   | (t, Ok b) -> c_of_b (t, b)
 
 (** unique identifier for all parties, that is, customers and facilitators *)
-type public_key = Tezos_crypto.Crypto_box.public_key
+type public_key = Key256.t (* WAS: Tezos_crypto.Crypto_box.public_key *)
 
-type int256 = Z.t
+type int256 = Key256.t
 (*module Int256 : Int with type t = Z.t : sig
 end*)
 
