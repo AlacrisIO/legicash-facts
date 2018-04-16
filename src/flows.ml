@@ -108,8 +108,8 @@ and facilitator_account_state_per_user =
 and side_chain_state =
   { previous_main_chain_state: main_chain_state digest (* Tezos state *)
   ; previous_side_chain_state: side_chain_state digest (* state previously posted on the above *)
-  ; user_accounts: (public_key, facilitator_account_state_per_user) patricia_merkle_trie
-  ; operations: (revision, side_chain_confirmation) patricia_merkle_trie }
+  ; user_accounts: facilitator_account_state_per_user key256_patricia_merkle_trie
+  ; operations: side_chain_confirmation key256_patricia_merkle_trie }
 
 
 (** side chain operation + knowledge about the operation *)
@@ -192,8 +192,8 @@ type facilitator_state =
   { confirmed_state: side_chain_state (* latest confirmed public state *)
   ; bond_posted: token_amount
   ; current_limit: token_amount (* expedited limit still unspent since confirmation *)
-  ; account_states: (public_key, facilitator_account_state_per_user) patricia_merkle_trie
-  ; pending_operations: (revision, side_chain_episteme list) patricia_merkle_trie
+  ; account_states: facilitator_account_state_per_user key256_patricia_merkle_trie
+  ; pending_operations: (side_chain_episteme list) key256_patricia_merkle_trie
   ; current_revision: revision (* incremented at every change *)
   ; fee_structure: facilitator_fee_structure }
 
@@ -357,4 +357,3 @@ let collect_account_liquidation_funds = bottom
 let send_user_request = bottom
 
 let send_facilitator_confirmation = bottom
-

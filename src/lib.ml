@@ -15,9 +15,10 @@ let list_of_option x = match x with None -> [] | Some x -> [x]
     TODO: Tezos must have something we should use.
     probably Tezos_crypto.S.MERKLE_TREE or Tezos_crypto.Blake2B.Make_merkle_tree
  *)
-type ('a, 'b) patricia_merkle_trie = ('a, 'b) Hashtbl.t
 
-module PublicKeyMap = Map.Make(Key256)
+module Key256Map = Map.Make(Key256)
+type 'a key256_patricia_merkle_trie = 'a Key256Map.t
+
 module Int64Map = Map.Make(Int64)
 (*Lib_crypto.Blake2B.Make_merkle_tree something?*)
 
