@@ -2,6 +2,7 @@
 
 open Base
 open Main_chain
+open Tezos_crypto
 
 (** state stored by a user *)
 type user_state
@@ -210,19 +211,11 @@ val send_message : 'a -> conversation -> unit legi_result
     TODO: To be implemented but not exposed
  *)
 
-val account_activity_status_request_signed :
-  account_activity_status_request signed -> conversation -> unit legi_result
+val send_user_request :
+  user_state -> side_chain_request signed -> conversation -> unit legi_result
 
-val account_activity_status_confirmation_signed :
-  account_activity_status_confirmation signed -> conversation
-  -> unit legi_result
-(*
-val send_check_signed : check signed -> conversation -> unit legi_result *)
-(*
-val send_certified_check_signed :
-  certified_check signed -> conversation -> unit legi_result
- *)
-(* TODO: and send functions for all messages of all flows. *)
+val send_facilitator_confirmation :
+  facilitator_state -> side_chain_confirmation signed -> conversation -> unit legi_result
 
 val commit_side_chain_state : (unit, unit) facilitator_action
 (** For a facilitator, commit the state of the side-chain to the main-chain *)

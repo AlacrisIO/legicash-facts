@@ -11,7 +11,12 @@ including its relationship to the main-chain:
     * all the transitive digests point to data of the correct type
     * each update contains a new current state and a list of transactions from the previous state
     * the state is patricia merkle trie of accounts mapped to account states
-  * Fine structure validation (dependent types):
+    * ideally, from a common DSL we can generate at the same time
+      in-logic (Coq), in-language (ML), on-network and efficient on-disk representations,
+      for all the blockchains that we may want to link together
+      (including all the cryptocurrencies that matter:
+      Bitcoin, Ethereum, Ripple, Bitcoin Cash, Litecoin, Cardano, Tezos, EOS, Stellar, Monero, Zcash, etc.)
+  * Fine structure validation (dependent types for each blockchain in isolation):
     * account balances are non-negative
     * account balances sum up to less than the total number of tokens (less than the total on the contract)
     * transaction numbers are consecutive
@@ -43,18 +48,18 @@ but it also works when the side-chain updates cease to be well-formed.
 
 Voluntary repudiation: at any point, disgruntled users can either exit on the main chain,
 or entrust another facilitator (using the exact same facilitation contract) with exit.
+If the facilitator refuses to cooperate and sign the exit transaction,
+the user may publish the request on the main chain and the facilitator will be compelled
+to complete the exit under pain on.
 When the side-chain isn't well-formed anymore, or otherwise ceases to function,
 an additional involuntary repudiation takes place.
 
 A simple exit from a single user to the main chain is functionally equivalent
-to a general mass exit with only a single, voluntary, participant.
-A mass exit takes several
+to a general mass exit with only a single, voluntary, participant,
+though it takes a special path that doesn't scale as much but
+does ensure direct exit to the main chain.
+A mass exit usually takes several user exits in parallel.
 
-takes the form of
-an interactive proof that the XXXXXX
-If the user has pending transactions, he must first wait for the facilitator to post its last update,
-or to fail in which case adversarial updates will be posted.
-Only then will the user be able to do an exit.
 
 
 ## Code Extraction

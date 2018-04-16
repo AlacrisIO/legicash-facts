@@ -261,10 +261,17 @@ type user_to_user_message
 
 exception Invalid_side_chain_operation of side_chain_operation
 
+(** Default (empty) state for a new facilitator *)
 let new_facilitator_account_state_per_user =
   { active = Int64.zero
   ; balance = Int64.zero
   ; user_revision = Int64.zero }
+
+(** Default (empty) state for a new facilitator *)
+let new_user_account_state_per_facilitator =
+  { facilitator_validity = Confirmed
+  ; confirmed_state = new_facilitator_account_state_per_user
+  ; pending_operations = [] }
 
 let apply_operation state change =
   bottom ()
@@ -283,11 +290,16 @@ let optimistic_state state =
 let user_activity_revision_for_facilitator user_state = bottom ()
 (* match user_state.facilitators.get(facilitator_pk) with None -> 0 | Some x -> x.active *)
 
+let is_account_open user_state facilitator_pk =
+  (*match find_opt facilitator_pk with
+    Some -> bottom ()
+  | None -> *) bottom ()
+
 (**
   TODO: take into account not just the facilitator name, but the fee schedule, too.
   TODO: exception if facilitator dishonest.
  *)
-let open_account (state, facilitator_pk) =
+let open_account (user_state, facilitator_pk) =
   bottom ()
   (*
   let os = optimistic_state state in
@@ -299,45 +311,50 @@ let open_account (state, facilitator_pk) =
 
 (** missing values to be implemented *)
 
-let close_account = bottom ()
+let close_account = bottom
 
-let collect_account_liquidation_funds = bottom ()
+let collect_account_liquidation_funds = bottom
 
-let request_account_liquidation = bottom ()
+let request_account_liquidation = bottom
 
-let check_main_chain_for_exits = bottom ()
+let check_main_chain_for_exits = bottom
 
-let initiate_individual_exit = bottom ()
+let initiate_individual_exit = bottom
 
-let send_certified_check_signed = bottom ()
+let send_certified_check_signed = bottom
 
-let send_check_signed = bottom ()
+let send_check_signed = bottom
 
-let account_activity_status_confirmation_signed = bottom ()
+let account_activity_status_confirmation_signed = bottom
 
-let account_activity_status_request_signed = bottom ()
+let account_activity_status_request_signed = bottom
 
-let accept_payment = bottom ()
+let accept_payment = bottom
 
-let publish_certified_check = bottom ()
+let publish_certified_check = bottom
 
-let certify_check = bottom ()
+let certify_check = bottom
 
-let create_check = bottom ()
+let create_check = bottom
 
-let confirm_deposit = bottom ()
+let confirm_deposit = bottom
 
-let request_deposit = bottom ()
+let request_deposit = bottom
 
-let deposit = bottom ()
+let deposit = bottom
 
-let confirm_account_activity_status = bottom ()
+let confirm_account_activity_status = bottom
 
 let is_account_activity_status_open account_activity_status_request =
   bottom () (* is_odd_64 account_activity_status_request.status *)
 
-let detect_main_chain_facilitator_issues = bottom ()
+let detect_main_chain_facilitator_issues = bottom
 
-let confirm_account_liquidation = bottom ()
+let confirm_account_liquidation = bottom
 
-let collect_account_liquidation_funds = bottom ()
+let collect_account_liquidation_funds = bottom
+
+let send_user_request = bottom
+
+let send_facilitator_confirmation = bottom
+

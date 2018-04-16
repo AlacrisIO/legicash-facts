@@ -1,5 +1,7 @@
 (* base.ml -- base types for Legicash platform *)
 
+open Z
+
 exception Not_implemented
 
 exception Timeout of string
@@ -25,8 +27,9 @@ let compose_actions c_of_b b_of_a (s, a) =
 (** unique identifier for all parties, that is, customers and facilitators *)
 type public_key = Tezos_crypto.Crypto_box.public_key
 
-type int256 =
-  {field1: Int64.t; field2: Int64.t; field3: Int64.t; field4: Int64.t}
+type int256 = Z.t
+(*module Int256 : Int with type t = Z.t : sig
+end*)
 
 type 'a signature = int256
 

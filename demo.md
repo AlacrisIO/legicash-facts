@@ -100,25 +100,46 @@ with a contract that if Alice sends money to Trent2 on the main chain
 then Trent will credit Alice on his side-chain.
 
 
-### Adversarial Exit Flow
+### Cooperative Exit Flow
 
-Actors: Bob (recipient), Trent (facilitator)
+Actors: Alice (recipient), Trent (facilitator)
 
 Preconditions:
-* Bob has an account on Trent's side-chain with balance X.
-* Bob has an account on the main-chain with balance F or more.
+* Alice has an account on Trent's side-chain with balance X.
+* Alice has an account on the main-chain with balance F or more.
+* Alice and Trent agree on an exit fee and cooperate.
 
 Postconditions:
-* Bob has an account on the main chain with balance X.
-* Bob has no account on Trent's side-chain (balance 0).
-* Bob pays up to F in court fees.
+* Alice has an account on the main chain with balance X.
+* Alice has no account on Trent's side-chain (balance 0).
+* Alice pays up to F in court fees.
 * Trent pays up to G in court fees.
 
-1. Bob sends claim to Trent's contract on the main chain with all details
+1. Alice writes, signs and sends Trent an exit request.
+
+2. Trent completes all transactions regarding Alice and signs a confirmation for the exit.
+
+3. Trent updates the main chain.
+   It is now common knowledge that there are no floating transactions for Alice,
+   and that Alice will be able to take money away.
+
+4. Alice waits for a challenge period during which Trent's chain may be proven fraudulent.
+
+5. Past the challenge period (and past any lawsuits that may settle Alice's rights),
+   Alice may take any remaining funds out of the account.
+   Alice may also take out any funds deposited for which Trent refused to write a deposit slip.
+
+
+### Adversarial Exit Flow
+
+Same as above, but first Alice may have to publish her request on the main chain
+to put Trent on notice that he must close Alice's account of be proven invalid.
+
+1. Alice sends claim to Trent's contract on the main chain with all details
  (including list of pending transactions). Details may be posted on court registry
  instead of included in extenso in court proceedings.
 2. a. If details invalid or incomplete,
-  Trent contests and gets Bob thrown out "come back with your file in order"
+  Trent contests and gets Alice thrown out "come back with your file in order"
   b. Trent goes missing or invalid. See Facilitator invalidation story, then go back to 2c.
   c. Trent has to post his side of the story, with a side-chain state update.
 3. Interactive proof without mutable state, in predictable, finite number of steps.
