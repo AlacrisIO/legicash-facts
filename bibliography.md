@@ -56,3 +56,7 @@
   [Michelson-lang.com](https://www.michelson-lang.com/),
   [Tezos Forum on Smart contracts](https://forums.tezos.community/c/smart-contracts),
   [Michelson contracts need access to blockchain state](https://gitlab.com/tezos/tezos/issues/158).
+
+* Contracts in EVM:
+  [opcodes](https://ethereum.stackexchange.com/questions/119/what-opcodes-are-available-for-the-ethereum-evm),
+  [old Ethereum block hashes](https://github.com/amiller/ethereum-blockhashes).
