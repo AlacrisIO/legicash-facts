@@ -27,10 +27,17 @@ type fraud_proof
   or we leave that aside.
  *)
 type knowledge_stage =
-| Unknown (* 0. that actor never heard of it *)
-| Pending (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
-| Confirmed (* of operation_confirmation *) (* 2. that actor confirmed it *)
-| Rejected (* of operation_rejection *) (* 3. that actor rejected it, timed out, or lied, etc. *)
+  | Unknown
+  (* 0. that actor never heard of it *)
+  | Pending
+  (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
+  | Confirmed
+  (* of operation_confirmation *)
+  (* 2. that actor confirmed it *)
+  | Rejected
+
+(* of operation_rejection *)
+(* 3. that actor rejected it, timed out, or lied, etc. *)
 
 (** memo identifying the invoice
     The merchant chooses this memo to match payments to invoices on his side;
@@ -42,20 +49,19 @@ type invoice = {recipient: public_key; amount: TokenAmount.t; memo: memo}
 
 (** an operation on a facilitator side-chain *)
 type side_chain_operation =
-| Activity_status of Revision.t
-| Payment of
-  { payment_invoice: invoice
-  ; payment_fee: TokenAmount.t
-  ; expedited: bool }
-| Deposit of
-  { deposit_amount: TokenAmount.t
-  ; deposit_fee: TokenAmount.t
-  ; main_chain_request: main_chain_request
-  ; main_chain_confirmation: main_chain_confirmation
-  ; expedited: bool }
-| Withdrawal of
-  { withdrawal_invoice: invoice
-  ; withdrawal_fee: TokenAmount.t }
+  | Activity_status of Revision.t
+  | Payment of
+      { payment_invoice: invoice
+      ; payment_fee: TokenAmount.t
+      ; expedited: bool }
+  | Deposit of
+      { deposit_amount: TokenAmount.t
+      ; deposit_fee: TokenAmount.t
+      ; main_chain_request: main_chain_request
+      ; main_chain_confirmation: main_chain_confirmation
+      ; expedited: bool }
+  | Withdrawal of {withdrawal_invoice: invoice; withdrawal_fee: TokenAmount.t}
+
 (*
 | Settlement of
   { sender: public_key
@@ -63,7 +69,6 @@ type side_chain_operation =
   ; recipient: public_key
   ; recipient_facilitator: public_key }
 *)
-
 (** headers for a request to a facilitator
     provide a reference to the past and a timeout in the future
     *)
@@ -80,40 +85,35 @@ and rx_header =
     an operation, plus headers that provide a reference to the past and a timeout
     *)
 and side_chain_request =
-{ rx_header: rx_header
-; side_chain_operation: side_chain_operation }
+  {rx_header: rx_header; side_chain_operation: side_chain_operation}
 
 (** headers for a confirmation from a facilitator:
     give a revision so contradiction is trivial to check.
     Should we also provide log(n) digests to the previous confirmation
     whose revision is a multiple of 2**k for all k?
     *)
-and tx_header =
-  { tx_revision: Revision.t
-  ; spending_limit: TokenAmount.t }
+and tx_header = {tx_revision: Revision.t; spending_limit: TokenAmount.t}
 
 (** A transaction confirmation from a facilitator:
     a request, plus headers that help validate against fraud.
     *)
 and side_chain_confirmation =
-{ tx_header: tx_header
-; signed_request: side_chain_request signed }
+  {tx_header: tx_header; signed_request: side_chain_request signed}
 
 (** public state of a user's account in the facilitator's side-chain *)
 and facilitator_account_state_per_user =
-  { active: Revision.t
-  ; balance: TokenAmount.t
-  ; user_revision: Revision.t }
+  {active: Revision.t; balance: TokenAmount.t; user_revision: Revision.t}
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
     *)
 and side_chain_state =
   { previous_main_chain_state: main_chain_state digest (* Tezos state *)
-  ; previous_side_chain_state: side_chain_state digest (* state previously posted on the above *)
+  ; previous_side_chain_state:
+      side_chain_state digest
+      (* state previously posted on the above *)
   ; side_chain_revision: Revision.t
   ; user_accounts: facilitator_account_state_per_user Key256Map.t
   ; operations: side_chain_confirmation Key256Map.t }
-
 
 (** side chain operation + knowledge about the operation *)
 type side_chain_episteme =
@@ -124,7 +124,7 @@ type side_chain_episteme =
 (** private state a user keeps for his account with a facilitator *)
 type user_account_state_per_facilitator =
   { (* do we know the facilitator to be a liar? If so, Rejected *)
-    facilitator_validity: knowledge_stage
+  facilitator_validity: knowledge_stage
   ; confirmed_state: facilitator_account_state_per_user
   ; pending_operations: side_chain_episteme list }
 
@@ -164,18 +164,16 @@ type user_account_state_per_facilitator =
    E. If Trent lies, we want to be able to divert the unconfirmed *incoming* transactions
       to Ursula and/or Judy (TODO: and their dependency history if any?)
  *)
-type user_state =
-  { public_key: public_key
-  ; private_key: private_key
-  ; latest_main_chain_confirmation: main_chain_state digest
-  ; latest_main_chain_confirmed_balance: TokenAmount.t
-  ; main_chain_pending_operations: main_chain_episteme list
 
-  (* Only store the confirmed state, and have any updates in pending *)
+type side_chain_user_state =
+  { latest_main_chain_confirmation: main_chain_state digest
+  ; latest_main_chain_confirmed_balance:
+      TokenAmount.t
+      (* Only store the confirmed state, and have any updates in pending *)
   ; facilitators: facilitator_account_state_per_user Key256Map.t
-  }
+  ; main_chain_user_state: main_chain_user_state }
 
-type ('a, 'b) user_action = ('a, 'b, user_state) action
+type ('a, 'b) user_action = ('a, 'b, side_chain_user_state) action
 
 type verifier_state
 
@@ -186,9 +184,10 @@ type ('a, 'b) verifier_action = ('a, 'b, verifier_state) action
     *)
 type facilitator_fee_structure =
   { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
-  ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
-  ; fee_per_billion: int (* function TokenAmount.t -> TokenAmount.t ? *)
-  }
+  ; per_account_limit:
+      TokenAmount.t (* limit for pending expedited transactions per user *)
+  ; fee_per_billion: int
+  (* function TokenAmount.t -> TokenAmount.t ? *) }
 
 (** private state of a facilitator
     TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
@@ -196,9 +195,10 @@ type facilitator_fee_structure =
 type facilitator_state =
   { confirmed_state: side_chain_state (* latest confirmed public state *)
   ; bond_posted: TokenAmount.t
-  ; current_limit: TokenAmount.t (* expedited limit still unspent since confirmation *)
+  ; current_limit:
+      TokenAmount.t (* expedited limit still unspent since confirmation *)
   ; account_states: facilitator_account_state_per_user Key256Map.t
-  ; pending_operations: (side_chain_episteme list) Key256Map.t
+  ; pending_operations: side_chain_episteme list Key256Map.t
   ; current_revision: Revision.t (* incremented at every change *)
   ; fee_structure: facilitator_fee_structure }
 
@@ -212,80 +212,90 @@ type side_chain_update =
   { current_side_chain_state: side_chain_state digest
   ; availability_proof: court_clerk_confirmation list }
 
-
 (* associate facilitators with their accounts *)
 
 type user_to_facilitator_message
 
 type facilitator_to_user_message
 
-let stub_confirmed_main_chain_state =
-  ref genesis_main_chain_state
+let stub_confirmed_main_chain_state = ref genesis_main_chain_state
 
 let stub_confirmed_main_chain_state_digest =
   ref (get_digest genesis_main_chain_state)
 
-let genesis_side_chain_state =
-  { previous_main_chain_state = (get_digest genesis_main_chain_state)
-  ; previous_side_chain_state = null_digest
-  ; side_chain_revision = Revision.zero
-  ; user_accounts = Key256Map.empty
-  ; operations = Key256Map.empty }
 
-let stub_confirmed_side_chain_state =
-  ref genesis_side_chain_state
+let genesis_side_chain_state =
+  { previous_main_chain_state= get_digest genesis_main_chain_state
+  ; previous_side_chain_state= null_digest
+  ; side_chain_revision= Revision.zero
+  ; user_accounts= Key256Map.empty
+  ; operations= Key256Map.empty }
+
+
+let stub_confirmed_side_chain_state = ref genesis_side_chain_state
 
 let stub_confirmed_side_chain_state_digest =
   ref (get_digest genesis_side_chain_state)
 
-let get_facilitator user_state =
-  option_map fst (Key256Map.find_first_opt (constantly true) user_state.facilitators)
+
+let get_facilitator side_chain_user_state =
+  option_map fst
+    (Key256Map.find_first_opt (constantly true)
+       side_chain_user_state.facilitators)
+
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Int64.of_int 256
 
-let make_rx_header (user_state, _) =
-  match get_facilitator user_state with
-  | None -> (user_state, Error Not_found)
+let make_rx_header (side_chain_user_state, _) =
+  match get_facilitator side_chain_user_state with
+  | None -> (side_chain_user_state, Error Not_found)
   | Some facilitator ->
-     (user_state,
-      Ok { facilitator = facilitator
-         ; requester = user_state.public_key
-         ; confirmed_main_chain_state_digest = !stub_confirmed_main_chain_state_digest
-         ; confirmed_main_chain_state_revision = !stub_confirmed_main_chain_state.main_chain_revision
-         ; confirmed_side_chain_state_digest = !stub_confirmed_side_chain_state_digest
-         ; confirmed_side_chain_state_revision = !stub_confirmed_side_chain_state.side_chain_revision
-         ; validity_within = default_validity_window })
+      ( side_chain_user_state
+      , Ok
+          { facilitator
+          ; requester= side_chain_user_state.main_chain_user_state.public_key
+          ; confirmed_main_chain_state_digest=
+              !stub_confirmed_main_chain_state_digest
+          ; confirmed_main_chain_state_revision=
+              !stub_confirmed_main_chain_state.main_chain_revision
+          ; confirmed_side_chain_state_digest=
+              !stub_confirmed_side_chain_state_digest
+          ; confirmed_side_chain_state_revision=
+              !stub_confirmed_side_chain_state.side_chain_revision
+          ; validity_within= default_validity_window } )
+
 
 let mk_rx_episteme rx =
-  { side_chain_request = rx
-  ; side_chain_confirmation_option = None
-  ; main_chain_confirmation_option = None }
+  { side_chain_request= rx
+  ; side_chain_confirmation_option= None
+  ; main_chain_confirmation_option= None }
+
 
 let mk_tx_episteme tx =
-  { side_chain_request = tx.payload.signed_request
-  ; side_chain_confirmation_option = Some tx
-  ; main_chain_confirmation_option = None }
+  { side_chain_request= tx.payload.signed_request
+  ; side_chain_confirmation_option= Some tx
+  ; main_chain_confirmation_option= None }
 
-let add_user_episteme user_state episteme =
+
+let add_user_episteme side_chain_user_state episteme =
   (* TODO: use lenses? *)
   (*  update_pending state (fun pending -> episteme :: pending)*)
-  { user_state with facilitators = user_state.facilitators }
+  {side_chain_user_state with facilitators= side_chain_user_state.facilitators}
+
 
 let issue_user_request =
   action_seq
-    (fun (user_state, side_chain_operation) ->
-      do_action
-        (user_state, ())
-        (action_seq
-           make_rx_header
-           (action_of_pure_action
-              (fun (user_state, rx_header) ->
-                sign user_state.private_key
-                     {rx_header = rx_header; side_chain_operation = side_chain_operation}))))
-    (fun (user_state, request) -> (add_user_episteme user_state (mk_rx_episteme request), Ok request))
+    (fun (side_chain_user_state, side_chain_operation) ->
+      do_action (side_chain_user_state, ())
+        (action_seq make_rx_header
+           (action_of_pure_action (fun (side_chain_user_state, rx_header) ->
+                sign side_chain_user_state.main_chain_user_state.private_key
+                  {rx_header; side_chain_operation} ))) )
+    (fun (side_chain_user_state, request) ->
+      ( add_user_episteme side_chain_user_state (mk_rx_episteme request)
+      , Ok request ) )
 
-let make_check_for_certification check conv = bottom ()
 
 let send_certified_check check conv = bottom ()
 
@@ -321,45 +331,49 @@ exception Invalid_side_chain_operation of side_chain_operation
 
 (** Default (empty) state for a new facilitator *)
 let new_facilitator_account_state_per_user =
-  { active = Int64.zero
-  ; balance = Int64.zero
-  ; user_revision = Revision.zero }
+  {active= Int64.zero; balance= Int64.zero; user_revision= Revision.zero}
+
 
 (** Default (empty) state for a new facilitator *)
 let new_user_account_state_per_facilitator =
-  { facilitator_validity = Confirmed
-  ; confirmed_state = new_facilitator_account_state_per_user
-  ; pending_operations = [] }
+  { facilitator_validity= Confirmed
+  ; confirmed_state= new_facilitator_account_state_per_user
+  ; pending_operations= [] }
 
-let apply_operation state change =
-  bottom ()
 
-let apply_operations state changes =
-  bottom () (* reduce apply_operation state change *)
+let apply_operation state change = bottom ()
 
-let is_valid_episteme episteme =
-  bottom () (* match episteme.consensus_stage with Rejected _ -> false | _ -> true *)
+let apply_operations state changes = bottom ()
 
-let optimistic_state state =
-  bottom ()
+(* reduce apply_operation state change *)
+
+let is_valid_episteme episteme = bottom ()
+
+(* match episteme.consensus_stage with Rejected _ -> false | _ -> true *)
+
+let optimistic_state state = bottom ()
+
 (* let relevant_changes = filter is_valid_episteme state.pending in
   apply_operations state relevant_changes *)
 
-let user_activity_revision_for_facilitator user_state = bottom ()
-(* match user_state.facilitators.get(facilitator_pk) with None -> 0 | Some x -> x.active *)
+let user_activity_revision_for_facilitator side_chain_user_state = bottom ()
 
-let is_account_open user_state facilitator_pk =
+(* match side_chain_user_state.facilitators.get(facilitator_pk) with None -> 0 | Some x -> x.active *)
+
+let is_account_open side_chain_user_state facilitator_pk =
   (*match find_opt facilitator_pk with
     Some -> bottom ()
-  | None -> *) bottom ()
+  | None -> *)
+  bottom ()
+
 
 (**
   TODO: take into account not just the facilitator name, but the fee schedule, too.
   TODO: exception if facilitator dishonest.
  *)
-let open_account (user_state, facilitator_pk) =
-  bottom ()
-  (*
+let open_account (side_chain_user_state, facilitator_pk) = bottom ()
+
+(*
   let os = optimistic_state state in
   let revision = user_activity_revision_for_facilitator os in
   if is_odd revision
@@ -399,12 +413,27 @@ let confirm_deposit = bottom
 
 let request_deposit = bottom
 
-let deposit = bottom
+let lift_main_chain_user_action_to_side_chain action
+    (side_chain_user_state, input) =
+  let main_chain_user_state = side_chain_user_state.main_chain_user_state in
+  let new_main_chain_user_state, result =
+    action (main_chain_user_state, input)
+  in
+  ( { side_chain_user_state with
+      main_chain_user_state= new_main_chain_user_state }
+  , result )
+
+
+let deposit (side_chain_user_state, input) =
+  lift_main_chain_user_action_to_side_chain transfer_tokens
+    (side_chain_user_state, input)
+
 
 let confirm_account_activity_status = bottom
 
-let is_account_activity_status_open account_activity_status_request =
-  bottom () (* is_odd_64 account_activity_status_request.status *)
+let is_account_activity_status_open account_activity_status_request = bottom ()
+
+(* is_odd_64 account_activity_status_request.status *)
 
 let detect_main_chain_facilitator_issues = bottom
 
