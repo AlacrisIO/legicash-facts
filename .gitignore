@@ -1,3 +1,6 @@
-src/.merlin
-src/_build/
+.merlin
+_build/
 tezos
+*~
+*.cmo
+*.cmi
