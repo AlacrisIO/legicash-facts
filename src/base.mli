@@ -77,10 +77,10 @@ val null_digest: 'a digest
 module Revision = Int64
 
 (** type of a timestamp *)
-type timestamp = Int64.t
+module Timestamp = Int64
 
 (** type for a duration in terms of consensus cycles, for use in timeouts *)
-type duration = Int64.t
+module Duration = Int64
 
 (** A conversation between two parties
     The type embodies an endpoint + state of communication + possibility of reconnection

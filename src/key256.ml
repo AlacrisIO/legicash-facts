@@ -1,4 +1,6 @@
-(* 256-bit keys in Legicash *)
+(* 256-bit keys in Legicash.
+   TODO: rename to data256 ?
+ *)
 
 type t = char array
 
@@ -36,7 +38,7 @@ let generate () =
 
 let compare pk1 pk2 = Pervasives.compare pk1 pk2
 
-let zero = of_array (Array.make 32 '\000')
+let zero = of_array (Array.make key_bytes '\000')
 
 (** TODO: fix me *)
-let one = of_array (Array.make 32 '\001')
+let one = of_array (Array.make key_bytes '\001')

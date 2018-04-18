@@ -131,18 +131,18 @@ val confirm_account_activity_status :
   facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
-val deposit : (token_amount, main_chain_request) user_action
+val deposit : (TokenAmount.t, main_chain_request) user_action
 (** Flow 1 Step 3: user sends money on the main chain *)
 
 (** deposit request *)
 type deposit_request =
   { header: rx_header
-  ; amount: token_amount
-  ; fee: token_amount
+  ; amount: TokenAmount.t
+  ; fee: TokenAmount.t
   ; tx_confirmation: main_chain_confirmation }
 
 val request_deposit :
-  (token_amount * main_chain_confirmation, deposit_request signed) user_action
+  (TokenAmount.t * main_chain_confirmation, deposit_request signed) user_action
 (** Flow 1 Step 4: user pays entry fee on the side chain *)
 
 (** Type for deposit confirmation *)
@@ -157,12 +157,12 @@ val confirm_deposit :
 (** invoice
     TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
  *)
-type invoice = {recipient: public_key; amount: token_amount; memo: memo}
+type invoice = {recipient: public_key; amount: TokenAmount.t; memo: memo}
 
 (*
 (** check to be signed by the sender *)
 type check =
-  {header: rx_header; invoice: invoice; fee: token_amount; expedited: bool}
+  {header: rx_header; invoice: invoice; fee: TokenAmount.t; expedited: bool}
 
 val create_check : (invoice, check signed) user_action
 (** Flow 2 Step 1: Alice fills in the details of a check from an initial invoice, then signs it.
@@ -173,7 +173,7 @@ val create_check : (invoice, check signed) user_action
 (*
 (** certified check to be signed by the facilitator *)
 type certified_check =
-  {header: tx_header; signed_check: check signed; spending_limit: token_amount}
+  {header: tx_header; signed_check: check signed; spending_limit: TokenAmount.t}
 
 val certify_check : (check signed, certified_check signed) facilitator_action
 (** Flow 2 Step 2: Trent verifies that everything's fine and signs a certified check,

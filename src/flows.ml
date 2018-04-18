@@ -38,24 +38,24 @@ type knowledge_stage =
 type memo = string option
 
 (** invoice sent from payee to payer *)
-type invoice = {recipient: public_key; amount: token_amount; memo: memo}
+type invoice = {recipient: public_key; amount: TokenAmount.t; memo: memo}
 
 (** an operation on a facilitator side-chain *)
 type side_chain_operation =
 | Activity_status of Revision.t
 | Payment of
   { payment_invoice: invoice
-  ; payment_fee: token_amount
+  ; payment_fee: TokenAmount.t
   ; expedited: bool }
 | Deposit of
-  { deposit_amount: token_amount
-  ; deposit_fee: token_amount
+  { deposit_amount: TokenAmount.t
+  ; deposit_fee: TokenAmount.t
   ; main_chain_request: main_chain_request
   ; main_chain_confirmation: main_chain_confirmation
   ; expedited: bool }
 | Withdrawal of
   { withdrawal_invoice: invoice
-  ; withdrawal_fee: token_amount }
+  ; withdrawal_fee: TokenAmount.t }
 (*
 | Settlement of
   { sender: public_key
@@ -74,7 +74,7 @@ and rx_header =
   ; confirmed_main_chain_state_revision: Revision.t
   ; confirmed_side_chain_state_digest: side_chain_state digest
   ; confirmed_side_chain_state_revision: Revision.t
-  ; validity_within: duration }
+  ; validity_within: Duration.t }
 
 (** request to a facilitator:
     an operation, plus headers that provide a reference to the past and a timeout
@@ -90,7 +90,7 @@ and side_chain_request =
     *)
 and tx_header =
   { tx_revision: Revision.t
-  ; spending_limit: token_amount }
+  ; spending_limit: TokenAmount.t }
 
 (** A transaction confirmation from a facilitator:
     a request, plus headers that help validate against fraud.
@@ -102,7 +102,7 @@ and side_chain_confirmation =
 (** public state of a user's account in the facilitator's side-chain *)
 and facilitator_account_state_per_user =
   { active: Revision.t
-  ; balance: token_amount
+  ; balance: TokenAmount.t
   ; user_revision: Revision.t }
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
@@ -168,7 +168,7 @@ type user_state =
   { public_key: public_key
   ; private_key: private_key
   ; latest_main_chain_confirmation: main_chain_state digest
-  ; latest_main_chain_confirmed_balance: token_amount
+  ; latest_main_chain_confirmed_balance: TokenAmount.t
   ; main_chain_pending_operations: main_chain_episteme list
 
   (* Only store the confirmed state, and have any updates in pending *)
@@ -185,9 +185,9 @@ type ('a, 'b) verifier_action = ('a, 'b, verifier_state) action
     NB: an important constraint is that we need to advertise this fee structure to users
     *)
 type facilitator_fee_structure =
-  { deposit_fee: token_amount (* fee to accept a deposit *)
-  ; per_account_limit: token_amount (* limit for pending expedited transactions per user *)
-  ; fee_per_billion: int (* function token_amount -> token_amount ? *)
+  { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
+  ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
+  ; fee_per_billion: int (* function TokenAmount.t -> TokenAmount.t ? *)
   }
 
 (** private state of a facilitator
@@ -195,8 +195,8 @@ type facilitator_fee_structure =
     *)
 type facilitator_state =
   { confirmed_state: side_chain_state (* latest confirmed public state *)
-  ; bond_posted: token_amount
-  ; current_limit: token_amount (* expedited limit still unspent since confirmation *)
+  ; bond_posted: TokenAmount.t
+  ; current_limit: TokenAmount.t (* expedited limit still unspent since confirmation *)
   ; account_states: facilitator_account_state_per_user Key256Map.t
   ; pending_operations: (side_chain_episteme list) Key256Map.t
   ; current_revision: Revision.t (* incremented at every change *)
@@ -300,8 +300,8 @@ type account_activity_status_confirmation =
 
 type deposit_request =
   { header: rx_header
-  ; amount: token_amount
-  ; fee: token_amount
+  ; amount: TokenAmount.t
+  ; fee: TokenAmount.t
   ; tx_confirmation: main_chain_confirmation }
 
 type deposit_confirmation = {header: tx_header; request: deposit_request}

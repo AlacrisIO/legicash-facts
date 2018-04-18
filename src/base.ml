@@ -75,11 +75,11 @@ let null_digest = Key256.zero
 
 module Revision = Int64
 
-type timestamp = Int64.t
+module Duration = Int64
+
+module Timestamp = Int64
 
 (* TODO: use same as Tezos *)
-
-type duration = Int64.t
 
 type conversation
 

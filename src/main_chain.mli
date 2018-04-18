@@ -1,7 +1,7 @@
 open Base
 
 (** Represents account balance *)
-type token_amount = Int64.t
+module TokenAmount = Int64
 (* = tez *)
 
 (** Transaction request (to be) posted to the main chain (i.e. Tezos) *)
@@ -11,7 +11,7 @@ type main_chain_request
     In tezos, it's a Block_header.t *)
 type main_chain_state =
   { main_chain_revision: Revision.t
-  ; main_chain_accounts: token_amount Key256Map.t }
+  ; main_chain_accounts: TokenAmount.t Key256Map.t }
 
 (** Confirmation of a transaction on the main chain
     an old enough block on the main chain
