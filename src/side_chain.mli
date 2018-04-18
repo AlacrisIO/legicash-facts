@@ -131,7 +131,9 @@ val confirm_account_activity_status :
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
 val deposit :
-  (main_chain_transfer_tokens_details, main_chain_request) user_action
+  ( main_chain_transfer_tokens_details
+  , main_chain_transaction_signed )
+  user_action
 (** Flow 1 Step 3: user sends money on the main chain *)
 
 (** deposit request *)
@@ -226,7 +228,8 @@ val commit_side_chain_state : (unit, unit) facilitator_action
 
 (* Flow 3: Individual Adversarial Exit *)
 
-val initiate_individual_exit : (unit, main_chain_request) user_action
+val initiate_individual_exit :
+  (unit, main_chain_transaction_signed) user_action
 (** Flow 3 Step 1: Alice posts an account_activity_status request for closing the account
  on the *main chain*.
  *)
@@ -249,7 +252,8 @@ val check_main_chain_for_exits :
  *)
 type account_liquidation_request = {header: rx_header; details: invoice}
 
-val request_account_liquidation : (invoice, main_chain_request) user_action
+val request_account_liquidation :
+  (invoice, main_chain_transaction_signed) user_action
 
 (** Flow 3 Step 4: Trent signs and posts a confirmation on his side-chain.
  *)
@@ -261,7 +265,8 @@ val confirm_account_liquidation :
   , account_liquidation_confirmation )
   facilitator_action
 
-val collect_account_liquidation_funds : (unit, main_chain_request) user_action
+val collect_account_liquidation_funds :
+  (unit, main_chain_transaction_signed) user_action
 (** Flow 3 Step 5: After no one speaks up during a challenge period,
     Alice invokes the contract on the main chain that actually pays the recipient
     specified in her invoice.

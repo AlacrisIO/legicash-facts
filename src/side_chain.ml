@@ -57,7 +57,7 @@ type side_chain_operation =
   | Deposit of
       { deposit_amount: TokenAmount.t
       ; deposit_fee: TokenAmount.t
-      ; main_chain_request: main_chain_request
+      ; main_chain_transaction_signed: main_chain_transaction_signed
       ; main_chain_confirmation: main_chain_confirmation
       ; expedited: bool }
   | Withdrawal of {withdrawal_invoice: invoice; withdrawal_fee: TokenAmount.t}

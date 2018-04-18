@@ -3,9 +3,6 @@ module TokenAmount = Int64
 module Nonce = Int64
 module ContractAddress = Data256
 
-(** Transaction request (to be) posted to the main chain (i.e. Tezos) *)
-type main_chain_request
-
 (** State of a main chain block.
     In tezos, it's a Block_header.t *)
 type main_chain_state =
@@ -61,7 +58,7 @@ type ('a, 'b) main_chain_user_action = ('a, 'b, main_chain_user_state) action
 
 val transfer_tokens :
   ( main_chain_transfer_tokens_details
-  , main_chain_request )
+  , main_chain_transaction_signed )
   main_chain_user_action
 
 val genesis_main_chain_state : main_chain_state

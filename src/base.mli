@@ -34,6 +34,8 @@ val action_of_pure_action : ('a, 'b, 'c) pure_action -> ('a, 'b, 'c) action
 
 val compose_pure_actions: ('b, 'c, 'd) pure_action -> ('a, 'b, 'd) pure_action -> ('a, 'c, 'd) pure_action
 
+val pure_action_seq: ('a, 'b, 'd) pure_action -> ('b, 'c, 'd) pure_action -> ('a, 'c, 'd) pure_action
+
 
 (** A module for public keys *)
 module PublicKey: Map.OrderedType
