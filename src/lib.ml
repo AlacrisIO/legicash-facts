@@ -10,18 +10,10 @@ let list_of_option x = match x with None -> [] | Some x -> [x]
   and/or define a new style guide rule with motivation.
  *)
 
-(** A pure mapping from 'a to 'b suitable for use in interactive merkle proofs
-    Let's cheat for now.
-    TODO: Tezos must have something we should use.
-    probably Tezos_crypto.S.MERKLE_TREE or Tezos_crypto.Blake2B.Make_merkle_tree
- *)
-
-module Key256Map = Map.Make(Key256)
-type 'a key256_patricia_merkle_trie = 'a Key256Map.t
-
-module Int64Map = Map.Make(Int64)
-(*Lib_crypto.Blake2B.Make_merkle_tree something?*)
-
-(* module Int64Utils = *)
-
 let is_odd_64 x = (Int64.logand x Int64.one) == Int64.one
+
+let constantly x _ = x
+
+let option_map f = function
+  | Some x -> Some (f x)
+  | None -> None

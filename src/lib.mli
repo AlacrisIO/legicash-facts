@@ -1,3 +1,9 @@
+(* General purpose library
+   Stuff here should probably be imported from existing libraries if possible,
+   or else upstreamed then imported if possible,
+   or else published as their own library.
+ *)
+
 (** exception raised when we haven't implemented the damn thing yet *)
 exception Not_implemented
 
@@ -7,9 +13,10 @@ val bottom : 'a -> 'b
 (** Trivial functor from option to list *)
 val list_of_option : 'a option -> 'a list
 
-(** a pure mapping from Key256.t to 'a suitable for use in interactive merkle proofs *)
-module Key256Map : Map.S
-type 'a key256_patricia_merkle_trie
-
 (** is that Int64 number odd? *)
 val is_odd_64 : Int64.t -> bool
+
+val constantly : 'a -> 'b -> 'a
+
+val option_map : ('a -> 'b) -> 'a option -> 'b option
+

@@ -90,14 +90,14 @@ type tx_header
  *)
 type rx_header
 
-val issue_user_request: (side_chain_operation, side_chain_request) user_action
+val issue_user_request: (side_chain_operation, side_chain_request signed) user_action
 
 (* Flow 1: Opening an account *)
 
 (** Account activity status request / result *)
 type account_activity_status_request =
   { rx_header: rx_header
-  ; count: revision
+  ; count: Revision.t
   (* Number of times the account was previously closed or opened. 0 is never opened. *)
   }
 

@@ -35,3 +35,8 @@ let generate () =
   Array.of_list vs
 
 let compare pk1 pk2 = Pervasives.compare pk1 pk2
+
+let zero = of_array (Array.make 32 '\000')
+
+(** TODO: fix me *)
+let one = of_array (Array.make 32 '\001')

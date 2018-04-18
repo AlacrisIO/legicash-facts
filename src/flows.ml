@@ -42,7 +42,7 @@ type invoice = {recipient: public_key; amount: token_amount; memo: memo}
 
 (** an operation on a facilitator side-chain *)
 type side_chain_operation =
-| Activity_status of revision
+| Activity_status of Revision.t
 | Payment of
   { payment_invoice: invoice
   ; payment_fee: token_amount
@@ -51,7 +51,8 @@ type side_chain_operation =
   { deposit_amount: token_amount
   ; deposit_fee: token_amount
   ; main_chain_request: main_chain_request
-  ; main_chain_confirmation: main_chain_confirmation }
+  ; main_chain_confirmation: main_chain_confirmation
+  ; expedited: bool }
 | Withdrawal of
   { withdrawal_invoice: invoice
   ; withdrawal_fee: token_amount }
@@ -70,8 +71,9 @@ and rx_header =
   { facilitator: public_key
   ; requester: public_key
   ; confirmed_main_chain_state_digest: main_chain_state digest
-  ; confirmed_main_chain_state_timestamp: timestamp
+  ; confirmed_main_chain_state_revision: Revision.t
   ; confirmed_side_chain_state_digest: side_chain_state digest
+  ; confirmed_side_chain_state_revision: Revision.t
   ; validity_within: duration }
 
 (** request to a facilitator:
@@ -87,7 +89,7 @@ and side_chain_request =
     whose revision is a multiple of 2**k for all k?
     *)
 and tx_header =
-  { tx_revision: revision
+  { tx_revision: Revision.t
   ; spending_limit: token_amount }
 
 (** A transaction confirmation from a facilitator:
@@ -99,24 +101,25 @@ and side_chain_confirmation =
 
 (** public state of a user's account in the facilitator's side-chain *)
 and facilitator_account_state_per_user =
-  { active: revision
+  { active: Revision.t
   ; balance: token_amount
-  ; user_revision: revision }
+  ; user_revision: Revision.t }
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
     *)
 and side_chain_state =
   { previous_main_chain_state: main_chain_state digest (* Tezos state *)
   ; previous_side_chain_state: side_chain_state digest (* state previously posted on the above *)
-  ; user_accounts: facilitator_account_state_per_user key256_patricia_merkle_trie
-  ; operations: side_chain_confirmation key256_patricia_merkle_trie }
+  ; side_chain_revision: Revision.t
+  ; user_accounts: facilitator_account_state_per_user Key256Map.t
+  ; operations: side_chain_confirmation Key256Map.t }
 
 
 (** side chain operation + knowledge about the operation *)
 type side_chain_episteme =
   { side_chain_request: side_chain_request signed
-  ; maybe_side_chain_confirmation: side_chain_confirmation signed option
-  ; maybe_main_chain_confirmation: main_chain_confirmation option }
+  ; side_chain_confirmation_option: side_chain_confirmation signed option
+  ; main_chain_confirmation_option: main_chain_confirmation option }
 
 (** private state a user keeps for his account with a facilitator *)
 type user_account_state_per_facilitator =
@@ -162,12 +165,14 @@ type user_account_state_per_facilitator =
       to Ursula and/or Judy (TODO: and their dependency history if any?)
  *)
 type user_state =
-  { latest_main_chain_confirmation: main_chain_state digest
+  { public_key: public_key
+  ; private_key: private_key
+  ; latest_main_chain_confirmation: main_chain_state digest
   ; latest_main_chain_confirmed_balance: token_amount
   ; main_chain_pending_operations: main_chain_episteme list
 
   (* Only store the confirmed state, and have any updates in pending *)
-  ; facilitators: (public_key, facilitator_account_state_per_user) Hashtbl.t
+  ; facilitators: facilitator_account_state_per_user Key256Map.t
   }
 
 type ('a, 'b) user_action = ('a, 'b, user_state) action
@@ -192,9 +197,9 @@ type facilitator_state =
   { confirmed_state: side_chain_state (* latest confirmed public state *)
   ; bond_posted: token_amount
   ; current_limit: token_amount (* expedited limit still unspent since confirmation *)
-  ; account_states: facilitator_account_state_per_user key256_patricia_merkle_trie
-  ; pending_operations: (side_chain_episteme list) key256_patricia_merkle_trie
-  ; current_revision: revision (* incremented at every change *)
+  ; account_states: facilitator_account_state_per_user Key256Map.t
+  ; pending_operations: (side_chain_episteme list) Key256Map.t
+  ; current_revision: Revision.t (* incremented at every change *)
   ; fee_structure: facilitator_fee_structure }
 
 type ('a, 'b) facilitator_action = ('a, 'b, facilitator_state) action
@@ -214,18 +219,71 @@ type user_to_facilitator_message
 
 type facilitator_to_user_message
 
-let make_rx_header user_state = bottom ()
+let stub_confirmed_main_chain_state =
+  ref genesis_main_chain_state
 
-let mk_rx_episteme rx = bottom ()
+let stub_confirmed_main_chain_state_digest =
+  ref (get_digest genesis_main_chain_state)
 
-let mk_tx_episteme tx = bottom ()
+let genesis_side_chain_state =
+  { previous_main_chain_state = (get_digest genesis_main_chain_state)
+  ; previous_side_chain_state = null_digest
+  ; side_chain_revision = Revision.zero
+  ; user_accounts = Key256Map.empty
+  ; operations = Key256Map.empty }
 
-let add_user_episteme (user_state: user_state) episteme = bottom ()
-(*  update_pending state (fun pending -> episteme :: pending)*)
+let stub_confirmed_side_chain_state =
+  ref genesis_side_chain_state
 
-let issue_user_request = fun (user_state, side_chain_operation) ->
-  let request = {rx_header = make_rx_header user_state; side_chain_operation = side_chain_operation} in
-  (add_user_episteme user_state (mk_rx_episteme request), Ok request)
+let stub_confirmed_side_chain_state_digest =
+  ref (get_digest genesis_side_chain_state)
+
+let get_facilitator user_state =
+  option_map fst (Key256Map.find_first_opt (constantly true) user_state.facilitators)
+
+(** TODO: find and justify a good default validity window in number of blocks *)
+let default_validity_window = Int64.of_int 256
+
+let make_rx_header (user_state, _) =
+  match get_facilitator user_state with
+  | None -> (user_state, Error Not_found)
+  | Some facilitator ->
+     (user_state,
+      Ok { facilitator = facilitator
+         ; requester = user_state.public_key
+         ; confirmed_main_chain_state_digest = !stub_confirmed_main_chain_state_digest
+         ; confirmed_main_chain_state_revision = !stub_confirmed_main_chain_state.main_chain_revision
+         ; confirmed_side_chain_state_digest = !stub_confirmed_side_chain_state_digest
+         ; confirmed_side_chain_state_revision = !stub_confirmed_side_chain_state.side_chain_revision
+         ; validity_within = default_validity_window })
+
+let mk_rx_episteme rx =
+  { side_chain_request = rx
+  ; side_chain_confirmation_option = None
+  ; main_chain_confirmation_option = None }
+
+let mk_tx_episteme tx =
+  { side_chain_request = tx.payload.signed_request
+  ; side_chain_confirmation_option = Some tx
+  ; main_chain_confirmation_option = None }
+
+let add_user_episteme user_state episteme =
+  (* TODO: use lenses? *)
+  (*  update_pending state (fun pending -> episteme :: pending)*)
+  { user_state with facilitators = user_state.facilitators }
+
+let issue_user_request =
+  action_seq
+    (fun (user_state, side_chain_operation) ->
+      do_action
+        (user_state, ())
+        (action_seq
+           make_rx_header
+           (action_of_pure_action
+              (fun (user_state, rx_header) ->
+                sign user_state.private_key
+                     {rx_header = rx_header; side_chain_operation = side_chain_operation}))))
+    (fun (user_state, request) -> (add_user_episteme user_state (mk_rx_episteme request), Ok request))
 
 let make_check_for_certification check conv = bottom ()
 
@@ -235,7 +293,7 @@ let commit_side_chain_state = bottom ()
 
 let send_message payload conv = bottom ()
 
-type account_activity_status_request = {rx_header: rx_header; count: revision}
+type account_activity_status_request = {rx_header: rx_header; count: Revision.t}
 
 type account_activity_status_confirmation =
   {header: tx_header; status: account_activity_status_request}
@@ -265,7 +323,7 @@ exception Invalid_side_chain_operation of side_chain_operation
 let new_facilitator_account_state_per_user =
   { active = Int64.zero
   ; balance = Int64.zero
-  ; user_revision = Int64.zero }
+  ; user_revision = Revision.zero }
 
 (** Default (empty) state for a new facilitator *)
 let new_user_account_state_per_facilitator =

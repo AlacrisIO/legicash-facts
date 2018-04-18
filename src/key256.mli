@@ -14,4 +14,10 @@ val of_array : char array -> t
 val generate : unit -> t
 
 (** compare two public keys, needed when passing this module to the Map.S functor *)
-val compare : t-> t -> int
+val compare : t -> t -> int
+
+(** null value which doesn't have a knowable private key (or preimage when used as digest) *)
+val zero : t
+
+(** TODO: fake value until we have actual stuff *)
+val one : t
