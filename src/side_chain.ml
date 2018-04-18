@@ -112,8 +112,8 @@ and side_chain_state =
       side_chain_state digest
       (* state previously posted on the above *)
   ; side_chain_revision: Revision.t
-  ; user_accounts: facilitator_account_state_per_user Key256Map.t
-  ; operations: side_chain_confirmation Key256Map.t }
+  ; user_accounts: facilitator_account_state_per_user Data256Map.t
+  ; operations: side_chain_confirmation Data256Map.t }
 
 (** side chain operation + knowledge about the operation *)
 type side_chain_episteme =
@@ -170,7 +170,7 @@ type side_chain_user_state =
   ; latest_main_chain_confirmed_balance:
       TokenAmount.t
       (* Only store the confirmed state, and have any updates in pending *)
-  ; facilitators: facilitator_account_state_per_user Key256Map.t
+  ; facilitators: facilitator_account_state_per_user Data256Map.t
   ; main_chain_user_state: main_chain_user_state }
 
 type ('a, 'b) user_action = ('a, 'b, side_chain_user_state) action
@@ -197,8 +197,8 @@ type facilitator_state =
   ; bond_posted: TokenAmount.t
   ; current_limit:
       TokenAmount.t (* expedited limit still unspent since confirmation *)
-  ; account_states: facilitator_account_state_per_user Key256Map.t
-  ; pending_operations: side_chain_episteme list Key256Map.t
+  ; account_states: facilitator_account_state_per_user Data256Map.t
+  ; pending_operations: side_chain_episteme list Data256Map.t
   ; current_revision: Revision.t (* incremented at every change *)
   ; fee_structure: facilitator_fee_structure }
 
@@ -228,8 +228,8 @@ let genesis_side_chain_state =
   { previous_main_chain_state= get_digest genesis_main_chain_state
   ; previous_side_chain_state= null_digest
   ; side_chain_revision= Revision.zero
-  ; user_accounts= Key256Map.empty
-  ; operations= Key256Map.empty }
+  ; user_accounts= Data256Map.empty
+  ; operations= Data256Map.empty }
 
 
 let stub_confirmed_side_chain_state = ref genesis_side_chain_state
@@ -240,7 +240,7 @@ let stub_confirmed_side_chain_state_digest =
 
 let get_facilitator side_chain_user_state =
   option_map fst
-    (Key256Map.find_first_opt (constantly true)
+    (Data256Map.find_first_opt (constantly true)
        side_chain_user_state.facilitators)
 
 

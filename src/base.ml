@@ -45,18 +45,18 @@ let compose_pure_actions c_of_b b_of_a (s, a) =
 
 
 (** unique identifier for all parties, that is, customers and facilitators *)
-type public_key = Key256.t (* WAS: Tezos_crypto.Crypto_box.public_key *)
+type public_key = Data256.t (* WAS: Tezos_crypto.Crypto_box.public_key *)
 
 (** private key in public-key cryptography *)
-type private_key = Key256.t
+type private_key = Data256.t
 
-type int256 = Key256.t
+type int256 = Data256.t
 (*module Int256 : Int with type t = Z.t : sig
 end*)
 
 type 'a signature = int256
 
-let is_signature_valid public_key signature data = (Key256.compare public_key signature) == 0
+let is_signature_valid public_key signature data = (Data256.compare public_key signature) == 0
 
 (** TODO: unstub the signature function *)
 let make_signature private_key data = private_key
@@ -68,10 +68,10 @@ let sign private_key data = {payload= data; signature= make_signature private_ke
 type 'a digest = int256
 
 (** TODO: unstub the digest function *)
-let get_digest = fun _ -> Key256.one
+let get_digest = fun _ -> Data256.one
 
 (** Special magic digest for None. A bit ugly. *)
-let null_digest = Key256.zero
+let null_digest = Data256.zero
 
 module Revision = Int64
 
@@ -88,9 +88,9 @@ type conversation
     TODO: Tezos must have something we should use.
     probably Tezos_crypto.S.MERKLE_TREE or Tezos_crypto.Blake2B.Make_merkle_tree
  *)
-module PublicKey = Key256
+module PublicKey = Data256
 
-module Key256Map = Map.Make(PublicKey)
+module Data256Map = Map.Make(PublicKey)
 
 module Int64Map = Map.Make(Int64)
 (*Lib_crypto.Blake2B.Make_merkle_tree something?*)

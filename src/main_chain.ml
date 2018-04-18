@@ -1,10 +1,9 @@
 open Base
-open Key256
+open Data256
 open Lib
-
 module TokenAmount = Int64
 module Nonce = Int64
-module ContractAddress = Key256
+module ContractAddress = Data256
 
 (** Transaction request (to be) posted to the main chain (i.e. Tezos) *)
 type main_chain_request
@@ -13,7 +12,7 @@ type main_chain_request
     In tezos, it's a Block_header.t *)
 type main_chain_state =
   { main_chain_revision: Revision.t
-  ; main_chain_accounts: TokenAmount.t Key256Map.t }
+  ; main_chain_accounts: TokenAmount.t Data256Map.t }
 
 (** Confirmation of a transaction on the main chain
     an old enough block on the main chain
@@ -22,7 +21,7 @@ type main_chain_state =
 type main_chain_confirmation = main_chain_state digest
 
 let genesis_main_chain_state =
-  {main_chain_revision= Int64.zero; main_chain_accounts= Key256Map.empty}
+  {main_chain_revision= Int64.zero; main_chain_accounts= Data256Map.empty}
 
 
 type main_chain_tx_header =

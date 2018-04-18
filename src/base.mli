@@ -89,4 +89,4 @@ module Duration = Int64
 type conversation
 
 (** a pure mapping from PublicKey.t to 'a suitable for use in interactive merkle proofs *)
-module Key256Map: Map.S with type key = PublicKey.t
+module Data256Map: Map.S with type key = PublicKey.t
