@@ -2,9 +2,12 @@
    This code is for basic infrastructure somewhat specific to Legicash
  *)
 
+exception Internal_error of string
+
 exception Timeout of string
 
 exception Double_spend of string
+
 
 (** 'a or exception *)
 type 'a legi_result = ('a, exn) result

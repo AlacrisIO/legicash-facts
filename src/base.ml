@@ -1,5 +1,7 @@
 exception Not_implemented
 
+exception Internal_error of string
+
 exception Timeout of string
 
 exception Double_spend of string

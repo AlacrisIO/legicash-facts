@@ -53,13 +53,13 @@ type side_chain_operation =
   | Payment of
       { payment_invoice: invoice
       ; payment_fee: TokenAmount.t
-      ; expedited: bool }
+      ; payment_expedited: bool }
   | Deposit of
       { deposit_amount: TokenAmount.t
       ; deposit_fee: TokenAmount.t
       ; main_chain_transaction_signed: main_chain_transaction_signed
       ; main_chain_confirmation: main_chain_confirmation
-      ; expedited: bool }
+      ; deposit_expedited: bool }
   | Withdrawal of {withdrawal_invoice: invoice; withdrawal_fee: TokenAmount.t}
 
 (*
@@ -100,6 +100,8 @@ and tx_header = {tx_revision: Revision.t; spending_limit: TokenAmount.t}
 and side_chain_confirmation =
   {tx_header: tx_header; signed_request: side_chain_request signed}
 
+(* TODO: actually maintain the user_revision;
+   add it to the rx_header, and pass rx_header to apply_side_chain_request (replacing _operation) *)
 (** public state of a user's account in the facilitator's side-chain *)
 and facilitator_account_state_per_user =
   {active: Revision.t; balance: TokenAmount.t; user_revision: Revision.t}
@@ -297,12 +299,6 @@ let issue_user_request =
       , Ok request ) )
 
 
-let send_certified_check check conv = bottom ()
-
-let commit_side_chain_state = bottom ()
-
-let send_message payload conv = bottom ()
-
 type account_activity_status_request = {rx_header: rx_header; count: Revision.t}
 
 type account_activity_status_confirmation =
@@ -321,14 +317,6 @@ type account_liquidation_request = {header: rx_header; details: invoice}
 type account_liquidation_confirmation =
   {header: tx_header; request: account_liquidation_request}
 
-(** missing types to be implemented *)
-
-type facilitator_to_facilitator_message
-
-type user_to_user_message
-
-exception Invalid_side_chain_operation of side_chain_operation
-
 (** Default (empty) state for a new facilitator *)
 let new_facilitator_account_state_per_user =
   {active= Int64.zero; balance= Int64.zero; user_revision= Revision.zero}
@@ -341,11 +329,46 @@ let new_user_account_state_per_facilitator =
   ; pending_operations= [] }
 
 
-let apply_operation state change = bottom ()
+(** We assume that the operation will correctly apply:
+    balances are sufficient for spending,
+    deposits confirmation will check out,
+    active revision will only increase, etc.
+ *)
+let update_facilitator_account_state_per_user_with_trusted_operation
+    trusted_operation ({active; balance} as facilitator_account_state_per_user) =
+  match trusted_operation with
+  | Activity_status revision ->
+      if Int64.compare revision active > 0 then
+        {facilitator_account_state_per_user with active= revision}
+      else raise (Internal_error "I mistrusted your activity status operation")
+  | Payment {payment_invoice; payment_fee} ->
+      let decrement = Int64.add payment_invoice.amount payment_fee in
+      if Int64.compare balance decrement >= 0 then
+        { facilitator_account_state_per_user with
+          balance= Int64.sub balance decrement }
+      else raise (Internal_error "I mistrusted your payment operation")
+  | Deposit {deposit_amount; deposit_fee} ->
+      if true (* check that everything is correct *) then
+        { facilitator_account_state_per_user with
+          balance= Int64.add balance deposit_amount }
+      else raise (Internal_error "I mistrusted your deposit operation")
+  | Withdrawal {withdrawal_invoice; withdrawal_fee} ->
+      if true (* check that everything is correct *) then
+        { facilitator_account_state_per_user with
+          balance=
+            Int64.sub balance
+              (Int64.add withdrawal_invoice.amount withdrawal_fee) }
+      else raise (Internal_error "I mistrusted your withdrawal operation")
 
-let apply_operations state changes = bottom ()
 
-(* reduce apply_operation state change *)
+(** We assume most recent operation is to the left of the changes list,
+ *)
+let update_facilitator_account_state_per_user_with_trusted_operation
+    trusted_operations facilitator_account_state_per_user =
+  List.fold_right
+    update_facilitator_account_state_per_user_with_trusted_operation
+    trusted_operations facilitator_account_state_per_user
+
 
 let is_valid_episteme episteme = bottom ()
 
@@ -356,15 +379,19 @@ let optimistic_state state = bottom ()
 (* let relevant_changes = filter is_valid_episteme state.pending in
   apply_operations state relevant_changes *)
 
-let user_activity_revision_for_facilitator side_chain_user_state = bottom ()
+let user_activity_revision_for_facilitator
+    (side_chain_user_state, facilitator_pk) =
+  match
+    Data256Map.find_opt facilitator_pk side_chain_user_state.facilitators
+  with
+  | Some {active} -> active
+  | None -> Revision.zero
 
-(* match side_chain_user_state.facilitators.get(facilitator_pk) with None -> 0 | Some x -> x.active *)
 
-let is_account_open side_chain_user_state facilitator_pk =
-  (*match find_opt facilitator_pk with
-    Some -> bottom ()
-  | None -> *)
-  bottom ()
+let is_account_open (side_chain_user_state, facilitator_pk) =
+  is_odd_64
+    (user_activity_revision_for_facilitator
+       (side_chain_user_state, facilitator_pk))
 
 
 (**
@@ -444,3 +471,17 @@ let collect_account_liquidation_funds = bottom
 let send_user_request = bottom
 
 let send_facilitator_confirmation = bottom
+
+(** missing types to be implemented *)
+
+type facilitator_to_facilitator_message
+
+type user_to_user_message
+
+let send_certified_check check conv = bottom ()
+
+let commit_side_chain_state = bottom ()
+
+let send_message payload conv = bottom ()
+
+exception Invalid_side_chain_operation of side_chain_operation
