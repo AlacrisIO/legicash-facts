@@ -39,14 +39,10 @@ val compose_pure_actions: ('b, 'c, 'd) pure_action -> ('a, 'b, 'd) pure_action -
 
 val pure_action_seq: ('a, 'b, 'd) pure_action -> ('b, 'c, 'd) pure_action -> ('a, 'c, 'd) pure_action
 
-
-(** A module for public keys *)
-module PublicKey: Map.OrderedType
-
-type public_key = PublicKey.t
+type public_key = Secp256k1.Key.public Secp256k1.Key.t
 
 (** private counterpart to public key *)
-type private_key
+type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 
 (** morally a 256-bit integer *)
 type int256
@@ -93,5 +89,10 @@ module Duration = Int64
  *)
 type conversation
 
+module Address : sig
+  type t
+  val of_public_key : public_key -> t
+end
+
 (** a pure mapping from PublicKey.t to 'a suitable for use in interactive merkle proofs *)
-module Data256Map: Map.S with type key = PublicKey.t
+module AddressMap: Map.S with type key = Address.t
