@@ -12,3 +12,4 @@ build-legicash:
     - ./scripts/install-tezos.sh
     - opam install -y cryptokit secp256k1
     - make
+    - ./src/_build/default/test_file.exe

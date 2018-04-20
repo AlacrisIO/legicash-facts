@@ -71,6 +71,9 @@ type 'a signature = Secp256k1.Sign.plain Secp256k1.Sign.t
 
 type 'a signed = {payload: 'a; signature: 'a signature}
 
+(* convert OCaml string to Secp256k1 msg format
+   for strings representing hashes, the msg format is suitable for signing
+ *)
 let string_to_secp256k1_msg s =
   let open Bigarray in
   let sz = String.length s in
@@ -81,7 +84,6 @@ let string_to_secp256k1_msg s =
   | None ->
       raise (Internal_error "Could not create SECP256K1.Sign.msg from string")
 
-
 (* convert arbitrary OCaml value to a Secp256k1 msg representing a hash *)
 let data_to_secp256k1_hashed data =
   (* data is of arbitrary type, marshal to string *)
@@ -91,7 +93,9 @@ let data_to_secp256k1_hashed data =
   string_to_secp256k1_msg hashed
 
 
-(* create context just once, because expensive operation *)
+(* create context just once, because expensive operation; assumes
+   single instantation of this module
+ *)
 let rec signing_ctx = Secp256k1.Context.create [Sign]
 
 (* digit signature is encrypted hash *)
@@ -103,7 +107,9 @@ and make_signature private_key data =
   | Error s -> raise (Internal_error s)
 
 
-(* create context just once, because expensive operation *)
+(* create context just once, because expensive operation; assumes
+   single instantiation of this module
+ *)
 let rec verify_ctx = Secp256k1.Context.create [Verify]
 
 and is_signature_valid (public_key: public_key) (signature: 'a signature) data =
@@ -117,7 +123,6 @@ and is_signature_valid (public_key: public_key) (signature: 'a signature) data =
 
 let sign private_key data =
   {payload= data; signature= make_signature private_key data}
-
 
 type 'a digest = int256
 
