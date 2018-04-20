@@ -5,4 +5,4 @@
 (executable
  ((name test_file)
   (preprocess (pps (ppx_deriving.std)))
-  (libraries (tezos-stdlib tezos-crypto))))
+  (libraries (tezos-stdlib tezos-crypto cryptokit secp256k1))))

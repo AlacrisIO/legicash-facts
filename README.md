@@ -1,4 +1,4 @@
-# Legicash FaCTS
+1;4205;0c# Legicash FaCTS
 
 [Fast Cryptocurrency Transactions, Securely](http://j.mp/FaCTS)
 by [Legicash](http://legi.cash/)
@@ -7,7 +7,7 @@ by [Legicash](http://legi.cash/)
 
 First, we need some basic libraries that can be installed as follows on Debian-based distributions:
 ```
-sudo apt-get install -y libgmp-dev libleveldb-dev libsnappy-dev
+sudo apt-get install -y libgmp-dev libleveldb-dev libsnappy-dev libsecp256k1-dev
 ```
 
 Then, using [OPAM](https://opam.ocaml.org/), we need to install the following:
@@ -23,7 +23,7 @@ opam switch 4.06.1
 eval `opam config env`
 opam pin -y add ocplib-json-typed --dev # temporary
 opam install -y jbuilder ocamlformat merlin tuareg \
-    calendar cohttp-lwt-unix depext ezjsonm ipaddr \
+    calendar cohttp-lwt-unix cryptokit depext ezjsonm ipaddr \
     irmin jbuilder leveldb lwt mtime nocrypto \
     ocp-ocamlres ocplib-endian ocplib-json-typed \
     omake opam-installer ounit re ssl stringext
@@ -46,6 +46,7 @@ automated installation of dependencies. That did not succeed for
 to Tezos, in case other substrates are used.
 
 So, to build Tezos, use OPAM to install:
+  * bigstring
   * calendar
   * cohttp-lwt-unix
   * depext

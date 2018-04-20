@@ -73,8 +73,8 @@ type side_chain_operation =
     provide a reference to the past and a timeout in the future
     *)
 and rx_header =
-  { facilitator: public_key
-  ; requester: public_key
+  { facilitator: Address.t
+  ; requester: Address.t
   ; confirmed_main_chain_state_digest: main_chain_state digest
   ; confirmed_main_chain_state_revision: Revision.t
   ; confirmed_side_chain_state_digest: side_chain_state digest
@@ -114,8 +114,8 @@ and side_chain_state =
       side_chain_state digest
       (* state previously posted on the above *)
   ; side_chain_revision: Revision.t
-  ; user_accounts: facilitator_account_state_per_user Data256Map.t
-  ; operations: side_chain_confirmation Data256Map.t }
+  ; user_accounts: facilitator_account_state_per_user AddressMap.t
+  ; operations: side_chain_confirmation AddressMap.t }
 
 (** side chain operation + knowledge about the operation *)
 type side_chain_episteme =
@@ -173,7 +173,7 @@ type side_chain_user_state =
   ; latest_main_chain_confirmed_balance:
       TokenAmount.t
       (* Only store the confirmed state, and have any updates in pending *)
-  ; facilitators: user_account_state_per_facilitator Data256Map.t
+  ; facilitators: user_account_state_per_facilitator AddressMap.t
   ; main_chain_user_state: main_chain_user_state }
 
 type ('a, 'b) user_action = ('a, 'b, side_chain_user_state) action
@@ -200,8 +200,8 @@ type facilitator_state =
   ; bond_posted: TokenAmount.t
   ; current_limit:
       TokenAmount.t (* expedited limit still unspent since confirmation *)
-  ; account_states: facilitator_account_state_per_user Data256Map.t
-  ; pending_operations: side_chain_episteme list Data256Map.t
+  ; account_states: facilitator_account_state_per_user AddressMap.t
+  ; pending_operations: side_chain_episteme list AddressMap.t
   ; current_revision: Revision.t (* incremented at every change *)
   ; fee_structure: facilitator_fee_structure }
 
@@ -231,8 +231,8 @@ let genesis_side_chain_state =
   { previous_main_chain_state= get_digest genesis_main_chain_state
   ; previous_side_chain_state= null_digest
   ; side_chain_revision= Revision.zero
-  ; user_accounts= Data256Map.empty
-  ; operations= Data256Map.empty }
+  ; user_accounts= AddressMap.empty
+  ; operations= AddressMap.empty }
 
 
 let stub_confirmed_side_chain_state = ref genesis_side_chain_state
@@ -243,7 +243,7 @@ let stub_confirmed_side_chain_state_digest =
 
 let get_facilitator side_chain_user_state =
   option_map fst
-    (Data256Map.find_first_opt (constantly true)
+    (AddressMap.find_first_opt (constantly true)
        side_chain_user_state.facilitators)
 
 
@@ -257,7 +257,7 @@ let make_rx_header (side_chain_user_state, _) =
       ( side_chain_user_state
       , Ok
           { facilitator
-          ; requester= side_chain_user_state.main_chain_user_state.public_key
+          ; requester= side_chain_user_state.main_chain_user_state.address
           ; confirmed_main_chain_state_digest=
               !stub_confirmed_main_chain_state_digest
           ; confirmed_main_chain_state_revision=
@@ -374,7 +374,7 @@ let update_facilitator_account_state_per_user_with_trusted_operation
 let optimistic_facilitator_account_state
     (side_chain_user_state, facilitator_pk) =
   match
-    Data256Map.find_opt facilitator_pk side_chain_user_state.facilitators
+    AddressMap.find_opt facilitator_pk side_chain_user_state.facilitators
   with
   | None -> new_facilitator_account_state_per_user
   | Some {facilitator_validity; confirmed_state; pending_operations} ->
@@ -391,7 +391,7 @@ let optimistic_facilitator_account_state
 let user_activity_revision_for_facilitator
     (side_chain_user_state, facilitator_pk) =
   match
-    Data256Map.find_opt facilitator_pk side_chain_user_state.facilitators
+    AddressMap.find_opt facilitator_pk side_chain_user_state.facilitators
   with
   | Some {confirmed_state= {active}} -> active
   | None -> Revision.zero
@@ -487,9 +487,9 @@ type facilitator_to_facilitator_message
 
 type user_to_user_message
 
-let send_certified_check check conv = bottom ()
+let send_certified_check check conv = bottom
 
-let commit_side_chain_state = bottom ()
+let commit_side_chain_state = bottom
 
 let send_message payload conv = bottom ()
 

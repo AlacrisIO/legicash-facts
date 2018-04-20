@@ -1,7 +1,7 @@
 before_script:
   # Debian packages
   - apt-get update -y
-  - apt-get install -y unzip aspcud opam
+  - apt-get install -y unzip aspcud opam libsecp256k1-dev
   # Install OPAM, OCaml
   - opam init
   - opam switch 4.06.1
@@ -10,4 +10,5 @@ before_script:
 build-legicash:
   script:
     - ./scripts/install-tezos.sh
+    - opam install -y cryptokit secp256k1
     - make

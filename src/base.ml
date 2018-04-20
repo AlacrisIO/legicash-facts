@@ -57,28 +57,63 @@ let pure_action_seq b_of_a c_of_b (s, a) =
 
 
 (** unique identifier for all parties, that is, customers and facilitators *)
-type public_key = Data256.t
-
-(* WAS: Tezos_crypto.Crypto_box.public_key *)
+type public_key = Secp256k1.Key.public Secp256k1.Key.t
 
 (** private key in public-key cryptography *)
-type private_key = Data256.t
+type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 
 type int256 = Data256.t
 
 (*module Int256 : Int with type t = Z.t : sig
 end*)
 
-type 'a signature = int256
-
-let is_signature_valid public_key signature data =
-  Data256.compare public_key signature == 0
-
-
-(** TODO: unstub the signature function *)
-let make_signature private_key data = private_key
+type 'a signature = Secp256k1.Sign.plain Secp256k1.Sign.t
 
 type 'a signed = {payload: 'a; signature: 'a signature}
+
+let string_to_secp256k1_msg s =
+  let open Bigarray in
+  let sz = String.length s in
+  let buffer = Array1.create char c_layout sz in
+  let _ = for i = 0 to sz - 1 do Bigarray.Array1.set buffer i s.[i] done in
+  match Secp256k1.Sign.msg_of_bytes buffer with
+  | Some msg -> msg
+  | None ->
+      raise (Internal_error "Could not create SECP256K1.Sign.msg from string")
+
+
+(* convert arbitrary OCaml value to a Secp256k1 msg representing a hash *)
+let data_to_secp256k1_hashed data =
+  (* data is of arbitrary type, marshal to string *)
+  let data_string = Marshal.to_string data [Marshal.Compat_32] in
+  let hash = Cryptokit.hash_string (Cryptokit.Hash.sha3 256) in
+  let hashed = hash data_string in
+  string_to_secp256k1_msg hashed
+
+
+(* create context just once, because expensive operation *)
+let rec signing_ctx = Secp256k1.Context.create [Sign]
+
+(* digit signature is encrypted hash *)
+and make_signature private_key data =
+  (* change representation of data to use Secp256k1 signing *)
+  let secp256k1_hashed = data_to_secp256k1_hashed data in
+  match Secp256k1.Sign.sign signing_ctx private_key secp256k1_hashed with
+  | Ok signature -> signature
+  | Error s -> raise (Internal_error s)
+
+
+(* create context just once, because expensive operation *)
+let rec verify_ctx = Secp256k1.Context.create [Verify]
+
+and is_signature_valid (public_key: public_key) (signature: 'a signature) data =
+  let hashed = data_to_secp256k1_hashed data in
+  match
+    Secp256k1.Sign.verify verify_ctx ~pk:public_key ~msg:hashed ~signature
+  with
+  | Ok b -> b
+  | Error s -> raise (Internal_error s)
+
 
 let sign private_key data =
   {payload= data; signature= make_signature private_key data}
@@ -96,18 +131,44 @@ module Revision = Int64
 module Duration = Int64
 module Timestamp = Int64
 
-(* TODO: use same as Tezos *)
-
 type conversation
+
+module Address : sig
+  type t
+
+  val of_public_key : public_key -> t
+
+  val compare : t -> t -> int
+end = struct
+  (* an address identifies a party (user, facilitator)
+     this is per Ethereum: use the last 20 bytes of the party's public key *)
+
+  type t = char array
+
+  let address_size = 20
+
+  let of_public_key (pk: public_key) =
+    let buffer = Secp256k1.Key.to_buffer pk in
+    let buffer_size = Bigarray.Array1.dim buffer in
+    let address = Array.make address_size '\000' in
+    let _ =
+      for ndx = 0 to address_size - 1 do
+        address.(ndx)
+        <- Bigarray.Array1.get buffer (buffer_size - address_size + ndx)
+      done
+    in
+    address
+
+
+  let compare address1 address2 = Pervasives.compare address1 address2
+end
 
 (** A pure mapping from 'a to 'b suitable for use in interactive merkle proofs
     Let's cheat for now.
     TODO: Tezos must have something we should use.
     probably Tezos_crypto.S.MERKLE_TREE or Tezos_crypto.Blake2B.Make_merkle_tree
  *)
-module PublicKey =
-Data256
-module Data256Map = Map.Make (PublicKey)
+module AddressMap = Map.Make (Address)
 module Int64Map = Map.Make (Int64)
 
 (*Lib_crypto.Blake2B.Make_merkle_tree something?*)
