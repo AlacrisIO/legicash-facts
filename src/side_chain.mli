@@ -5,11 +5,10 @@ open Main_chain
 open Tezos_crypto
 
 (** state stored by a user *)
-type user_state
+type side_chain_user_state
 
 (** function from 'a to 'b that acts on a user_state *)
-type ('a, 'b) user_action = ('a, 'b, user_state) action
-
+type ('a, 'b) user_action = ('a, 'b, side_chain_user_state) action
 
 (** state stored by a facilitator *)
 type facilitator_state
@@ -90,8 +89,8 @@ type tx_header
  *)
 type rx_header
 
-val issue_user_request: (side_chain_operation, side_chain_request signed) user_action
-
+val issue_user_request :
+  (side_chain_operation, side_chain_request signed) user_action
 (* Flow 1: Opening an account *)
 
 (** Account activity status request / result *)
@@ -131,7 +130,10 @@ val confirm_account_activity_status :
   facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
-val deposit : (TokenAmount.t, main_chain_request) user_action
+val deposit :
+  ( main_chain_transfer_tokens_details
+  , main_chain_transaction_signed )
+  user_action
 (** Flow 1 Step 3: user sends money on the main chain *)
 
 (** deposit request *)
@@ -197,12 +199,14 @@ val certify_check : (check signed, certified_check signed) facilitator_action
     - maybe return a Double_spend exception
     - because parametric in conversation, can also be used to check double-spending on gossip network
  *)
+
 (*
 val publish_certified_check : (certified_check signed, unit) user_action
 
 val accept_payment : (certified_check signed, unit) user_action
 (** Flow 2 Step 4: Bob accepts the payment, notifies Alice and delivers the service *)
  *)
+
 (** message-sending operations *)
 
 val send_message : 'a -> conversation -> unit legi_result
@@ -212,17 +216,20 @@ val send_message : 'a -> conversation -> unit legi_result
  *)
 
 val send_user_request :
-  user_state -> side_chain_request signed -> conversation -> unit legi_result
+  side_chain_user_state -> side_chain_request signed -> conversation
+  -> unit legi_result
 
 val send_facilitator_confirmation :
-  facilitator_state -> side_chain_confirmation signed -> conversation -> unit legi_result
+  facilitator_state -> side_chain_confirmation signed -> conversation
+  -> unit legi_result
 
 val commit_side_chain_state : (unit, unit) facilitator_action
 (** For a facilitator, commit the state of the side-chain to the main-chain *)
 
 (* Flow 3: Individual Adversarial Exit *)
 
-val initiate_individual_exit : (unit, main_chain_request) user_action
+val initiate_individual_exit :
+  (unit, main_chain_transaction_signed) user_action
 (** Flow 3 Step 1: Alice posts an account_activity_status request for closing the account
  on the *main chain*.
  *)
@@ -245,7 +252,8 @@ val check_main_chain_for_exits :
  *)
 type account_liquidation_request = {header: rx_header; details: invoice}
 
-val request_account_liquidation : (invoice, main_chain_request) user_action
+val request_account_liquidation :
+  (invoice, main_chain_transaction_signed) user_action
 
 (** Flow 3 Step 4: Trent signs and posts a confirmation on his side-chain.
  *)
@@ -258,7 +266,7 @@ val confirm_account_liquidation :
   facilitator_action
 
 val collect_account_liquidation_funds :
-  (unit, main_chain_request) user_action
+  (unit, main_chain_transaction_signed) user_action
 (** Flow 3 Step 5: After no one speaks up during a challenge period,
     Alice invokes the contract on the main chain that actually pays the recipient
     specified in her invoice.

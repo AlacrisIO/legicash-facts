@@ -54,7 +54,9 @@ by summarizing away all the ancillary data required to assert correctness
 (signatures, intermediate results, etc.).
 
 
-## Payment Settlement
+## Crucial Protocol Workflows
+
+### Payment Settlement
 
 When a user wants to transfer money out of one account on the main chain or a facilitator side-chain
 into another account on the same chain or a different one
@@ -92,7 +94,7 @@ must be accounted for in the model used for the well-formedness of the chain,
 as previously discussed.
 
 
-## Facilitator Repudiation
+### Facilitator Repudiation
 
 At any point, disgruntled users can close their account
 and either take their funds to their account on the main chain,
@@ -160,7 +162,7 @@ for him and/or his new facilitator,
 but that users can only take out their money once, and only the correct amount.
 
 
-## Facilitator Dissolution
+### Facilitator Dissolution
 
 When a facilitator is proven to be invalid,
 it may not confirm anymore requests and all accounts are considered closed.
@@ -202,6 +204,8 @@ that the process doesn't itself involve any violation of resource conservation l
 
 ## Code Extraction
 
+### Client and Server Code Extraction
+
 We will extract OCaml code that facilitators and users use to maintain their respective chains
 and post updates to the main chain.
 
@@ -210,7 +214,7 @@ We will prove that the code if used according to a good strategy in a good conte
 then it maintains the invariants specified above.
 
 
-## Contract Extraction
+## On-Chain Contract Extraction
 
 We will extract code in Michelson (Tezos contract VM) and/or EVM (Ethereum contract VM)
 that serves as referee for verification of the invariants using Game Semantics.
@@ -235,7 +239,12 @@ Those who failed to arrive first because of a race condition can promptly drop o
 or will have to pay extra legal fees if they keep their losing side-trial open longer than necessary.
 
 
-## Strategy Extraction
+### Strategy Extraction
 
-We will extract OCaml code that plays the verification game following an optimal strategy
-for each party: user, facilitator, other facilitator, and independent verifier
+We will extract OCaml code that verifies that parties to a contract are keeping their promises.
+The software interface will use this verification to prevent user actions
+that would result in breaking his promises
+(at least not without clear warning and manual override).
+The verification software will also help punish offenders
+by playing the verification game following an optimal strategy for each party:
+user, facilitator, other facilitator, and independent verifier.

@@ -2,9 +2,12 @@
    This code is for basic infrastructure somewhat specific to Legicash
  *)
 
+exception Internal_error of string
+
 exception Timeout of string
 
 exception Double_spend of string
+
 
 (** 'a or exception *)
 type 'a legi_result = ('a, exn) result
@@ -33,6 +36,8 @@ type ('a, 'b, 'c) pure_action = 'c * 'a -> 'b
 val action_of_pure_action : ('a, 'b, 'c) pure_action -> ('a, 'b, 'c) action
 
 val compose_pure_actions: ('b, 'c, 'd) pure_action -> ('a, 'b, 'd) pure_action -> ('a, 'c, 'd) pure_action
+
+val pure_action_seq: ('a, 'b, 'd) pure_action -> ('b, 'c, 'd) pure_action -> ('a, 'c, 'd) pure_action
 
 
 (** A module for public keys *)
@@ -89,4 +94,4 @@ module Duration = Int64
 type conversation
 
 (** a pure mapping from PublicKey.t to 'a suitable for use in interactive merkle proofs *)
-module Key256Map: Map.S with type key = PublicKey.t
+module Data256Map: Map.S with type key = PublicKey.t

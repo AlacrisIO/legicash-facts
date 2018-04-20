@@ -4,4 +4,5 @@
 
 (executable
  ((name test_file)
+  (preprocess (pps (ppx_deriving.std)))
   (libraries (tezos-stdlib tezos-crypto))))
