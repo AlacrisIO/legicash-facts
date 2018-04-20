@@ -125,8 +125,9 @@ type side_chain_episteme =
 
 (** private state a user keeps for his account with a facilitator *)
 type user_account_state_per_facilitator =
-  { (* do we know the facilitator to be a liar? If so, Rejected *)
-  facilitator_validity: knowledge_stage
+  { facilitator_validity:
+      knowledge_stage
+      (* do we know the facilitator to be a liar? If so, Rejected *)
   ; confirmed_state: facilitator_account_state_per_user
   ; pending_operations: side_chain_episteme list }
 
@@ -172,7 +173,7 @@ type side_chain_user_state =
   ; latest_main_chain_confirmed_balance:
       TokenAmount.t
       (* Only store the confirmed state, and have any updates in pending *)
-  ; facilitators: facilitator_account_state_per_user Data256Map.t
+  ; facilitators: user_account_state_per_facilitator Data256Map.t
   ; main_chain_user_state: main_chain_user_state }
 
 type ('a, 'b) user_action = ('a, 'b, side_chain_user_state) action
@@ -370,21 +371,29 @@ let update_facilitator_account_state_per_user_with_trusted_operation
     trusted_operations facilitator_account_state_per_user
 
 
-let is_valid_episteme episteme = bottom ()
+let optimistic_facilitator_account_state
+    (side_chain_user_state, facilitator_pk) =
+  match
+    Data256Map.find_opt facilitator_pk side_chain_user_state.facilitators
+  with
+  | None -> new_facilitator_account_state_per_user
+  | Some {facilitator_validity; confirmed_state; pending_operations} ->
+    match facilitator_validity with
+    | Rejected -> confirmed_state
+    | _ ->
+        update_facilitator_account_state_per_user_with_trusted_operation
+          (List.map
+             (fun x -> x.side_chain_request.payload.side_chain_operation)
+             pending_operations)
+          confirmed_state
 
-(* match episteme.consensus_stage with Rejected _ -> false | _ -> true *)
-
-let optimistic_state state = bottom ()
-
-(* let relevant_changes = filter is_valid_episteme state.pending in
-  apply_operations state relevant_changes *)
 
 let user_activity_revision_for_facilitator
     (side_chain_user_state, facilitator_pk) =
   match
     Data256Map.find_opt facilitator_pk side_chain_user_state.facilitators
   with
-  | Some {active} -> active
+  | Some {confirmed_state= {active}} -> active
   | None -> Revision.zero
 
 
