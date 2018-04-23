@@ -102,7 +102,7 @@ let rec div x y =
 let is_odd x = equal (logand x one) one
 
 (** Same as: sub x (mul (div x y) y) *)
-let rem x y =
+let rec rem x y =
   let ysign = Int64.compare y zero in
   if ysign = 0 then raise Division_by_zero
   else if ysign > 0 then

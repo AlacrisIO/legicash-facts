@@ -2,7 +2,17 @@
 
 (jbuild_version 1)
 
+;; library, which includes inline tests 
+(library
+ ((name legicash)
+  (modules (legibase lib data256 keypairs main_chain side_chain uInt64))
+  (preprocess (pps (ppx_deriving.std ppx_inline_test)))
+  (libraries (cryptokit secp256k1))
+  (inline_tests)))
+
+;; main executable
 (executable
- ((name test_file)
-  (preprocess (pps (ppx_deriving.std)))
-  (libraries (tezos-stdlib tezos-crypto cryptokit secp256k1))))
+  ((name hello_legicash)
+    (preprocess (pps (ppx_deriving.std ppx_inline_test)))
+    (modules (hello_legicash))
+    (libraries (legicash))))
