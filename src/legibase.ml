@@ -137,9 +137,11 @@ type conversation
 module Address : sig
   type t
 
-  val of_public_key : public_key -> t
+  val of_public_key : string -> t
 
   val compare : t -> t -> int
+
+  val to_string : t -> string
 end = struct
   (* an address identifies a party (user, facilitator)
      this is per Ethereum: use the last 20 bytes of the party's public key *)
@@ -148,13 +150,18 @@ end = struct
 
   let address_size = 20
 
-  let of_public_key (pk: public_key) =
-    let buffer = Secp256k1.Key.to_buffer pk in
-    let buffer_size = Bigarray.Array1.dim buffer in
-    let mk_array_entry ndx = Bigarray.Array1.get buffer (buffer_size - address_size + ndx) in
+  (* we don't have a type guarantee that s represents a public key
+     but this is called from Keypairs.make_keys, which validates that
+     the string represents a valid public key
+   *)
+  let of_public_key s =
+    let key_length = String.length s in
+    let mk_array_entry ndx = s.[key_length - address_size + ndx] in
     Array.init address_size mk_array_entry
 
   let compare address1 address2 = Pervasives.compare address1 address2
+
+  let to_string address = String.init address_size (Array.get address)
 end
 
 (** A pure mapping from 'a to 'b suitable for use in interactive merkle proofs

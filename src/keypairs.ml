@@ -1,11 +1,13 @@
 (* keypairs.ml -- Secp256k1 key pairs *)
 
-open Legibase
 open Bigarray
+open Legibase
 
 type t =
   { private_key: Secp256k1.Key.secret Secp256k1.Key.t
-  ; public_key: Secp256k1.Key.public Secp256k1.Key.t }
+  ; public_key: Secp256k1.Key.public Secp256k1.Key.t
+  ; address : Address.t
+  }
 
 let private_key_length = 32
 
@@ -55,7 +57,6 @@ let unparse_hex s =
   in
   loop 0 []
 
-
 let ctx = Secp256k1.Context.create [Sign; Verify]
 
 let make_keys private_key_string public_key_string =
@@ -75,6 +76,7 @@ let make_keys private_key_string public_key_string =
            (Printf.sprintf "Bad public key length %d for %s" len
               (unparse_hex public_key_string)))
   in
+  let address = Address.of_public_key public_key_string in
   let private_key_buffer = string_to_secp256k1_buffer private_key_string in
   let public_key_buffer = string_to_secp256k1_buffer public_key_string in
   let private_key =
@@ -87,7 +89,7 @@ let make_keys private_key_string public_key_string =
     | Ok pk -> pk
     | Error msg -> raise (Internal_error msg)
   in
-  {private_key; public_key}
+  {private_key; public_key; address }
 
 
 let make_keys_from_hex private_key_hex public_key_hex =
@@ -152,3 +154,17 @@ let%test "ethereum_keccak256_hash" =
   let msg = "abc" in
   let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) msg in
   hash = parse_hex "4e:03:65:7a:ea:45:a9:4f:c7:d4:7b:a8:26:c8:d6:67:c0:d1:e6:e3:3a:64:a0:36:ec:44:f5:8f:a1:2d:6c:45"
+
+(* test that addresses are really last 20 bytes of public keys *)
+
+let%test "alice_address_from_public_key" =
+  let alice_address = alice_keys.address in
+  unparse_hex (Address.to_string alice_address) = "3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
+
+let%test "bob_address_from_public_key" =
+  let bob_address = bob_keys.address in
+  unparse_hex (Address.to_string bob_address) = "e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
+
+let%test "trent_address_from_public_key" =
+  let trent_address = trent_keys.address in
+  unparse_hex (Address.to_string trent_address) = "38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"

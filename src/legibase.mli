@@ -91,7 +91,8 @@ type conversation
 
 module Address : sig
   type t
-  val of_public_key : public_key -> t
+  val of_public_key : string -> t
+  val to_string : t -> string
 end
 
 (** a pure mapping from PublicKey.t to 'a suitable for use in interactive merkle proofs *)
