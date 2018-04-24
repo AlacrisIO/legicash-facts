@@ -1,12 +1,14 @@
 before_script:
   # Debian packages
   - apt-get update -y
-  - apt-get install -y unzip aspcud opam libsecp256k1-dev
+  - apt-get install -y unzip aspcud opam dh-autoreconf
+  # install secp256k1 library from sources
+  - ./scripts/install-secp256k1.sh
   # Install OPAM, OCaml
   - opam init
   - opam switch 4.06.1
   - eval `opam config env`
-    
+
 build-legicash:
   script:
     - opam install -y cryptokit jane-street-tests ppx_deriving secp256k1
