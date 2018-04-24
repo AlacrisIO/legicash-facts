@@ -1,7 +1,7 @@
 before_script:
   # Debian packages
   - apt-get update -y
-  - apt-get install -y unzip aspcud opam dh-autoreconf
+  - apt-get install -y unzip aspcud libgmp-dev dh-autoreconf opam
   # install secp256k1 library from sources
   - ./scripts/install-secp256k1.sh
   # Install OPAM, OCaml
