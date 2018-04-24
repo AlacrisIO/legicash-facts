@@ -45,7 +45,6 @@ let parse_hex hex_string =
   in
   String.init len parse_char
 
-
 let unparse_hex s =
   let len = String.length s in
   let rec loop ndx accum =
@@ -139,3 +138,17 @@ let%test "trent_signature" =
   let trent_data = "some arbitrary string for Trent to sign" in
   let trent_signature = Legibase.make_signature trent_keys.private_key trent_data in
   Legibase.is_signature_valid trent_keys.public_key trent_signature trent_data
+
+(* test that Cryptokit's Keccak256 hash is same as Ethereum's
+
+   this is the hash and message found in function TestKeccak256Hash in
+   https://github.com/ethereum/go-ethereum/blob/master/crypto/crypto_test.go
+
+   we put this test here because parse_hex is not exported
+
+ *)
+
+let%test "ethereum_keccak256_hash" =
+  let msg = "abc" in
+  let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) msg in
+  hash = parse_hex "4e:03:65:7a:ea:45:a9:4f:c7:d4:7b:a8:26:c8:d6:67:c0:d1:e6:e3:3a:64:a0:36:ec:44:f5:8f:a1:2d:6c:45"
