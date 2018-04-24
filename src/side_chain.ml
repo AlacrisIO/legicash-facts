@@ -1,6 +1,6 @@
 (* LegiCash flows *)
 
-open Base
+open Legibase
 open Main_chain
 open Lib
 

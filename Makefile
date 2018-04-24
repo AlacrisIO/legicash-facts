@@ -18,14 +18,23 @@ HIDE := $(if $(VERBOSE),,@)
 # will change to dune when released
 BUILDER=jbuilder
 
-all : test_file
+all : hello_legicash
 
-test_file : src/test_file.ml
-	$(SHOW) "Running jbuilder on sources"
-	$(HIDE) $(BUILDER) build --root=src test_file.exe
+.PHONY: hello_legicash test clean
 
-clean : src/test_file.ml
+legicash_lib :
+	$(SHOW) "Building Legicash library"
+	$(HIDE) $(BUILDER) build --root=src legicash.a
+
+hello_legicash : legicash_lib
+	$(SHOW) "Building main Legicash executable"
+	$(HIDE) $(BUILDER) build --root=src hello_legicash.exe
+
+test :
+	$(SHOW) "Running Legicash tests"
+	$(HIDE) $(BUILDER) runtest
+
+clean :
 	$(SHOW) "Cleaning via jbuilder"
-	$(HIDE) $(BUILDER) clean --root=src
-
+	$(HIDE) $(BUILDER) clean
 

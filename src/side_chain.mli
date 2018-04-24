@@ -1,8 +1,7 @@
 (* complex types for LegiCash flows *)
 
-open Base
+open Legibase
 open Main_chain
-open Tezos_crypto
 
 (** state stored by a user *)
 type side_chain_user_state

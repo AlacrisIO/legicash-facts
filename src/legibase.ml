@@ -1,3 +1,5 @@
+(* legibase.ml -- base module for Legicash *)
+
 exception Not_implemented
 
 exception Internal_error of string
@@ -20,13 +22,11 @@ let effect_action action state_ref x =
       state_ref := s ;
       raise e
 
-
 (** compose two actions *)
 let compose_actions c_of_b b_of_a (s, a) =
   match b_of_a (s, a) with
   | t, Error e -> (t, Error e)
   | t, Ok b -> c_of_b (t, b)
-
 
 (** compose a list of actions *)
 let compose_action_list action_list (s, a) =
@@ -39,7 +39,6 @@ let compose_action_list action_list (s, a) =
       | (t, Error e) as x -> x
   in
   loop action_list (s, a)
-
 
 let do_action (state, value) action = action (state, value)
 
@@ -54,7 +53,6 @@ let compose_pure_actions c_of_b b_of_a (s, a) = c_of_b (s, b_of_a (s, a))
 
 let pure_action_seq b_of_a c_of_b (s, a) =
   compose_pure_actions c_of_b b_of_a (s, a)
-
 
 (** unique identifier for all parties, that is, customers and facilitators *)
 type public_key = Secp256k1.Key.public Secp256k1.Key.t
@@ -88,17 +86,16 @@ let string_to_secp256k1_msg s =
 let data_to_secp256k1_hashed data =
   (* data is of arbitrary type, marshal to string *)
   let data_string = Marshal.to_string data [Marshal.Compat_32] in
-  let hash = Cryptokit.hash_string (Cryptokit.Hash.sha3 256) in
+  let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) in
   let hashed = hash data_string in
   string_to_secp256k1_msg hashed
-
 
 (* create context just once, because expensive operation; assumes
    single instantation of this module
  *)
 let rec signing_ctx = Secp256k1.Context.create [Sign]
 
-(* digit signature is encrypted hash *)
+(* digital signature is encrypted hash *)
 and make_signature private_key data =
   (* change representation of data to use Secp256k1 signing *)
   let secp256k1_hashed = data_to_secp256k1_hashed data in
@@ -120,7 +117,6 @@ and is_signature_valid (public_key: public_key) (signature: 'a signature) data =
   | Ok b -> b
   | Error s -> raise (Internal_error s)
 
-
 let sign private_key data =
   {payload= data; signature= make_signature private_key data}
 
@@ -141,9 +137,11 @@ type conversation
 module Address : sig
   type t
 
-  val of_public_key : public_key -> t
+  val of_public_key : string -> t
 
   val compare : t -> t -> int
+
+  val to_string : t -> string
 end = struct
   (* an address identifies a party (user, facilitator)
      this is per Ethereum: use the last 20 bytes of the party's public key *)
@@ -152,20 +150,18 @@ end = struct
 
   let address_size = 20
 
-  let of_public_key (pk: public_key) =
-    let buffer = Secp256k1.Key.to_buffer pk in
-    let buffer_size = Bigarray.Array1.dim buffer in
-    let address = Array.make address_size '\000' in
-    let _ =
-      for ndx = 0 to address_size - 1 do
-        address.(ndx)
-        <- Bigarray.Array1.get buffer (buffer_size - address_size + ndx)
-      done
-    in
-    address
-
+  (* we don't have a type guarantee that s represents a public key
+     but this is called from Keypairs.make_keys, which validates that
+     the string represents a valid public key
+   *)
+  let of_public_key s =
+    let key_length = String.length s in
+    let mk_array_entry ndx = s.[key_length - address_size + ndx] in
+    Array.init address_size mk_array_entry
 
   let compare address1 address2 = Pervasives.compare address1 address2
+
+  let to_string address = String.init address_size (Array.get address)
 end
 
 (** A pure mapping from 'a to 'b suitable for use in interactive merkle proofs

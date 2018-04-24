@@ -1,4 +1,4 @@
-open Base
+open Legibase
 open Data256
 open Lib
 module TokenAmount = Int64

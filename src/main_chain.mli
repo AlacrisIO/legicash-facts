@@ -1,4 +1,4 @@
-open Base
+open Legibase
 module TokenAmount = Int64
 module Nonce = Int64
 module ContractAddress = Address
