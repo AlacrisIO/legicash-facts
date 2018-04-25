@@ -60,8 +60,6 @@ type public_key = Secp256k1.Key.public Secp256k1.Key.t
 (** private key in public-key cryptography *)
 type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 
-type int256 = Data256.t
-
 (*module Int256 : Int with type t = Z.t : sig
 end*)
 
@@ -120,10 +118,12 @@ and is_signature_valid (public_key: public_key) (signature: 'a signature) data =
 let sign private_key data =
   {payload= data; signature= make_signature private_key data}
 
-type 'a digest = int256
+type 'a digest = Data256.t
 
-(** TODO: unstub the digest function *)
-let get_digest _ = Data256.one
+let get_digest data =
+  let data_string = Marshal.to_string data [Marshal.Compat_32] in
+  let hash = Cryptokit.Hash.keccak 256 in
+  Data256.of_string (Cryptokit.hash_string hash data_string)
 
 (** Special magic digest for None. A bit ugly. *)
 let null_digest = Data256.zero

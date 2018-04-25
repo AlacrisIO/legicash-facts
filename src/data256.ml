@@ -25,6 +25,17 @@ let of_array vs =
   let _ = validate () in
   vs
 
+let of_string s =
+  let validate () =
+    if String.length s <> key_bytes then
+      raise Invalid_key_length
+  in
+  let _ = validate () in
+  Array.init key_bytes (String.get s)
+
+let to_string data =
+  String.init key_bytes (Array.get data)
+
 let generate () =
   let rec build_vs n vs =
     if n = 0 then vs
