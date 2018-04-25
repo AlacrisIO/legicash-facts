@@ -44,9 +44,6 @@ type public_key = Secp256k1.Key.public Secp256k1.Key.t
 (** private counterpart to public key *)
 type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 
-(** morally a 256-bit integer *)
-type int256
-
 (** a signature for an object of type 'a *)
 type 'a signature
 
@@ -60,7 +57,7 @@ type 'a signed = {payload: 'a; signature: 'a signature}
 val sign: private_key -> 'a -> 'a signed
 
 (** a cryptographic digest, "hash", for an object of type 'a *)
-type 'a digest
+type 'a digest = Data256.t
 
 val get_digest: 'a -> 'a digest
 

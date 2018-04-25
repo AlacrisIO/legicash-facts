@@ -4,11 +4,17 @@ type t
 
 exception Invalid_key_length
 
-(** public key from a list of 32 chars *)
+(** from a list of 32 chars *)
 val of_list : char list -> t
 
-(** public key from array of 32 chars *)
+(** from array of 32 chars *)
 val of_array : char array -> t
+
+(** from string of 32 chars *)
+val of_string : string -> t
+
+(** from Data256.t to string of 32 chars *)
+val to_string : t -> string
 
 (** generate a random public key *)
 val generate : unit -> t
