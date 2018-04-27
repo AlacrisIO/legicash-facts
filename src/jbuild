@@ -5,7 +5,7 @@
 ;; library, which includes inline tests 
 (library
  ((name legicash)
-  (modules (legibase lib data256 keypairs main_chain side_chain uInt64))
+  (modules (legibase lib data256 keypairs main_chain side_chain uInt64 ethereum_rlp))
   (preprocess (pps (ppx_deriving.std ppx_inline_test)))
   (libraries (cryptokit secp256k1))
   (inline_tests)))
