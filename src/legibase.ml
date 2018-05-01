@@ -89,28 +89,23 @@ let data_to_secp256k1_hashed data =
   string_to_secp256k1_msg hashed
 
 (* create context just once, because expensive operation; assumes
-   single instantation of this module
+   single instantiation of this module
  *)
-let rec signing_ctx = Secp256k1.Context.create [Sign]
+let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
 (* digital signature is encrypted hash *)
-and make_signature private_key data =
+let make_signature private_key data =
   (* change representation of data to use Secp256k1 signing *)
   let secp256k1_hashed = data_to_secp256k1_hashed data in
-  match Secp256k1.Sign.sign signing_ctx private_key secp256k1_hashed with
+  match Secp256k1.Sign.sign secp256k1_ctx private_key secp256k1_hashed with
   | Ok signature -> signature
   | Error s -> raise (Internal_error s)
 
 
-(* create context just once, because expensive operation; assumes
-   single instantiation of this module
- *)
-let rec verify_ctx = Secp256k1.Context.create [Verify]
-
-and is_signature_valid (public_key: public_key) (signature: 'a signature) data =
+let is_signature_valid (public_key: public_key) (signature: 'a signature) data =
   let hashed = data_to_secp256k1_hashed data in
   match
-    Secp256k1.Sign.verify verify_ctx ~pk:public_key ~msg:hashed ~signature
+    Secp256k1.Sign.verify secp256k1_ctx ~pk:public_key ~msg:hashed ~signature
   with
   | Ok b -> b
   | Error s -> raise (Internal_error s)
@@ -137,11 +132,13 @@ type conversation
 module Address : sig
   type t
 
-  val of_public_key : string -> t
+  val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
 
   val compare : t -> t -> int
 
   val to_string : t -> string
+
+  val equal : t -> t -> bool
 end = struct
   (* an address identifies a party (user, facilitator)
      this is per Ethereum: use the last 20 bytes of the party's public key *)
@@ -150,16 +147,17 @@ end = struct
 
   let address_size = 20
 
-  (* we don't have a type guarantee that s represents a public key
-     but this is called from Keypairs.make_keys, which validates that
-     the string represents a valid public key
-   *)
-  let of_public_key s =
-    let key_length = String.length s in
-    let mk_array_entry ndx = s.[key_length - address_size + ndx] in
-    Array.init address_size mk_array_entry
+  let of_public_key public_key =
+    let open Bigarray in
+    let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
+    let buffer_len = Array1.dim buffer in
+    let offset = buffer_len - address_size in
+    Array.init address_size
+      (fun ndx -> Array1.get buffer (offset + ndx))
 
   let compare address1 address2 = Pervasives.compare address1 address2
+
+  let equal address1 address2 = (compare address1 address2 = 0)
 
   let to_string address = String.init address_size (Array.get address)
 end

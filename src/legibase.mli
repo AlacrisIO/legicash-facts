@@ -8,6 +8,8 @@ exception Timeout of string
 
 exception Double_spend of string
 
+(** Secp256k1 context for signing and validation *)
+val secp256k1_ctx : Secp256k1.Context.t
 
 (** 'a or exception *)
 type 'a legi_result = ('a, exn) result
@@ -88,8 +90,9 @@ type conversation
 
 module Address : sig
   type t
-  val of_public_key : string -> t
+  val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
   val to_string : t -> string
+  val equal : t -> t -> bool
 end
 
 (** a pure mapping from PublicKey.t to 'a suitable for use in interactive merkle proofs *)
