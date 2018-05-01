@@ -49,7 +49,8 @@ type invoice = {recipient: public_key; amount: TokenAmount.t; memo: memo}
 
 (** an operation on a facilitator side-chain *)
 type side_chain_operation =
-  | Activity_status of Revision.t
+  | Open_account of public_key
+  | Close_account
   | Payment of
       { payment_invoice: invoice
       ; payment_fee: TokenAmount.t
@@ -104,7 +105,10 @@ and side_chain_confirmation =
    add it to the rx_header, and pass rx_header to apply_side_chain_request (replacing _operation) *)
 (** public state of a user's account in the facilitator's side-chain *)
 and facilitator_account_state_per_user =
-  {active: Revision.t; balance: TokenAmount.t; user_revision: Revision.t}
+  { active: bool
+  ; balance: TokenAmount.t
+  ; user_revision: Revision.t
+  ; user_key: public_key }
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
     *)
@@ -206,7 +210,52 @@ type facilitator_state =
 
 type ('a, 'b) facilitator_action = ('a, 'b, facilitator_state) action
 
-let confirm_side_chain_request (state, request) = bottom ()
+(** Is the request well-formed?
+    TODO: check that the account is active (unless the request is to open the account!),
+    that the request revision number matches the user revision number,
+    that the request references a recent confirmed main chain state indeed,
+    that the request is not expired,
+ *)
+let is_side_chain_request_well_formed (state, request) =
+  match (state, request) with {account_states}, {payload; signature} ->
+    match payload
+    with
+    | { rx_header=
+          { facilitator
+          ; requester
+          ; confirmed_main_chain_state_digest
+          ; confirmed_main_chain_state_revision
+          ; confirmed_side_chain_state_digest
+          ; confirmed_side_chain_state_revision
+          ; validity_within }
+      ; side_chain_operation }
+    ->
+      match AddressMap.find_opt requester account_states with
+      | None -> false
+      | Some {active; user_revision; user_key} -> bottom ()
+
+
+(** Check that the request is basically well-formed, or else fail *)
+let check_side_chain_request_well_formed =
+  action_assert is_side_chain_request_well_formed
+
+
+let confirm_side_chain_request =
+  action_seq check_side_chain_request_well_formed (function
+      | facilitator_state, {payload= {rx_header; side_chain_operation}} ->
+      match side_chain_operation with
+      | Open_account user_key -> bottom ()
+      | Close_account -> bottom ()
+      | Payment {payment_invoice; payment_fee; payment_expedited} -> bottom ()
+      | Deposit
+          { deposit_amount
+          ; deposit_fee
+          ; main_chain_transaction_signed
+          ; main_chain_confirmation
+          ; deposit_expedited } ->
+          bottom ()
+      | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom () )
+
 
 type court_clerk_confirmation =
   {clerk: public_key; signature: side_chain_state signature}
@@ -302,14 +351,14 @@ let issue_user_request =
 
 
 (** Default (empty) state for a new facilitator *)
-let new_facilitator_account_state_per_user =
-  {active= Int64.zero; balance= Int64.zero; user_revision= Revision.zero}
+let new_facilitator_account_state_per_user user_key =
+  {active= false; balance= Int64.zero; user_revision= Revision.zero; user_key}
 
 
-(** Default (empty) state for a new facilitator *)
-let new_user_account_state_per_facilitator =
+(** User's view of the default (empty) state for a new facilitator *)
+let new_user_account_state_per_facilitator user_key =
   { facilitator_validity= Confirmed
-  ; confirmed_state= new_facilitator_account_state_per_user
+  ; confirmed_state= new_facilitator_account_state_per_user user_key
   ; pending_operations= [] }
 
 
@@ -321,10 +370,8 @@ let new_user_account_state_per_facilitator =
 let update_facilitator_account_state_per_user_with_trusted_operation
     trusted_operation ({active; balance} as facilitator_account_state_per_user) =
   match trusted_operation with
-  | Activity_status revision ->
-      if Int64.compare revision active > 0 then
-        {facilitator_account_state_per_user with active= revision}
-      else raise (Internal_error "I mistrusted your activity status operation")
+  | Open_account _ -> {facilitator_account_state_per_user with active= true}
+  | Close_account -> {facilitator_account_state_per_user with active= false}
   | Payment {payment_invoice; payment_fee} ->
       let decrement = Int64.add payment_invoice.amount payment_fee in
       if Int64.compare balance decrement >= 0 then
@@ -355,11 +402,13 @@ let update_facilitator_account_state_per_user_with_trusted_operation
 
 
 let optimistic_facilitator_account_state
-    (side_chain_user_state, facilitator_pk) =
+    (side_chain_user_state, facilitator_address) =
   match
-    AddressMap.find_opt facilitator_pk side_chain_user_state.facilitators
+    AddressMap.find_opt facilitator_address side_chain_user_state.facilitators
   with
-  | None -> new_facilitator_account_state_per_user
+  | None ->
+      new_facilitator_account_state_per_user
+        side_chain_user_state.main_chain_user_state.public_key
   | Some {facilitator_validity; confirmed_state; pending_operations} ->
     match facilitator_validity with
     | Rejected -> confirmed_state
@@ -371,19 +420,18 @@ let optimistic_facilitator_account_state
           confirmed_state
 
 
-let user_activity_revision_for_facilitator
-    (side_chain_user_state, facilitator_pk) =
+let user_activity_status_for_facilitator
+    (side_chain_user_state, facilitator_address) =
   match
-    AddressMap.find_opt facilitator_pk side_chain_user_state.facilitators
+    AddressMap.find_opt facilitator_address side_chain_user_state.facilitators
   with
   | Some {confirmed_state= {active}} -> active
-  | None -> Revision.zero
+  | None -> false
 
 
-let is_account_open (side_chain_user_state, facilitator_pk) =
-  is_odd_64
-    (user_activity_revision_for_facilitator
-       (side_chain_user_state, facilitator_pk))
+let is_account_open (side_chain_user_state, facilitator_address) =
+  user_activity_status_for_facilitator
+    (side_chain_user_state, facilitator_address)
 
 
 exception Already_open
@@ -394,28 +442,25 @@ exception Already_closed
   TODO: take into account not just the facilitator name, but the fee schedule, too.
   TODO: exception if facilitator dishonest.
  *)
-let open_account (side_chain_user_state, facilitator_pk) =
-  let activity_revision =
-    user_activity_revision_for_facilitator
-      (side_chain_user_state, facilitator_pk)
+let open_account (side_chain_user_state, facilitator_address) =
+  let activity_status =
+    user_activity_status_for_facilitator
+      (side_chain_user_state, facilitator_address)
   in
-  if is_odd_64 activity_revision then
-    (side_chain_user_state, Error Already_open)
+  if activity_status then (side_chain_user_state, Error Already_open)
   else
     issue_user_request
       ( side_chain_user_state
-      , Activity_status (Int64.add activity_revision Int64.one) )
+      , Open_account side_chain_user_state.main_chain_user_state.public_key )
 
 
-let close_account (side_chain_user_state, facilitator_pk) =
-  let activity_revision =
-    user_activity_revision_for_facilitator
-      (side_chain_user_state, facilitator_pk)
+let close_account (side_chain_user_state, facilitator_address) =
+  let activity_status =
+    user_activity_status_for_facilitator
+      (side_chain_user_state, facilitator_address)
   in
-  if is_odd_64 activity_revision then
-    issue_user_request
-      ( side_chain_user_state
-      , Activity_status (Int64.add activity_revision Int64.one) )
+  if activity_status then
+    issue_user_request (side_chain_user_state, Close_account)
   else (side_chain_user_state, Error Already_closed)
 
 

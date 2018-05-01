@@ -41,6 +41,9 @@ val compose_pure_actions: ('b, 'c, 'd) pure_action -> ('a, 'b, 'd) pure_action -
 
 val pure_action_seq: ('a, 'b, 'd) pure_action -> ('b, 'c, 'd) pure_action -> ('a, 'c, 'd) pure_action
 
+(** given a pure_action returning a bool, make an action that asserts the bool is true *)
+val action_assert: ('a, bool, 's) pure_action -> ('a, 'a, 's) action
+
 type public_key = Secp256k1.Key.public Secp256k1.Key.t
 
 (** private counterpart to public key *)
