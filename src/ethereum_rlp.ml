@@ -70,13 +70,11 @@ and rlp_encode_items =
      let raw_encodings = List.map (fun (RlpEncoding rlp) -> rlp) encodings in
      RlpEncoding (String.concat "" (encoded_length :: raw_encodings))
 
-let rlp_encode_string s = rlp_encode_item (RlpItem s)
+let encode_string s = rlp_encode_item (RlpItem s)
+let encode_bytes bytes = encode_string (Bytes.to_string bytes)
+let encode_int n = encode_string (encode_int_as_string n)
 
-let rlp_encode_bytes bytes = rlp_encode_string (Bytes.to_string bytes)
-
-let rlp_encode_int n = rlp_encode_string (encode_int_as_string n)
-
-let string_of_encoding (RlpEncoding s) = s
+let to_string (RlpEncoding s) = s
 
 (* decoding *)
 
@@ -155,10 +153,10 @@ let rlp_decode ((RlpEncoding s) as encoding) =
 (* tests of encoding, from reference given at top *)
 
 let%test "empty_string_rlp" =
-  rlp_encode_string "" = RlpEncoding (String.make 1 (Char.chr 0x80))
+  encode_string "" = RlpEncoding (String.make 1 (Char.chr 0x80))
 
 let%test "dog_string_rlp" =
-  rlp_encode_string "dog" = RlpEncoding "\x83dog"
+  encode_string "dog" = RlpEncoding "\x83dog"
 
 let%test "cat_dog_rlp" =
   let cat_item = RlpItem "cat" in
@@ -177,14 +175,14 @@ let%test "two_set_rlp" =
   rlp_encode_items two = RlpEncoding "\xC7\xC0\xC1\xC0\xC3\xC0\xC1\xC0"
 
 let%test "fifteen_rlp" =
-  rlp_encode_int 15 = RlpEncoding "\x0F"
+  encode_int 15 = RlpEncoding "\x0F"
 
 let%test "kilo_rlp" =
-  rlp_encode_int 1024 = RlpEncoding "\x82\x04\x00"
+  encode_int 1024 = RlpEncoding "\x82\x04\x00"
 
 let%test "latin_rlp" =
   let s = "Lorem ipsum dolor sit amet, consectetur adipisicing elit" in
-  rlp_encode_string s = RlpEncoding ("\xB8\x38" ^ s)
+  encode_string s = RlpEncoding ("\xB8\x38" ^ s)
 
 (* tests of int (not rlp) encoding / decoding *)
 
