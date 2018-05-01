@@ -20,9 +20,6 @@ let string_to_secp256k1_buffer s =
   for ndx = 0 to len - 1 do Bigarray.Array1.set buffer ndx s.[ndx] done ;
   buffer
 
-
-let ctx = Secp256k1.Context.create [Sign; Verify]
-
 let make_keys private_key_string public_key_string =
   let _ =
     let len = String.length private_key_string in
@@ -40,21 +37,23 @@ let make_keys private_key_string public_key_string =
            (Printf.sprintf "Bad public key length %d for %s" len
               (unparse_hex public_key_string)))
   in
-  let address = Address.of_public_key public_key_string in
   let private_key_buffer = string_to_secp256k1_buffer private_key_string in
   let public_key_buffer = string_to_secp256k1_buffer public_key_string in
   let private_key =
-    match Secp256k1.Key.read_sk ctx private_key_buffer with
+    match Secp256k1.Key.read_sk secp256k1_ctx private_key_buffer with
     | Ok sk -> sk
     | Error msg -> raise (Internal_error msg)
   in
   let public_key =
-    match Secp256k1.Key.read_pk ctx public_key_buffer with
+    match Secp256k1.Key.read_pk secp256k1_ctx public_key_buffer with
     | Ok pk -> pk
     | Error msg -> raise (Internal_error msg)
   in
+  let address = Address.of_public_key public_key in
   {private_key; public_key; address }
 
+let address_matches_public_key address public_key =
+  Address.equal address (Address.of_public_key public_key)
 
 let make_keys_from_hex private_key_hex public_key_hex =
   make_keys (parse_hex private_key_hex) (parse_hex public_key_hex)
