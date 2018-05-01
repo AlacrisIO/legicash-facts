@@ -167,7 +167,6 @@ type user_account_state_per_facilitator =
    E. If Trent lies, we want to be able to divert the unconfirmed *incoming* transactions
       to Ursula and/or Judy (TODO: and their dependency history if any?)
  *)
-
 type side_chain_user_state =
   { latest_main_chain_confirmation: main_chain_state digest
   ; latest_main_chain_confirmed_balance:
@@ -206,6 +205,8 @@ type facilitator_state =
   ; fee_structure: facilitator_fee_structure }
 
 type ('a, 'b) facilitator_action = ('a, 'b, facilitator_state) action
+
+let confirm_side_chain_request (state, request) = bottom ()
 
 type court_clerk_confirmation =
   {clerk: public_key; signature: side_chain_state signature}
@@ -300,24 +301,6 @@ let issue_user_request =
       , Ok request ) )
 
 
-type account_activity_status_request = {rx_header: rx_header; count: Revision.t}
-
-type account_activity_status_confirmation =
-  {header: tx_header; status: account_activity_status_request}
-
-type deposit_request =
-  { header: rx_header
-  ; amount: TokenAmount.t
-  ; fee: TokenAmount.t
-  ; tx_confirmation: main_chain_confirmation }
-
-type deposit_confirmation = {header: tx_header; request: deposit_request}
-
-type account_liquidation_request = {header: rx_header; details: invoice}
-
-type account_liquidation_confirmation =
-  {header: tx_header; request: account_liquidation_request}
-
 (** Default (empty) state for a new facilitator *)
 let new_facilitator_account_state_per_user =
   {active= Int64.zero; balance= Int64.zero; user_revision= Revision.zero}
@@ -403,23 +386,38 @@ let is_account_open (side_chain_user_state, facilitator_pk) =
        (side_chain_user_state, facilitator_pk))
 
 
+exception Already_open
+
+exception Already_closed
+
 (**
   TODO: take into account not just the facilitator name, but the fee schedule, too.
   TODO: exception if facilitator dishonest.
  *)
-let open_account (side_chain_user_state, facilitator_pk) = bottom ()
+let open_account (side_chain_user_state, facilitator_pk) =
+  let activity_revision =
+    user_activity_revision_for_facilitator
+      (side_chain_user_state, facilitator_pk)
+  in
+  if is_odd_64 activity_revision then
+    (side_chain_user_state, Error Already_open)
+  else
+    issue_user_request
+      ( side_chain_user_state
+      , Activity_status (Int64.add activity_revision Int64.one) )
 
-(*
-  let os = optimistic_state state in
-  let revision = user_activity_revision_for_facilitator os in
-  if is_odd revision
-  then (state, None)
-  else let rx = make_account_status_request state facilitator_pk (revision + 1) in
-       (add_episteme state (mk_rx_episteme rx), Some rx) *)
 
-(** missing values to be implemented *)
+let close_account (side_chain_user_state, facilitator_pk) =
+  let activity_revision =
+    user_activity_revision_for_facilitator
+      (side_chain_user_state, facilitator_pk)
+  in
+  if is_odd_64 activity_revision then
+    issue_user_request
+      ( side_chain_user_state
+      , Activity_status (Int64.add activity_revision Int64.one) )
+  else (side_chain_user_state, Error Already_closed)
 
-let close_account = bottom
 
 let collect_account_liquidation_funds = bottom
 
@@ -445,8 +443,6 @@ let certify_check = bottom
 
 let create_check = bottom
 
-let confirm_deposit = bottom
-
 let request_deposit = bottom
 
 let lift_main_chain_user_action_to_side_chain action
@@ -465,15 +461,11 @@ let deposit (side_chain_user_state, input) =
     (side_chain_user_state, input)
 
 
-let confirm_account_activity_status = bottom
-
-let is_account_activity_status_open account_activity_status_request = bottom ()
+let is_account_activity_status_open = bottom
 
 (* is_odd_64 account_activity_status_request.status *)
 
 let detect_main_chain_facilitator_issues = bottom
-
-let confirm_account_liquidation = bottom
 
 let collect_account_liquidation_funds = bottom
 
@@ -491,6 +483,6 @@ let send_certified_check check conv = bottom
 
 let commit_side_chain_state = bottom
 
-let send_message payload conv = bottom ()
+let send_message = bottom
 
 exception Invalid_side_chain_operation of side_chain_operation

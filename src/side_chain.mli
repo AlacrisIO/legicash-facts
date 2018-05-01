@@ -90,42 +90,31 @@ type rx_header
 
 val issue_user_request :
   (side_chain_operation, side_chain_request signed) user_action
+
 (* Flow 1: Opening an account *)
 
-(** Account activity status request / result *)
-type account_activity_status_request =
-  { rx_header: rx_header
-  ; count: Revision.t
-  (* Number of times the account was previously closed or opened. 0 is never opened. *)
-  }
-
-type account_activity_status_confirmation =
-  {header: tx_header; status: account_activity_status_request}
-
-val open_account :
-  (public_key, account_activity_status_request signed) user_action
+val open_account : (Address.t, side_chain_request signed) user_action
 
 (** Flow 1 Step 1: ensure an account is open.
     Idempotent.
     (current type assumes a single facilitator per user)
  *)
 
-val close_account :
-  (public_key, account_activity_status_request signed) user_action
+val close_account : (Address.t, side_chain_request signed) user_action
 
 (** Ensure an account is closed.
     Idempotent.
     (current type assumes a single facilitator per user)
  *)
 
-val is_account_activity_status_open : account_activity_status_request -> bool
+val is_account_activity_status_open : side_chain_request -> bool
 (** An account status is open if it was opened one more time than it was closed,
     i.e. iff its revision number is odd.
  *)
 
-val confirm_account_activity_status :
-  ( account_activity_status_request signed
-  , account_activity_status_confirmation signed )
+val confirm_side_chain_request :
+  ( side_chain_request signed
+  , side_chain_confirmation signed )
   facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
@@ -135,22 +124,18 @@ val deposit :
   user_action
 (** Flow 1 Step 3: user sends money on the main chain *)
 
-(** deposit request *)
-type deposit_request =
-  { header: rx_header
-  ; amount: TokenAmount.t
-  ; fee: TokenAmount.t
-  ; tx_confirmation: main_chain_confirmation }
-
 val request_deposit :
-  (TokenAmount.t * main_chain_confirmation, deposit_request signed) user_action
-(** Flow 1 Step 4: user pays entry fee on the side chain *)
+  ( TokenAmount.t * main_chain_confirmation
+  , side_chain_request signed )
+  user_action
+(** deposit request *)
 
-(** Type for deposit confirmation *)
-type deposit_confirmation = {header: tx_header; request: deposit_request}
+(* Flow 1 Step 4: user pays entry fee on the side chain *)
 
-val confirm_deposit :
-  (deposit_request signed, deposit_confirmation signed) facilitator_action
+val confirm_side_chain_request :
+  ( side_chain_request signed
+  , side_chain_confirmation signed )
+  facilitator_action
 (** Flow 1 Step 5: facilitator acknowledges deposit, stores it and sends it to user *)
 
 (* Flow 2: Payment *)
@@ -236,37 +221,27 @@ val initiate_individual_exit :
 (* val embed_request: (user_request, main_chain_transaction) user_action *)
 
 val check_main_chain_for_exits :
-  (unit, account_activity_status_request list) facilitator_action
+  (unit, side_chain_request list) facilitator_action
 (** Flow 3 Step 2: Trent, who follows the main chain, checks for such exit requests.
     When one is found, Trent is on notice to post an update of his side-chain within
     an allowed deadline, that features a confirmation for these requests.
     Alternatively, Trent fails, and bankruptcy proceedings start — see Flow 6, 7 and 8.
  *)
 
+val request_account_liquidation :
+  (invoice, main_chain_transaction_signed) user_action
 (** Flow 3 Step 3: Alice, who can see the final state of her account,
     posts on the main chain a demand for the final funds.
     This is signed then posted on the *main chain* by invoking the contract.
     This puts Trent and all verifiers on notice to check that Alice isn't lying,
     and post a lawsuit within a timeout window.
  *)
-type account_liquidation_request = {header: rx_header; details: invoice}
-
-val request_account_liquidation :
-  (invoice, main_chain_transaction_signed) user_action
-
-(** Flow 3 Step 4: Trent signs and posts a confirmation on his side-chain.
- *)
-type account_liquidation_confirmation =
-  {header: tx_header; request: account_liquidation_request}
-
-val confirm_account_liquidation :
-  ( account_liquidation_request signed
-  , account_liquidation_confirmation )
-  facilitator_action
 
 val collect_account_liquidation_funds :
   (unit, main_chain_transaction_signed) user_action
-(** Flow 3 Step 5: After no one speaks up during a challenge period,
+(** Flow 3 Step 4: Trent signs and posts a confirmation on his side-chain.
+ *)
+(* Flow 3 Step 5: After no one speaks up during a challenge period,
     Alice invokes the contract on the main chain that actually pays the recipient
     specified in her invoice.
  *)
