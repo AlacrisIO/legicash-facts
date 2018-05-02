@@ -3,6 +3,7 @@
 open Legibase
 open Main_chain
 open Lib
+open Keypairs
 
 (** Internal witness for proof that Trent is a liar
  *)
@@ -76,6 +77,7 @@ type side_chain_operation =
 and rx_header =
   { facilitator: Address.t
   ; requester: Address.t
+  ; requester_revision: Revision.t
   ; confirmed_main_chain_state_digest: main_chain_state digest
   ; confirmed_main_chain_state_revision: Revision.t
   ; confirmed_side_chain_state_digest: side_chain_state digest
@@ -102,7 +104,7 @@ and side_chain_confirmation =
   {tx_header: tx_header; signed_request: side_chain_request signed}
 
 (* TODO: actually maintain the user_revision;
-   add it to the rx_header, and pass rx_header to apply_side_chain_request (replacing _operation) *)
+   pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
 (** public state of a user's account in the facilitator's side-chain *)
 and facilitator_account_state_per_user =
   { active: bool
@@ -210,6 +212,11 @@ type facilitator_state =
 
 type ('a, 'b) facilitator_action = ('a, 'b, facilitator_state) action
 
+let is_signature_matching address public_key signature payload =
+  address_matches_public_key address public_key
+  && is_signature_valid public_key signature payload
+
+
 (** Is the request well-formed?
     TODO: check that the account is active (unless the request is to open the account!),
     that the request revision number matches the user revision number,
@@ -223,6 +230,7 @@ let is_side_chain_request_well_formed (state, request) =
     | { rx_header=
           { facilitator
           ; requester
+          ; requester_revision
           ; confirmed_main_chain_state_digest
           ; confirmed_main_chain_state_revision
           ; confirmed_side_chain_state_digest
@@ -230,9 +238,19 @@ let is_side_chain_request_well_formed (state, request) =
           ; validity_within }
       ; side_chain_operation }
     ->
-      match AddressMap.find_opt requester account_states with
-      | None -> false
-      | Some {active; user_revision; user_key} -> bottom ()
+      (* TODO: check confirmed main & side chain state + validity window *)
+      let account_option = AddressMap.find_opt requester account_states in
+      match side_chain_operation with
+      | Open_account user_key ->
+          account_option == None && requester_revision == Revision.one
+          && is_signature_matching requester user_key signature payload
+      | _ ->
+        match account_option with
+        | None -> false
+        | Some {active; user_revision; user_key} ->
+            active
+            && requester_revision == Revision.add user_revision Revision.one
+            && is_signature_matching requester user_key signature payload
 
 
 (** Check that the request is basically well-formed, or else fail *)
@@ -241,20 +259,25 @@ let check_side_chain_request_well_formed =
 
 
 let confirm_side_chain_request =
-  action_seq check_side_chain_request_well_formed (function
-      | facilitator_state, {payload= {rx_header; side_chain_operation}} ->
-      match side_chain_operation with
-      | Open_account user_key -> bottom ()
-      | Close_account -> bottom ()
-      | Payment {payment_invoice; payment_fee; payment_expedited} -> bottom ()
-      | Deposit
-          { deposit_amount
-          ; deposit_fee
-          ; main_chain_transaction_signed
-          ; main_chain_confirmation
-          ; deposit_expedited } ->
-          bottom ()
-      | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom () )
+  action_seq check_side_chain_request_well_formed
+    (action_seq
+       (function
+           | (state, {payload= {rx_header; side_chain_operation}}) as rx ->
+             match side_chain_operation with
+             | Open_account user_key ->
+                 (state, (* { state with active = true; user_key }*) Ok rx)
+             | Close_account -> (state, (* with active = false } *) Ok rx)
+             | Payment {payment_invoice; payment_fee; payment_expedited} ->
+                 bottom ()
+             | Deposit
+                 { deposit_amount
+                 ; deposit_fee
+                 ; main_chain_transaction_signed
+                 ; main_chain_confirmation
+                 ; deposit_expedited } ->
+                 bottom ()
+             | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ())
+       bottom)
 
 
 type court_clerk_confirmation =
@@ -291,23 +314,38 @@ let stub_confirmed_side_chain_state_digest =
   ref (get_digest genesis_side_chain_state)
 
 
-let get_facilitator side_chain_user_state =
-  option_map fst
-    (AddressMap.find_first_opt (constantly true)
-       side_chain_user_state.facilitators)
+let get_first_facilitator_state_option (side_chain_user_state, _)
+    : (Address.t * user_account_state_per_facilitator) option =
+  AddressMap.find_first_opt (constantly true)
+    side_chain_user_state.facilitators
+
+
+exception No_facilitator_yet
+
+let get_first_facilitator =
+  action_seq (action_of_pure_action get_first_facilitator_state_option)
+    (function
+    | state, None -> (state, Error No_facilitator_yet)
+    | state, Some (address, _) -> (state, Ok address) )
 
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Int64.of_int 256
 
-let make_rx_header (side_chain_user_state, _) =
-  match get_facilitator side_chain_user_state with
+let make_rx_header (side_chain_user_state, facilitator_address) =
+  match
+    AddressMap.find_opt facilitator_address side_chain_user_state.facilitators
+  with
   | None -> (side_chain_user_state, Error Not_found)
   | Some facilitator ->
       ( side_chain_user_state
       , Ok
-          { facilitator
+          { facilitator= facilitator_address
           ; requester= side_chain_user_state.main_chain_user_state.address
+          ; requester_revision=
+              Revision.add facilitator.confirmed_state.user_revision
+                Revision.one
+              (* TODO: apply the pending transactions!!! *)
           ; confirmed_main_chain_state_digest=
               !stub_confirmed_main_chain_state_digest
           ; confirmed_main_chain_state_revision=
@@ -332,8 +370,9 @@ let mk_tx_episteme tx =
 
 
 let add_user_episteme side_chain_user_state episteme =
-  (* TODO: use lenses? *)
-  (*  update_pending state (fun pending -> episteme :: pending)*)
+  (* TODO: use lenses?
+     update_pending state (fun pending -> episteme :: pending)
+     check that active status is correct, that revision match, that facilitator isn't known failed *)
   {side_chain_user_state with facilitators= side_chain_user_state.facilitators}
 
 
@@ -341,10 +380,11 @@ let issue_user_request =
   action_seq
     (fun (side_chain_user_state, side_chain_operation) ->
       do_action (side_chain_user_state, ())
-        (action_seq make_rx_header
-           (action_of_pure_action (fun (side_chain_user_state, rx_header) ->
-                sign side_chain_user_state.main_chain_user_state.private_key
-                  {rx_header; side_chain_operation} ))) )
+        (action_seq get_first_facilitator
+           (action_seq make_rx_header
+              (action_of_pure_action (fun (side_chain_user_state, rx_header) ->
+                   sign side_chain_user_state.main_chain_user_state.private_key
+                     {rx_header; side_chain_operation} )))) )
     (fun (side_chain_user_state, request) ->
       ( add_user_episteme side_chain_user_state (mk_rx_episteme request)
       , Ok request ) )
@@ -369,23 +409,27 @@ let new_user_account_state_per_facilitator user_key =
  *)
 let update_facilitator_account_state_per_user_with_trusted_operation
     trusted_operation ({active; balance} as facilitator_account_state_per_user) =
+  let f =
+    { facilitator_account_state_per_user with
+      user_revision=
+        Revision.add facilitator_account_state_per_user.user_revision
+          Revision.one }
+  in
   match trusted_operation with
-  | Open_account _ -> {facilitator_account_state_per_user with active= true}
-  | Close_account -> {facilitator_account_state_per_user with active= false}
+  | Open_account _ -> {f with active= true}
+  | Close_account -> {f with active= false}
   | Payment {payment_invoice; payment_fee} ->
       let decrement = Int64.add payment_invoice.amount payment_fee in
       if Int64.compare balance decrement >= 0 then
-        { facilitator_account_state_per_user with
-          balance= Int64.sub balance decrement }
+        {f with balance= Int64.sub balance decrement}
       else raise (Internal_error "I mistrusted your payment operation")
   | Deposit {deposit_amount; deposit_fee} ->
       if true (* check that everything is correct *) then
-        { facilitator_account_state_per_user with
-          balance= Int64.add balance deposit_amount }
+        {f with balance= Int64.add balance deposit_amount}
       else raise (Internal_error "I mistrusted your deposit operation")
   | Withdrawal {withdrawal_invoice; withdrawal_fee} ->
       if true (* check that everything is correct *) then
-        { facilitator_account_state_per_user with
+        { f with
           balance=
             Int64.sub balance
               (Int64.add withdrawal_invoice.amount withdrawal_fee) }
@@ -505,10 +549,6 @@ let deposit (side_chain_user_state, input) =
   lift_main_chain_user_action_to_side_chain transfer_tokens
     (side_chain_user_state, input)
 
-
-let is_account_activity_status_open = bottom
-
-(* is_odd_64 account_activity_status_request.status *)
 
 let detect_main_chain_facilitator_issues = bottom
 

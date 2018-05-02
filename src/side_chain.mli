@@ -107,11 +107,6 @@ val close_account : (Address.t, side_chain_request signed) user_action
     (current type assumes a single facilitator per user)
  *)
 
-val is_account_activity_status_open : side_chain_request -> bool
-(** An account status is open if it was opened one more time than it was closed,
-    i.e. iff its revision number is odd.
- *)
-
 val confirm_side_chain_request :
   ( side_chain_request signed
   , side_chain_confirmation signed )
