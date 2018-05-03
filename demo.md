@@ -8,16 +8,20 @@ We identified the following flows in Legicash FaCTS.
 For the M1 demo, we can stub most of them,
 and here are those we believe are really essential:
 
-  1. Enter Settlement Flow / Account Creation (Necessary)
-  2. Payment Flow (It's the whole point)
-  3. Adversarial Exit Flow (Must illustrate interactive proof)
+  1. Create an Account (Necessary)
+  2. Deposit Money (Necessary)
+  3. Payment Flow (It's the whole point)
+  4. Close Account (Necessary)
+  5. Withdraw money from closed account (Necessary)
+  6. Prove Fraud (must illustrate interactive proof)
 
 These are necessary for the M2 Feature Complete release:
-  4. Cross-Facilitator Settlement Flow (necessary to scale multi-side-chains)
-  5. Exit Settlement Flow (necessary for practical use of facilitators)
-  6. Facilitator Invalidation Flow (necessary for security)
-  7. Involuntary Transfer Assignment Flow (necessary for security that scales and is fair)
-  8. Mass Transfers (necessary for security that scales)
+  7. Adversarial Close Account
+  8. Cross-Facilitator Settlement Flow (necessary to scale multi-side-chains)
+  8. Exit Settlement Flow (necessary for practical use of facilitators)
+  9. Facilitator Invalidation Flow (necessary for security)
+  10. Involuntary Transfer Assignment Flow (necessary for security that scales and is fair)
+  11. Mass Transfers (necessary for security that scales)
 
 Smaller flows necessary for M2:
   9. Create Facilitator (very incomplete version for M1)

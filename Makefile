@@ -24,7 +24,7 @@ all : hello_legicash
 
 legicash_lib :
 	$(SHOW) "Building Legicash library"
-	$(HIDE) $(BUILDER) build --root=src legicash.a
+	$(HIDE) $(BUILDER) build --root=src legicash_actions.a
 
 hello_legicash : legicash_lib
 	$(SHOW) "Building main Legicash executable"
