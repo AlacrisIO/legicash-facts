@@ -8,10 +8,10 @@ before_script:
   - opam init
   - opam switch 4.06.1
   - eval `opam config env`
+  - opam install -y cryptokit jane-street-tests lens ppxfind ppx_deriving secp256k1
 
 build-legicash:
   script:
-    - opam install -y cryptokit jane-street-tests lens ppxfind ppx_deriving secp256k1
     - make test
     - make
     - ./src/_build/default/hello_legicash.exe
