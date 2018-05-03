@@ -11,7 +11,7 @@ before_script:
 
 build-legicash:
   script:
-    - opam install -y cryptokit jane-street-tests ppx_deriving secp256k1
+    - opam install -y cryptokit jane-street-tests lens ppxfind ppx_deriving secp256k1
     - make test
     - make
     - ./src/_build/default/hello_legicash.exe

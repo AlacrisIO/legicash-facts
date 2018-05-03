@@ -9,7 +9,7 @@ apt-get install -y \
 # OPAM dependencies
 opam install -y \
      bigstring calendar cohttp-lwt-unix depext ezjsonm ipaddr \
-     irmin jbuilder lens leveldb lwt mtime nocrypto \
+     irmin jbuilder leveldb lwt mtime nocrypto \
      ocp-ocamlres ocplib-endian ocplib-json-typed \
      omake opam-installer ounit re ssl stringext
 
