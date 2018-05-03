@@ -60,3 +60,13 @@
 * Contracts in EVM:
   [opcodes](https://ethereum.stackexchange.com/questions/119/what-opcodes-are-available-for-the-ethereum-evm),
   [old Ethereum block hashes](https://github.com/amiller/ethereum-blockhashes).
+
+* Formalization for smart contracts:
+  [Scilla-coq](https://github.com/ilyasergey/scilla-coq)
+  (see paper [Scilla: a Smart Contract Intermediate-Level LAnguage](http://ilyasergey.net/papers/scilla-overview.pdf)),
+  [TezosCoq](https://github.com/tezos/tezoscoq).
+
+* Atomic swaps:
+  [Ethereum atomic swaps with Bitcoin and most other coins, about to hit release](https://www.reddit.com/r/ethereum/comments/865e0l/ethereum_atomic_swaps_with_bitcoin_and_most_other/),
+  [AltCoin](https://github.com/AltCoinExchange/ethatomicswap/),
+  [RepublicProtocol](https://github.com/republicprotocol/eth-atomic-swap).
