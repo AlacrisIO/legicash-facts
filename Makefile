@@ -32,9 +32,9 @@ hello_legicash : legicash_lib
 
 test :
 	$(SHOW) "Running Legicash tests"
-	$(HIDE) $(BUILDER) runtest
+	$(HIDE) $(BUILDER) runtest --root=src
 
 clean :
 	$(SHOW) "Cleaning via jbuilder"
-	$(HIDE) $(BUILDER) clean
+	$(HIDE) $(BUILDER) clean --root=src
 
