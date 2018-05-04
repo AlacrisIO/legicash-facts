@@ -1,6 +1,6 @@
 # Legicash FaCTS
 
-Here is the whitepaper that describes the motivation and architecture for 
+Here is the whitepaper that describes the motivation and architecture for
 Legicash FaCTS:
 
 [Fast Cryptocurrency Transactions, Securely](http://j.mp/FaCTS)
@@ -18,7 +18,7 @@ Next, build the secp256k1 library from sources:
 ```
   ./scripts/install-secp256k1.sh
 ```
-Note that on Debian and perhaps other distros, as of this writing, the available secp256k1-dev package is out-of-date and won't work.
+Note that on Debian and perhaps other distros, as of April 2018, the available secp256k1-dev package is out-of-date and won't work.
 
 Install OCaml via opam:
 ```
@@ -33,7 +33,7 @@ make
 ./src/_build/default/hello_legicash.exe
 ```
 
-If you'd like to contribute to the Legicash codebase, please submit a 
+If you'd like to contribute to the Legicash codebase, please submit a
 Gitlab merge request, and note the following:
 
 ### Coding Style
