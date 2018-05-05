@@ -138,11 +138,11 @@ type confirmation =
 (* TODO: actually maintain the user_revision;
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
 
-(** public state of a user's account in the facilitator's side-chain *)
-type facilitator_account_state_per_user =
+(** public state of the account of a user with a facilitator as visible in the public side-chain *)
+type account_state =
   { active: bool
   ; balance: TokenAmount.t
-  ; user_revision: Revision.t
+  ; account_revision: Revision.t
   ; user_key: public_key }
   [@@deriving lens]
 
@@ -154,7 +154,7 @@ type state =
       state digest
       (* state previously posted on the above *)
   ; side_chain_revision: Revision.t
-  ; user_accounts: facilitator_account_state_per_user AddressMap.t
+  ; user_accounts: account_state AddressMap.t
   ; operations: confirmation AddressMap.t }
   [@@deriving lens]
 
@@ -170,7 +170,7 @@ type user_account_state_per_facilitator =
   { facilitator_validity:
       knowledge_stage
       (* do we know the facilitator to be a liar? If so, Rejected *)
-  ; confirmed_state: facilitator_account_state_per_user
+  ; confirmed_state: account_state
   ; pending_operations: episteme list }
   [@@deriving lens]
 
@@ -244,13 +244,14 @@ type facilitator_fee_structure =
     TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
     *)
 type facilitator_state =
-  { confirmed_state: state (* latest confirmed public state *)
-  ; bond_posted: TokenAmount.t
+  { keypair: Keypairs.t
+  ; confirmed_state: state (* latest confirmed public state *)
+  ; current_revision: Revision.t (* incremented at every change *)
   ; current_limit:
       TokenAmount.t (* expedited limit still unspent since confirmation *)
-  ; account_states: facilitator_account_state_per_user AddressMap.t
+  ; bond_posted: TokenAmount.t
+  ; account_states: account_state AddressMap.t
   ; pending_operations: episteme list AddressMap.t
-  ; current_revision: Revision.t (* incremented at every change *)
   ; fee_structure: facilitator_fee_structure }
   [@@deriving lens]
 

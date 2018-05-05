@@ -6,14 +6,14 @@
  ((name legicash_base)
   (modules (legibase lib data256 keypairs uInt64 ethereum_rlp ethereum_patricia_merkle))
   (preprocess (pps (ppx_deriving.std ppx_inline_test)))
-  (libraries (cryptokit secp256k1))
+  (libraries (cryptokit secp256k1 lens))
   (inline_tests)))
 
 (library
  ((name legicash_chains)
   (modules (main_chain side_chain))
   (preprocess (action (run ppxfind -legacy lens.ppx_deriving,ppx_deriving.std --as-pp ${<})))
-  (libraries (legicash_base lens))))
+  (libraries (legicash_base))))
 
 (library
  ((name legicash_actions)

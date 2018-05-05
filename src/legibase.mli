@@ -20,6 +20,11 @@ type ('a, 'b, 'c) action = 'c * 'a -> 'c * 'b legi_result
 (** run the action, with side-effects and all *)
 val effect_action: ('a, 'b, 'c) action -> 'c ref -> 'a -> 'b
 
+val no_action: ('a, 'a, 'b) action
+
+val fail_action: exn -> ('a, 'b, 'c) action
+
+
 (** apply an action, left to right *)
 val do_action: ('c * 'a) -> ('a,'b,'c) action -> ('c * 'b legi_result)
 
@@ -98,5 +103,18 @@ module Address : sig
   val equal : t -> t -> bool
 end
 
+val identity : 'a -> 'a
+val konstant : 'a -> 'b -> 'a
+val schoenfinkel : ('a -> 'b -> 'c) -> ('a -> 'b) -> 'a -> 'c
+val defaulting : (unit -> 'a) -> 'a option -> 'a
+
+module type MapS = sig
+  include Map.S
+  val lens : key -> ('a t, 'a) Lens.t
+  val find_defaulting : (unit -> 'a) -> key -> 'a t -> 'a
+end
+
+module MapMake (Key : Map.OrderedType) : MapS with type key = Key.t
+
 (** a pure mapping from PublicKey.t to 'a suitable for use in interactive merkle proofs *)
-module AddressMap: Map.S with type key = Address.t
+module AddressMap: MapS with type key = Address.t
