@@ -51,7 +51,8 @@ let is_side_chain_request_well_formed
 
 
 (** Check that the request is basically well-formed, or else fail *)
-let check_side_chain_request_well_formed =
+let check_side_chain_request_well_formed
+    : (request signed, request signed) facilitator_action =
   action_assert is_side_chain_request_well_formed
 
 
@@ -70,8 +71,13 @@ let new_user_account_state_per_facilitator user_key =
   ; pending_operations= [] }
 
 
+type account_lens = (facilitator_state, account_state) Lens.t
+
 let make_request_confirmation
-    (facilitator_state, (signed_request, user_account_lens, spending_limit)) =
+    : ( request signed * account_lens * TokenAmount.t
+      , confirmation signed )
+      facilitator_action =
+ fun (facilitator_state, (signed_request, user_account_lens, spending_limit)) ->
   let revision =
     Revision.add facilitator_state.current_revision Revision.one
   in
@@ -88,43 +94,49 @@ let make_request_confirmation
   )
 
 
-let confirm_request =
+(** compute the effects of a request on the account state *)
+let effect_request
+    : ( request signed
+      , request signed * account_lens * TokenAmount.t )
+      facilitator_action = function
+  | state, ({payload= {rx_header; operation}} as rx) ->
+      let user = rx_header.requester in
+      let user_account_lens =
+        facilitator_state_account_states |-- AddressMap.lens user
+      in
+      match operation with
+      | Open_account user_key ->
+          ( ( Lens.modify user_account_lens
+                (fun s -> {s with active= true; user_key})
+                state
+            : facilitator_state )
+          , Ok (rx, user_account_lens, state.current_limit) )
+      | Close_account ->
+          ( Lens.modify user_account_lens
+              (fun s -> {s with active= false})
+              state
+          , Ok (rx, user_account_lens, state.current_limit) )
+      | Payment {payment_invoice; payment_fee; payment_expedited} -> bottom ()
+      | Deposit
+          { deposit_amount
+          ; deposit_fee
+          ; main_chain_transaction_signed
+          ; main_chain_confirmation
+          ; deposit_expedited } ->
+          bottom ()
+      | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
+
+
+(** TODO:
+ * save this initial state, and only use the new state if the confirmation was committed to disk,
+ i.e. implement a try-catch in our monad
+ * commit the confirmation to disk and remote replicas before to return it
+ * parallelize, batch, etc., to have decent performance
+ *)
+let confirm_request : (request signed, confirmation signed) facilitator_action =
   action_seq check_side_chain_request_well_formed
-    (action_seq
-       (* TODO, SAVE this initial state, and only use the new state if the confirmation was committed to disk *)
-         (function
-           | (state, {payload= {rx_header; operation}}) as rx ->
-               let user = rx_header.requester in
-               let user_account_lens =
-                 facilitator_state_account_states |-- AddressMap.lens user
-               in
-               match operation with
-               | Open_account user_key ->
-                   ( Lens.modify user_account_lens
-                       (fun s -> {s with active= true; user_key})
-                       state
-                   , Ok (rx, user_account_lens, state.current_limit) )
-               | Close_account ->
-                   ( Lens.modify user_account_lens
-                       (fun s -> {s with active= false})
-                       state
-                   , Ok (rx, user_account_lens, state.current_limit) )
-               | Payment {payment_invoice; payment_fee; payment_expedited} ->
-                   bottom ()
-               | Deposit
-                   { deposit_amount
-                   ; deposit_fee
-                   ; main_chain_transaction_signed
-                   ; main_chain_confirmation
-                   ; deposit_expedited } ->
-                   bottom ()
-               | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ())
-       bottom)
+    (action_seq effect_request make_request_confirmation)
 
-
-(*make_request_confirmation*)
-(* TODO: commit the confirmation to disk and remote replicas before to return it *)
-(* TODO: parallelize, batch, etc., to have decent performance *)
 
 let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
 
