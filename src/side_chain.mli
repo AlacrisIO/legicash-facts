@@ -147,7 +147,7 @@ type account_state =
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
     *)
-type state =
+type facilitator_public_state =
   { previous_main_chain_state: Main_chain.state digest
   ; previous_side_chain_state:
       state digest
