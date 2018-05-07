@@ -6,6 +6,7 @@ open Legicash_chains
 open Main_chain
 open Side_chain
 open Main_chain_action
+open Lens.Infix
 
 let is_signature_matching address public_key signature payload =
   address_matches_public_key address public_key
@@ -18,8 +19,9 @@ let is_signature_matching address public_key signature payload =
     that the request references a recent confirmed main chain state indeed,
     that the request is not expired,
  *)
-let is_side_chain_request_well_formed (state, request) =
-  match (state, request) with {account_states}, {payload; signature} ->
+let is_side_chain_request_well_formed
+    : facilitator_state * request signed -> bool = function
+  | {account_states}, {payload; signature} ->
     match payload
     with
     | { rx_header=
@@ -37,42 +39,103 @@ let is_side_chain_request_well_formed (state, request) =
       let account_option = AddressMap.find_opt requester account_states in
       match operation with
       | Open_account user_key ->
-          account_option == None && requester_revision == Revision.one
+          account_option = None && requester_revision = Revision.one
           && is_signature_matching requester user_key signature payload
       | _ ->
         match account_option with
         | None -> false
-        | Some {active; user_revision; user_key} ->
+        | Some {active; account_revision; user_key} ->
             active
-            && requester_revision == Revision.add user_revision Revision.one
+            && requester_revision == Revision.add account_revision Revision.one
             && is_signature_matching requester user_key signature payload
 
 
 (** Check that the request is basically well-formed, or else fail *)
-let check_side_chain_request_well_formed =
+let check_side_chain_request_well_formed
+    : (request signed, request signed) facilitator_action =
   action_assert is_side_chain_request_well_formed
 
 
-let confirm_request =
+(** Default (empty) state for a new facilitator *)
+let new_account_state user_key =
+  { active= false
+  ; balance= Int64.zero
+  ; account_revision= Revision.zero
+  ; user_key }
+
+
+(** User's view of the default (empty) state for a new facilitator *)
+let new_user_account_state_per_facilitator user_key =
+  { facilitator_validity= Confirmed
+  ; confirmed_state= new_account_state user_key
+  ; pending_operations= [] }
+
+
+type account_lens = (facilitator_state, account_state) Lens.t
+
+let make_request_confirmation
+    : ( request signed * account_lens * TokenAmount.t
+      , confirmation signed )
+      facilitator_action =
+ fun (facilitator_state, (signed_request, user_account_lens, spending_limit)) ->
+  let revision =
+    Revision.add facilitator_state.current_revision Revision.one
+  in
+  ( { (Lens.modify user_account_lens
+         (fun s ->
+           { s with
+             account_revision=
+               signed_request.payload.rx_header.requester_revision } )
+         facilitator_state)
+      with current_revision= revision; current_limit= spending_limit }
+  , Ok
+      (sign facilitator_state.keypair.private_key
+         {tx_header= {tx_revision= revision; spending_limit}; signed_request})
+  )
+
+
+(** compute the effects of a request on the account state *)
+let effect_request
+    : ( request signed
+      , request signed * account_lens * TokenAmount.t )
+      facilitator_action = function
+  | state, ({payload= {rx_header; operation}} as rx) ->
+      let user = rx_header.requester in
+      let user_account_lens =
+        facilitator_state_account_states |-- AddressMap.lens user
+      in
+      match operation with
+      | Open_account user_key ->
+          ( ( Lens.modify user_account_lens
+                (fun s -> {s with active= true; user_key})
+                state
+            : facilitator_state )
+          , Ok (rx, user_account_lens, state.current_limit) )
+      | Close_account ->
+          ( Lens.modify user_account_lens
+              (fun s -> {s with active= false})
+              state
+          , Ok (rx, user_account_lens, state.current_limit) )
+      | Payment {payment_invoice; payment_fee; payment_expedited} -> bottom ()
+      | Deposit
+          { deposit_amount
+          ; deposit_fee
+          ; main_chain_transaction_signed
+          ; main_chain_confirmation
+          ; deposit_expedited } ->
+          bottom ()
+      | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
+
+
+(** TODO:
+ * save this initial state, and only use the new state if the confirmation was committed to disk,
+ i.e. implement a try-catch in our monad
+ * commit the confirmation to disk and remote replicas before to return it
+ * parallelize, batch, etc., to have decent performance
+ *)
+let confirm_request : (request signed, confirmation signed) facilitator_action =
   action_seq check_side_chain_request_well_formed
-    (action_seq
-       (function
-           | (state, {payload= {rx_header; operation}}) as rx ->
-             match operation with
-             | Open_account user_key ->
-                 (state, (* { state with active = true; user_key }*) Ok rx)
-             | Close_account -> (state, (* with active = false } *) Ok rx)
-             | Payment {payment_invoice; payment_fee; payment_expedited} ->
-                 bottom ()
-             | Deposit
-                 { deposit_amount
-                 ; deposit_fee
-                 ; main_chain_transaction_signed
-                 ; main_chain_confirmation
-                 ; deposit_expedited } ->
-                 bottom ()
-             | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ())
-       bottom)
+    (action_seq effect_request make_request_confirmation)
 
 
 let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
@@ -95,10 +158,9 @@ let stub_confirmed_side_chain_state_digest =
   ref (get_digest genesis_side_chain_state)
 
 
-let get_first_facilitator_state_option (side_chain_user_state, _)
+let get_first_facilitator_state_option (user_state, _)
     : (Address.t * user_account_state_per_facilitator) option =
-  AddressMap.find_first_opt (constantly true)
-    side_chain_user_state.facilitators
+  AddressMap.find_first_opt (constantly true) user_state.facilitators
 
 
 let get_first_facilitator =
@@ -111,20 +173,18 @@ let get_first_facilitator =
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Int64.of_int 256
 
-let make_rx_header (side_chain_user_state, facilitator_address) =
-  match
-    AddressMap.find_opt facilitator_address side_chain_user_state.facilitators
-  with
-  | None -> (side_chain_user_state, Error Not_found)
+let make_rx_header (user_state, facilitator_address) =
+  match AddressMap.find_opt facilitator_address user_state.facilitators with
+  | None -> (user_state, Error Not_found)
   | Some facilitator ->
-      ( side_chain_user_state
+      ( user_state
       , Ok
           { facilitator= facilitator_address
-          ; requester= side_chain_user_state.main_chain_user_state.address
+          ; requester= user_state.main_chain_user_state.keypair.address
           ; requester_revision=
-              Revision.add facilitator.confirmed_state.user_revision
-                Revision.one
-              (* TODO: apply the pending transactions!!! *)
+              Revision.add facilitator.confirmed_state.account_revision
+                (Revision.of_int
+                   (1 + List.length facilitator.pending_operations))
           ; confirmed_main_chain_state_digest=
               !stub_confirmed_main_chain_state_digest
           ; confirmed_main_chain_state_revision=
@@ -160,22 +220,10 @@ let issue_user_request =
         (action_seq get_first_facilitator
            (action_seq make_rx_header
               (action_of_pure_action (fun (user_state, rx_header) ->
-                   sign user_state.main_chain_user_state.private_key
+                   sign user_state.main_chain_user_state.keypair.private_key
                      {rx_header; operation} )))) )
     (fun (user_state, request) ->
       (add_user_episteme user_state (mk_rx_episteme request), Ok request) )
-
-
-(** Default (empty) state for a new facilitator *)
-let new_facilitator_account_state_per_user user_key =
-  {active= false; balance= Int64.zero; user_revision= Revision.zero; user_key}
-
-
-(** User's view of the default (empty) state for a new facilitator *)
-let new_user_account_state_per_facilitator user_key =
-  { facilitator_validity= Confirmed
-  ; confirmed_state= new_facilitator_account_state_per_user user_key
-  ; pending_operations= [] }
 
 
 (** We assume that the operation will correctly apply:
@@ -183,13 +231,12 @@ let new_user_account_state_per_facilitator user_key =
     deposits confirmation will check out,
     active revision will only increase, etc.
  *)
-let update_facilitator_account_state_per_user_with_trusted_operation
-    trusted_operation ({active; balance} as facilitator_account_state_per_user) =
+let update_account_state_with_trusted_operation trusted_operation
+    ({active; balance} as account_state) =
   let f =
-    { facilitator_account_state_per_user with
-      user_revision=
-        Revision.add facilitator_account_state_per_user.user_revision
-          Revision.one }
+    { account_state with
+      account_revision=
+        Revision.add account_state.account_revision Revision.one }
   in
   match trusted_operation with
   | Open_account _ -> {f with active= true}
@@ -214,23 +261,21 @@ let update_facilitator_account_state_per_user_with_trusted_operation
 
 (** We assume most recent operation is to the left of the changes list,
  *)
-let update_facilitator_account_state_per_user_with_trusted_operation
-    trusted_operations facilitator_account_state_per_user =
-  List.fold_right
-    update_facilitator_account_state_per_user_with_trusted_operation
-    trusted_operations facilitator_account_state_per_user
+let update_account_state_with_trusted_operations trusted_operations
+    account_state =
+  List.fold_right update_account_state_with_trusted_operation
+    trusted_operations account_state
 
 
 let optimistic_facilitator_account_state (user_state, facilitator_address) =
   match AddressMap.find_opt facilitator_address user_state.facilitators with
   | None ->
-      new_facilitator_account_state_per_user
-        user_state.main_chain_user_state.public_key
+      new_account_state user_state.main_chain_user_state.keypair.public_key
   | Some {facilitator_validity; confirmed_state; pending_operations} ->
     match facilitator_validity with
     | Rejected -> confirmed_state
     | _ ->
-        update_facilitator_account_state_per_user_with_trusted_operation
+        update_account_state_with_trusted_operations
           (List.map (fun x -> x.request.payload.operation) pending_operations)
           confirmed_state
 
@@ -256,7 +301,8 @@ let open_account (user_state, facilitator_address) =
   if activity_status then (user_state, Error Already_open)
   else
     issue_user_request
-      (user_state, Open_account user_state.main_chain_user_state.public_key)
+      ( user_state
+      , Open_account user_state.main_chain_user_state.keypair.public_key )
 
 
 let close_account (user_state, facilitator_address) =

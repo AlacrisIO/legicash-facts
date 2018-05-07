@@ -44,9 +44,7 @@ type transaction =
 type transaction_signed = transaction signed
 
 type user_state =
-  { address: Address.t
-  ; public_key: public_key
-  ; private_key: private_key
+  { keypair: Keypairs.t
   ; pending_transactions: transaction_signed list
   ; nonce: Nonce.t }
   [@@deriving lens]

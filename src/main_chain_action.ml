@@ -16,7 +16,7 @@ let update_stub_state new_state =
 
 
 let make_tx_header (user_state, (gas_limit, value)) =
-  { sender= user_state.address
+  { sender= user_state.keypair.address
   ; nonce= user_state.nonce
   ; gas_price= !stub_gas_price
   ; gas_limit
@@ -35,7 +35,8 @@ let issue_transaction =
       do_action (user_state, (value, gas_limit))
         (action_of_pure_action
            (pure_action_seq make_tx_header (fun (user_state, tx_header) ->
-                sign user_state.private_key {tx_header; operation} ))) )
+                sign user_state.keypair.private_key {tx_header; operation} )))
+      )
     add_pending_transaction
 
 

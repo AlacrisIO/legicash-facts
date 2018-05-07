@@ -23,12 +23,18 @@ let effect_action action state_ref x =
       raise e
 
 
+let no_action (s, a) = (s, Ok a)
+
+let fail_action failure (s, a) = (s, Error failure)
+
 (** compose two actions *)
 let compose_actions c_of_b b_of_a (s, a) =
   match b_of_a (s, a) with
   | t, Error e -> (t, Error e)
   | t, Ok b -> c_of_b (t, b)
 
+
+(* TODO: Infix syntax for action_seq, etc. *)
 
 (** compose a list of actions *)
 let compose_action_list action_list (s, a) =
@@ -165,16 +171,17 @@ end = struct
 
   let of_public_key public_key =
     let open Bigarray in
-    let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
+    let buffer =
+      Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key
+    in
     let buffer_len = Array1.dim buffer in
     let offset = buffer_len - address_size in
-    Array.init address_size
-      (fun ndx -> Array1.get buffer (offset + ndx))
+    Array.init address_size (fun ndx -> Array1.get buffer (offset + ndx))
 
 
   let compare address1 address2 = Pervasives.compare address1 address2
 
-  let equal address1 address2 = (compare address1 address2 = 0)
+  let equal address1 address2 = compare address1 address2 = 0
 
   let to_string address = String.init address_size (Array.get address)
 end
@@ -184,8 +191,32 @@ end
     TODO: Tezos must have something we should use.
     probably Tezos_crypto.S.MERKLE_TREE or Tezos_crypto.Blake2B.Make_merkle_tree
  *)
-module AddressMap = Map.Make (Address)
-module Int64Map = Map.Make (Int64)
+module type MapS = sig
+  include Map.S
+
+  val lens : key -> ('a t, 'a) Lens.t
+
+  val find_defaulting : (unit -> 'a) -> key -> 'a t -> 'a
+end
+
+let defaulting default = function None -> default () | Some x -> x
+
+module MapMake (Key : Map.OrderedType) = struct
+  include Map.Make (Key)
+
+  let lens k = Lens.{get= find k; set= add k}
+
+  let find_defaulting default k m = defaulting default (find_opt k m)
+end
+
+module AddressMap = MapMake (Address)
+module Int64Map = MapMake (Int64)
 
 (*Lib_crypto.Blake2B.Make_merkle_tree something?*)
 (* module Int64Utils = *)
+
+let identity x = x
+
+let konstant x y = x
+
+let schoenfinkel x y z = x z (y z)
