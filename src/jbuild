@@ -3,29 +3,16 @@
 (jbuild_version 1)
 
 (library
- ((name legicash_base)
-  (modules (legibase lib data256 keypairs uInt64 ethereum_rlp ethereum_patricia_merkle))
-  (preprocess (pps (ppx_deriving.std ppx_inline_test)))
+ ((name legicash_lib)
+  (modules (legibase lib data256 keypairs uInt64 ethereum_rlp ethereum_patricia_merkle
+  main_chain side_chain main_chain_action side_chain_action))
+  (preprocess (pps (ppx_deriving.std ppx_inline_test ppx_deriving_lens)))
   (libraries (cryptokit secp256k1 lens))
   (inline_tests)))
-
-(library
- ((name legicash_chains)
-  (modules (main_chain side_chain))
-  (preprocess (action (run ppxfind -legacy lens.ppx_deriving,ppx_deriving.std --as-pp ${<})))
-  (libraries (legicash_base))))
-
-(library
- ((name legicash_actions)
-  (modules (main_chain_action side_chain_action))
-  (preprocess (pps (ppx_deriving.std ppx_inline_test)))
-  (libraries (legicash_base legicash_chains))
-  ;;(inline_tests)
-))
 
 ;; main executable
 (executable
   ((name hello_legicash)
-    (preprocess (pps (ppx_deriving.std ppx_inline_test)))
-    (modules (hello_legicash))
-    (libraries (legicash_actions))))
+   (preprocess (pps (ppx_deriving.std ppx_deriving_lens ppx_inline_test)))
+   (modules (hello_legicash))
+   (libraries (legicash_lib))))

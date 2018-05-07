@@ -1,6 +1,5 @@
 (* Types for LegiCash Facilitator side-chains *)
 
-open Legicash_base
 open Legibase
 open Main_chain
 

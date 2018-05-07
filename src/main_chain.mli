@@ -1,4 +1,3 @@
-open Legicash_base
 open Legibase
 module TokenAmount = Int64
 module Nonce = Int64

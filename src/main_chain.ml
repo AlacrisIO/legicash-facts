@@ -1,4 +1,3 @@
-open Legicash_base
 open Legibase
 open Data256
 open Lib
