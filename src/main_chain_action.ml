@@ -1,6 +1,4 @@
-open Legicash_base
 open Legibase
-open Legicash_chains
 open Main_chain
 
 let stub_state = ref genesis_state

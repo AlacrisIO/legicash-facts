@@ -1,8 +1,6 @@
-open Legicash_base
 open Legibase
 open Keypairs
 open Lib
-open Legicash_chains
 open Main_chain
 open Side_chain
 open Main_chain_action
