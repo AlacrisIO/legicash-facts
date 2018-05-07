@@ -48,7 +48,6 @@ let compose_action_list action_list (s, a) =
   in
   loop action_list (s, a)
 
-
 let do_action (state, value) action = action (state, value)
 
 let action_seq action1 action2 = compose_actions action2 action1
@@ -58,7 +57,6 @@ exception Assertion_failed
 let action_assert pure_action (state, value) =
   if pure_action (state, value) then (state, Ok value)
   else (state, Error Assertion_failed)
-
 
 type ('a, 'b, 'c) pure_action = 'c * 'a -> 'b
 

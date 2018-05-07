@@ -17,6 +17,7 @@ let is_signature_matching address public_key signature payload =
     that the request references a recent confirmed main chain state indeed,
     that the request is not expired,
  *)
+
 let is_side_chain_request_well_formed
     : facilitator_state * request signed -> bool = function
   | {account_states}, {payload; signature} ->
@@ -53,7 +54,6 @@ let check_side_chain_request_well_formed
     : (request signed, request signed) facilitator_action =
   action_assert is_side_chain_request_well_formed
 
-
 (** Default (empty) state for a new facilitator *)
 let new_account_state user_key =
   { active= false
@@ -61,13 +61,11 @@ let new_account_state user_key =
   ; account_revision= Revision.zero
   ; user_key }
 
-
 (** User's view of the default (empty) state for a new facilitator *)
 let new_user_account_state_per_facilitator user_key =
   { facilitator_validity= Confirmed
   ; confirmed_state= new_account_state user_key
   ; pending_operations= [] }
-
 
 type account_lens = (facilitator_state, account_state) Lens.t
 
@@ -104,9 +102,9 @@ let effect_request
       in
       match operation with
       | Open_account user_key ->
-          ( ( Lens.modify user_account_lens
-                (fun s -> {s with active= true; user_key})
-                state
+         (( user_account_lens.set
+              {(new_account_state user_key) with active= true}
+              state
             : facilitator_state )
           , Ok (rx, user_account_lens, state.current_limit) )
       | Close_account ->
@@ -135,12 +133,10 @@ let confirm_request : (request signed, confirmation signed) facilitator_action =
   action_seq check_side_chain_request_well_formed
     (action_seq effect_request make_request_confirmation)
 
-
 let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
 
 let stub_confirmed_main_chain_state_digest =
   ref (get_digest Main_chain.genesis_state)
-
 
 let genesis_side_chain_state =
   { previous_main_chain_state= get_digest Main_chain.genesis_state
@@ -149,24 +145,20 @@ let genesis_side_chain_state =
   ; user_accounts= AddressMap.empty
   ; operations= AddressMap.empty }
 
-
 let stub_confirmed_side_chain_state = ref genesis_side_chain_state
 
 let stub_confirmed_side_chain_state_digest =
   ref (get_digest genesis_side_chain_state)
 
-
 let get_first_facilitator_state_option (user_state, _)
     : (Address.t * user_account_state_per_facilitator) option =
   AddressMap.find_first_opt (constantly true) user_state.facilitators
-
 
 let get_first_facilitator =
   action_seq (action_of_pure_action get_first_facilitator_state_option)
     (function
     | state, None -> (state, Error No_facilitator_yet)
     | state, Some (address, _) -> (state, Ok address) )
-
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Int64.of_int 256
@@ -205,11 +197,17 @@ let mk_tx_episteme tx =
 
 
 let add_user_episteme user_state episteme =
-  (* TODO: use lenses?
-     update_pending state (fun pending -> episteme :: pending)
-     check that active status is correct, that revision match, that facilitator isn't known failed *)
-  {user_state with facilitators= user_state.facilitators}
-
+  let facilitator = episteme.request.payload.rx_header.facilitator in
+  let account_state = AddressMap.find_defaulting
+                        (fun _ -> new_user_account_state_per_facilitator
+                                    user_state.main_chain_user_state.keypair.public_key)
+                        facilitator
+                        user_state.facilitators in
+  (user_state_facilitators
+   |-- AddressMap.lens facilitator
+   |-- user_account_state_per_facilitator_pending_operations).set
+    (episteme :: account_state.pending_operations)
+    user_state
 
 let issue_user_request =
   action_seq
@@ -222,7 +220,6 @@ let issue_user_request =
                      {rx_header; operation} )))) )
     (fun (user_state, request) ->
       (add_user_episteme user_state (mk_rx_episteme request), Ok request) )
-
 
 (** We assume that the operation will correctly apply:
     balances are sufficient for spending,
@@ -279,14 +276,10 @@ let optimistic_facilitator_account_state (user_state, facilitator_address) =
 
 
 let user_activity_status_for_facilitator (user_state, facilitator_address) =
-  match AddressMap.find_opt facilitator_address user_state.facilitators with
-  | Some {confirmed_state= {active}} -> active
-  | None -> false
-
+  (optimistic_facilitator_account_state (user_state, facilitator_address)).active
 
 let is_account_open (user_state, facilitator_address) =
   user_activity_status_for_facilitator (user_state, facilitator_address)
-
 
 (**
   TODO: take into account not just the facilitator name, but the fee schedule, too.
@@ -301,7 +294,6 @@ let open_account (user_state, facilitator_address) =
     issue_user_request
       ( user_state
       , Open_account user_state.main_chain_user_state.keypair.public_key )
-
 
 let close_account (user_state, facilitator_address) =
   let activity_status =
@@ -321,7 +313,6 @@ let lift_main_chain_user_action_to_side_chain action (user_state, input) =
 
 let deposit (user_state, input) =
   lift_main_chain_user_action_to_side_chain transfer_tokens (user_state, input)
-
 
 let detect_main_chain_facilitator_issues = bottom
 
@@ -350,3 +341,113 @@ let check_main_chain_for_exits = bottom
 let initiate_individual_exit = bottom
 
 let request_deposit = bottom
+
+(* open account tests *)
+
+let trent_keys =
+  Keypairs.make_keys_from_hex
+    "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
+    "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
+
+let alice_keys =
+  Keypairs.make_keys_from_hex
+    "d5:69:84:dc:08:3d:76:97:01:71:4e:eb:1d:4c:47:a4:54:25:5a:3b:bc:3e:9f:44:84:20:8c:52:bd:a3:b6:4e"
+    "04:23:a7:cd:9a:03:fa:9c:58:57:e5:14:ae:5a:cb:18:ca:91:e0:7d:69:45:3e:d8:51:36:ea:6a:00:36:10:67:b8:60:a5:b2:0f:11:53:33:3a:ef:2d:1b:a1:3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
+
+let bob_keys =
+  Keypairs.make_keys_from_hex
+    "f1:d3:cd:20:22:e1:d6:64:98:32:76:04:83:4d:f0:73:06:64:f7:1a:8d:d1:1e:46:a3:3b:4a:0e:bb:40:ca:8e"
+    "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
+
+let create_side_chain_user_state_for_testing user_keys main_chain_balance =
+  let main_chain_user_state =
+    { keypair = user_keys
+    ; pending_transactions = []
+    ; nonce = Int64.zero
+    }
+  in
+  let user_account_state = new_user_account_state_per_facilitator user_keys.public_key in
+  let facilitators = AddressMap.singleton trent_keys.address user_account_state in
+  { latest_main_chain_confirmation = Data256.zero (* dummy digest *)
+  ; latest_main_chain_confirmed_balance = Int64.of_int main_chain_balance
+  ; facilitators = facilitators
+  ; main_chain_user_state = main_chain_user_state
+  }
+
+let alice_state = create_side_chain_user_state_for_testing alice_keys 4500
+
+let bob_state = create_side_chain_user_state_for_testing bob_keys 17454
+
+let trent_fee_structure =
+  { deposit_fee = TokenAmount.of_int 5
+  ; per_account_limit = TokenAmount.of_int 20000
+  ; fee_per_billion = 42
+  }
+
+let confirmed_main_chain_state =
+  { revision = Revision.of_int 99
+  ; accounts = AddressMap.empty
+  }
+
+let trent_state =
+  { keypair = trent_keys
+  ; confirmed_state = confirmed_main_chain_state
+  ; bond_posted = TokenAmount.of_int 1024000
+  ; current_limit = TokenAmount.of_int 5000
+  ; account_states = AddressMap.empty
+  ; pending_operations = AddressMap.empty
+  ; current_revision = Revision.zero
+  ; fee_structure = trent_fee_structure
+  }
+
+let%test "open_account_request_valid" =
+  let request = open_account (alice_state,trent_keys.address) in
+  match request with
+  | (updated_alice_user_state,Ok _) -> true
+  | (_,Error _) -> false
+
+let%test "open_account_request_change_pending_ops" =
+  let request = open_account (alice_state,trent_keys.address) in
+  match request with
+  | (alice_state1,Ok signed_request) -> (
+     try
+       let get_facilitators st = AddressMap.find trent_keys.address st.facilitators in
+       let alice_state_trent = get_facilitators alice_state in
+       let alice_state1_trent = get_facilitators alice_state1 in
+       let pending_ops0 = alice_state_trent.pending_operations in
+       let pending_ops1 = alice_state1_trent.pending_operations in
+       List.length pending_ops1 = List.length pending_ops0 + 1 &&
+         List.tl pending_ops1 = pending_ops0
+     with Not_found -> false
+  )
+  | (_,Error _) -> false
+
+let%test "open_account_request_process_request" =
+  let _ = assert (not (is_account_open (alice_state,trent_keys.address))) in
+  let request = open_account (alice_state,trent_keys.address) in
+  match request with
+  | (alice_state1,Ok signed_request) -> (
+    let action = confirm_request (trent_state,signed_request) in
+    match action with
+    | (trent_state1,Ok _) ->
+       is_account_open (alice_state1,trent_keys.address)
+    | (_,Error _) -> false
+  )
+  | (_,Error _) -> false
+
+let%test "open_acccount_not_idempotent" =
+  let request = open_account (alice_state,trent_keys.address) in
+  match request with
+  | (alice_state1,Ok signed_request) -> (
+    let action = confirm_request (trent_state,signed_request) in
+    match action with
+    | (trent_state1,Ok _) -> (
+      (* successfully opened once, open another time *)
+      let request2 = open_account (alice_state1,trent_keys.address) in
+      match request2 with
+      | (alice_state2,Ok signed_request2) -> false
+      | (_,Error exn) -> exn = Already_open
+    )
+    | (_,Error _) -> false
+  )
+  | (_,Error _) -> false
