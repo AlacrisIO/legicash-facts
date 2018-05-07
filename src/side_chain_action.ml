@@ -45,9 +45,8 @@ let is_side_chain_request_well_formed
         | None -> false
         | Some {active; account_revision; user_key} ->
             active
-            && requester_revision == Revision.add account_revision Revision.one
+            && requester_revision = Revision.add account_revision Revision.one
             && is_signature_matching requester user_key signature payload
-
 
 (** Check that the request is basically well-formed, or else fail *)
 let check_side_chain_request_well_formed
@@ -108,10 +107,10 @@ let effect_request
             : facilitator_state )
           , Ok (rx, user_account_lens, state.current_limit) )
       | Close_account ->
-          ( Lens.modify user_account_lens
-              (fun s -> {s with active= false})
-              state
-          , Ok (rx, user_account_lens, state.current_limit) )
+         ( Lens.modify user_account_lens
+             (fun s -> {s with active= false})
+             state
+         , Ok (rx, user_account_lens, state.current_limit) )
       | Payment {payment_invoice; payment_fee; payment_expedited} -> bottom ()
       | Deposit
           { deposit_amount
@@ -401,12 +400,14 @@ let trent_state =
   }
 
 let%test "open_account_request_valid" =
+  let _ = assert (not (is_account_open (alice_state,trent_keys.address))) in
   let request = open_account (alice_state,trent_keys.address) in
   match request with
-  | (updated_alice_user_state,Ok _) -> true
+  | (alice_state1,Ok _) -> true
   | (_,Error _) -> false
 
 let%test "open_account_request_change_pending_ops" =
+  let _ = assert (not (is_account_open (alice_state,trent_keys.address))) in
   let request = open_account (alice_state,trent_keys.address) in
   match request with
   | (alice_state1,Ok signed_request) -> (
@@ -436,6 +437,7 @@ let%test "open_account_request_process_request" =
   | (_,Error _) -> false
 
 let%test "open_acccount_not_idempotent" =
+  let _ = assert (not (is_account_open (alice_state,trent_keys.address))) in
   let request = open_account (alice_state,trent_keys.address) in
   match request with
   | (alice_state1,Ok signed_request) -> (
@@ -451,3 +453,52 @@ let%test "open_acccount_not_idempotent" =
     | (_,Error _) -> false
   )
   | (_,Error _) -> false
+
+let%test "close_account_request_valid" =
+  let _ = assert (not (is_account_open (alice_state,trent_keys.address))) in
+  let request = open_account (alice_state,trent_keys.address) in
+  match request with
+  | (alice_state1,Ok signed_request) -> (
+    let action = confirm_request (trent_state,signed_request) in
+    match action with
+    | (trent_state1,Ok _) -> (
+      let _ = assert (is_account_open (alice_state1,trent_keys.address)) in
+      let request1 = close_account (alice_state1,trent_keys.address) in
+      match request1 with
+      | (alice_state2,Ok _) -> true
+      | (_,Error exn) -> false
+    )
+    | (_,Error _) -> false
+  )
+  | (_,Error _) -> false
+
+let%test "close_account_request_process_request" =
+  let _ = assert (not (is_account_open (alice_state,trent_keys.address))) in
+  let request = open_account (alice_state,trent_keys.address) in
+  match request with
+  | (alice_state1,Ok signed_request0) -> (
+    let action0 = confirm_request (trent_state,signed_request0) in
+    match action0 with
+    | (trent_state1,Ok _) -> (
+      let _ = assert (is_account_open (alice_state1,trent_keys.address)) in
+      let request1 = close_account (alice_state1,trent_keys.address) in
+      match request1 with
+      | (alice_state2,Ok signed_request1) -> (
+         let action1 = confirm_request (trent_state1,signed_request1) in
+         match action1 with
+         | (trent_state2,Ok _) ->
+            not (is_account_open (alice_state2,trent_keys.address))
+         | (_,Error exn) -> false
+      )
+      | (_,Error _) -> false
+    )
+    | (_,Error _) -> false
+  )
+  | (_,Error _) -> false
+
+let%test "close_account_not_idempotent" =
+  let _ = assert (not (is_account_open (alice_state,trent_keys.address))) in
+  let request = close_account (alice_state,trent_keys.address) in
+  match request with
+  | (alice_state1,Ok _) -> false
+  | (_,Error exn) -> exn = Already_closed
