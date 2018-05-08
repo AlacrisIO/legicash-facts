@@ -1,18 +1,5 @@
-before_script:
-  # Debian packages
-  - apt-get update -y
-  - apt-get install -y unzip aspcud libgmp-dev dh-autoreconf opam
-  # install secp256k1 library from sources
-  - ./scripts/install-secp256k1.sh
-  # Install OPAM, OCaml
-  - opam init
-  - opam switch 4.06.1
-  - eval `opam config env`
-  - opam install -y cryptokit jane-street-tests jbuilder lens ppxfind ppx_deriving ppx_tools_versioned ppx_core ppx_driver ppx_metaquot ocaml-migrate-parsetree secp256k1
-  - ./scripts/install-ocaml-lens.sh
-
 build-legicash:
+  image: registry.gitlab.com/legicash/legicash-facts:build-env
   script:
-    - make test
-    - make
+    - eval `opam config env` && make test && make
     - ./src/_build/default/hello_legicash.exe
