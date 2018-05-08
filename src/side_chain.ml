@@ -70,10 +70,10 @@ type withdrawal_details =
 (** an operation on a facilitator side-chain *)
 type operation =
   | Open_account of public_key
-  | Close_account
-  | Payment of payment_details
   | Deposit of deposit_details
+  | Payment of payment_details
   | Withdrawal of withdrawal_details
+  | Close_account
 
 (*
 | Settlement of

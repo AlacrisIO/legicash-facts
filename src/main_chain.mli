@@ -12,12 +12,6 @@ type state =
   {revision: Revision.t; accounts: TokenAmount.t AddressMap.t}
   [@@deriving lens]
 
-(** Confirmation of a transaction on the main chain
-    an old enough block on the main chain
-    TODO: maybe also include a path and/or merkle tree from there?
-    *)
-type confirmation
-
 (** TODO: make sure it matches Ethereum transfer data *)
 type tx_header =
   { sender: Address.t
@@ -41,6 +35,14 @@ type transaction =
   [@@deriving lens]
 
 type transaction_signed = transaction signed
+
+(** Confirmation of a transaction on the main chain
+    an old enough block on the main chain
+    TODO: maybe also include a path and/or merkle tree from there?
+    *)
+type confirmation
+
+val is_confirmation_valid : confirmation -> transaction_signed -> bool
 
 type user_state =
   { keypair: Keypairs.t

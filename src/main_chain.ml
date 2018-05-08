@@ -17,6 +17,9 @@ type state =
     *)
 type confirmation = (* state *) Digest.t
 
+(** TODO: have an actual confirmation *)
+let is_confirmation_valid confirmation transaction = true
+
 let genesis_state = {revision= Int64.zero; accounts= AddressMap.empty}
 
 type tx_header =

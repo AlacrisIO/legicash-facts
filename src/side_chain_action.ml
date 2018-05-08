@@ -73,10 +73,10 @@ let new_user_account_state_per_facilitator user_key =
 type account_lens = (facilitator_state, account_state) Lens.t
 
 let make_request_confirmation
-    : ( request signed * account_lens * TokenAmount.t
+    : ( request signed * account_lens
       , confirmation signed )
       facilitator_action =
- fun (facilitator_state, (signed_request, user_account_lens, spending_limit)) ->
+ fun (facilitator_state, (signed_request, user_account_lens)) ->
   let revision =
     Revision.add facilitator_state.current_revision Revision.one
   in
@@ -86,17 +86,32 @@ let make_request_confirmation
              account_revision=
                signed_request.payload.rx_header.requester_revision } )
          facilitator_state)
-      with current_revision= revision; current_limit= spending_limit }
+      with current_revision= revision}
   , Ok
       (sign facilitator_state.keypair.private_key
-         {tx_header= {tx_revision= revision; spending_limit}; signed_request})
+         {tx_header= {tx_revision= revision; spending_limit=facilitator_state.current_limit};
+          signed_request})
   )
 
+exception Spending_limit_exceeded
+
+(** Facilitator actions to use up some of the limit *)
+let spend_spending_limit amount (state, x) =
+  if (TokenAmount.compare amount state.current_limit) <= 0 then
+    {state with current_limit= TokenAmount.sub state.current_limit amount}, Ok x
+  else
+    state, Error Spending_limit_exceeded
+
+let maybe_spend_spending_limit is_expedited amount (state, x) =
+  if is_expedited then
+    spend_spending_limit amount (state, x)
+  else
+    state, Ok x
 
 (** compute the effects of a request on the account state *)
 let effect_request
     : ( request signed
-      , request signed * account_lens * TokenAmount.t )
+      , request signed * account_lens )
       facilitator_action = function
   | state, ({payload= {rx_header; operation}} as rx) ->
       let user = rx_header.requester in
@@ -108,20 +123,35 @@ let effect_request
           ( ( user_account_lens.set
                 {(new_account_state user_key) with active= true} state
             : facilitator_state )
-          , Ok (rx, user_account_lens, state.current_limit) )
+          , Ok (rx, user_account_lens) )
+      | Deposit { deposit_amount
+                ; deposit_fee
+                ; main_chain_transaction_signed
+                ; main_chain_confirmation
+                ; deposit_expedited } ->
+         let payment_required = TokenAmount.add deposit_amount deposit_fee in
+         (match main_chain_transaction_signed with
+            {signature; payload={tx_header={sender;value};operation} as payload} ->
+             do_action (state, (rx, user_account_lens))
+               (action_seq
+                  (action_assert
+                     (fun _ ->
+                       (TokenAmount.compare payment_required value) <= 0
+                       && (match operation with
+                           | Main_chain.TransferTokens recipient ->
+                              recipient = state.keypair.address
+                           | _ -> false)
+                       (* TODO: delegate the same signature checking protocol to the main chain *)
+                       && is_signature_valid (user_account_lens.get state).user_key signature payload
+                       && is_confirmation_valid main_chain_confirmation main_chain_transaction_signed))
+                  (maybe_spend_spending_limit deposit_expedited deposit_amount)))
+      | Payment {payment_invoice; payment_fee; payment_expedited} ->
+         bottom ()
       | Close_account ->
           ( Lens.modify user_account_lens
               (fun s -> {s with active= false})
               state
-          , Ok (rx, user_account_lens, state.current_limit) )
-      | Payment {payment_invoice; payment_fee; payment_expedited} -> bottom ()
-      | Deposit
-          { deposit_amount
-          ; deposit_fee
-          ; main_chain_transaction_signed
-          ; main_chain_confirmation
-          ; deposit_expedited } ->
-          bottom ()
+          , Ok (rx, user_account_lens) )
       | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
 
 
@@ -246,16 +276,16 @@ let update_account_state_with_trusted_operation trusted_operation
   in
   match trusted_operation with
   | Open_account _ -> {f with active= true}
-  | Close_account -> {f with active= false}
+  | Deposit {deposit_amount; deposit_fee} ->
+      if true (* check that everything is correct *) then
+        {f with balance= Int64.add balance deposit_amount}
+      else raise (Internal_error "I mistrusted your deposit operation")
   | Payment {payment_invoice; payment_fee} ->
       let decrement = Int64.add payment_invoice.amount payment_fee in
       if Int64.compare balance decrement >= 0 then
         {f with balance= Int64.sub balance decrement}
       else raise (Internal_error "I mistrusted your payment operation")
-  | Deposit {deposit_amount; deposit_fee} ->
-      if true (* check that everything is correct *) then
-        {f with balance= Int64.add balance deposit_amount}
-      else raise (Internal_error "I mistrusted your deposit operation")
+  | Close_account -> {f with active= false}
   | Withdrawal {withdrawal_invoice; withdrawal_fee} ->
       if true (* check that everything is correct *) then
         { f with
