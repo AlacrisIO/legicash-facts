@@ -143,8 +143,7 @@ and confirmation =
 and account_state =
   { active: bool
   ; balance: Main_chain.TokenAmount.t
-  ; account_revision: Revision.t
-  ; user_key: public_key }
+  ; account_revision: Revision.t }
   [@@deriving lens]
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
@@ -155,7 +154,9 @@ and state =
       (* state previously posted on the above *)
   ; side_chain_revision: Revision.t
   ; user_accounts: account_state AddressMap.t
-  ; operations: confirmation AddressMap.t }
+  ; user_keys: public_key AddressMap.t
+  ; operations: confirmation AddressMap.t
+  ; deposited: Main_chain.TransactionDigestSet.t }
   [@@deriving lens]
 
 (** side chain operation + knowledge about the operation *)
@@ -229,10 +230,10 @@ type verifier_state
 (** function from 'a to 'b that acts on a verifier_state *)
 type ('a, 'b) verifier_action = ('a, 'b, verifier_state) action
 
-(** Fee structure for a facilitator
+(** Fee schedule for a facilitator
     NB: an important constraint is that we need to advertise this fee structure to users
     *)
-type facilitator_fee_structure =
+type facilitator_fee_schedule =
   { deposit_fee: Main_chain.TokenAmount.t (* fee to accept a deposit *)
   ; per_account_limit:
       Main_chain.TokenAmount.t (* limit for pending expedited transactions per user *)
@@ -252,7 +253,7 @@ type facilitator_state =
   ; bond_posted: Main_chain.TokenAmount.t
   ; account_states: account_state AddressMap.t
   ; pending_operations: episteme list AddressMap.t
-  ; fee_structure: facilitator_fee_structure }
+  ; fee_schedule: facilitator_fee_schedule }
   [@@deriving lens]
 
 (** function from 'a to 'b that acts on a facilitator_state *)

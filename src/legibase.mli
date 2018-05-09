@@ -27,12 +27,14 @@ val fail_action: exn -> ('a, 'b, 'c) action
 
 (** apply an action, left to right *)
 val do_action: ('c * 'a) -> ('a,'b,'c) action -> ('c * 'b legi_result)
+val ( ^|> ): ('c * 'a) -> ('a,'b,'c) action -> ('c * 'b legi_result)
 
 (** compose two actions *)
 val compose_actions: ('b, 'c, 's) action -> ('a, 'b, 's) action -> ('a, 'c, 's) action
 
 (** compose two actions, left to right *)
 val action_seq: ('a, 'b, 's) action -> ('b, 'c, 's) action -> ('a, 'c, 's) action
+val ( ^>> ): ('a, 'b, 's) action -> ('b, 'c, 's) action -> ('a, 'c, 's) action
 
 (** compose a list of actions (NB: monomorphic in type being passed around *)
 val compose_action_list: (('a, 'a, 'c) action) list -> ('a, 'a, 'c) action
@@ -116,6 +118,9 @@ module type MapS = sig
   val lens : key -> ('a t, 'a) Lens.t
   val find_defaulting : (unit -> 'a) -> key -> 'a t -> 'a
 end
+
+(** Assuming that the lens raises Not_found if the value is not found, and then using the provided default, modify the value found (or the default) and put it back in the object *)
+val lens_modify_defaulting : (unit -> 'b) -> ('a, 'b) Lens.t -> ('b -> 'b) -> 'a -> 'a
 
 module MapMake (Key : Map.OrderedType) : MapS with type key = Key.t
 

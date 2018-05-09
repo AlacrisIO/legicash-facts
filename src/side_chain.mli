@@ -154,7 +154,9 @@ and state =
       (* state previously posted on the above *)
   ; side_chain_revision: Revision.t
   ; user_accounts: account_state AddressMap.t
-  ; operations: confirmation AddressMap.t }
+  ; user_keys: public_key AddressMap.t
+  ; operations: confirmation AddressMap.t
+  ; deposited: Main_chain.TransactionDigestSet.t }
   [@@deriving lens]
 
 (** side chain operation + knowledge about the operation *)

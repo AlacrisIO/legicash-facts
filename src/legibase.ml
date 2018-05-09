@@ -48,7 +48,11 @@ let compose_action_list action_list (s, a) =
 
 let do_action (state, value) action = action (state, value)
 
+let ( ^|> ) = do_action
+
 let action_seq action1 action2 = compose_actions action2 action1
+
+let ( ^>> ) = action_seq
 
 exception Assertion_failed
 
@@ -202,11 +206,12 @@ module MapMake (Key : Map.OrderedType) = struct
   let find_defaulting default k m = defaulting default (find_opt k m)
 end
 
+let lens_modify_defaulting default (lens: ('a, 'b) Lens.t) modifier x =
+  let value = try lens.get x with Not_found -> default () in
+  lens.set (modifier value) x
+
 module AddressMap = MapMake (Address)
 module Int64Map = MapMake (Int64)
-
-(*Lib_crypto.Blake2B.Make_merkle_tree something?*)
-(* module Int64Utils = *)
 
 (** SKI combinators *)
 let identity x = x

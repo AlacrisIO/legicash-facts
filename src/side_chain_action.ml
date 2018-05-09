@@ -11,80 +11,108 @@ let is_signature_matching address public_key signature payload =
   && is_signature_valid public_key signature payload
 
 
-(** Is the request well-formed?
-    TODO: check that the account is active (unless the request is to open the account!),
-    that the request revision number matches the user revision number,
-    that the request references a recent confirmed main chain state indeed,
-    that the request is not expired,
- *)
-
-let is_side_chain_request_well_formed
-    : facilitator_state * request signed -> bool = function
-  | {account_states}, {payload; signature} ->
-    match payload
-    with
-    | { rx_header=
-          { facilitator
-          ; requester
-          ; requester_revision
-          ; confirmed_main_chain_state_digest
-          ; confirmed_main_chain_state_revision
-          ; confirmed_side_chain_state_digest
-          ; confirmed_side_chain_state_revision
-          ; validity_within }
-      ; operation }
-    ->
-      (* TODO: check confirmed main & side chain state + validity window *)
-      let account_option = AddressMap.find_opt requester account_states in
-      match operation with
-      | Open_account user_key ->
-          account_option = None && requester_revision = Revision.one
-          && is_signature_matching requester user_key signature payload
-      | _ ->
-        match account_option with
-        | None -> false
-        | Some {active; account_revision; user_key} ->
-            active
-            && requester_revision = Revision.add account_revision Revision.one
-            && is_signature_matching requester user_key signature payload
-
-
-(** Check that the request is basically well-formed, or else fail *)
-let check_side_chain_request_well_formed
-    : (request signed, request signed) facilitator_action =
-  action_assert is_side_chain_request_well_formed
-
-
 (** Default (empty) state for a new facilitator *)
-let new_account_state user_key =
+let new_account_state =
   { active= false
   ; balance= Int64.zero
-  ; account_revision= Revision.zero
-  ; user_key }
+  ; account_revision= Revision.zero }
 
 
 (** User's view of the default (empty) state for a new facilitator *)
-let new_user_account_state_per_facilitator user_key =
+let new_user_account_state_per_facilitator =
   { facilitator_validity= Confirmed
   ; confirmed_state= new_account_state user_key
   ; pending_operations= [] }
 
-
 type account_lens = (facilitator_state, account_state) Lens.t
 
+(** Given a signed request, handle the special case of opening an account, and return
+    the request, the account state (new or old), the lens to set the account back at the end, and
+    the user's public key *)
+let ensure_user_account
+    : (request signed, request signed*account_state*account_lens*public_key) facilitator_action =
+  function
+  | {account_states; user_keys} as state, ({payload= {rx_header={requester}; operation}} as rx) ->
+     let user_account_lens =
+       facilitator_state_account_states |-- AddressMap.lens requester
+     in
+     let account_option = AddressMap.find_opt requester account_states in
+     match operation with
+     | Open_account user_key ->
+        (match account_option with
+         | None -> ({state with user_keys= AddressMap.add user_key state.user_keys},
+                    Ok (rx, new_account_state, user_account_lens, user_key))
+         | Some -> (state, Error Already_open))
+     | _ -> (state, Ok (rx, user_account_lens.get state, AddressMap.find requester state.user_keys))
+
+(** Is the request well-formed?
+    This function should include all checks that can be made without any non-local side-effect
+    beside reading pure or monotonic data, which is allowed.
+    Thus, we can later parallelize this check.
+ *)
+let is_side_chain_request_well_formed
+    : facilitator_state * (request signed*account_lens*public_key) -> bool = function
+  | {account_states},
+    ({payload={ rx_header=
+                  { facilitator
+                  ; requester
+                  ; requester_revision
+                  ; confirmed_main_chain_state_digest
+                  ; confirmed_main_chain_state_revision
+                  ; confirmed_side_chain_state_digest
+                  ; confirmed_side_chain_state_revision
+                  ; validity_within }
+              ; operation };
+      signature},
+     {active; balance; account_revision},
+     _,
+     user_key) ->
+     active = (match operation with Open_account _ -> false | _ -> true)
+     && requester_revision = Revision.add account_revision Revision.one
+     (* TODO: check confirmed main & side chain state + validity window *)
+     && is_signature_matching requester user_key signature payload
+     && match operation with
+        | Open_account _ -> true
+        | Deposit { deposit_amount
+                  ; deposit_fee
+                  ; main_chain_transaction_signed=
+                      {signature; payload={tx_header={sender;value};operation} as payload}
+                      as main_chain_transaction_signed
+                  ; main_chain_confirmation
+                  ; deposit_expedited } ->
+           (TokenAmount.compare value (TokenAmount.add deposit_amount deposit_fee)) >= 0
+           && (match operation with
+               | Main_chain.TransferTokens recipient ->
+                  recipient = state.keypair.address
+               | _ -> false)
+           (* TODO: delegate the same signature checking protocol to the main chain *)
+           && is_signature_valid user_key signature payload
+           && is_confirmation_valid main_chain_confirmation main_chain_transaction_signed
+           && (TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee) >= 0
+        | Payment {payment_invoice; payment_fee; payment_expedited} ->
+           (TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee)) >= 0
+           bottom ()
+        | Close_account -> true
+        | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
+
+
+(** Check that the request is basically well-formed, or else fail *)
+let check_side_chain_request_well_formed =
+  action_assert is_side_chain_request_well_formed
+
+
 let make_request_confirmation
-    : ( request signed * account_lens
+    : ( request signed * account_state * account_lens
       , confirmation signed )
       facilitator_action =
- fun (facilitator_state, (signed_request, user_account_lens)) ->
+ fun (facilitator_state, (signed_request, account_state, account_lens)) ->
   let revision =
     Revision.add facilitator_state.current_revision Revision.one
   in
-  ( { (Lens.modify user_account_lens
-         (fun s ->
-           { s with
-             account_revision=
-               signed_request.payload.rx_header.requester_revision } )
+  ( { (user_account_lens.set
+         { account_state with
+           account_revision=
+             signed_request.payload.rx_header.requester_revision }
          facilitator_state)
       with current_revision= revision}
   , Ok
@@ -108,45 +136,40 @@ let maybe_spend_spending_limit is_expedited amount (state, x) =
   else
     state, Ok x
 
+exception Already_deposited
+
+(* To prevent double-deposit of a same main_chain_transaction_signed,
+   we put those transactions in a set (encoded as AddressMap of unit) of already accounted deposits!
+   (Future: prune that set by expiring deposit requests?
+   Have more expensive process to account for old deposits?)
+ *)
+let check_against_double_deposit main_chain_transaction_signed (state, x) =
+  let witness = get_digest main_chain_transaction_signed in
+  if TransactionDigestSet.mem witness state.deposited then
+    (state, Error Already_deposited)
+  else
+    ({state with deposited= (TransactionDigestSet.add witness state.deposited ())}, Ok x)
+
 (** compute the effects of a request on the account state *)
 let effect_request
-    : ( request signed
-      , request signed * account_lens )
+    : ( request signed * account_state * account_lens * public_key
+      , request signed * account_state * account_lens )
       facilitator_action = function
-  | state, ({payload= {rx_header; operation}} as rx) ->
-      let user = rx_header.requester in
-      let user_account_lens =
-        facilitator_state_account_states |-- AddressMap.lens user
-      in
-      match operation with
-      | Open_account user_key ->
-          ( ( user_account_lens.set
-                {(new_account_state user_key) with active= true} state
-            : facilitator_state )
-          , Ok (rx, user_account_lens) )
-      | Deposit { deposit_amount
-                ; deposit_fee
-                ; main_chain_transaction_signed
-                ; main_chain_confirmation
-                ; deposit_expedited } ->
-         let payment_required = TokenAmount.add deposit_amount deposit_fee in
-         (match main_chain_transaction_signed with
-            {signature; payload={tx_header={sender;value};operation} as payload} ->
-             do_action (state, (rx, user_account_lens))
-               (action_seq
-                  (action_assert
-                     (fun _ ->
-                       (TokenAmount.compare payment_required value) <= 0
-                       && (match operation with
-                           | Main_chain.TransferTokens recipient ->
-                              recipient = state.keypair.address
-                           | _ -> false)
-                       (* TODO: delegate the same signature checking protocol to the main chain *)
-                       && is_signature_valid (user_account_lens.get state).user_key signature payload
-                       && is_confirmation_valid main_chain_confirmation main_chain_transaction_signed))
-                  (maybe_spend_spending_limit deposit_expedited deposit_amount)))
+  | state, ({payload= {rx_header; operation}} as rx, account_state, account_lens, user_key) ->
+     match operation with
+     | Open_account user_key ->
+        (state, Ok (rx, {account_state with active= true}, account_lens))
+     | Deposit { deposit_amount
+               ; deposit_fee
+               ; main_chain_transaction_signed
+               ; deposit_expedited } ->
+        (state, (rx, account_state, account_lens)) ^|>
+        (check_against_double_deposit main_chain_transaction_signed)
+        ^>> (maybe_spend_spending_limit deposit_expedited deposit_amount)
+        ^>> (fun (state, _) ->
+          bottom ())
       | Payment {payment_invoice; payment_fee; payment_expedited} ->
-         bottom ()
+         (maybe_spend_spending_limit deposit_expedited deposit_amount)
       | Close_account ->
           ( Lens.modify user_account_lens
               (fun s -> {s with active= false})
@@ -162,8 +185,10 @@ let effect_request
  * parallelize, batch, etc., to have decent performance
  *)
 let confirm_request : (request signed, confirmation signed) facilitator_action =
-  action_seq check_side_chain_request_well_formed
-    (action_seq effect_request make_request_confirmation)
+  ensure_user_account
+  ^>> check_side_chain_request_well_formed
+  ^>> effect_request
+  ^>> make_request_confirmation
 
 
 let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
@@ -192,10 +217,10 @@ let get_first_facilitator_state_option (user_state, _)
 
 
 let get_first_facilitator =
-  action_seq (action_of_pure_action get_first_facilitator_state_option)
-    (function
-    | state, None -> (state, Error No_facilitator_yet)
-    | state, Some (address, _) -> (state, Ok address) )
+  (action_of_pure_action get_first_facilitator_state_option)
+  ^>> (function
+      | state, None -> (state, Error No_facilitator_yet)
+      | state, Some (address, _) -> (state, Ok address) )
 
 
 (** TODO: find and justify a good default validity window in number of blocks *)
@@ -250,16 +275,15 @@ let add_user_episteme user_state episteme =
 
 
 let issue_user_request =
-  action_seq
-    (fun (user_state, operation) ->
-      do_action (user_state, ())
-        (action_seq get_first_facilitator
-           (action_seq make_rx_header
-              (action_of_pure_action (fun (user_state, rx_header) ->
-                   sign user_state.main_chain_user_state.keypair.private_key
-                     {rx_header; operation} )))) )
-    (fun (user_state, request) ->
-      (add_user_episteme user_state (mk_rx_episteme request), Ok request) )
+  (fun (user_state, operation) ->
+    (user_state, ()) ^|>
+      get_first_facilitator
+      ^>> make_rx_header
+      ^>> (action_of_pure_action (fun (user_state, rx_header) ->
+               sign user_state.main_chain_user_state.keypair.private_key
+                 {rx_header; operation})))
+  ^>> (fun (user_state, request) ->
+    (add_user_episteme user_state (mk_rx_episteme request), Ok request) )
 
 
 (** We assume that the operation will correctly apply:
@@ -348,11 +372,8 @@ let close_account (user_state, facilitator_address) =
 
 
 let lift_main_chain_user_action_to_side_chain action (user_state, input) =
-  let main_chain_user_state = user_state.main_chain_user_state in
-  let new_main_chain_user_state, result =
-    action (main_chain_user_state, input)
-  in
-  ({user_state with main_chain_user_state= new_main_chain_user_state}, result)
+  let new_state, result = action (user_state.main_chain_user_state, input) in
+  ({user_state with main_chain_user_state= new_state}, result)
 
 
 let deposit (user_state, input) =
@@ -429,7 +450,7 @@ let alice_state = create_side_chain_user_state_for_testing alice_keys 4500
 
 let bob_state = create_side_chain_user_state_for_testing bob_keys 17454
 
-let trent_fee_structure =
+let trent_fee_schedule =
   { deposit_fee= TokenAmount.of_int 5
   ; per_account_limit= TokenAmount.of_int 20000
   ; fee_per_billion= 42 }

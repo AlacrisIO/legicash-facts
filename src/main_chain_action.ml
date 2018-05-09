@@ -28,14 +28,12 @@ let add_pending_transaction (user_state, transaction) =
 
 
 let issue_transaction =
-  action_seq
-    (fun (user_state, (operation, value, gas_limit)) ->
-      do_action (user_state, (value, gas_limit))
-        (action_of_pure_action
-           (pure_action_seq make_tx_header (fun (user_state, tx_header) ->
-                sign user_state.keypair.private_key {tx_header; operation} )))
-      )
-    add_pending_transaction
+  (fun (user_state, (operation, value, gas_limit)) ->
+    (user_state, (value, gas_limit)) ^|>
+      (action_of_pure_action
+         (pure_action_seq make_tx_header (fun (user_state, tx_header) ->
+              sign user_state.keypair.private_key {tx_header; operation} ))))
+  ^>> add_pending_transaction
 
 
 let transfer_gas_limit = TokenAmount.of_int 21000
