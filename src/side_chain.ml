@@ -1,6 +1,7 @@
 (* Types for LegiCash Facilitator side-chains *)
-
 open Legibase
+
+module TokenAmount = Main_chain.TokenAmount
 
 (** Internal witness for proof that Trent is a liar
  *)
@@ -46,25 +47,25 @@ type memo = string option
     TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
  *)
 type invoice =
-  {recipient: Address.t; amount: Main_chain.TokenAmount.t; memo: memo}
+  {recipient: Address.t; amount: TokenAmount.t; memo: memo}
   [@@deriving lens]
 
 type payment_details =
   { payment_invoice: invoice
-  ; payment_fee: Main_chain.TokenAmount.t
+  ; payment_fee: TokenAmount.t
   ; payment_expedited: bool }
   [@@deriving lens]
 
 type deposit_details =
-  { deposit_amount: Main_chain.TokenAmount.t
-  ; deposit_fee: Main_chain.TokenAmount.t
+  { deposit_amount: TokenAmount.t
+  ; deposit_fee: TokenAmount.t
   ; main_chain_transaction_signed: Main_chain.transaction_signed
   ; main_chain_confirmation: Main_chain.confirmation
   ; deposit_expedited: bool }
   [@@deriving lens]
 
 type withdrawal_details =
-  {withdrawal_invoice: invoice; withdrawal_fee: Main_chain.TokenAmount.t}
+  {withdrawal_invoice: invoice; withdrawal_fee: TokenAmount.t}
   [@@deriving lens]
 
 (** an operation on a facilitator side-chain *)
@@ -126,7 +127,7 @@ and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
     whose revision is a multiple of 2**k for all k?
     *)
 and tx_header =
-  {tx_revision: Revision.t; spending_limit: Main_chain.TokenAmount.t}
+  {tx_revision: Revision.t; spending_limit: TokenAmount.t}
   [@@deriving lens]
 
 (** A transaction confirmation from a facilitator:
@@ -142,7 +143,7 @@ and confirmation =
 (** public state of the account of a user with a facilitator as visible in the public side-chain *)
 and account_state =
   { active: bool
-  ; balance: Main_chain.TokenAmount.t
+  ; balance: TokenAmount.t
   ; account_revision: Revision.t }
   [@@deriving lens]
 
@@ -215,7 +216,7 @@ type user_account_state_per_facilitator =
 type user_state =
   { latest_main_chain_confirmation: (* Main_chain.state *) Digest.t
   ; latest_main_chain_confirmed_balance:
-      Main_chain.TokenAmount.t
+      TokenAmount.t
       (* Only store the confirmed state, and have any updates in pending *)
   ; facilitators: user_account_state_per_facilitator AddressMap.t
   ; main_chain_user_state: Main_chain.user_state }
@@ -234,9 +235,9 @@ type ('a, 'b) verifier_action = ('a, 'b, verifier_state) action
     NB: an important constraint is that we need to advertise this fee structure to users
     *)
 type facilitator_fee_schedule =
-  { deposit_fee: Main_chain.TokenAmount.t (* fee to accept a deposit *)
+  { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
   ; per_account_limit:
-      Main_chain.TokenAmount.t (* limit for pending expedited transactions per user *)
+      TokenAmount.t (* limit for pending expedited transactions per user *)
   ; fee_per_billion: int
   (* function TokenAmount.t -> TokenAmount.t ? *) }
   [@@deriving lens]
@@ -249,8 +250,8 @@ type facilitator_state =
   ; confirmed_state: state (* latest confirmed public state *)
   ; current_revision: Revision.t (* incremented at every change *)
   ; current_limit:
-      Main_chain.TokenAmount.t (* expedited limit still unspent since confirmation *)
-  ; bond_posted: Main_chain.TokenAmount.t
+      TokenAmount.t (* expedited limit still unspent since confirmation *)
+  ; bond_posted: TokenAmount.t
   ; account_states: account_state AddressMap.t
   ; pending_operations: episteme list AddressMap.t
   ; fee_schedule: facilitator_fee_schedule }
