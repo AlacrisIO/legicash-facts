@@ -15,7 +15,7 @@ type state =
     an old enough block on the main chain
     TODO: maybe also include a path and/or merkle tree from there?
     *)
-type confirmation = state digest
+type confirmation = (* state *) Digest.t
 
 let genesis_state = {revision= Int64.zero; accounts= AddressMap.empty}
 
@@ -50,3 +50,5 @@ type user_state =
   [@@deriving lens]
 
 type ('a, 'b) user_action = ('a, 'b, user_state) action
+
+module TransactionDigestSet = Set.Make(Digest)

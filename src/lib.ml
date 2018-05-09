@@ -57,8 +57,8 @@ let unparse_hex s =
 (* test digests *)
 
 let mk_digest_test data expected =
-  let digest = get_digest data in
-  expected = (unparse_hex (Data256.to_string digest))
+  let digest = Digest.make data in
+  expected = (unparse_hex (Digest.to_string digest))
 
 let%test "digest_1" =
   mk_digest_test

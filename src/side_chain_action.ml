@@ -139,11 +139,11 @@ let confirm_request : (request signed, confirmation signed) facilitator_action =
 let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
 
 let stub_confirmed_main_chain_state_digest =
-  ref (get_digest Main_chain.genesis_state)
+  ref (Digest.make Main_chain.genesis_state)
 
 
 let genesis_side_chain_state =
-  { previous_main_chain_state= get_digest Main_chain.genesis_state
+  { previous_main_chain_state= Digest.make Main_chain.genesis_state
   ; previous_side_chain_state= null_digest
   ; side_chain_revision= Revision.zero
   ; user_accounts= AddressMap.empty
@@ -153,7 +153,7 @@ let genesis_side_chain_state =
 let stub_confirmed_side_chain_state = ref genesis_side_chain_state
 
 let stub_confirmed_side_chain_state_digest =
-  ref (get_digest genesis_side_chain_state)
+  ref (Digest.make genesis_side_chain_state)
 
 
 let get_first_facilitator_state_option (user_state, _)
@@ -389,7 +389,7 @@ let create_side_chain_user_state_for_testing user_keys main_chain_balance =
   let facilitators =
     AddressMap.singleton trent_keys.address user_account_state
   in
-  { latest_main_chain_confirmation= Data256.zero (* dummy digest *)
+  { latest_main_chain_confirmation= Digest.zero (* dummy digest *)
   ; latest_main_chain_confirmed_balance= Int64.of_int main_chain_balance
   ; facilitators
   ; main_chain_user_state }
@@ -404,14 +404,17 @@ let trent_fee_structure =
   ; per_account_limit= TokenAmount.of_int 20000
   ; fee_per_billion= 42 }
 
-
-let confirmed_main_chain_state =
-  {revision= Revision.of_int 99; accounts= AddressMap.empty}
-
+let confirmed_trent_state =
+  { previous_main_chain_state = Digest.zero
+  ; previous_side_chain_state = Digest.one
+  ; side_chain_revision = Revision.of_int 17
+  ; user_accounts = AddressMap.empty
+  ; operations = AddressMap.empty
+  }
 
 let trent_state =
   { keypair= trent_keys
-  ; confirmed_state= confirmed_main_chain_state
+  ; confirmed_state= confirmed_trent_state
   ; bond_posted= TokenAmount.of_int 1024000
   ; current_limit= TokenAmount.of_int 5000
   ; account_states= AddressMap.empty

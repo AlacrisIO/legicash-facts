@@ -69,11 +69,12 @@ type 'a signed = {payload: 'a; signature: 'a signature}
 val sign: private_key -> 'a -> 'a signed
 
 (** a cryptographic digest, "hash", for an object of type 'a *)
-type 'a digest = Data256.t
+module Digest : sig
+  include module type of Data256
+  val make : 'a -> t
+end
 
-val get_digest: 'a -> 'a digest
-
-val null_digest: 'a digest
+val null_digest: Digest.t
 
 (** count of changes in an object.
     A positive integer less than 2**63, incremented at every change to a notional object's state.
