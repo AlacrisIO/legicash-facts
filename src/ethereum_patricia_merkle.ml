@@ -178,7 +178,7 @@ end = struct
 
 end
 
-type hash = unit Data256.t (* produced with Keccak256 *)
+type hash = Data256.t (* produced with Keccak256 *)
 
 type 'a node =
   | BlankNode

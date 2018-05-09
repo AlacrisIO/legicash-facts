@@ -124,15 +124,30 @@ let is_signature_valid (public_key: public_key) (signature: 'a signature) data =
 let sign private_key data =
   {payload= data; signature= make_signature private_key data}
 
-module Digest = Data256
+module Digest = struct
+  include Data256
 
-let get_digest (data : 'a) : 'a Digest.t =
-  let data_string = Marshal.to_string data [Marshal.Compat_32] in
-  let hash = Cryptokit.Hash.keccak 256 in
-  Digest.of_string (Cryptokit.hash_string hash data_string)
+  type 'a data = t
+
+  let make (v : 'a) : 'a data =
+    let data_string = Marshal.to_string v [Marshal.Compat_32] in
+    let hash = Cryptokit.Hash.keccak 256 in
+    of_string (Cryptokit.hash_string hash data_string)
+end
+
+module type Digest2 = sig
+  include module type of Data256
+
+  type foo
+end
+
+module IntDigest2 : Digest2 = struct
+  include Data256
+  type foo = int
+end
 
 (** Special magic digest for None. A bit ugly. *)
-let null_digest = Data256.zero
+let null_digest = Digest.zero
 
 module Revision = Int64
 module Duration = Int64
@@ -214,8 +229,8 @@ module type SetS = sig
 end
 
 module type SetOrderedType = sig
-  type 'a t
-  val compare : 'a t -> 'a t -> int
+  type 'a data
+  val compare : 'a data -> 'a data -> int
 end
 
 (*Lib_crypto.Blake2B.Make_merkle_tree something?*)

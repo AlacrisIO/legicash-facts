@@ -2,7 +2,7 @@
    TODO: rename to data256 ?
  *)
 
-type 'a t = char array
+type t = char array
 
 exception Invalid_key_length
 

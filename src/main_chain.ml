@@ -15,7 +15,7 @@ type state =
     an old enough block on the main chain
     TODO: maybe also include a path and/or merkle tree from there?
     *)
-type confirmation = state Digest.t
+type confirmation = state Digest.data
 
 let genesis_state = {revision= Int64.zero; accounts= AddressMap.empty}
 
@@ -51,17 +51,15 @@ type user_state =
 
 type ('a, 'b) user_action = ('a, 'b, user_state) action
 
-module TransactionSetMake (Elt : SetOrderedType) : SetS with type elt = transaction signed Elt.t = struct
-  module Elt' = struct
-    type t = transaction signed Elt.t
-    let compare t1 t2 = Elt.compare t1 t2
+module TransactionDigestSet = struct
+  module Digest' = struct
+    type t = transaction signed Digest.data
+    let compare t1 t2 = Digest.compare t1 t2
   end
 
-  include Set.Make (Elt')
+  include Set.Make (Digest')
 
   let lens elt = Lens.{get= find elt; set= add}
 
   let find_defaulting default elt s = defaulting default (find_opt elt s)
 end
-
-module TransactionDigestSet = TransactionSetMake(Digest)
