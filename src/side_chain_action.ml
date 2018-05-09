@@ -404,14 +404,17 @@ let trent_fee_structure =
   ; per_account_limit= TokenAmount.of_int 20000
   ; fee_per_billion= 42 }
 
-
-let confirmed_main_chain_state =
-  {revision= Revision.of_int 99; accounts= AddressMap.empty}
-
+let confirmed_trent_state =
+  { previous_main_chain_state = Digest.zero
+  ; previous_side_chain_state = Digest.one
+  ; side_chain_revision = Revision.of_int 17
+  ; user_accounts = AddressMap.empty
+  ; operations = AddressMap.empty
+  }
 
 let trent_state =
   { keypair= trent_keys
-  ; confirmed_state= confirmed_main_chain_state
+  ; confirmed_state= confirmed_trent_state
   ; bond_posted= TokenAmount.of_int 1024000
   ; current_limit= TokenAmount.of_int 5000
   ; account_states= AddressMap.empty

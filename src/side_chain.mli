@@ -1,7 +1,6 @@
 (* Types for LegiCash Facilitator side-chains *)
 
 open Legibase
-open Main_chain
 
 (** Internal witness for proof that Trent is a liar
  *)
@@ -46,25 +45,25 @@ type memo = string option
     TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
  *)
 type invoice =
-  {recipient: Address.t; amount: TokenAmount.t; memo: memo}
+  {recipient: Address.t; amount: Main_chain.TokenAmount.t; memo: memo}
   [@@deriving lens]
 
 type payment_details =
   { payment_invoice: invoice
-  ; payment_fee: TokenAmount.t
+  ; payment_fee: Main_chain.TokenAmount.t
   ; payment_expedited: bool }
   [@@deriving lens]
 
 type deposit_details =
-  { deposit_amount: TokenAmount.t
-  ; deposit_fee: TokenAmount.t
+  { deposit_amount: Main_chain.TokenAmount.t
+  ; deposit_fee: Main_chain.TokenAmount.t
   ; main_chain_transaction_signed: Main_chain.transaction_signed
   ; main_chain_confirmation: Main_chain.confirmation
   ; deposit_expedited: bool }
   [@@deriving lens]
 
 type withdrawal_details =
-  {withdrawal_invoice: invoice; withdrawal_fee: TokenAmount.t}
+  {withdrawal_invoice: invoice; withdrawal_fee: Main_chain.TokenAmount.t}
   [@@deriving lens]
 
 (** an operation on a facilitator side-chain *)
@@ -101,9 +100,9 @@ type rx_header =
   { facilitator: Address.t
   ; requester: Address.t
   ; requester_revision: Revision.t
-  ; confirmed_main_chain_state_digest: Main_chain.state digest
+  ; confirmed_main_chain_state_digest: Main_chain.state Digest.t
   ; confirmed_main_chain_state_revision: Revision.t
-  ; confirmed_side_chain_state_digest: state digest
+  ; confirmed_side_chain_state_digest: state Digest.t
   ; confirmed_side_chain_state_revision: Revision.t
   ; validity_within: Duration.t }
   [@@deriving lens]
@@ -111,7 +110,7 @@ type rx_header =
 (** request from user to facilitator for operation on the side chain
     an operation, plus headers that provide a reference to the past and a timeout
     *)
-type request = {rx_header: rx_header; operation: operation} [@@deriving lens]
+and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
 
 (** header for a confirmation from a facilitator:
 
@@ -124,33 +123,32 @@ type request = {rx_header: rx_header; operation: operation} [@@deriving lens]
     Should we also provide log(n) digests to the previous confirmation
     whose revision is a multiple of 2**k for all k?
     *)
-type tx_header =
-  {tx_revision: Revision.t; spending_limit: TokenAmount.t}
+and tx_header =
+  {tx_revision: Revision.t; spending_limit: Main_chain.TokenAmount.t}
   [@@deriving lens]
 
 (** A transaction confirmation from a facilitator:
     a request, plus headers that help validate against fraud.
     *)
-type confirmation =
+and confirmation =
   {tx_header: tx_header; signed_request: request signed}
   [@@deriving lens]
 (* TODO: actually maintain the user_revision;
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
 
 (** public state of the account of a user with a facilitator as visible in the public side-chain *)
-type account_state =
+and account_state =
   { active: bool
-  ; balance: TokenAmount.t
+  ; balance: Main_chain.TokenAmount.t
   ; account_revision: Revision.t
   ; user_key: public_key }
   [@@deriving lens]
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
     *)
-type facilitator_public_state =
-  { previous_main_chain_state: Main_chain.state digest
-  ; previous_side_chain_state:
-      state digest
+and state =
+  { previous_main_chain_state: Main_chain.state Digest.t
+  ; previous_side_chain_state: state Digest.t
       (* state previously posted on the above *)
   ; side_chain_revision: Revision.t
   ; user_accounts: account_state AddressMap.t
@@ -211,9 +209,9 @@ type user_account_state_per_facilitator =
       to Ursula and/or Judy (TODO: and their dependency history if any?)
  *)
 type user_state =
-  { latest_main_chain_confirmation: Main_chain.state digest
+  { latest_main_chain_confirmation: Main_chain.state Digest.t
   ; latest_main_chain_confirmed_balance:
-      TokenAmount.t
+      Main_chain.TokenAmount.t
       (* Only store the confirmed state, and have any updates in pending *)
   ; facilitators: user_account_state_per_facilitator AddressMap.t
   ; main_chain_user_state: Main_chain.user_state }
@@ -232,9 +230,9 @@ type ('a, 'b) verifier_action = ('a, 'b, verifier_state) action
     NB: an important constraint is that we need to advertise this fee structure to users
     *)
 type facilitator_fee_structure =
-  { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
+  { deposit_fee: Main_chain.TokenAmount.t (* fee to accept a deposit *)
   ; per_account_limit:
-      TokenAmount.t (* limit for pending expedited transactions per user *)
+      Main_chain.TokenAmount.t (* limit for pending expedited transactions per user *)
   ; fee_per_billion: int
   (* function TokenAmount.t -> TokenAmount.t ? *) }
   [@@deriving lens]
@@ -247,8 +245,8 @@ type facilitator_state =
   ; confirmed_state: state (* latest confirmed public state *)
   ; current_revision: Revision.t (* incremented at every change *)
   ; current_limit:
-      TokenAmount.t (* expedited limit still unspent since confirmation *)
-  ; bond_posted: TokenAmount.t
+      Main_chain.TokenAmount.t (* expedited limit still unspent since confirmation *)
+  ; bond_posted: Main_chain.TokenAmount.t
   ; account_states: account_state AddressMap.t
   ; pending_operations: episteme list AddressMap.t
   ; fee_structure: facilitator_fee_structure }
@@ -264,7 +262,7 @@ type court_clerk_confirmation =
 (** Side chain update to be posted on the main chain, including signatures by court registry clerks.
     The update itself has to be signed by the facilitator *)
 type update =
-  { current_state: state digest
+  { current_state: state Digest.t
   ; availability_proof: court_clerk_confirmation list }
 (*[@@deriving lens { prefix = true }]*)
 

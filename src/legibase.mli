@@ -69,11 +69,11 @@ type 'a signed = {payload: 'a; signature: 'a signature}
 val sign: private_key -> 'a -> 'a signed
 
 (** a cryptographic digest, "hash", for an object of type 'a *)
-type 'a digest = Data256.t
+module Digest = Data256
 
-val get_digest: 'a -> 'a digest
+val get_digest: 'a -> 'a Digest.t
 
-val null_digest: 'a digest
+val null_digest: 'a Digest.t
 
 (** count of changes in an object.
     A positive integer less than 2**63, incremented at every change to a notional object's state.
@@ -120,3 +120,17 @@ module MapMake (Key : Map.OrderedType) : MapS with type key = Key.t
 
 (** a pure mapping from PublicKey.t to 'a suitable for use in interactive merkle proofs *)
 module AddressMap: MapS with type key = Address.t
+
+module type SetS = sig
+  include Set.S
+
+  val lens : elt -> (t, elt) Lens.t
+
+  val find_defaulting : (unit -> elt) -> elt -> t -> elt
+end
+
+(** ordered type with a type parameter *)
+module type SetOrderedType = sig
+  type 'a t
+  val compare : 'a t -> 'a t -> int
+end

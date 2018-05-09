@@ -22,7 +22,6 @@ let effect_action action state_ref x =
       state_ref := s ;
       raise e
 
-
 let no_action (s, a) = (s, Ok a)
 
 let fail_action failure (s, a) = (s, Error failure)
@@ -32,7 +31,6 @@ let compose_actions c_of_b b_of_a (s, a) =
   match b_of_a (s, a) with
   | t, Error e -> (t, Error e)
   | t, Ok b -> c_of_b (t, b)
-
 
 (* TODO: Infix syntax for action_seq, etc. *)
 
@@ -48,7 +46,6 @@ let compose_action_list action_list (s, a) =
   in
   loop action_list (s, a)
 
-
 let do_action (state, value) action = action (state, value)
 
 let action_seq action1 action2 = compose_actions action2 action1
@@ -59,7 +56,6 @@ let action_assert pure_action (state, value) =
   if pure_action (state, value) then (state, Ok value)
   else (state, Error Assertion_failed)
 
-
 type ('a, 'b, 'c) pure_action = 'c * 'a -> 'b
 
 let action_of_pure_action f (state, value) = (state, Ok (f (state, value)))
@@ -69,7 +65,6 @@ let compose_pure_actions c_of_b b_of_a (s, a) = c_of_b (s, b_of_a (s, a))
 
 let pure_action_seq b_of_a c_of_b (s, a) =
   compose_pure_actions c_of_b b_of_a (s, a)
-
 
 (** unique identifier for all parties, that is, customers and facilitators *)
 type public_key = Secp256k1.Key.public Secp256k1.Key.t
@@ -97,7 +92,6 @@ let string_to_secp256k1_msg s =
   | None ->
       raise (Internal_error "Could not create SECP256K1.Sign.msg from string")
 
-
 (* convert arbitrary OCaml value to a Secp256k1 msg representing a hash *)
 let data_to_secp256k1_hashed data =
   (* data is of arbitrary type, marshal to string *)
@@ -105,7 +99,6 @@ let data_to_secp256k1_hashed data =
   let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) in
   let hashed = hash data_string in
   string_to_secp256k1_msg hashed
-
 
 (* create context just once, because expensive operation; assumes
    single instantiation of this module
@@ -120,7 +113,6 @@ let make_signature private_key data =
   | Ok signature -> signature
   | Error s -> raise (Internal_error s)
 
-
 let is_signature_valid (public_key: public_key) (signature: 'a signature) data =
   let hashed = data_to_secp256k1_hashed data in
   match
@@ -129,18 +121,15 @@ let is_signature_valid (public_key: public_key) (signature: 'a signature) data =
   | Ok b -> b
   | Error s -> raise (Internal_error s)
 
-
 let sign private_key data =
   {payload= data; signature= make_signature private_key data}
 
+module Digest = Data256
 
-type 'a digest = Data256.t
-
-let get_digest data =
+let get_digest (data : 'a) : 'a Digest.t =
   let data_string = Marshal.to_string data [Marshal.Compat_32] in
   let hash = Cryptokit.Hash.keccak 256 in
-  Data256.of_string (Cryptokit.hash_string hash data_string)
-
+  Digest.of_string (Cryptokit.hash_string hash data_string)
 
 (** Special magic digest for None. A bit ugly. *)
 let null_digest = Data256.zero
@@ -178,7 +167,6 @@ end = struct
     let offset = buffer_len - address_size in
     Array.init address_size (fun ndx -> Array1.get buffer (offset + ndx))
 
-
   let compare address1 address2 = Pervasives.compare address1 address2
 
   let equal address1 address2 = compare address1 address2 = 0
@@ -191,6 +179,9 @@ end
     TODO: Tezos must have something we should use.
     probably Tezos_crypto.S.MERKLE_TREE or Tezos_crypto.Blake2B.Make_merkle_tree
  *)
+
+(* maps with lenses and defaults *)
+
 module type MapS = sig
   include Map.S
 
@@ -211,6 +202,21 @@ end
 
 module AddressMap = MapMake (Address)
 module Int64Map = MapMake (Int64)
+
+(* types of sets with lenses and defaults *)
+
+module type SetS = sig
+  include Set.S
+
+  val lens : elt -> (t, elt) Lens.t
+
+  val find_defaulting : (unit -> elt) -> elt -> t -> elt
+end
+
+module type SetOrderedType = sig
+  type 'a t
+  val compare : 'a t -> 'a t -> int
+end
 
 (*Lib_crypto.Blake2B.Make_merkle_tree something?*)
 (* module Int64Utils = *)
