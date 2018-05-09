@@ -71,18 +71,10 @@ val sign: private_key -> 'a -> 'a signed
 (** a cryptographic digest, "hash", for an object of type 'a *)
 module Digest : sig
   include module type of Data256
-
-  type 'a data
-
-  val to_string : 'a data -> string
-  val compare : 'a data -> 'a data -> int
-  val zero : 'a data
-  val one : 'a data
-
-  val make : 'a -> 'a data
+  val make : 'a -> t
 end
 
-val null_digest: 'a Digest.data
+val null_digest: Digest.t
 
 (** count of changes in an object.
     A positive integer less than 2**63, incremented at every change to a notional object's state.
@@ -129,17 +121,3 @@ module MapMake (Key : Map.OrderedType) : MapS with type key = Key.t
 
 (** a pure mapping from PublicKey.t to 'a suitable for use in interactive merkle proofs *)
 module AddressMap: MapS with type key = Address.t
-
-module type SetS = sig
-  include Set.S
-
-  val lens : elt -> (t, elt) Lens.t
-
-  val find_defaulting : (unit -> elt) -> elt -> t -> elt
-end
-
-(** ordered type with a type parameter *)
-module type SetOrderedType = sig
-  type 'a data
-  val compare : 'a data -> 'a data -> int
-end

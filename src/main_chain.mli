@@ -53,4 +53,4 @@ type ('a, 'b) user_action = ('a, 'b, user_state) action
 val genesis_state : state
 
 (** set of digests, used to guard against double deposits *)
-module TransactionDigestSet : SetS with type elt = transaction signed Digest.data
+module TransactionDigestSet : Set.S with type elt = (* transaction signed *) Digest.t

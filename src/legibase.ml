@@ -127,23 +127,10 @@ let sign private_key data =
 module Digest = struct
   include Data256
 
-  type 'a data = t
-
-  let make (v : 'a) : 'a data =
+  let make v =
     let data_string = Marshal.to_string v [Marshal.Compat_32] in
     let hash = Cryptokit.Hash.keccak 256 in
     of_string (Cryptokit.hash_string hash data_string)
-end
-
-module type Digest2 = sig
-  include module type of Data256
-
-  type foo
-end
-
-module IntDigest2 : Digest2 = struct
-  include Data256
-  type foo = int
 end
 
 (** Special magic digest for None. A bit ugly. *)
@@ -217,21 +204,6 @@ end
 
 module AddressMap = MapMake (Address)
 module Int64Map = MapMake (Int64)
-
-(* types of sets with lenses and defaults *)
-
-module type SetS = sig
-  include Set.S
-
-  val lens : elt -> (t, elt) Lens.t
-
-  val find_defaulting : (unit -> elt) -> elt -> t -> elt
-end
-
-module type SetOrderedType = sig
-  type 'a data
-  val compare : 'a data -> 'a data -> int
-end
 
 (*Lib_crypto.Blake2B.Make_merkle_tree something?*)
 (* module Int64Utils = *)

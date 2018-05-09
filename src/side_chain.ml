@@ -102,9 +102,9 @@ type rx_header =
   { facilitator: Address.t
   ; requester: Address.t
   ; requester_revision: Revision.t
-  ; confirmed_main_chain_state_digest: Main_chain.state Digest.data
+  ; confirmed_main_chain_state_digest: (* Main_chain.state *) Digest.t
   ; confirmed_main_chain_state_revision: Revision.t
-  ; confirmed_side_chain_state_digest: state Digest.data
+  ; confirmed_side_chain_state_digest: (* state *) Digest.t
   ; confirmed_side_chain_state_revision: Revision.t
   ; validity_within: Duration.t }
   [@@deriving lens]
@@ -150,8 +150,8 @@ and account_state =
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
     *)
 and state =
-  { previous_main_chain_state: Main_chain.state Digest.data
-  ; previous_side_chain_state: state Digest.data
+  { previous_main_chain_state: (* Main_chain.state *) Digest.t
+  ; previous_side_chain_state: (* state *) Digest.t
       (* state previously posted on the above *)
   ; side_chain_revision: Revision.t
   ; user_accounts: account_state AddressMap.t
@@ -212,7 +212,7 @@ type user_account_state_per_facilitator =
       to Ursula and/or Judy (TODO: and their dependency history if any?)
  *)
 type user_state =
-  { latest_main_chain_confirmation: Main_chain.state Digest.data
+  { latest_main_chain_confirmation: (* Main_chain.state *) Digest.t
   ; latest_main_chain_confirmed_balance:
       Main_chain.TokenAmount.t
       (* Only store the confirmed state, and have any updates in pending *)
@@ -265,7 +265,7 @@ type court_clerk_confirmation =
 (** Side chain update to be posted on the main chain, including signatures by court registry clerks.
     The update itself has to be signed by the facilitator *)
 type update =
-  { current_state: state Digest.data
+  { current_state: (* state *) Digest.t
   ; availability_proof: court_clerk_confirmation list }
 
 (*[@@deriving lens { prefix = true }]*)
