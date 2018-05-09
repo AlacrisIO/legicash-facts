@@ -45,7 +45,7 @@ type confirmation
 val is_confirmation_valid : confirmation -> transaction_signed -> bool
 
 type user_state =
-  { keypair: Keypairs.t
+  { keypair: Keypair.t
   ; pending_transactions: transaction_signed list
   ; nonce: Nonce.t }
   [@@deriving lens]

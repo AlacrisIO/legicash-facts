@@ -47,7 +47,7 @@ type transaction =
 type transaction_signed = transaction signed
 
 type user_state =
-  { keypair: Keypairs.t
+  { keypair: Keypair.t
   ; pending_transactions: transaction_signed list
   ; nonce: Nonce.t }
   [@@deriving lens]

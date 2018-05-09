@@ -247,7 +247,7 @@ type facilitator_fee_structure =
     TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
     *)
 type facilitator_state =
-  { keypair: Keypairs.t
+  { keypair: Keypair.t
   ; confirmed_state: state (* latest confirmed public state *)
   ; current_revision: Revision.t (* incremented at every change *)
   ; current_limit:

@@ -1,5 +1,4 @@
-(* keypairs.ml -- Secp256k1 key pairs *)
-(* TODO: rename to keypair without s *)
+(* keypair.ml -- Secp256k1 key pairs *)
 
 open Bigarray
 open Legibase
