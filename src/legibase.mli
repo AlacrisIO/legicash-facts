@@ -2,8 +2,6 @@
    This code is for basic infrastructure somewhat specific to Legicash
  *)
 
-exception Internal_error of string
-
 exception Timeout of string
 
 exception Double_spend of string
@@ -115,11 +113,6 @@ module Address : sig
   val to_string : t -> string
   val equal : t -> t -> bool
 end
-
-val identity : 'a -> 'a
-val konstant : 'a -> 'b -> 'a
-val schoenfinkel : ('a -> 'b -> 'c) -> ('a -> 'b) -> 'a -> 'c
-val defaulting : (unit -> 'a) -> 'a option -> 'a
 
 module type MapS = sig
   include Map.S

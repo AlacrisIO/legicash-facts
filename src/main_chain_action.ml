@@ -6,7 +6,7 @@ let stub_state = ref genesis_state
 let stub_state_digest = ref (Digest.make genesis_state)
 
 (** Stub for gas price. Here set at 50 wei. *)
-let stub_gas_price = ref (Int64.of_int 50)
+let stub_gas_price = ref (TokenAmount.of_int 50)
 
 let update_stub_state new_state =
   stub_state := new_state ;

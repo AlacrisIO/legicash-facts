@@ -14,7 +14,7 @@ let is_signature_matching address public_key signature payload =
 (** Default (empty) state for a new facilitator *)
 let new_account_state =
   { active= false
-  ; balance= Int64.zero
+  ; balance= TokenAmount.zero
   ; account_revision= Revision.zero }
 
 
@@ -245,7 +245,7 @@ let stub_confirmed_side_chain_state_digest =
 
 let get_first_facilitator_state_option (user_state, _)
     : (Address.t * user_account_state_per_facilitator) option =
-  AddressMap.find_first_opt (constantly true) user_state.facilitators
+  AddressMap.find_first_opt (konstant true) user_state.facilitators
 
 
 let get_first_facilitator =
@@ -256,7 +256,7 @@ let get_first_facilitator =
 
 
 (** TODO: find and justify a good default validity window in number of blocks *)
-let default_validity_window = Int64.of_int 256
+let default_validity_window = Duration.of_int 256
 
 let make_rx_header (user_state, facilitator_address) =
   match AddressMap.find_opt facilitator_address user_state.facilitators with
@@ -332,20 +332,20 @@ let update_account_state_with_trusted_operation trusted_operation
   | Open_account _ -> {f with active= true}
   | Deposit {deposit_amount; deposit_fee} ->
       if true (* check that everything is correct *) then
-        {f with balance= Int64.add balance deposit_amount}
+        {f with balance= TokenAmount.add balance deposit_amount}
       else raise (Internal_error "I mistrusted your deposit operation")
   | Payment {payment_invoice; payment_fee} ->
-      let decrement = Int64.add payment_invoice.amount payment_fee in
-      if Int64.compare balance decrement >= 0 then
-        {f with balance= Int64.sub balance decrement}
+      let decrement = TokenAmount.add payment_invoice.amount payment_fee in
+      if TokenAmount.compare balance decrement >= 0 then
+        {f with balance= TokenAmount.sub balance decrement}
       else raise (Internal_error "I mistrusted your payment operation")
   | Close_account -> {f with active= false}
   | Withdrawal {withdrawal_invoice; withdrawal_fee} ->
       if true (* check that everything is correct *) then
         { f with
           balance=
-            Int64.sub balance
-              (Int64.add withdrawal_invoice.amount withdrawal_fee) }
+            TokenAmount.sub balance
+              (TokenAmount.add withdrawal_invoice.amount withdrawal_fee) }
       else raise (Internal_error "I mistrusted your withdrawal operation")
 
 
@@ -461,14 +461,14 @@ let bob_keys =
 
 let create_side_chain_user_state_for_testing user_keys main_chain_balance =
   let main_chain_user_state =
-    {keypair= user_keys; pending_transactions= []; nonce= Int64.zero}
+    {keypair= user_keys; pending_transactions= []; nonce= Nonce.zero}
   in
   let user_account_state = new_user_account_state_per_facilitator in
   let facilitators =
     AddressMap.singleton trent_keys.address user_account_state
   in
   { latest_main_chain_confirmation= Digest.zero (* dummy digest *)
-  ; latest_main_chain_confirmed_balance= Int64.of_int main_chain_balance
+  ; latest_main_chain_confirmed_balance= TokenAmount.of_int main_chain_balance
   ; facilitators
   ; main_chain_user_state }
 

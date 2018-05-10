@@ -10,6 +10,7 @@
 
  *)
 
+open Lib
 open Legibase
 
 (* keys are sequences of nybbles, which can be packed into two-nybbles-per-byte form *)

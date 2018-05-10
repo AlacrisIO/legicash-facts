@@ -5,6 +5,7 @@
    https://github.com/ethereum/wiki/wiki/RLP
 *)
 
+open Lib
 open Legibase
 
 type rlp_item =
