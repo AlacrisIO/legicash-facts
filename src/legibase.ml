@@ -214,9 +214,8 @@ module MapMake (Key : Map.OrderedType) = struct
   let find_defaulting default k m = defaulting default (find_opt k m)
 end
 
-let lens_modify_defaulting default (lens: ('a, 'b) Lens.t) modifier x =
-  let value = try lens.get x with Not_found -> default () in
-  lens.set (modifier value) x
+let defaulting_lens default lens =
+  Lens.{get= (fun x -> try lens.get x with Not_found -> default ()); set= lens.set}
 
 module AddressMap = MapMake (Address)
 module Int64Map = MapMake (Int64)

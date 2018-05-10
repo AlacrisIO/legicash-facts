@@ -94,7 +94,15 @@ let is_side_chain_request_well_formed
            && (TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee) >= 0
         | Payment {payment_invoice; payment_fee; payment_expedited} ->
            (TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee)) >= 0
-           && bottom ()
+           (* TODO: make per_account_limit work on the entire floating thing *)
+           && (TokenAmount.compare state.fee_schedule.per_account_limit payment_invoice.amount) >= 0
+           (* TODO: make sure the fee multiplication cannot overflow! *)
+           && (TokenAmount.compare
+                 (TokenAmount.mul state.fee_schedule.fee_per_billion
+                    (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
+                 payment_fee) >= 0
+           && (facilitator_state_current |-- state_accounts
+               |-- AddressMap.lens payment_invoice.recipient |-- account_state_active).get state
         | Close_account -> true
         | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
 
@@ -170,15 +178,25 @@ let effect_request
                ; deposit_fee
                ; main_chain_transaction_signed
                ; deposit_expedited } ->
-        (state, (rx, account_state, account_lens)) ^|>
+        (state, (rx,
+                 { account_state with
+                   balance = TokenAmount.add account_state.balance deposit_amount},
+                 account_lens)) ^|>
           (check_against_double_deposit main_chain_transaction_signed)
           ^>> (maybe_spend_spending_limit deposit_expedited deposit_amount)
-          ^>> (fun (state, _) ->
-            bottom ())
      | Payment {payment_invoice; payment_fee; payment_expedited} ->
-        (state, (rx, account_state, account_lens)) ^|>
+        (Lens.modify
+           (facilitator_state_current |-- state_accounts
+            |-- AddressMap.lens payment_invoice.recipient
+            |-- account_state_balance)
+           (fun x -> TokenAmount.add x payment_invoice.amount)
+           state,
+         (rx,
+          { account_state with
+            balance = TokenAmount.sub account_state.balance
+                        (TokenAmount.add payment_invoice.amount payment_fee)},
+          account_lens)) ^|>
           (maybe_spend_spending_limit payment_expedited payment_invoice.amount)
-          ^>> bottom ()
      | Close_account ->
         ( Lens.modify account_lens
             (fun s -> {s with active= false})
@@ -462,7 +480,7 @@ let bob_state = create_side_chain_user_state_for_testing bob_keys 17454
 let trent_fee_schedule =
   { deposit_fee= TokenAmount.of_int 5
   ; per_account_limit= TokenAmount.of_int 20000
-  ; fee_per_billion= 42 }
+  ; fee_per_billion= TokenAmount.of_int 42 }
 
 let confirmed_trent_state =
   { previous_main_chain_state = Digest.zero

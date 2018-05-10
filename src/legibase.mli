@@ -128,7 +128,7 @@ module type MapS = sig
 end
 
 (** Assuming that the lens raises Not_found if the value is not found, and then using the provided default, modify the value found (or the default) and put it back in the object *)
-val lens_modify_defaulting : (unit -> 'b) -> ('a, 'b) Lens.t -> ('b -> 'b) -> 'a -> 'a
+val defaulting_lens: (unit -> 'b) -> ('a, 'b) Lens.t -> ('a, 'b) Lens.t
 
 module MapMake (Key : Map.OrderedType) : MapS with type key = Key.t
 

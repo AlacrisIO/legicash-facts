@@ -240,7 +240,7 @@ type facilitator_fee_schedule =
   { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
   ; per_account_limit:
       TokenAmount.t (* limit for pending expedited transactions per user *)
-  ; fee_per_billion: int
+  ; fee_per_billion: TokenAmount.t
   (* function TokenAmount.t -> TokenAmount.t ? *) }
   [@@deriving lens]
 
