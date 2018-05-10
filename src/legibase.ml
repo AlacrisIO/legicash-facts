@@ -6,9 +6,9 @@ exception Timeout of string
 
 exception Double_spend of string
 
-type 'a legi_result = ('a, exn) result
+type 'output legi_result = ('output, exn) result
 
-type ('a, 'b, 'c) action = 'c * 'a -> 'c * 'b legi_result
+type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output legi_result
 
 (** run the action, with side-effects and all *)
 let effect_action action state_ref x =
@@ -22,7 +22,7 @@ let effect_action action state_ref x =
 
 let no_action (s, a) = (s, Ok a)
 
-let fail_action failure (s, a) = (s, Error failure)
+let fail_action failure (s, _) = (s, Error failure)
 
 (** compose two actions *)
 let compose_actions c_of_b b_of_a (s, a) =
@@ -46,7 +46,7 @@ let compose_action_list action_list (s, a) =
 
 let do_action (state, value) action = action (state, value)
 
-let ( ^|> ) = do_action
+let ( ^|> ) = do_action (* Same as |> !!!!*)
 
 let action_seq action1 action2 = compose_actions action2 action1
 
@@ -58,7 +58,7 @@ let action_assert pure_action (state, value) =
   if pure_action (state, value) then (state, Ok value)
   else (state, Error Assertion_failed)
 
-type ('a, 'b, 'c) pure_action = 'c * 'a -> 'b
+type ('input, 'output, 'state) pure_action = 'state * 'input -> 'output
 
 let action_of_pure_action f (state, value) = (state, Ok (f (state, value)))
 

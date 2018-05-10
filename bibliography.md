@@ -61,6 +61,9 @@
   [opcodes](https://ethereum.stackexchange.com/questions/119/what-opcodes-are-available-for-the-ethereum-evm),
   [old Ethereum block hashes](https://github.com/amiller/ethereum-blockhashes).
 
+* Compiling to the EVM:
+  [Pirapira's Bamboo](https://github.com/pirapira/bamboo).
+
 * Formalization for smart contracts:
   [Scilla-coq](https://github.com/ilyasergey/scilla-coq)
   (see paper [Scilla: a Smart Contract Intermediate-Level LAnguage](http://ilyasergey.net/papers/scilla-overview.pdf)),

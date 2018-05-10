@@ -26,9 +26,7 @@ type operation =
   (* recipient *)
   | CreateContract of Bytes.t
   (* code *)
-  | CallFunction of Address.t * Bytes.t
-
-(* contract, data *)
+  | CallFunction of Address.t * Bytes.t (* contract, data *)
 
 type transaction =
   {tx_header: tx_header; operation: operation}
@@ -46,11 +44,14 @@ val is_confirmation_valid : confirmation -> transaction_signed -> bool
 
 type user_state =
   { keypair: Keypair.t
+  ; confirmed_state: state digest
+  ; confirmed_balance: TokenAmount.t
+      (* Only store the confirmed state, and have any updates in pending *)
   ; pending_transactions: transaction_signed list
   ; nonce: Nonce.t }
   [@@deriving lens]
 
-type ('a, 'b) user_action = ('a, 'b, user_state) action
+type ('input, 'output) user_action = ('input, 'output, user_state) action
 
 val genesis_state : state
 

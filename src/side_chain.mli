@@ -73,8 +73,8 @@ type operation =
   | Open_account of public_key
   | Deposit of deposit_details
   | Payment of payment_details
-  | Withdrawal of withdrawal_details
   | Close_account
+  | Withdrawal of withdrawal_details
 (*
 | Settlement of settlement_details
 
@@ -154,11 +154,11 @@ and state =
   ; previous_side_chain_state: state digest
       (* state previously posted on the above *)
   ; facilitator_revision: Revision.t
-  ; spending_limit: TokenAmount.t (* expedited limit still unspent since confirmation *)
+  ; spending_limit: TokenAmount.t (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
   ; bond_posted: TokenAmount.t
   ; accounts: account_state AddressMap.t
   ; user_keys: public_key AddressMap.t
-  ; operations: confirmation AddressMap.t
+  ; operations: confirmation AddressMap.t (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
   ; deposited: Main_chain.TransactionDigestSet.t }
   [@@deriving lens]
 
@@ -173,7 +173,7 @@ type episteme =
 type user_account_state_per_facilitator =
   { facilitator_validity:
       knowledge_stage
-      (* do we know the facilitator to be a liar? If so, Rejected *)
+      (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
   ; confirmed_state: account_state
   ; pending_operations: episteme list }
   [@@deriving lens]
@@ -216,25 +216,23 @@ type user_account_state_per_facilitator =
       to Ursula and/or Judy (TODO: and their dependency history if any?)
  *)
 type user_state =
-  { latest_main_chain_confirmation: Main_chain.state digest
-  ; latest_main_chain_confirmed_balance:
-      TokenAmount.t
-      (* Only store the confirmed state, and have any updates in pending *)
-  ; facilitators: user_account_state_per_facilitator AddressMap.t
-  ; main_chain_user_state: Main_chain.user_state }
+  { main_chain_user_state: Main_chain.user_state
+  ; facilitators: user_account_state_per_facilitator AddressMap.t }
   [@@deriving lens]
 
-(** function from 'a to 'b that acts on a user_state *)
-type ('a, 'b) user_action = ('a, 'b, user_state) action
+(** function from 'input to 'output that acts on a user_state *)
+type ('input, 'action) user_action = ('input, 'action, user_state) action
 
 (** state stored by a verifier *)
 type verifier_state
 
-(** function from 'a to 'b that acts on a verifier_state *)
-type ('a, 'b) verifier_action = ('a, 'b, verifier_state) action
+(** function from 'input to 'output that acts on a verifier_state *)
+type ('input, 'output) verifier_action = ('input, 'output, verifier_state) action
 
 (** Fee structure for a facilitator
     NB: an important constraint is that we need to advertise this fee structure to users
+    TODO: account for size of transaction if memo can be long.
+    TODO: make fee structure updatable by posting a new fee schedule in advance.
     *)
 type facilitator_fee_schedule =
   { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
@@ -255,7 +253,7 @@ type facilitator_state =
   [@@deriving lens]
 
 (** function from 'a to 'b that acts on a facilitator_state *)
-type ('a, 'b) facilitator_action = ('a, 'b, facilitator_state) action
+type ('input, 'output) facilitator_action = ('input, 'output, facilitator_state) action
 
 type court_clerk_confirmation =
   {clerk: public_key; signature: state signature}

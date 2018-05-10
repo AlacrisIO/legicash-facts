@@ -1,3 +1,5 @@
+(* See documentation in main_chain.mli *)
+
 open Legibase
 open Data256
 open Lib
@@ -5,16 +7,10 @@ module TokenAmount = Int64
 module Nonce = Int64
 module ContractAddress = Address
 
-(** State of a main chain block.
-    In tezos, it's a Block_header.t *)
 type state =
   {revision: Revision.t; accounts: TokenAmount.t AddressMap.t}
   [@@deriving lens]
 
-(** Confirmation of a transaction on the main chain
-    an old enough block on the main chain
-    TODO: maybe also include a path and/or merkle tree from there?
-    *)
 type confirmation = state digest
 
 (** TODO: have an actual confirmation *)
@@ -32,9 +28,7 @@ type tx_header =
 
 type operation =
   | TransferTokens of Address.t
-  (* recipient *)
   | CreateContract of Bytes.t
-  (* code *)
   | CallFunction of Address.t * Bytes.t
 
 (* contract, data *)
@@ -48,11 +42,14 @@ type transaction_signed = transaction signed
 
 type user_state =
   { keypair: Keypair.t
+  ; confirmed_state: state digest
+  ; confirmed_balance: TokenAmount.t
+      (* Only store the confirmed state, and have any updates in pending *)
   ; pending_transactions: transaction_signed list
   ; nonce: Nonce.t }
   [@@deriving lens]
 
-type ('a, 'b) user_action = ('a, 'b, user_state) action
+type ('input, 'output) user_action = ('input, 'output, user_state) action
 
 module TransactionDigestSet = DigestSet
 
