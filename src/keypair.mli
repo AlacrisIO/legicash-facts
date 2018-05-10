@@ -1,4 +1,4 @@
-(* keypairs.mli *)
+(* keypair.mli *)
 
 (** the type of public-key key pairs *)
 type t =

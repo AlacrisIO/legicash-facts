@@ -48,7 +48,11 @@ let compose_action_list action_list (s, a) =
 
 let do_action (state, value) action = action (state, value)
 
+let ( ^|> ) = do_action
+
 let action_seq action1 action2 = compose_actions action2 action1
+
+let ( ^>> ) = action_seq
 
 exception Assertion_failed
 
@@ -133,8 +137,16 @@ module Digest = struct
     of_string (Cryptokit.hash_string hash data_string)
 end
 
+type 'a digest = Digest.t
+
 (** Special magic digest for None. A bit ugly. *)
 let null_digest = Digest.zero
+
+module DigestSet = struct
+  include Set.Make(Digest)
+  let lens k = Lens.{get= mem k; set= fun b -> if b then add k else remove k}
+end
+
 
 module Revision = Int64
 module Duration = Int64
@@ -202,11 +214,11 @@ module MapMake (Key : Map.OrderedType) = struct
   let find_defaulting default k m = defaulting default (find_opt k m)
 end
 
+let defaulting_lens default lens =
+  Lens.{get= (fun x -> try lens.get x with Not_found -> default ()); set= lens.set}
+
 module AddressMap = MapMake (Address)
 module Int64Map = MapMake (Int64)
-
-(*Lib_crypto.Blake2B.Make_merkle_tree something?*)
-(* module Int64Utils = *)
 
 (** SKI combinators *)
 let identity x = x

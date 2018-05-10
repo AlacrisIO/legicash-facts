@@ -4,7 +4,7 @@
 
 (library
  ((name legicash_lib)
-  (modules (legibase lib data256 keypairs uInt64 ethereum_rlp ethereum_patricia_merkle
+  (modules (legibase lib data256 keypair uInt64 ethereum_rlp ethereum_patricia_merkle
   main_chain side_chain main_chain_action side_chain_action))
   (preprocess (pps (ppx_deriving.std ppx_inline_test ppx_deriving_lens)))
   (libraries (cryptokit secp256k1 lens))
