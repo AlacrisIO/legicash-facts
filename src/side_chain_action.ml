@@ -96,7 +96,7 @@ let is_side_chain_request_well_formed
                | _ -> false)
            (* TODO: delegate the same signature checking protocol to the main chain *)
            && is_signature_valid user_key signature payload
-           && is_confirmation_valid main_chain_confirmation main_chain_transaction_signed
+           && Main_chain.is_confirmation_valid main_chain_confirmation main_chain_transaction_signed
            && (TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee) >= 0
         | Payment {payment_invoice; payment_fee; payment_expedited} ->
            (TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee)) >= 0
@@ -112,11 +112,9 @@ let is_side_chain_request_well_formed
         | Close_account -> true
         | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
 
-
 (** Check that the request is basically well-formed, or else fail *)
 let check_side_chain_request_well_formed =
   action_assert is_side_chain_request_well_formed
-
 
 let make_request_confirmation
     : ( request signed * account_state * account_lens
@@ -175,7 +173,7 @@ let check_against_double_deposit main_chain_transaction_signed (state, x) =
 let effect_request
     : ( request signed * account_state * account_lens * public_key
       , request signed * account_state * account_lens )
-      facilitator_action = function
+        facilitator_action = function
   | state, ({payload= {rx_header; operation}} as rx, account_state, account_lens, user_key) ->
      match operation with
      | Open_account user_key ->
@@ -183,6 +181,7 @@ let effect_request
      | Deposit { deposit_amount
                ; deposit_fee
                ; main_chain_transaction_signed
+               ; main_chain_confirmation
                ; deposit_expedited } ->
         (state, (rx,
                  { account_state with
@@ -209,7 +208,6 @@ let effect_request
             state
         , Ok (rx, account_state, account_lens) )
      | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
-
 
 (** TODO:
  * save this initial state, and only use the new state if the confirmation was committed to disk,
@@ -397,7 +395,6 @@ let open_account (user_state, facilitator_address) =
       ( user_state
       , Open_account user_state.main_chain_user_state.keypair.public_key )
 
-
 let close_account (user_state, facilitator_address) =
   let activity_status =
     user_activity_status_for_facilitator (user_state, facilitator_address)
@@ -405,15 +402,35 @@ let close_account (user_state, facilitator_address) =
   if activity_status then issue_user_request (user_state, Close_account)
   else (user_state, Error Already_closed)
 
-
 let lift_main_chain_user_action_to_side_chain action (user_state, input) =
   let new_state, result = action (user_state.main_chain_user_state, input) in
   ({user_state with main_chain_user_state= new_state}, result)
 
-
-let deposit (user_state, input) =
-  lift_main_chain_user_action_to_side_chain transfer_tokens (user_state, input)
-
+let deposit (user_state,(facilitator_address,deposit_amount)) =
+  let activity_status =
+    user_activity_status_for_facilitator (user_state, facilitator_address)
+  in
+  if activity_status then
+    (lift_main_chain_user_action_to_side_chain transfer_tokens (user_state,(facilitator_address,deposit_amount))) |>
+      function
+      | user_state1,Error e as error -> error
+      | (user_state1,Ok main_chain_transaction_signed) -> (
+         lift_main_chain_user_action_to_side_chain
+           Main_chain_action.wait_for_confirmation
+           (user_state1,main_chain_transaction_signed) |>
+                function
+                | user_state2,Error e as err -> err
+                | user_state2, Ok main_chain_confirmation ->
+                     issue_user_request
+                       ( user_state1
+                       , Deposit { deposit_amount
+                                 ; deposit_fee = TokenAmount.of_int 5 (* TODO: make config item *)
+                                 ; main_chain_transaction_signed
+                                 ; main_chain_confirmation
+                                 ; deposit_expedited = false
+      }))
+  else
+     (user_state, Error Account_closed_or_nonexistent)
 
 (* TODO: take into account not just the facilitator name, but the fee schedule, too. *)
 
@@ -508,7 +525,7 @@ let trent_state =
   ; current= confirmed_trent_state
   ; fee_schedule= trent_fee_schedule }
 
-
+(* open/close account test *)
 
 let%test "open_account_and_close_it" =
   let trent_account st = AddressMap.find trent_keys.address st.facilitators in
@@ -558,3 +575,37 @@ let%test "open_account_and_close_it" =
                         function
                         | _, Ok _ -> raise (Internal_error "Succeeded at double-closing the account")
                         | _, Error exn -> exn = Already_closed
+
+(* deposit test *)
+
+let%test "deposit_valid" =
+  (* open Alice's account, as in test "open_account_and_close_it" *)
+  assert (not (is_account_open (alice_state, trent_keys.address))) ;
+  let amount_to_deposit = TokenAmount.of_int 523 in
+  open_account (alice_state, trent_keys.address) |>
+    function
+    | _, Error e -> raise e
+    | alice_state1, Ok signed_request1 ->
+       confirm_request (trent_state, signed_request1) |>
+         function
+         | _, Error e -> raise e
+         | trent_state1, Ok signed_request2 ->
+            assert (is_account_open (alice_state1, trent_keys.address)) ;
+            (* deposit into open account *)
+            deposit (alice_state1,(trent_keys.address,amount_to_deposit)) |>
+              function
+              | _, Error e -> raise e
+              | alice_state3, Ok signed_request3 ->
+                 confirm_request (trent_state1,signed_request3) |>
+                   function
+                   | _, Error e -> raise e
+                   | trent_state3, Ok signed_confirmation ->
+                      (* verify the deposit to Alice's account on Trent *)
+                      let trent_accounts = trent_state3.current.accounts in
+                      let alice_account =
+                        try
+                          AddressMap.find alice_keys.address trent_accounts
+                        with Not_found ->
+                          raise (Internal_error "Alice has no account on Trent")
+                      in
+                      alice_account.balance = amount_to_deposit

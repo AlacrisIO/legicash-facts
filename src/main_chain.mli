@@ -38,7 +38,7 @@ type transaction_signed = transaction signed
     an old enough block on the main chain
     TODO: maybe also include a path and/or merkle tree from there?
     *)
-type confirmation
+type confirmation = state digest
 
 val is_confirmation_valid : confirmation -> transaction_signed -> bool
 

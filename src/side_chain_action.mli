@@ -27,7 +27,7 @@ val confirm_request : (request signed, confirmation signed) facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
 val deposit :
-  (Address.t * TokenAmount.t, Main_chain.transaction_signed) user_action
+  ((Address.t * TokenAmount.t), request signed) user_action
 (** Flow 1 Step 3: user sends money on the main chain *)
 
 val request_deposit :
