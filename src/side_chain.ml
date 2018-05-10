@@ -103,9 +103,9 @@ type rx_header =
   { facilitator: Address.t
   ; requester: Address.t
   ; requester_revision: Revision.t
-  ; confirmed_main_chain_state_digest: (* Main_chain.state *) Digest.t
+  ; confirmed_main_chain_state_digest: Main_chain.state digest
   ; confirmed_main_chain_state_revision: Revision.t
-  ; confirmed_side_chain_state_digest: (* state *) Digest.t
+  ; confirmed_side_chain_state_digest: state digest
   ; confirmed_side_chain_state_revision: Revision.t
   ; validity_within: Duration.t }
   [@@deriving lens]
@@ -127,7 +127,7 @@ and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
     whose revision is a multiple of 2**k for all k?
     *)
 and tx_header =
-  {tx_revision: Revision.t; spending_limit: TokenAmount.t}
+  {tx_revision: Revision.t; updated_limit: TokenAmount.t}
   [@@deriving lens]
 
 (** A transaction confirmation from a facilitator:
@@ -150,11 +150,13 @@ and account_state =
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
     *)
 and state =
-  { previous_main_chain_state: (* Main_chain.state *) Digest.t
-  ; previous_side_chain_state: (* state *) Digest.t
+  { previous_main_chain_state: Main_chain.state digest
+  ; previous_side_chain_state: state digest
       (* state previously posted on the above *)
-  ; side_chain_revision: Revision.t
-  ; user_accounts: account_state AddressMap.t
+  ; facilitator_revision: Revision.t
+  ; spending_limit: TokenAmount.t (* expedited limit still unspent since confirmation *)
+  ; bond_posted: TokenAmount.t
+  ; accounts: account_state AddressMap.t
   ; user_keys: public_key AddressMap.t
   ; operations: confirmation AddressMap.t
   ; deposited: Main_chain.TransactionDigestSet.t }
@@ -214,7 +216,7 @@ type user_account_state_per_facilitator =
       to Ursula and/or Judy (TODO: and their dependency history if any?)
  *)
 type user_state =
-  { latest_main_chain_confirmation: (* Main_chain.state *) Digest.t
+  { latest_main_chain_confirmation: Main_chain.state digest
   ; latest_main_chain_confirmed_balance:
       TokenAmount.t
       (* Only store the confirmed state, and have any updates in pending *)
@@ -247,13 +249,8 @@ type facilitator_fee_schedule =
     *)
 type facilitator_state =
   { keypair: Keypair.t
-  ; confirmed_state: state (* latest confirmed public state *)
-  ; current_revision: Revision.t (* incremented at every change *)
-  ; current_limit:
-      TokenAmount.t (* expedited limit still unspent since confirmation *)
-  ; bond_posted: TokenAmount.t
-  ; account_states: account_state AddressMap.t
-  ; pending_operations: episteme list AddressMap.t
+  ; previous: state option
+  ; current: state
   ; fee_schedule: facilitator_fee_schedule }
   [@@deriving lens]
 
@@ -267,7 +264,7 @@ type court_clerk_confirmation =
 (** Side chain update to be posted on the main chain, including signatures by court registry clerks.
     The update itself has to be signed by the facilitator *)
 type update =
-  { current_state: (* state *) Digest.t
+  { current_state: state digest
   ; availability_proof: court_clerk_confirmation list }
 
 (*[@@deriving lens { prefix = true }]*)

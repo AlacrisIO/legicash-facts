@@ -15,7 +15,7 @@ type state =
     an old enough block on the main chain
     TODO: maybe also include a path and/or merkle tree from there?
     *)
-type confirmation = (* state *) Digest.t
+type confirmation = state digest
 
 (** TODO: have an actual confirmation *)
 let is_confirmation_valid confirmation transaction = true
@@ -54,4 +54,5 @@ type user_state =
 
 type ('a, 'b) user_action = ('a, 'b, user_state) action
 
-module TransactionDigestSet = Set.Make(Digest)
+module TransactionDigestSet = DigestSet
+

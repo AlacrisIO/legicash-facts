@@ -21,7 +21,7 @@ let new_account_state =
 (** User's view of the default (empty) state for a new facilitator *)
 let new_user_account_state_per_facilitator =
   { facilitator_validity= Confirmed
-  ; confirmed_state= new_account_state user_key
+  ; confirmed_state= new_account_state
   ; pending_operations= [] }
 
 type account_lens = (facilitator_state, account_state) Lens.t
@@ -32,18 +32,21 @@ type account_lens = (facilitator_state, account_state) Lens.t
 let ensure_user_account
     : (request signed, request signed*account_state*account_lens*public_key) facilitator_action =
   function
-  | {account_states; user_keys} as state, ({payload= {rx_header={requester}; operation}} as rx) ->
-     let user_account_lens =
-       facilitator_state_account_states |-- AddressMap.lens requester
+  | {current={accounts; user_keys}} as state,
+    ({payload= {rx_header={requester}; operation}} as rx) ->
+     let account_lens =
+       facilitator_state_current |-- state_accounts |-- AddressMap.lens requester
      in
-     let account_option = AddressMap.find_opt requester account_states in
+     let account_option = AddressMap.find_opt requester accounts in
      match operation with
      | Open_account user_key ->
         (match account_option with
-         | None -> ({state with user_keys= AddressMap.add user_key state.user_keys},
-                    Ok (rx, new_account_state, user_account_lens, user_key))
-         | Some -> (state, Error Already_open))
-     | _ -> (state, Ok (rx, user_account_lens.get state, AddressMap.find requester state.user_keys))
+         | None -> (facilitator_state_current |-- state_user_keys |-- AddressMap.lens requester).set
+                     user_key state,
+                   Ok (rx, new_account_state, account_lens, user_key)
+         | Some _ -> (state, Error Already_open))
+     | _ -> (state, Ok (rx, account_lens.get state,
+                        account_lens, AddressMap.find requester state.current.user_keys))
 
 (** Is the request well-formed?
     This function should include all checks that can be made without any non-local side-effect
@@ -51,8 +54,8 @@ let ensure_user_account
     Thus, we can later parallelize this check.
  *)
 let is_side_chain_request_well_formed
-    : facilitator_state * (request signed*account_lens*public_key) -> bool = function
-  | {account_states},
+    : facilitator_state * (request signed*account_state*account_lens*public_key) -> bool = function
+  | {current={accounts}} as state,
     ({payload={ rx_header=
                   { facilitator
                   ; requester
@@ -62,7 +65,7 @@ let is_side_chain_request_well_formed
                   ; confirmed_side_chain_state_digest
                   ; confirmed_side_chain_state_revision
                   ; validity_within }
-              ; operation };
+              ; operation } as payload;
       signature},
      {active; balance; account_revision},
      _,
@@ -91,7 +94,7 @@ let is_side_chain_request_well_formed
            && (TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee) >= 0
         | Payment {payment_invoice; payment_fee; payment_expedited} ->
            (TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee)) >= 0
-           bottom ()
+           && bottom ()
         | Close_account -> true
         | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
 
@@ -107,26 +110,29 @@ let make_request_confirmation
       facilitator_action =
  fun (facilitator_state, (signed_request, account_state, account_lens)) ->
   let revision =
-    Revision.add facilitator_state.current_revision Revision.one
+    Revision.add facilitator_state.current.facilitator_revision Revision.one
   in
-  ( { (user_account_lens.set
-         { account_state with
-           account_revision=
-             signed_request.payload.rx_header.requester_revision }
-         facilitator_state)
-      with current_revision= revision}
+  account_lens.set
+    { account_state with
+      account_revision=
+        signed_request.payload.rx_header.requester_revision }
+    ((facilitator_state_current |-- state_facilitator_revision).set
+       revision
+       facilitator_state)
   , Ok
       (sign facilitator_state.keypair.private_key
-         {tx_header= {tx_revision= revision; spending_limit=facilitator_state.current_limit};
+         {tx_header= {tx_revision= revision; updated_limit=facilitator_state.current.spending_limit};
           signed_request})
-  )
 
 exception Spending_limit_exceeded
 
 (** Facilitator actions to use up some of the limit *)
 let spend_spending_limit amount (state, x) =
-  if (TokenAmount.compare amount state.current_limit) <= 0 then
-    {state with current_limit= TokenAmount.sub state.current_limit amount}, Ok x
+  if (TokenAmount.compare amount state.current.spending_limit) <= 0 then
+    (facilitator_state_current |-- state_spending_limit).set
+      (TokenAmount.sub state.current.spending_limit amount)
+      state,
+    Ok x
   else
     state, Error Spending_limit_exceeded
 
@@ -144,11 +150,12 @@ exception Already_deposited
    Have more expensive process to account for old deposits?)
  *)
 let check_against_double_deposit main_chain_transaction_signed (state, x) =
-  let witness = get_digest main_chain_transaction_signed in
-  if TransactionDigestSet.mem witness state.deposited then
+  let witness = Digest.make main_chain_transaction_signed in
+  let lens = (facilitator_state_current |-- state_deposited |-- DigestSet.lens witness) in
+  if lens.get state then
     (state, Error Already_deposited)
   else
-    ({state with deposited= (TransactionDigestSet.add witness state.deposited ())}, Ok x)
+    lens.set true state, Ok x
 
 (** compute the effects of a request on the account state *)
 let effect_request
@@ -164,18 +171,20 @@ let effect_request
                ; main_chain_transaction_signed
                ; deposit_expedited } ->
         (state, (rx, account_state, account_lens)) ^|>
-        (check_against_double_deposit main_chain_transaction_signed)
-        ^>> (maybe_spend_spending_limit deposit_expedited deposit_amount)
-        ^>> (fun (state, _) ->
-          bottom ())
-      | Payment {payment_invoice; payment_fee; payment_expedited} ->
-         (maybe_spend_spending_limit deposit_expedited deposit_amount)
-      | Close_account ->
-          ( Lens.modify user_account_lens
-              (fun s -> {s with active= false})
-              state
-          , Ok (rx, user_account_lens) )
-      | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
+          (check_against_double_deposit main_chain_transaction_signed)
+          ^>> (maybe_spend_spending_limit deposit_expedited deposit_amount)
+          ^>> (fun (state, _) ->
+            bottom ())
+     | Payment {payment_invoice; payment_fee; payment_expedited} ->
+        (state, (rx, account_state, account_lens)) ^|>
+          (maybe_spend_spending_limit payment_expedited payment_invoice.amount)
+          ^>> bottom ()
+     | Close_account ->
+        ( Lens.modify account_lens
+            (fun s -> {s with active= false})
+            state
+        , Ok (rx, account_state, account_lens) )
+     | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
 
 
 (** TODO:
@@ -198,11 +207,16 @@ let stub_confirmed_main_chain_state_digest =
 
 
 let genesis_side_chain_state =
-  { previous_main_chain_state= Digest.make Main_chain.genesis_state
+  { previous_main_chain_state= null_digest
   ; previous_side_chain_state= null_digest
-  ; side_chain_revision= Revision.zero
-  ; user_accounts= AddressMap.empty
-  ; operations= AddressMap.empty }
+  ; facilitator_revision= Revision.zero
+  ; spending_limit= TokenAmount.zero
+  ; bond_posted= TokenAmount.zero
+  ; accounts= AddressMap.empty
+  ; user_keys= AddressMap.empty
+  ; operations= AddressMap.empty
+  ; deposited= DigestSet.empty
+  }
 
 
 let stub_confirmed_side_chain_state = ref genesis_side_chain_state
@@ -245,7 +259,7 @@ let make_rx_header (user_state, facilitator_address) =
           ; confirmed_side_chain_state_digest=
               !stub_confirmed_side_chain_state_digest
           ; confirmed_side_chain_state_revision=
-              !stub_confirmed_side_chain_state.side_chain_revision
+              !stub_confirmed_side_chain_state.facilitator_revision
           ; validity_within= default_validity_window } )
 
 
@@ -264,9 +278,7 @@ let add_user_episteme user_state episteme =
   let facilitator = episteme.request.payload.rx_header.facilitator in
   let account_state =
     AddressMap.find_defaulting
-      (fun _ ->
-        new_user_account_state_per_facilitator
-          user_state.main_chain_user_state.keypair.public_key )
+      (konstant new_user_account_state_per_facilitator)
       facilitator user_state.facilitators
   in
   ( user_state_facilitators |-- AddressMap.lens facilitator
@@ -329,8 +341,7 @@ let update_account_state_with_trusted_operations trusted_operations
 
 let optimistic_facilitator_account_state (user_state, facilitator_address) =
   match AddressMap.find_opt facilitator_address user_state.facilitators with
-  | None ->
-      new_account_state user_state.main_chain_user_state.keypair.public_key
+  | None -> new_account_state
   | Some {facilitator_validity; confirmed_state; pending_operations} ->
     match facilitator_validity with
     | Rejected -> confirmed_state
@@ -434,9 +445,7 @@ let create_side_chain_user_state_for_testing user_keys main_chain_balance =
   let main_chain_user_state =
     {keypair= user_keys; pending_transactions= []; nonce= Int64.zero}
   in
-  let user_account_state =
-    new_user_account_state_per_facilitator user_keys.public_key
-  in
+  let user_account_state = new_user_account_state_per_facilitator in
   let facilitators =
     AddressMap.singleton trent_keys.address user_account_state
   in
@@ -458,20 +467,20 @@ let trent_fee_schedule =
 let confirmed_trent_state =
   { previous_main_chain_state = Digest.zero
   ; previous_side_chain_state = Digest.one
-  ; side_chain_revision = Revision.of_int 17
-  ; user_accounts = AddressMap.empty
+  ; facilitator_revision = Revision.of_int 17
+  ; spending_limit= TokenAmount.of_int 1000000
+  ; bond_posted= TokenAmount.of_int 5000000
+  ; accounts = AddressMap.empty
+  ; user_keys = AddressMap.empty
   ; operations = AddressMap.empty
+  ; deposited = DigestSet.empty
   }
 
 let trent_state =
   { keypair= trent_keys
-  ; confirmed_state= confirmed_trent_state
-  ; bond_posted= TokenAmount.of_int 1024000
-  ; current_limit= TokenAmount.of_int 5000
-  ; account_states= AddressMap.empty
-  ; pending_operations= AddressMap.empty
-  ; current_revision= Revision.zero
-  ; fee_structure= trent_fee_structure }
+  ; previous= None
+  ; current= confirmed_trent_state
+  ; fee_schedule= trent_fee_schedule }
 
 
 

@@ -137,8 +137,16 @@ module Digest = struct
     of_string (Cryptokit.hash_string hash data_string)
 end
 
+type 'a digest = Digest.t
+
 (** Special magic digest for None. A bit ugly. *)
 let null_digest = Digest.zero
+
+module DigestSet = struct
+  include Set.Make(Digest)
+  let lens k = Lens.{get= mem k; set= fun b -> if b then add k else remove k}
+end
+
 
 module Revision = Int64
 module Duration = Int64

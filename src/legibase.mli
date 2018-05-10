@@ -76,7 +76,15 @@ module Digest : sig
   val make : 'a -> t
 end
 
+type 'a digest = Digest.t
+
 val null_digest: Digest.t
+
+module DigestSet: sig
+  include Set.S with type elt = Digest.t
+  val lens: Digest.t -> (t, bool) Lens.t
+end
+
 
 (** count of changes in an object.
     A positive integer less than 2**63, incremented at every change to a notional object's state.
