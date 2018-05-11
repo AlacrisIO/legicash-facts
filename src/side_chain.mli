@@ -158,7 +158,7 @@ and state =
   ; operations:
       confirmation AddressMap.t
       (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
-  ; accounted_main_chain_transactions: Main_chain.TransactionDigestSet.t }
+  ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
   [@@deriving lens]
 
 (** side chain operation + knowledge about the operation *)

@@ -68,7 +68,7 @@ and state =
   ; accounts: account_state AddressMap.t
   ; user_keys: public_key AddressMap.t
   ; operations: confirmation AddressMap.t
-  ; accounted_main_chain_transactions: Main_chain.TransactionDigestSet.t }
+  ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
   [@@deriving lens]
 
 type episteme =

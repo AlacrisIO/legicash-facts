@@ -7,7 +7,7 @@
   (modules (legibase lib data256 keypair uInt64 ethereum_rlp ethereum_patricia_merkle
   main_chain side_chain main_chain_action side_chain_action court_registry))
   (preprocess (pps (ppx_deriving.std ppx_inline_test ppx_deriving_lens)))
-  (libraries (cryptokit secp256k1 lens))
+  (libraries (cryptokit integers lens secp256k1))
   (inline_tests)))
 
 ;; main executable

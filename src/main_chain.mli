@@ -1,6 +1,8 @@
 open Legibase
-module TokenAmount = Int64
-module Nonce = Int64
+
+module TokenAmount : Unsigned.S
+
+module Nonce : Unsigned.S
 
 (** State of a main chain block.
     TODO:
@@ -8,9 +10,7 @@ module Nonce = Int64
     2- Make it work for tezos, where it's a Block_header.t (?)
     3- Abstract into a module signature that can be provided by one or the other.
  *)
-type state =
-  {revision: Revision.t; accounts: TokenAmount.t AddressMap.t}
-  [@@deriving lens]
+type state = {revision: Revision.t; accounts: TokenAmount.t AddressMap.t} [@@deriving lens]
 
 (** TODO: make sure it matches Ethereum transfer data *)
 type tx_header =
@@ -26,11 +26,11 @@ type operation =
   (* recipient *)
   | CreateContract of Bytes.t
   (* code *)
-  | CallFunction of Address.t * Bytes.t (* contract, data *)
+  | CallFunction of Address.t * Bytes.t
 
-type transaction =
-  {tx_header: tx_header; operation: operation}
-  [@@deriving lens]
+(* contract, data *)
+
+type transaction = {tx_header: tx_header; operation: operation} [@@deriving lens]
 
 type transaction_signed = transaction signed
 
@@ -45,8 +45,8 @@ val is_confirmation_valid : confirmation -> transaction_signed -> bool
 type user_state =
   { keypair: Keypair.t
   ; confirmed_state: state digest
-  ; confirmed_balance: TokenAmount.t
-      (* Only store the confirmed state, and have any updates in pending *)
+  ; confirmed_balance:
+      TokenAmount.t (* Only store the confirmed state, and have any updates in pending *)
   ; pending_transactions: transaction_signed list
   ; nonce: Nonce.t }
   [@@deriving lens]

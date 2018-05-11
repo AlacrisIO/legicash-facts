@@ -153,20 +153,19 @@ let spend_spending_limit amount (state, x) =
 let maybe_spend_spending_limit is_expedited amount (state, x) =
   if is_expedited then spend_spending_limit amount (state, x) else (state, Ok x)
 
-exception Already_accounted
+exception Already_posted
 
 (* To prevent double-deposit or double-withdrawal of a same main_chain_transaction_signed,
-   we put those transactions in a set of already accounted transactions.
+   we put those transactions in a set of already posted transactions.
    (Future: prune that set by expiring deposit requests?
    Have more expensive process to account for old deposits?)
  *)
 let check_against_double_accounting main_chain_transaction_signed (state, x) =
   let witness = Digest.make main_chain_transaction_signed in
   let lens =
-    facilitator_state_current |-- state_accounted_main_chain_transactions
-    |-- DigestSet.lens witness
+    facilitator_state_current |-- state_main_chain_transactions_posted |-- DigestSet.lens witness
   in
-  if lens.get state then (state, Error Already_accounted) else (lens.set true state, Ok x)
+  if lens.get state then (state, Error Already_posted) else (lens.set true state, Ok x)
 
 (** compute the effects of a request on the account state *)
 let effect_request :
@@ -241,7 +240,7 @@ let genesis_side_chain_state =
   ; accounts= AddressMap.empty
   ; user_keys= AddressMap.empty
   ; operations= AddressMap.empty
-  ; accounted_main_chain_transactions= DigestSet.empty }
+  ; main_chain_transactions_posted= DigestSet.empty }
 
 let stub_confirmed_side_chain_state = ref genesis_side_chain_state
 
@@ -486,7 +485,7 @@ let confirmed_trent_state =
   ; accounts= AddressMap.empty
   ; user_keys= AddressMap.empty
   ; operations= AddressMap.empty
-  ; accounted_main_chain_transactions= DigestSet.empty }
+  ; main_chain_transactions_posted= DigestSet.empty }
 
 let trent_state =
   { keypair= trent_keys
