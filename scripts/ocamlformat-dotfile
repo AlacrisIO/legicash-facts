@@ -1,0 +1,6 @@
+# ocamlformat for Legicash OCaml sources
+
+# copy this file to $HOME/.ocamlformat
+
+break-string-literals never
+margin 100
