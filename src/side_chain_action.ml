@@ -406,31 +406,49 @@ let lift_main_chain_user_action_to_side_chain action (user_state, input) =
   let new_state, result = action (user_state.main_chain_user_state, input) in
   ({user_state with main_chain_user_state= new_state}, result)
 
-let deposit (user_state,(facilitator_address,deposit_amount)) =
+(*
+-    (lift_main_chain_user_action_to_side_chain transfer_tokens (user_state,(facilitator_address,deposit_amount))) |>
+-      function
+-      | user_state1,Error e as error -> error
+-      | (user_state1,Ok main_chain_transaction_signed) -> (
+-         lift_main_chain_user_action_to_side_chain
+-           Main_chain_action.wait_for_confirmation
+-           (user_state1,main_chain_transaction_signed) |>
+-                function
+-                | user_state2,Error e as err -> err
+-                | user_state2, Ok main_chain_confirmation ->
+-                     issue_user_request
+-                       ( user_state1
+-                       , Deposit { deposit_amount
+-                                 ; deposit_fee = TokenAmount.of_int 5 (* TODO: make config item *)
+-                                 ; main_chain_transaction_signed
+-                                 ; main_chain_confirmation
+-                                 ; deposit_expedited = false
+-      }))
+
+ *)
+
+let deposit ((user_state,(facilitator_address,deposit_amount)) as input) =
   let activity_status =
     user_activity_status_for_facilitator (user_state, facilitator_address)
   in
   if activity_status then
-    (lift_main_chain_user_action_to_side_chain transfer_tokens (user_state,(facilitator_address,deposit_amount))) |>
-      function
-      | user_state1,Error e as error -> error
-      | (user_state1,Ok main_chain_transaction_signed) -> (
-         lift_main_chain_user_action_to_side_chain
-           Main_chain_action.wait_for_confirmation
-           (user_state1,main_chain_transaction_signed) |>
-                function
-                | user_state2,Error e as err -> err
-                | user_state2, Ok main_chain_confirmation ->
-                     issue_user_request
-                       ( user_state1
-                       , Deposit { deposit_amount
-                                 ; deposit_fee = TokenAmount.of_int 5 (* TODO: make config item *)
-                                 ; main_chain_transaction_signed
-                                 ; main_chain_confirmation
-                                 ; deposit_expedited = false
-      }))
+    input |>
+      ((lift_main_chain_user_action_to_side_chain transfer_tokens) ^>>
+         (fun ((user_state1,main_chain_transaction_signed) as transaction) ->
+           transaction |>
+             ((lift_main_chain_user_action_to_side_chain Main_chain_action.wait_for_confirmation)) ^>>
+               (fun (user_state2,main_chain_confirmation) ->
+                 issue_user_request
+                   ( user_state2
+                   , Deposit { deposit_amount
+                             ; deposit_fee = TokenAmount.of_int 5 (* TODO: make config item *)
+                             ; main_chain_transaction_signed
+                             ; main_chain_confirmation
+                             ; deposit_expedited = false
+      }))))
   else
-     (user_state, Error Account_closed_or_nonexistent)
+    (user_state, Error Account_closed_or_nonexistent)
 
 (* TODO: take into account not just the facilitator name, but the fee schedule, too. *)
 
