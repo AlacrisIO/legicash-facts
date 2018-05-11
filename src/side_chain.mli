@@ -284,4 +284,8 @@ exception Already_open
 
 exception Already_closed
 
+exception Account_closed_or_nonexistent
+
+exception Invalid_confirmation
+
 exception Invalid_operation of operation

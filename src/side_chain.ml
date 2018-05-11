@@ -30,7 +30,7 @@ type deposit_details =
   ; main_chain_transaction_signed: Main_chain.transaction_signed
   ; main_chain_confirmation: Main_chain.confirmation
   ; deposit_expedited: bool }
-  [@@deriving lens]
+ [@@deriving lens]
 
 type withdrawal_details =
   {withdrawal_invoice: invoice; withdrawal_fee: TokenAmount.t}
@@ -144,5 +144,9 @@ exception No_facilitator_yet
 exception Already_open
 
 exception Already_closed
+
+exception Account_closed_or_nonexistent
+
+exception Invalid_confirmation
 
 exception Invalid_operation of operation

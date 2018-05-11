@@ -35,9 +35,12 @@ let issue_transaction =
               sign user_state.keypair.private_key {tx_header; operation} ))))
   ^>> add_pending_transaction
 
-
 let transfer_gas_limit = TokenAmount.of_int 21000
 
 let transfer_tokens (user_state, (recipient, amount)) =
   issue_transaction
     (user_state, (TransferTokens recipient, amount, transfer_gas_limit))
+
+let wait_for_confirmation ((user_state : user_state),(signed_transaction : transaction_signed)) =
+  (* TODO: make this work *)
+  (user_state,Ok Digest.zero)
