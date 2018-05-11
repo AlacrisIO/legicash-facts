@@ -1,39 +1,33 @@
 (* Types for LegiCash Facilitator side-chains *)
 (* NB: Comments are in the .mli file *)
 open Legibase
-
 module TokenAmount = Main_chain.TokenAmount
 
 type fraud_proof
 
-type knowledge_stage =
-  | Unknown
-  | Pending
-  | Confirmed
-  | Rejected
+type knowledge_stage = Unknown | Pending | Confirmed | Rejected
 
 type memo = string option
 
-type invoice =
-  {recipient: Address.t; amount: TokenAmount.t; memo: memo}
-  [@@deriving lens]
+type invoice = {recipient: Address.t; amount: TokenAmount.t; memo: memo} [@@deriving lens]
 
 type payment_details =
-  { payment_invoice: invoice
-  ; payment_fee: TokenAmount.t
-  ; payment_expedited: bool }
+  {payment_invoice: invoice; payment_fee: TokenAmount.t; payment_expedited: bool}
   [@@deriving lens]
 
 type deposit_details =
   { deposit_amount: TokenAmount.t
   ; deposit_fee: TokenAmount.t
-  ; main_chain_transaction_signed: Main_chain.transaction_signed
-  ; main_chain_confirmation: Main_chain.confirmation
+  ; main_chain_deposit_signed: Main_chain.transaction_signed
+  ; main_chain_deposit_confirmation: Main_chain.confirmation
   ; deposit_expedited: bool }
- [@@deriving lens]
+  [@@deriving lens]
 
 type withdrawal_details =
-  {withdrawal_invoice: invoice; withdrawal_fee: TokenAmount.t}
+  { withdrawal_amount: TokenAmount.t
+  ; withdrawal_fee: TokenAmount.t
+  ; main_chain_withdrawal_signed: Main_chain.transaction_signed
+  ; main_chain_withdrawal_confirmation: Main_chain.confirmation }
   [@@deriving lens]
 
 (** an operation on a facilitator side-chain *)
@@ -57,18 +51,12 @@ type rx_header =
 
 and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
 
-and tx_header =
-  {tx_revision: Revision.t; updated_limit: TokenAmount.t}
-  [@@deriving lens]
+and tx_header = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
 
-and confirmation =
-  {tx_header: tx_header; signed_request: request signed}
-  [@@deriving lens]
+and confirmation = {tx_header: tx_header; signed_request: request signed} [@@deriving lens]
 
 and account_state =
-  { active: bool
-  ; balance: TokenAmount.t
-  ; account_revision: Revision.t }
+  {active: bool; balance: TokenAmount.t; account_revision: Revision.t}
   [@@deriving lens]
 
 and state =
@@ -80,7 +68,7 @@ and state =
   ; accounts: account_state AddressMap.t
   ; user_keys: public_key AddressMap.t
   ; operations: confirmation AddressMap.t
-  ; deposited: Main_chain.TransactionDigestSet.t }
+  ; accounted_main_chain_transactions: Main_chain.TransactionDigestSet.t }
   [@@deriving lens]
 
 type episteme =
@@ -91,8 +79,7 @@ type episteme =
 
 type user_account_state_per_facilitator =
   { facilitator_validity:
-      knowledge_stage
-      (* do we know the facilitator to be a liar? If so, Rejected *)
+      knowledge_stage (* do we know the facilitator to be a liar? If so, Rejected *)
   ; confirmed_state: account_state
   ; pending_operations: episteme list }
   [@@deriving lens]
@@ -109,9 +96,7 @@ type verifier_state
 type ('input, 'output) verifier_action = ('input, 'output, verifier_state) action
 
 type facilitator_fee_schedule =
-  { deposit_fee: TokenAmount.t
-  ; per_account_limit: TokenAmount.t
-  ; fee_per_billion: TokenAmount.t }
+  {deposit_fee: TokenAmount.t; per_account_limit: TokenAmount.t; fee_per_billion: TokenAmount.t}
   [@@deriving lens]
 
 type facilitator_state =
@@ -123,13 +108,9 @@ type facilitator_state =
 
 type ('input, 'output) facilitator_action = ('input, 'output, facilitator_state) action
 
-type court_clerk_confirmation =
-  {clerk: public_key; signature: state signature}
-  [@@deriving lens]
+type court_clerk_confirmation = {clerk: public_key; signature: state signature} [@@deriving lens]
 
-type update =
-  { current_state: state digest
-  ; availability_proof: court_clerk_confirmation list }
+type update = {current_state: state digest; availability_proof: court_clerk_confirmation list}
 
 type user_to_user_message
 
@@ -150,3 +131,7 @@ exception Account_closed_or_nonexistent
 exception Invalid_confirmation
 
 exception Invalid_operation of operation
+
+let one_second = Duration.of_int 1000000000
+
+let challenge_duration = Duration.mul one_second (Duration.of_int 7200)

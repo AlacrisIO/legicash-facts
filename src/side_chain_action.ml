@@ -28,25 +28,20 @@ let ensure_user_account :
   | ( ({current= {accounts; user_keys}} as state)
     , ({payload= {rx_header= {requester}; operation}} as rx) ) ->
       let account_lens =
-        facilitator_state_current |-- state_accounts |-- AddressMap.lens requester
+        facilitator_state_current |-- state_accounts
+        |-- defaulting_lens (konstant new_account_state) (AddressMap.lens requester)
       in
-      let account_option = AddressMap.find_opt requester accounts in
-      match operation with
-      | Open_account user_key -> (
-        match account_option with
-        | Some _ -> (state, Error Already_open)
-        | None ->
-            ( (facilitator_state_current |-- state_user_keys |-- AddressMap.lens requester).set
-                user_key state
-            , Ok (rx, new_account_state, account_lens, user_key) ) )
-      | _ ->
-        match account_option with
-        | None -> (state, Error Assertion_failed)
-        | Some account_state ->
-            ( state
-            , Ok
-                (rx, account_state, account_lens, AddressMap.find requester state.current.user_keys)
-            )
+      let account_state = account_lens.get state in
+      let use_key x = Ok (rx, account_state, account_lens, x) in
+      match (AddressMap.find_opt requester accounts, operation) with
+      | None, Open_account user_key ->
+          ( (facilitator_state_current |-- state_user_keys |-- AddressMap.lens requester).set
+              user_key state
+          , use_key user_key )
+      | None, _ -> (state, Error Assertion_failed)
+      | Some _, Open_account _ -> (state, Error Already_open)
+      | Some _, Withdrawal _ -> (state, use_key state.keypair.public_key)
+      | Some _, _ -> (state, use_key (AddressMap.find requester state.current.user_keys))
 
 (** Is the request well-formed?
     This function should include all checks that can be made without any non-local side-effect
@@ -71,11 +66,11 @@ let is_side_chain_request_well_formed :
         ; signature }
       , {active; balance; account_revision}
       , _
-      , user_key ) ) ->
-      (active = match operation with Open_account _ -> false | _ -> true)
+      , signing_key ) ) ->
+      (active = match operation with Open_account _ -> false | Withdrawal _ -> false | _ -> true)
       && requester_revision = Revision.add account_revision Revision.one
       (* TODO: check confirmed main & side chain state + validity window *)
-      && is_signature_matching requester user_key signature payload
+      && is_signature_matching requester signing_key signature payload
       (* Check that the numbers add up: *)
       &&
       match operation with
@@ -83,19 +78,20 @@ let is_side_chain_request_well_formed :
       | Deposit
           { deposit_amount
           ; deposit_fee
-          ; main_chain_transaction_signed=
+          ; main_chain_deposit_signed=
               { signature
               ; payload= {tx_header= {sender; value}; operation= main_chain_operation} as payload
-              } as main_chain_transaction_signed
-          ; main_chain_confirmation
+              } as main_chain_deposit_signed
+          ; main_chain_deposit_confirmation
           ; deposit_expedited } ->
           TokenAmount.compare value (TokenAmount.add deposit_amount deposit_fee) >= 0
           && ( match main_chain_operation with
              | Main_chain.TransferTokens recipient -> recipient = state.keypair.address
              | _ -> false )
           (* TODO: delegate the same signature checking protocol to the main chain *)
-          && is_signature_valid user_key signature payload
-          && Main_chain.is_confirmation_valid main_chain_confirmation main_chain_transaction_signed
+          && is_signature_valid signing_key signature payload
+          && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
+               main_chain_deposit_signed
           && TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee >= 0
       | Payment {payment_invoice; payment_fee; payment_expedited} ->
           TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee) >= 0
@@ -112,7 +108,20 @@ let is_side_chain_request_well_formed :
              |-- account_state_active )
                .get state
       | Close_account -> true
-      | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
+      | Withdrawal
+          { withdrawal_amount
+          ; withdrawal_fee
+          ; main_chain_withdrawal_signed=
+              {signature; payload= {tx_header= {sender; value}; operation= main_chain_operation}}
+              as main_chain_withdrawal_signed
+          ; main_chain_withdrawal_confirmation } ->
+          TokenAmount.compare value (TokenAmount.add withdrawal_amount withdrawal_fee) <= 0
+          && ( match main_chain_operation with
+             | Main_chain.TransferTokens _ -> sender = state.keypair.address
+             | _ -> false )
+          (* TODO: delegate the same signature checking protocol to the main chain *)
+          && Main_chain.is_confirmation_valid main_chain_withdrawal_confirmation
+               main_chain_withdrawal_signed
 
 (** Check that the request is basically well-formed, or else fail *)
 let check_side_chain_request_well_formed = action_assert is_side_chain_request_well_formed
@@ -144,17 +153,20 @@ let spend_spending_limit amount (state, x) =
 let maybe_spend_spending_limit is_expedited amount (state, x) =
   if is_expedited then spend_spending_limit amount (state, x) else (state, Ok x)
 
-exception Already_deposited
+exception Already_accounted
 
-(* To prevent double-deposit of a same main_chain_transaction_signed,
-   we put those transactions in a set (encoded as AddressMap of unit) of already accounted deposits!
+(* To prevent double-deposit or double-withdrawal of a same main_chain_transaction_signed,
+   we put those transactions in a set of already accounted transactions.
    (Future: prune that set by expiring deposit requests?
    Have more expensive process to account for old deposits?)
  *)
-let check_against_double_deposit main_chain_transaction_signed (state, x) =
+let check_against_double_accounting main_chain_transaction_signed (state, x) =
   let witness = Digest.make main_chain_transaction_signed in
-  let lens = facilitator_state_current |-- state_deposited |-- DigestSet.lens witness in
-  if lens.get state then (state, Error Already_deposited) else (lens.set true state, Ok x)
+  let lens =
+    facilitator_state_current |-- state_accounted_main_chain_transactions
+    |-- DigestSet.lens witness
+  in
+  if lens.get state then (state, Error Already_accounted) else (lens.set true state, Ok x)
 
 (** compute the effects of a request on the account state *)
 let effect_request :
@@ -167,14 +179,14 @@ let effect_request :
     | Deposit
         { deposit_amount
         ; deposit_fee
-        ; main_chain_transaction_signed
-        ; main_chain_confirmation
+        ; main_chain_deposit_signed
+        ; main_chain_deposit_confirmation
         ; deposit_expedited } ->
         ( state
         , ( rx
-          , {account_state with balance= TokenAmount.add account_state.balance deposit_amount}
+          , Lens.modify account_state_balance (TokenAmount.add deposit_amount) account_state
           , account_lens ) )
-        ^|> check_against_double_deposit main_chain_transaction_signed
+        ^|> check_against_double_accounting main_chain_deposit_signed
         ^>> maybe_spend_spending_limit deposit_expedited deposit_amount
     | Payment {payment_invoice; payment_fee; payment_expedited} ->
         ( Lens.modify
@@ -191,9 +203,20 @@ let effect_request :
           , account_lens ) )
         ^|> maybe_spend_spending_limit payment_expedited payment_invoice.amount
     | Close_account ->
-        ( Lens.modify account_lens (fun s -> {s with active= false}) state
+        ( (account_lens |-- account_state_active).set false state
         , Ok (rx, account_state, account_lens) )
-    | Withdrawal {withdrawal_invoice; withdrawal_fee} -> bottom ()
+    | Withdrawal
+        { withdrawal_amount
+        ; withdrawal_fee
+        ; main_chain_withdrawal_signed
+        ; main_chain_withdrawal_confirmation } ->
+        ( state
+        , ( rx
+          , Lens.modify account_state_balance
+              (TokenAmount.sub (TokenAmount.add withdrawal_amount withdrawal_fee))
+              account_state
+          , account_lens ) )
+        ^|> check_against_double_accounting main_chain_withdrawal_signed
 
 (** TODO:
  * save this initial state, and only use the new state if the confirmation was committed to disk,
@@ -218,7 +241,7 @@ let genesis_side_chain_state =
   ; accounts= AddressMap.empty
   ; user_keys= AddressMap.empty
   ; operations= AddressMap.empty
-  ; deposited= DigestSet.empty }
+  ; accounted_main_chain_transactions= DigestSet.empty }
 
 let stub_confirmed_side_chain_state = ref genesis_side_chain_state
 
@@ -305,11 +328,13 @@ let update_account_state_with_trusted_operation trusted_operation
         {f with balance= TokenAmount.sub balance decrement}
       else raise (Internal_error "I mistrusted your payment operation")
   | Close_account -> {f with active= false}
-  | Withdrawal {withdrawal_invoice; withdrawal_fee} ->
+  | Withdrawal
+      { withdrawal_amount
+      ; withdrawal_fee
+      ; main_chain_withdrawal_signed
+      ; main_chain_withdrawal_confirmation } ->
       if true (* check that everything is correct *) then
-        { f with
-          balance=
-            TokenAmount.sub balance (TokenAmount.add withdrawal_invoice.amount withdrawal_fee) }
+        {f with balance= TokenAmount.sub balance (TokenAmount.add withdrawal_amount withdrawal_fee)}
       else raise (Internal_error "I mistrusted your withdrawal operation")
 
 (** We assume most recent operation is to the left of the changes list,
@@ -358,17 +383,17 @@ let deposit ((user_state, (facilitator_address, deposit_amount)) as input) =
   if activity_status then
     input
     |> lift_main_chain_user_action_to_side_chain transfer_tokens
-       ^>> fun ((user_state1, main_chain_transaction_signed) as transaction) ->
+       ^>> fun ((user_state1, main_chain_deposit_signed) as transaction) ->
        transaction
        |> lift_main_chain_user_action_to_side_chain Main_chain_action.wait_for_confirmation
-          ^>> fun (user_state2, main_chain_confirmation) ->
+          ^>> fun (user_state2, main_chain_deposit_confirmation) ->
           issue_user_request
             ( user_state2
             , Deposit
                 { deposit_amount
                 ; deposit_fee= TokenAmount.of_int 5 (* TODO: make config item *)
-                ; main_chain_transaction_signed
-                ; main_chain_confirmation
+                ; main_chain_deposit_signed
+                ; main_chain_deposit_confirmation
                 ; deposit_expedited= false } )
   else (user_state, Error Account_closed_or_nonexistent)
 
@@ -461,7 +486,7 @@ let confirmed_trent_state =
   ; accounts= AddressMap.empty
   ; user_keys= AddressMap.empty
   ; operations= AddressMap.empty
-  ; deposited= DigestSet.empty }
+  ; accounted_main_chain_transactions= DigestSet.empty }
 
 let trent_state =
   { keypair= trent_keys
@@ -524,7 +549,7 @@ let%test "open_account_and_close_it" =
 
 (* deposit and payment test *)
 
-let%test "deposit_and_payment_valid" =
+let%test "deposit_valid" =
   (* open Alice's account, as in test "open_account_and_close_it" *)
   assert (not (is_account_open (alice_state, trent_keys.address))) ;
   let amount_to_deposit = TokenAmount.of_int 523 in
