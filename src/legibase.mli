@@ -2,8 +2,6 @@
    This code is for basic infrastructure somewhat specific to Legicash
  *)
 
-exception Internal_error of string
-
 exception Timeout of string
 
 exception Double_spend of string
@@ -11,47 +9,58 @@ exception Double_spend of string
 (** Secp256k1 context for signing and validation *)
 val secp256k1_ctx : Secp256k1.Context.t
 
-(** 'a or exception *)
-type 'a legi_result = ('a, exn) result
+(** 'output or exception *)
+type 'output legi_result = ('output, exn) result
 
-(** function from 'a to 'b that acts on a user_state *)
-type ('a, 'b, 'c) action = 'c * 'a -> 'c * 'b legi_result
+(** function from 'input to 'output that acts on a 'state and may return an exception *)
+type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output legi_result
 
 (** run the action, with side-effects and all *)
-val effect_action: ('a, 'b, 'c) action -> 'c ref -> 'a -> 'b
+val effect_action: ('input, 'output, 'state) action -> 'state ref -> 'input -> 'output
 
-val no_action: ('a, 'a, 'b) action
+val no_action: ('passthrough, 'passthrough, 'state) action
 
-val fail_action: exn -> ('a, 'b, 'c) action
+val fail_action: exn -> ('input, 'bottom, 'state) action
 
 
 (** apply an action, left to right *)
-val do_action: ('c * 'a) -> ('a,'b,'c) action -> ('c * 'b legi_result)
-val ( ^|> ): ('c * 'a) -> ('a,'b,'c) action -> ('c * 'b legi_result)
+val do_action: ('state * 'input) -> ('input,'output,'state) action -> ('state * 'output legi_result)
+val ( ^|> ): ('state * 'input) -> ('input,'output,'state) action -> ('state * 'output legi_result)
 
 (** compose two actions *)
-val compose_actions: ('b, 'c, 's) action -> ('a, 'b, 's) action -> ('a, 'c, 's) action
+val compose_actions: ('intermediate, 'output, 'state) action ->
+                     ('input, 'intermediate, 'state) action ->
+                     ('input, 'output, 'state) action
 
 (** compose two actions, left to right *)
-val action_seq: ('a, 'b, 's) action -> ('b, 'c, 's) action -> ('a, 'c, 's) action
-val ( ^>> ): ('a, 'b, 's) action -> ('b, 'c, 's) action -> ('a, 'c, 's) action
+val action_seq: ('input, 'intermediate, 'state) action ->
+                ('intermediate, 'output, 'state) action ->
+                ('input, 'output, 'state) action
+
+val ( ^>> ): ('input, 'intermediate, 'state) action ->
+             ('intermediate, 'output, 'state) action ->
+             ('input, 'output, 'state) action
 
 (** compose a list of actions (NB: monomorphic in type being passed around *)
-val compose_action_list: (('a, 'a, 'c) action) list -> ('a, 'a, 'c) action
+val compose_action_list: (('a, 'a, 'state) action) list -> ('a, 'a, 'state) action
 
 (** a pure action can read the global state, but not modify it, and not fail *)
-type ('a, 'b, 'c) pure_action = 'c * 'a -> 'b
+type ('input, 'output, 'state) pure_action = 'state * 'input -> 'output
 
-val action_of_pure_action : ('a, 'b, 'c) pure_action -> ('a, 'b, 'c) action
+val action_of_pure_action : ('input, 'output, 'state) pure_action -> ('input, 'output, 'state) action
 
-val compose_pure_actions: ('b, 'c, 'd) pure_action -> ('a, 'b, 'd) pure_action -> ('a, 'c, 'd) pure_action
+val compose_pure_actions: ('intermediate, 'output, 'state) pure_action ->
+                          ('input, 'intermediate, 'state) pure_action ->
+                          ('input, 'output, 'state) pure_action
 
-val pure_action_seq: ('a, 'b, 'd) pure_action -> ('b, 'c, 'd) pure_action -> ('a, 'c, 'd) pure_action
+val pure_action_seq: ('input, 'intermediate, 'state) pure_action ->
+                     ('intermediate, 'output, 'state) pure_action ->
+                     ('input, 'output, 'state) pure_action
 
 exception Assertion_failed
 
 (** given a pure_action returning a bool, make an action that asserts the bool is true *)
-val action_assert: ('a, bool, 's) pure_action -> ('a, 'a, 's) action
+val action_assert: ('a, bool, 'state) pure_action -> ('a, 'a, 'state) action
 
 type public_key = Secp256k1.Key.public Secp256k1.Key.t
 
@@ -115,11 +124,6 @@ module Address : sig
   val to_string : t -> string
   val equal : t -> t -> bool
 end
-
-val identity : 'a -> 'a
-val konstant : 'a -> 'b -> 'a
-val schoenfinkel : ('a -> 'b -> 'c) -> ('a -> 'b) -> 'a -> 'c
-val defaulting : (unit -> 'a) -> 'a option -> 'a
 
 module type MapS = sig
   include Map.S

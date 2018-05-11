@@ -1,16 +1,14 @@
 (* legibase.ml -- base module for Legicash *)
 
-exception Not_implemented
-
-exception Internal_error of string
+open Lib
 
 exception Timeout of string
 
 exception Double_spend of string
 
-type 'a legi_result = ('a, exn) result
+type 'output legi_result = ('output, exn) result
 
-type ('a, 'b, 'c) action = 'c * 'a -> 'c * 'b legi_result
+type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output legi_result
 
 (** run the action, with side-effects and all *)
 let effect_action action state_ref x =
@@ -24,7 +22,7 @@ let effect_action action state_ref x =
 
 let no_action (s, a) = (s, Ok a)
 
-let fail_action failure (s, a) = (s, Error failure)
+let fail_action failure (s, _) = (s, Error failure)
 
 (** compose two actions *)
 let compose_actions c_of_b b_of_a (s, a) =
@@ -48,7 +46,7 @@ let compose_action_list action_list (s, a) =
 
 let do_action (state, value) action = action (state, value)
 
-let ( ^|> ) = do_action
+let ( ^|> ) = do_action (* Same as |> !!!!*)
 
 let action_seq action1 action2 = compose_actions action2 action1
 
@@ -60,7 +58,7 @@ let action_assert pure_action (state, value) =
   if pure_action (state, value) then (state, Ok value)
   else (state, Error Assertion_failed)
 
-type ('a, 'b, 'c) pure_action = 'c * 'a -> 'b
+type ('input, 'output, 'state) pure_action = 'state * 'input -> 'output
 
 let action_of_pure_action f (state, value) = (state, Ok (f (state, value)))
 
@@ -204,8 +202,6 @@ module type MapS = sig
   val find_defaulting : (unit -> 'a) -> key -> 'a t -> 'a
 end
 
-let defaulting default = function None -> default () | Some x -> x
-
 module MapMake (Key : Map.OrderedType) = struct
   include Map.Make (Key)
 
@@ -220,9 +216,29 @@ let defaulting_lens default lens =
 module AddressMap = MapMake (Address)
 module Int64Map = MapMake (Int64)
 
-(** SKI combinators *)
-let identity x = x
+(* test digests *)
 
-let konstant x y = x
+let mk_digest_test data expected =
+  let digest = Digest.make data in
+  expected = (unparse_hex (Digest.to_string digest))
 
-let schoenfinkel x y z = x z (y z)
+let%test "digest_1" =
+  mk_digest_test
+    "this is a test"
+    "d5:02:39:01:b6:e1:b3:fd:03:54:3a:a1:ee:40:3b:77:36:a9:08:5a:b0:4e:71:a0:47:d4:5b:2a:57:7f:72:e8"
+
+let%test "digest_2" =
+  mk_digest_test
+    (Some "nonsense")
+    "e2:9d:d9:ae:ca:d9:44:3b:f6:ea:17:3d:70:57:d3:22:1c:97:cb:94:1a:c9:aa:93:86:ab:ed:ac:e7:16:88:d0"
+
+let%test "digest_3" =
+  mk_digest_test
+   Int64.one
+   "c6:c6:80:47:7d:5c:20:cd:35:1e:ab:56:54:05:85:3a:9f:09:00:f4:93:d0:3e:c4:e5:72:c6:f5:98:53:41:83"
+
+let%test "digest_4" =
+  mk_digest_test
+    [99.9; 100.4; 22.0; 1033.7]
+    "f4:d7:ee:d0:ed:86:14:cf:aa:4c:f1:af:0f:f5:dc:23:45:a4:a6:62:d5:aa:57:ed:7a:9b:f4:75:94:50:65:4a"
+

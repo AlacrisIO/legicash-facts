@@ -7,19 +7,23 @@
 (** exception raised when we haven't implemented the damn thing yet *)
 exception Not_implemented
 
+exception Internal_error of string
+
+
 (** the bottom function turns anything into anything, by raising an exception *)
 val bottom : 'a -> 'b
 
 (** Trivial functor from option to list *)
 val list_of_option : 'a option -> 'a list
 
-(** is that Int64 number odd? *)
-val is_odd_64 : Int64.t -> bool
-
-val constantly : 'a -> 'b -> 'a
-
 val option_map : ('a -> 'b) -> 'a option -> 'b option
 
 (** hex strings, of form "nn:nn:...:nn", where nn represents a char as a hex-digit pair *)
 val parse_hex : string -> string
 val unparse_hex : string -> string
+
+val identity : 'a -> 'a
+val konstant : 'a -> 'b -> 'a
+val schoenfinkel : ('a -> 'b -> 'c) -> ('a -> 'b) -> 'a -> 'c
+val defaulting : (unit -> 'a) -> 'a option -> 'a
+
