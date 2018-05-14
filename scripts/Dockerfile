@@ -7,7 +7,7 @@
 # Set the base image
 FROM ubuntu
 
-# Dockerfile author / maintainer 
+# Dockerfile author / maintainer
 MAINTAINER Paul Steckler <steck@legi.cash>
 
 # Install Ubuntu packages

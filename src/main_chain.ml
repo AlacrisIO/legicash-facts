@@ -3,13 +3,11 @@
 open Legibase
 open Data256
 open Lib
-module TokenAmount = Int64
-module Nonce = Int64
+module TokenAmount = Unsigned.UInt64
+module Nonce = Unsigned.UInt64
 module ContractAddress = Address
 
-type state =
-  {revision: Revision.t; accounts: TokenAmount.t AddressMap.t}
-  [@@deriving lens]
+type state = {revision: Revision.t; accounts: TokenAmount.t AddressMap.t} [@@deriving lens]
 
 type confirmation = state digest
 
@@ -34,17 +32,15 @@ type operation =
 (* contract, data *)
 
 (** Transaction (to be) posted to the main chain (i.e. Ethereum) *)
-type transaction =
-  {tx_header: tx_header; operation: operation}
-  [@@deriving lens]
+type transaction = {tx_header: tx_header; operation: operation} [@@deriving lens]
 
 type transaction_signed = transaction signed
 
 type user_state =
   { keypair: Keypair.t
   ; confirmed_state: state digest
-  ; confirmed_balance: TokenAmount.t
-      (* Only store the confirmed state, and have any updates in pending *)
+  ; confirmed_balance:
+      TokenAmount.t (* Only store the confirmed state, and have any updates in pending *)
   ; pending_transactions: transaction_signed list
   ; nonce: Nonce.t }
   [@@deriving lens]
@@ -52,4 +48,3 @@ type user_state =
 type ('input, 'output) user_action = ('input, 'output, user_state) action
 
 module TransactionDigestSet = DigestSet
-

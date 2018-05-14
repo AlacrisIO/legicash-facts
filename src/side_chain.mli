@@ -1,7 +1,6 @@
 (* Types for LegiCash Facilitator side-chains *)
 
 open Legibase
-
 module TokenAmount = Main_chain.TokenAmount
 
 (** Internal witness for proof that Trent is a liar
@@ -46,26 +45,29 @@ type memo = string option
 (** invoice sent from payee to payer
     TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
  *)
-type invoice =
-  {recipient: Address.t; amount: TokenAmount.t; memo: memo}
-  [@@deriving lens]
+type invoice = {recipient: Address.t; amount: TokenAmount.t; memo: memo} [@@deriving lens]
 
 type payment_details =
-  { payment_invoice: invoice
-  ; payment_fee: TokenAmount.t
-  ; payment_expedited: bool }
+  {payment_invoice: invoice; payment_fee: TokenAmount.t; payment_expedited: bool}
   [@@deriving lens]
 
 type deposit_details =
   { deposit_amount: TokenAmount.t
   ; deposit_fee: TokenAmount.t
-  ; main_chain_transaction_signed: Main_chain.transaction_signed
-  ; main_chain_confirmation: Main_chain.confirmation
+  ; main_chain_deposit_signed:
+      Main_chain.transaction_signed
+      (* TODO: not a transaction, but an ethereum Log event created by the contract's deposit method *)
+  ; main_chain_deposit_confirmation: Main_chain.confirmation
   ; deposit_expedited: bool }
   [@@deriving lens]
 
 type withdrawal_details =
-  {withdrawal_invoice: invoice; withdrawal_fee: TokenAmount.t}
+  { withdrawal_amount: TokenAmount.t
+  ; withdrawal_fee: TokenAmount.t
+  ; main_chain_withdrawal_signed:
+      Main_chain.transaction_signed
+      (* TODO: not a transaction, but an ethereum Log event created by the contract's withdrawal method *)
+  ; main_chain_withdrawal_confirmation: Main_chain.confirmation }
   [@@deriving lens]
 
 (** an operation on a facilitator side-chain *)
@@ -127,39 +129,36 @@ and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
     Should we also provide log(n) digests to the previous confirmation
     whose revision is a multiple of 2**k for all k?
     *)
-and tx_header =
-  {tx_revision: Revision.t; updated_limit: TokenAmount.t}
-  [@@deriving lens]
+and tx_header = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
 
 (** A transaction confirmation from a facilitator:
     a request, plus headers that help validate against fraud.
     *)
-and confirmation =
-  {tx_header: tx_header; signed_request: request signed}
-  [@@deriving lens]
+and confirmation = {tx_header: tx_header; signed_request: request signed} [@@deriving lens]
+
 (* TODO: actually maintain the user_revision;
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
-
 (** public state of the account of a user with a facilitator as visible in the public side-chain *)
 and account_state =
-  { active: bool
-  ; balance: TokenAmount.t
-  ; account_revision: Revision.t }
+  {active: bool; balance: TokenAmount.t; account_revision: Revision.t}
   [@@deriving lens]
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
     *)
 and state =
   { previous_main_chain_state: Main_chain.state digest
-  ; previous_side_chain_state: state digest
-      (* state previously posted on the above *)
+  ; previous_side_chain_state: state digest (* state previously posted on the above *)
   ; facilitator_revision: Revision.t
-  ; spending_limit: TokenAmount.t (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
+  ; spending_limit:
+      TokenAmount.t
+      (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
   ; bond_posted: TokenAmount.t
   ; accounts: account_state AddressMap.t
   ; user_keys: public_key AddressMap.t
-  ; operations: confirmation AddressMap.t (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
-  ; deposited: Main_chain.TransactionDigestSet.t }
+  ; operations:
+      confirmation AddressMap.t
+      (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
+  ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
   [@@deriving lens]
 
 (** side chain operation + knowledge about the operation *)
@@ -236,8 +235,7 @@ type ('input, 'output) verifier_action = ('input, 'output, verifier_state) actio
     *)
 type facilitator_fee_schedule =
   { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
-  ; per_account_limit:
-      TokenAmount.t (* limit for pending expedited transactions per user *)
+  ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
   ; fee_per_billion: TokenAmount.t
   (* function TokenAmount.t -> TokenAmount.t ? *) }
   [@@deriving lens]
@@ -255,15 +253,11 @@ type facilitator_state =
 (** function from 'a to 'b that acts on a facilitator_state *)
 type ('input, 'output) facilitator_action = ('input, 'output, facilitator_state) action
 
-type court_clerk_confirmation =
-  {clerk: public_key; signature: state signature}
-  [@@deriving lens]
+type court_clerk_confirmation = {clerk: public_key; signature: state signature} [@@deriving lens]
 
 (** Side chain update to be posted on the main chain, including signatures by court registry clerks.
     The update itself has to be signed by the facilitator *)
-type update =
-  { current_state: state digest
-  ; availability_proof: court_clerk_confirmation list }
+type update = {current_state: state digest; availability_proof: court_clerk_confirmation list}
 (*[@@deriving lens { prefix = true }]*)
 
 (** message from user to user *)
@@ -289,3 +283,5 @@ exception Account_closed_or_nonexistent
 exception Invalid_confirmation
 
 exception Invalid_operation of operation
+
+val challenge_duration : Duration.t
