@@ -20,7 +20,6 @@ let effect_action action state_ref x =
       state_ref := s ;
       raise e
 
-
 let no_action (s, a) = (s, Ok a)
 
 let fail_action failure (s, _) = (s, Error failure)
@@ -28,7 +27,6 @@ let fail_action failure (s, _) = (s, Error failure)
 (** compose two actions *)
 let compose_actions c_of_b b_of_a (s, a) =
   match b_of_a (s, a) with t, Error e -> (t, Error e) | t, Ok b -> c_of_b (t, b)
-
 
 (* TODO: Infix syntax for action_seq, etc. *)
 
@@ -41,7 +39,6 @@ let compose_action_list action_list (s, a) =
       match action (s, a) with t, Ok b -> loop more_actions (t, b) | (t, Error e) as x -> x
   in
   loop action_list (s, a)
-
 
 let do_action (state, value) action = action (state, value)
 
@@ -57,7 +54,6 @@ exception Assertion_failed
 
 let action_assert pure_action (state, value) =
   if pure_action (state, value) then (state, Ok value) else (state, Error Assertion_failed)
-
 
 type ('input, 'output, 'state) pure_action = 'state * 'input -> 'output
 
@@ -93,7 +89,6 @@ let string_to_secp256k1_msg s =
   | Some msg -> msg
   | None -> raise (Internal_error "Could not create SECP256K1.Sign.msg from string")
 
-
 (* convert arbitrary OCaml value to a Secp256k1 msg representing a hash *)
 let data_to_secp256k1_hashed data =
   (* data is of arbitrary type, marshal to string *)
@@ -101,7 +96,6 @@ let data_to_secp256k1_hashed data =
   let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) in
   let hashed = hash data_string in
   string_to_secp256k1_msg hashed
-
 
 (* create context just once, because expensive operation; assumes
    single instantiation of this module
@@ -116,13 +110,11 @@ let make_signature private_key data =
   | Ok signature -> signature
   | Error s -> raise (Internal_error s)
 
-
 let is_signature_valid (public_key: public_key) (signature: 'a signature) data =
   let hashed = data_to_secp256k1_hashed data in
   match Secp256k1.Sign.verify secp256k1_ctx ~pk:public_key ~msg:hashed ~signature with
   | Ok b -> b
   | Error s -> raise (Internal_error s)
-
 
 let sign private_key data = {payload= data; signature= make_signature private_key data}
 
@@ -157,9 +149,13 @@ module Address : sig
 
   val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
 
+  val of_hex_string : string -> t
+
   val compare : t -> t -> int
 
   val to_string : t -> string
+
+  val to_hex_string : t -> string
 
   val equal : t -> t -> bool
 end = struct
@@ -177,12 +173,56 @@ end = struct
     let offset = buffer_len - address_size in
     Array.init address_size (fun ndx -> Array1.get buffer (offset + ndx))
 
+  (* Ethereum uses format 0x followed by 20 hex-digit pairs *)
+  let of_hex_string hs =
+    let expected_len = (address_size * 2) + 2 in
+    let len = String.length hs in
+    if len != expected_len then
+      raise
+        (Internal_error
+           (Printf.sprintf "Hex string representing address has length %d, expected %d" len
+              expected_len)) ;
+    if not (hs.[0] = '0' && hs.[1] = 'x') then
+      raise (Internal_error "Hex string representing address does not begin with 0x") ;
+    let zero_code = Char.code '0' in
+    let a_code = Char.code 'a' in
+    let big_a_code = Char.code 'A' in
+    let unhex_digit hd =
+      match hd with
+      | '0'..'9' -> Char.code hd - zero_code
+      | 'a'..'f' -> Char.code hd - a_code + 0xa
+      | 'A'..'F' -> Char.code hd - big_a_code + 0xa
+      | _ -> raise (Internal_error (Printf.sprintf "Invalid hex digit %c" hd))
+    in
+    Array.init address_size (fun ndx ->
+        let ndx2 = 2 + (2 * ndx) in
+        let hi_nybble = unhex_digit hs.[ndx2] in
+        let lo_nybble = unhex_digit hs.[ndx2 + 1] in
+        Char.chr ((hi_nybble lsl 4) + lo_nybble) )
 
   let compare address1 address2 = Pervasives.compare address1 address2
 
   let equal address1 address2 = compare address1 address2 = 0
 
   let to_string address = String.init address_size (Array.get address)
+
+  let to_hex_string (address: t) =
+    let zero_code = Char.code '0' in
+    let a_code = Char.code 'a' in
+    let to_hex_digit byte =
+      if byte < 0xa then Char.chr (byte + zero_code) (* 0 - 9 *)
+      else if byte >= 0xa && byte <= 0xf then (* a - f *)
+        Char.chr (a_code + (byte - 0xa))
+      else raise (Internal_error "Not a valid hex digit")
+    in
+    let get_hex_digit ndx =
+      let ndx2 = ndx / 2 in
+      let bytes = Char.code address.(ndx2) in
+      let byte = if ndx mod 2 = 0 then bytes lsr 4 else bytes mod 0x10 in
+      to_hex_digit byte
+    in
+    let hex_digits = String.init (2 * address_size) get_hex_digit in
+    "0x" ^ hex_digits
 end
 
 (** A pure mapping from 'a to 'b suitable for use in interactive merkle proofs
@@ -212,7 +252,6 @@ end
 let defaulting_lens default lens =
   Lens.{get= (fun x -> try lens.get x with Not_found -> default ()); set= lens.set}
 
-
 module AddressMap = MapMake (Address)
 module RevisionMap = MapMake (Revision)
 
@@ -222,23 +261,18 @@ let mk_digest_test data expected =
   let digest = Digest.make data in
   expected = unparse_hex (Digest.to_string digest)
 
-
-[%%test
-let "digest_1" =
+let%test "digest_1" =
   mk_digest_test "this is a test"
-    "d5:02:39:01:b6:e1:b3:fd:03:54:3a:a1:ee:40:3b:77:36:a9:08:5a:b0:4e:71:a0:47:d4:5b:2a:57:7f:72:e8"]
+    "d5:02:39:01:b6:e1:b3:fd:03:54:3a:a1:ee:40:3b:77:36:a9:08:5a:b0:4e:71:a0:47:d4:5b:2a:57:7f:72:e8"
 
-[%%test
-let "digest_2" =
+let%test "digest_2" =
   mk_digest_test (Some "nonsense")
-    "e2:9d:d9:ae:ca:d9:44:3b:f6:ea:17:3d:70:57:d3:22:1c:97:cb:94:1a:c9:aa:93:86:ab:ed:ac:e7:16:88:d0"]
+    "e2:9d:d9:ae:ca:d9:44:3b:f6:ea:17:3d:70:57:d3:22:1c:97:cb:94:1a:c9:aa:93:86:ab:ed:ac:e7:16:88:d0"
 
-[%%test
-let "digest_3" =
+let%test "digest_3" =
   mk_digest_test Int64.one
-    "c6:c6:80:47:7d:5c:20:cd:35:1e:ab:56:54:05:85:3a:9f:09:00:f4:93:d0:3e:c4:e5:72:c6:f5:98:53:41:83"]
+    "c6:c6:80:47:7d:5c:20:cd:35:1e:ab:56:54:05:85:3a:9f:09:00:f4:93:d0:3e:c4:e5:72:c6:f5:98:53:41:83"
 
-[%%test
-let "digest_4" =
+let%test "digest_4" =
   mk_digest_test [99.9; 100.4; 22.0; 1033.7]
-    "f4:d7:ee:d0:ed:86:14:cf:aa:4c:f1:af:0f:f5:dc:23:45:a4:a6:62:d5:aa:57:ed:7a:9b:f4:75:94:50:65:4a"]
+    "f4:d7:ee:d0:ed:86:14:cf:aa:4c:f1:af:0f:f5:dc:23:45:a4:a6:62:d5:aa:57:ed:7a:9b:f4:75:94:50:65:4a"
