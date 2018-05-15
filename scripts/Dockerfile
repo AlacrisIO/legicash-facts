@@ -20,7 +20,8 @@ RUN cd secp256k1 && ./autogen.sh && ./configure --prefix=/usr --enable-module-re
 
 # Install OPAM packages
 RUN opam init -a && opam switch 4.06.1
-RUN opam install -y cryptokit integers jbuilder ppx_deriving ppx_tools_versioned ppx_core ppx_driver ppx_inline_test ppx_metaquot secp256k1
+RUN opam install -y cohttp cohttp-lwt-unix cryptokit integers jbuilder secp256k1 yojson \
+    ppx_deriving ppx_tools_versioned ppx_core ppx_driver ppx_inline_test ppx_metaquot 
 
 # Install ocaml-lens library
 RUN git clone https://github.com/legicash-patches/ocaml-lens.git
