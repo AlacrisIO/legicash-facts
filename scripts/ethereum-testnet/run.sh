@@ -4,8 +4,8 @@
 
 PORT=30303
 RPCPORT=8080
-DATADIR=$(pwd)
+DATADIR=geth-data
 
-nohup geth --identity "LegicashEthereumTestNet" --datadir $DATADIR \
+geth --identity "LegicashEthereumTestNet" --datadir $DATADIR \
       --nodiscover --maxpeers 0 --rpc --rpcapi "db,eth,net,web3,light" --rpcport $RPCPORT --rpccorsdomain "*" \
-      --port $PORT --networkid 17 --nat "any" --ipcpath $HOME/.ethereum/geth.ipc > $DATADIR/testnet.log &
+      --port $PORT --networkid 17 --nat "any" --ipcpath .ethereum/geth.ipc > $DATADIR/testnet.log &

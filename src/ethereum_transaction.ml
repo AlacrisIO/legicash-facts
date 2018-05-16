@@ -182,8 +182,10 @@ let unlock_account address =
 let%test "transfer-on-Ethereum-testnet" =
   let open Main_chain in
   (* accounts on test net *)
-  let sender_address = Address.of_string (string_of_hex_string "0x3989874273c833019654809fb9bab1a295cc815e") in
-  let recipient_address = Address.of_string (string_of_hex_string "0xf86c5854679a66b00077a4589e62d39e21abb395") in
+  let sender_hex = "0x44e3a10528a0d5a41c86ee1bf39d60a6705911b9" in
+  let sender_address = Address.of_string (string_of_hex_string sender_hex) in
+  let recipient_hex = "0xa17a5c51b9d9938da47afade37f3cfab0fd5ce2d" in
+  let recipient_address = Address.of_string (string_of_hex_string recipient_hex) in
   let contains_error json =
     match Yojson.Basic.Util.member "error" json with `Null -> false | _ -> true
   in

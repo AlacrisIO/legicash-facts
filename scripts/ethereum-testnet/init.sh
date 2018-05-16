@@ -2,6 +2,6 @@
 
 # script to initialize the test network
 
-DATADIR=$(pwd)
+DATADIR=$HOME/geth-data
 
 geth --datadir $DATADIR init genesis.json
