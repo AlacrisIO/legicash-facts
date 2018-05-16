@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# run the test net; make sure to run init.sh first
+# run the Ethereum test net
 
 PORT=30303
 RPCPORT=8080
