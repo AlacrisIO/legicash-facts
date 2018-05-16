@@ -28,20 +28,17 @@ val do_action : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 
 val ( ^|> ) : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 'output legi_result
 
 val compose_actions :
-     ('intermediate, 'output, 'state) action
-  -> ('input, 'intermediate, 'state) action
+  ('intermediate, 'output, 'state) action -> ('input, 'intermediate, 'state) action
   -> ('input, 'output, 'state) action
 (** compose two actions *)
 
 val action_seq :
-     ('input, 'intermediate, 'state) action
-  -> ('intermediate, 'output, 'state) action
+  ('input, 'intermediate, 'state) action -> ('intermediate, 'output, 'state) action
   -> ('input, 'output, 'state) action
 (** compose two actions, left to right *)
 
 val ( ^>> ) :
-     ('input, 'intermediate, 'state) action
-  -> ('intermediate, 'output, 'state) action
+  ('input, 'intermediate, 'state) action -> ('intermediate, 'output, 'state) action
   -> ('input, 'output, 'state) action
 
 val compose_action_list : ('a, 'a, 'state) action list -> ('a, 'a, 'state) action
@@ -54,13 +51,11 @@ val action_of_pure_action :
   ('input, 'output, 'state) pure_action -> ('input, 'output, 'state) action
 
 val compose_pure_actions :
-     ('intermediate, 'output, 'state) pure_action
-  -> ('input, 'intermediate, 'state) pure_action
+  ('intermediate, 'output, 'state) pure_action -> ('input, 'intermediate, 'state) pure_action
   -> ('input, 'output, 'state) pure_action
 
 val pure_action_seq :
-     ('input, 'intermediate, 'state) pure_action
-  -> ('intermediate, 'output, 'state) pure_action
+  ('input, 'intermediate, 'state) pure_action -> ('intermediate, 'output, 'state) pure_action
   -> ('input, 'output, 'state) pure_action
 
 exception Assertion_failed
