@@ -27,7 +27,7 @@ type tx_header =
 type operation =
   | TransferTokens of Address.t
   | CreateContract of Bytes.t
-  | CallFunction of Address.t * Bytes.t
+  | CallFunction of Address.t * Bytes.t (* TODO: should we have string Digest.t for the encoded parameters? *)
 
 (* contract, data *)
 

@@ -130,11 +130,9 @@ module Address : sig
 
   val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
 
-  val of_hex_string : string -> t
+  val of_string : string -> t
 
   val to_string : t -> string
-
-  val to_hex_string : t -> string
 
   val equal : t -> t -> bool
 end

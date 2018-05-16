@@ -17,6 +17,48 @@ type ethereum_rpc_call =
   | Personal_unlockAccount
 [@@deriving show]
 
+let id_counter = ref 1 (* global state *)
+
+(* Ethereum uses format 0x followed by hex-digit pairs *)
+let rec zero_code = Char.code '0'
+and a_code = Char.code 'a'
+and big_a_code = Char.code 'A'
+and string_of_hex_string hs =
+  let len = String.length hs in
+  if not (hs.[0] = '0' && hs.[1] = 'x') then
+    raise (Internal_error "Hex string does not begin with 0x") ;
+  if len mod 2 = 1 then
+    raise (Internal_error "Hex string contains odd number of characters");
+  let unhex_digit hd =
+    match hd with
+    | '0'..'9' -> Char.code hd - zero_code
+    | 'a'..'f' -> Char.code hd - a_code + 0xa
+    | 'A'..'F' -> Char.code hd - big_a_code + 0xa (* be liberal in what we accept *)
+    | _ -> raise (Internal_error (Printf.sprintf "Invalid hex digit %c" hd))
+  in
+  String.init ((len - 2) / 2) (fun ndx ->
+      let ndx2 = 2 + (2 * ndx) in
+      let hi_nybble = unhex_digit hs.[ndx2] in
+      let lo_nybble = unhex_digit hs.[ndx2 + 1] in
+      Char.chr ((hi_nybble lsl 4) + lo_nybble))
+and hex_string_of_string s =
+  let len = String.length s in
+  let to_hex_digit byte =
+    if byte < 0xa then Char.chr (byte + zero_code) (* 0 - 9 *)
+    else if byte >= 0xa && byte <= 0xf then (* a - f *)
+      Char.chr (a_code + (byte - 0xa))
+    else raise (Internal_error "Not a valid hex digit")
+  in
+  let get_hex_digit ndx =
+    let ndx2 = ndx / 2 in
+    let bytes = Char.code s.[ndx2] in
+      let byte = if ndx mod 2 = 0 then bytes lsr 4 else bytes mod 0x10 in
+      to_hex_digit byte
+  in
+  let hex_digits = String.init (2 * len) get_hex_digit in
+  "0x" ^ hex_digits
+
+(* given constructor, build JSON RPC call name *)
 let json_rpc_callname call =
   let full_name = show_ethereum_rpc_call call in
   let len = String.length full_name in
@@ -31,8 +73,6 @@ let json_rpc_callname call =
 
 let json_rpc_version = "2.0"
 
-let id_counter = ref 1
-
 let build_json_rpc_call call params =
   `Assoc
     [ ("jsonrpc", `String json_rpc_version)
@@ -46,27 +86,66 @@ let build_transfer_tokens_json transaction =
   let recipient =
     match transaction.operation with
     | Main_chain.TransferTokens recipient -> recipient
-    | _ -> raise (Internal_error "Expected TransferTokens transaction")
+    | _ -> raise (Internal_error "Expected TransferTokens operation")
   in
   let gas = tx_header.gas_limit in
   let gas_price = tx_header.gas_price in
   let value = tx_header.value in
   let params =
     `Assoc
-      [ ("from", `String (Address.to_hex_string sender))
-      ; ("to", `String (Address.to_hex_string recipient))
+      [ ("from", `String (hex_string_of_string (Address.to_string sender)))
+      ; ("to", `String (hex_string_of_string (Address.to_string recipient)))
       ; ("gas", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas)))
       ; ("gasPrice", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas_price)))
       ; ("value", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 value)))
-      ; ("data", `String "0x00")
-      (* TODO: fill in with hash of transaction *)
-       ]
+      ]
   in
   build_json_rpc_call Eth_sendTransaction [params]
 
-let build_create_contract_json transaction = bottom ()
+let build_create_contract_json transaction =
+  let tx_header = transaction.Main_chain.tx_header in
+  let sender = tx_header.sender in
+  let code =
+    match transaction.operation with
+    | Main_chain.CreateContract code -> hex_string_of_string (Bytes.to_string code)
+    | _ -> raise (Internal_error "Expected CreateContract operation")
+  in
+  let gas = tx_header.gas_limit in
+  let gas_price = tx_header.gas_price in
+  let value = tx_header.value in
+  let params =
+    `Assoc
+      [ ("from", `String (hex_string_of_string (Address.to_string sender)))
+      ; ("gas", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas)))
+      ; ("gasPrice", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas_price)))
+      ; ("value", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 value)))
+      ; ("data", `String code)
+      ]
+  in
+  build_json_rpc_call Eth_sendTransaction [params]
 
-let build_call_function_json transaction = bottom ()
+let build_call_function_json transaction =
+  let tx_header = transaction.Main_chain.tx_header in
+  let sender = tx_header.sender in
+  let contract_address,call_hash =
+    match transaction.operation with
+    | Main_chain.CallFunction (contract_address,call_hash) -> contract_address, call_hash
+    | _ -> raise (Internal_error "Expected CallFunction operation")
+  in
+  let gas = tx_header.gas_limit in
+  let gas_price = tx_header.gas_price in
+  let value = tx_header.value in
+  let params =
+    `Assoc
+      [ ("from", `String (hex_string_of_string (Address.to_string sender)))
+      ; ("to", `String (hex_string_of_string (Address.to_string contract_address)))
+      ; ("gas", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas)))
+      ; ("gasPrice", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas_price)))
+      ; ("value", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 value)))
+      ; ("data", `String (hex_string_of_string (Bytes.to_string call_hash))) (* TODO: maybe this is a Digest.t *)
+      ]
+  in
+  build_json_rpc_call Eth_sendTransaction [params]
 
 let build_transaction_json transaction =
   let open Main_chain in
@@ -90,21 +169,21 @@ let send_transaction_to_net transaction =
   send_rpc_call_to_net json
 
 let send_balance_request_to_net address =
-  let params = [`String (Address.to_hex_string address); `String "latest"] in
+  let params = [`String (hex_string_of_string (Address.to_string address)); `String "latest"] in
   let json = build_json_rpc_call Eth_getBalance params in
   send_rpc_call_to_net json
 
 (* for testing only; all test accounts have empty password *)
 let unlock_account address =
-  let params = [`String (Address.to_hex_string address); `String ""; `Int 5] in
+  let params = [`String (hex_string_of_string (Address.to_string address)); `String ""; `Int 5] in
   let json = build_json_rpc_call Personal_unlockAccount params in
   send_rpc_call_to_net json
 
 let%test "transfer-on-Ethereum-testnet" =
   let open Main_chain in
   (* accounts on test net *)
-  let sender_address = Address.of_hex_string "0x3989874273c833019654809fb9bab1a295cc815e" in
-  let recipient_address = Address.of_hex_string "0xf86c5854679a66b00077a4589e62d39e21abb395" in
+  let sender_address = Address.of_string (string_of_hex_string "0x3989874273c833019654809fb9bab1a295cc815e") in
+  let recipient_address = Address.of_string (string_of_hex_string "0xf86c5854679a66b00077a4589e62d39e21abb395") in
   let contains_error json =
     match Yojson.Basic.Util.member "error" json with `Null -> false | _ -> true
   in

@@ -149,13 +149,11 @@ module Address : sig
 
   val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
 
-  val of_hex_string : string -> t
-
   val compare : t -> t -> int
 
-  val to_string : t -> string
+  val of_string : string -> t
 
-  val to_hex_string : t -> string
+  val to_string : t -> string
 
   val equal : t -> t -> bool
 end = struct
@@ -173,56 +171,18 @@ end = struct
     let offset = buffer_len - address_size in
     Array.init address_size (fun ndx -> Array1.get buffer (offset + ndx))
 
-  (* Ethereum uses format 0x followed by 20 hex-digit pairs *)
-  let of_hex_string hs =
-    let expected_len = (address_size * 2) + 2 in
-    let len = String.length hs in
-    if len != expected_len then
-      raise
-        (Internal_error
-           (Printf.sprintf "Hex string representing address has length %d, expected %d" len
-              expected_len)) ;
-    if not (hs.[0] = '0' && hs.[1] = 'x') then
-      raise (Internal_error "Hex string representing address does not begin with 0x") ;
-    let zero_code = Char.code '0' in
-    let a_code = Char.code 'a' in
-    let big_a_code = Char.code 'A' in
-    let unhex_digit hd =
-      match hd with
-      | '0'..'9' -> Char.code hd - zero_code
-      | 'a'..'f' -> Char.code hd - a_code + 0xa
-      | 'A'..'F' -> Char.code hd - big_a_code + 0xa
-      | _ -> raise (Internal_error (Printf.sprintf "Invalid hex digit %c" hd))
-    in
-    Array.init address_size (fun ndx ->
-        let ndx2 = 2 + (2 * ndx) in
-        let hi_nybble = unhex_digit hs.[ndx2] in
-        let lo_nybble = unhex_digit hs.[ndx2 + 1] in
-        Char.chr ((hi_nybble lsl 4) + lo_nybble) )
-
   let compare address1 address2 = Pervasives.compare address1 address2
 
   let equal address1 address2 = compare address1 address2 = 0
 
+  let of_string s =
+    let len = String.length s in
+    if len != address_size then
+      raise (Internal_error (Printf.sprintf "String length is %d, expected %d" len address_size));
+    Array.init address_size (fun ndx -> s.[ndx])
+
   let to_string address = String.init address_size (Array.get address)
 
-  let to_hex_string (address: t) =
-    let zero_code = Char.code '0' in
-    let a_code = Char.code 'a' in
-    let to_hex_digit byte =
-      if byte < 0xa then Char.chr (byte + zero_code) (* 0 - 9 *)
-      else if byte >= 0xa && byte <= 0xf then (* a - f *)
-        Char.chr (a_code + (byte - 0xa))
-      else raise (Internal_error "Not a valid hex digit")
-    in
-    let get_hex_digit ndx =
-      let ndx2 = ndx / 2 in
-      let bytes = Char.code address.(ndx2) in
-      let byte = if ndx mod 2 = 0 then bytes lsr 4 else bytes mod 0x10 in
-      to_hex_digit byte
-    in
-    let hex_digits = String.init (2 * address_size) get_hex_digit in
-    "0x" ^ hex_digits
 end
 
 (** A pure mapping from 'a to 'b suitable for use in interactive merkle proofs
