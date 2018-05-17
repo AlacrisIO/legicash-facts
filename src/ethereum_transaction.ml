@@ -122,13 +122,13 @@ let build_create_contract_json transaction =
   in
   let gas = tx_header.gas_limit in
   let gas_price = tx_header.gas_price in
+  let contract_endowment = tx_header.value in
   let params =
     `Assoc
       [ ("from", `String (hex_string_of_string (Address.to_string sender)))
       ; ("gas", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas)))
       ; ("gasPrice", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas_price)))
-      ; ("value", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 TokenAmount.zero)))
-        (* ignored *)
+      ; ("value", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 contract_endowment)))
       ; ("data", `String code) ]
   in
   build_json_rpc_call Eth_sendTransaction [params]
@@ -201,6 +201,13 @@ let json_result_to_int json =
   int_of_string (Yojson.Basic.Util.to_string (Yojson.Basic.Util.member "result" json))
 
 
+let get_nonce =
+  let test_nonce = ref 0 in
+  fun () ->
+    let nonce = Main_chain.Nonce.of_int !test_nonce in
+    incr test_nonce ; nonce
+
+
 [%%test
 let "transfer-on-Ethereum-testnet" =
   let open Main_chain in
@@ -222,7 +229,7 @@ let "transfer-on-Ethereum-testnet" =
   assert (sender_start_balance >= transfer_amount) ;
   let tx_header =
     { sender= sender_address
-    ; nonce= Nonce.of_int 2
+    ; nonce= get_nonce ()
     ; gas_price= TokenAmount.of_int 2
     ; gas_limit= TokenAmount.of_int 1000000
     ; value= TokenAmount.of_int transfer_amount }
@@ -243,13 +250,12 @@ let "create-contract-on-Ethereum-testnet" =
   (* unlock accounts *)
   let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
   assert (not (json_contains_error unlock_sender_json)) ;
-  (* get opening balance *)
   let tx_header =
     { sender= sender_address
-    ; nonce= Nonce.of_int 42
+    ; nonce= get_nonce ()
     ; gas_price= TokenAmount.of_int 2
     ; gas_limit= TokenAmount.of_int 1000000
-    ; value= TokenAmount.zero (* TODO: should this be an option type? *) }
+    ; value= TokenAmount.of_int 42 }
   in
   (* a valid contract contains compiled EVM code
      for testing, we just use a buffer with arbitrary contents
@@ -273,7 +279,7 @@ let "call-contract-on-Ethereum-testnet" =
   (* get opening balance *)
   let tx_header =
     { sender= sender_address
-    ; nonce= Nonce.of_int 53
+    ; nonce= get_nonce ()
     ; gas_price= TokenAmount.of_int 2
     ; gas_limit= TokenAmount.of_int 1000000
     ; value= TokenAmount.zero }

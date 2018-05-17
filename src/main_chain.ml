@@ -22,7 +22,6 @@ type tx_header =
   ; gas_price: TokenAmount.t
   ; gas_limit: TokenAmount.t
   ; value: TokenAmount.t }
-  (* TODO: should this be an option? not used when creating a contract *)
   [@@deriving lens]
 
 type operation =
