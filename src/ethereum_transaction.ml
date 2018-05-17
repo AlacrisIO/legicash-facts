@@ -185,106 +185,109 @@ let send_balance_request_to_net address =
   send_rpc_call_to_net json
 
 
-(* for testing only; all test accounts have empty password *)
-let unlock_account address =
-  let params = [`String (hex_string_of_string (Address.to_string address)); `String ""; `Int 5] in
-  let json = build_json_rpc_call Personal_unlockAccount params in
-  send_rpc_call_to_net json
+module Test = struct
+  (* for testing only; all test accounts have empty password *)
+
+  let unlock_account address =
+    let params =
+      [`String (hex_string_of_string (Address.to_string address)); `String ""; `Int 5]
+    in
+    let json = build_json_rpc_call Personal_unlockAccount params in
+    send_rpc_call_to_net json
 
 
-(* test utilities *)
-let json_contains_error json =
-  match Yojson.Basic.Util.member "error" json with `Null -> false | _ -> true
+  let json_contains_error json =
+    match Yojson.Basic.Util.member "error" json with `Null -> false | _ -> true
 
 
-let json_result_to_int json =
-  int_of_string (Yojson.Basic.Util.to_string (Yojson.Basic.Util.member "result" json))
+  let json_result_to_int json =
+    int_of_string (Yojson.Basic.Util.to_string (Yojson.Basic.Util.member "result" json))
 
 
-let get_nonce =
-  let test_nonce = ref 0 in
-  fun () ->
-    let nonce = Main_chain.Nonce.of_int !test_nonce in
-    incr test_nonce ; nonce
+  let get_nonce =
+    let test_nonce = ref 0 in
+    fun () ->
+      let nonce = Main_chain.Nonce.of_int !test_nonce in
+      incr test_nonce ; nonce
 
 
-[%%test
-let "transfer-on-Ethereum-testnet" =
-  let open Main_chain in
-  (* accounts on test net *)
-  let sender_hex = "0x44e3a10528a0d5a41c86ee1bf39d60a6705911b9" in
-  let sender_address = Address.of_string (string_of_hex_string sender_hex) in
-  let recipient_hex = "0xa17a5c51b9d9938da47afade37f3cfab0fd5ce2d" in
-  let recipient_address = Address.of_string (string_of_hex_string recipient_hex) in
-  (* unlock accounts *)
-  let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
-  assert (not (json_contains_error unlock_sender_json)) ;
-  let unlock_recipient_json = Lwt_main.run (unlock_account recipient_address) in
-  assert (not (json_contains_error unlock_recipient_json)) ;
-  (* get opening balance *)
-  let transfer_amount = 22 in
-  let sender_start_balance_json = Lwt_main.run (send_balance_request_to_net sender_address) in
-  assert (not (json_contains_error sender_start_balance_json)) ;
-  let sender_start_balance = json_result_to_int sender_start_balance_json in
-  assert (sender_start_balance >= transfer_amount) ;
-  let tx_header =
-    { sender= sender_address
-    ; nonce= get_nonce ()
-    ; gas_price= TokenAmount.of_int 2
-    ; gas_limit= TokenAmount.of_int 1000000
-    ; value= TokenAmount.of_int transfer_amount }
-  in
-  let operation = Main_chain.TransferTokens recipient_address in
-  let transaction = {tx_header; operation} in
-  (* send tokens *)
-  let output = Lwt_main.run (send_transaction_to_net transaction) in
-  assert (not (json_contains_error output)) ;
-  true]
+  [%%test
+  let "transfer-on-Ethereum-testnet" =
+    let open Main_chain in
+    (* accounts on test net *)
+    let sender_hex = "0x44e3a10528a0d5a41c86ee1bf39d60a6705911b9" in
+    let sender_address = Address.of_string (string_of_hex_string sender_hex) in
+    let recipient_hex = "0xa17a5c51b9d9938da47afade37f3cfab0fd5ce2d" in
+    let recipient_address = Address.of_string (string_of_hex_string recipient_hex) in
+    (* unlock accounts *)
+    let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
+    assert (not (json_contains_error unlock_sender_json)) ;
+    let unlock_recipient_json = Lwt_main.run (unlock_account recipient_address) in
+    assert (not (json_contains_error unlock_recipient_json)) ;
+    (* get opening balance *)
+    let transfer_amount = 22 in
+    let sender_start_balance_json = Lwt_main.run (send_balance_request_to_net sender_address) in
+    assert (not (json_contains_error sender_start_balance_json)) ;
+    let sender_start_balance = json_result_to_int sender_start_balance_json in
+    assert (sender_start_balance >= transfer_amount) ;
+    let tx_header =
+      { sender= sender_address
+      ; nonce= get_nonce ()
+      ; gas_price= TokenAmount.of_int 2
+      ; gas_limit= TokenAmount.of_int 1000000
+      ; value= TokenAmount.of_int transfer_amount }
+    in
+    let operation = Main_chain.TransferTokens recipient_address in
+    let transaction = {tx_header; operation} in
+    (* send tokens *)
+    let output = Lwt_main.run (send_transaction_to_net transaction) in
+    assert (not (json_contains_error output)) ;
+    true]
 
-[%%test
-let "create-contract-on-Ethereum-testnet" =
-  let open Main_chain in
-  (* account on test net *)
-  let sender_hex = "0xa17a5c51b9d9938da47afade37f3cfab0fd5ce2d" in
-  let sender_address = Address.of_string (string_of_hex_string sender_hex) in
-  (* unlock accounts *)
-  let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
-  assert (not (json_contains_error unlock_sender_json)) ;
-  let tx_header =
-    { sender= sender_address
-    ; nonce= get_nonce ()
-    ; gas_price= TokenAmount.of_int 2
-    ; gas_limit= TokenAmount.of_int 1000000
-    ; value= TokenAmount.of_int 42 }
-  in
-  (* a valid contract contains compiled EVM code
+  [%%test
+  let "create-contract-on-Ethereum-testnet" =
+    let open Main_chain in
+    (* account on test net *)
+    let sender_hex = "0xa17a5c51b9d9938da47afade37f3cfab0fd5ce2d" in
+    let sender_address = Address.of_string (string_of_hex_string sender_hex) in
+    (* unlock accounts *)
+    let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
+    assert (not (json_contains_error unlock_sender_json)) ;
+    let tx_header =
+      { sender= sender_address
+      ; nonce= get_nonce ()
+      ; gas_price= TokenAmount.of_int 2
+      ; gas_limit= TokenAmount.of_int 1000000
+      ; value= TokenAmount.of_int 42 }
+    in
+    (* a valid contract contains compiled EVM code
      for testing, we just use a buffer with arbitrary contents
    *)
-  let operation = Main_chain.CreateContract (Bytes.create 128) in
-  let transaction = {tx_header; operation} in
-  (* create contract *)
-  let output = Lwt_main.run (send_transaction_to_net transaction) in
-  assert (not (json_contains_error output)) ;
-  true]
+    let operation = Main_chain.CreateContract (Bytes.create 128) in
+    let transaction = {tx_header; operation} in
+    (* create contract *)
+    let output = Lwt_main.run (send_transaction_to_net transaction) in
+    assert (not (json_contains_error output)) ;
+    true]
 
-[%%test
-let "call-contract-on-Ethereum-testnet" =
-  let open Main_chain in
-  (* account on test net *)
-  let sender_hex = "0x08cb396ebfd4c6ef9c5f3ca77f9bde354762655d" in
-  let sender_address = Address.of_string (string_of_hex_string sender_hex) in
-  (* unlock accounts *)
-  let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
-  assert (not (json_contains_error unlock_sender_json)) ;
-  (* get opening balance *)
-  let tx_header =
-    { sender= sender_address
-    ; nonce= get_nonce ()
-    ; gas_price= TokenAmount.of_int 2
-    ; gas_limit= TokenAmount.of_int 1000000
-    ; value= TokenAmount.zero }
-  in
-  (* for CallFunction:
+  [%%test
+  let "call-contract-on-Ethereum-testnet" =
+    let open Main_chain in
+    (* account on test net *)
+    let sender_hex = "0x08cb396ebfd4c6ef9c5f3ca77f9bde354762655d" in
+    let sender_address = Address.of_string (string_of_hex_string sender_hex) in
+    (* unlock accounts *)
+    let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
+    assert (not (json_contains_error unlock_sender_json)) ;
+    (* get opening balance *)
+    let tx_header =
+      { sender= sender_address
+      ; nonce= get_nonce ()
+      ; gas_price= TokenAmount.of_int 2
+      ; gas_limit= TokenAmount.of_int 1000000
+      ; value= TokenAmount.zero }
+    in
+    (* for CallFunction:
 
      address should be a valid contract address
      for testing, it's a dummy address
@@ -298,13 +301,14 @@ let "call-contract-on-Ethereum-testnet" =
 
      in this test, we just use a dummy hash to represent all of that
    *)
-  let hashed = Digest.make "some arbitrary string" in
-  let operation =
-    Main_chain.CallFunction
-      ( Address.of_string (string_of_hex_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8")
-      , Bytes.of_string (Digest.to_string hashed) )
-  in
-  let transaction = {tx_header; operation} in
-  let output = Lwt_main.run (send_transaction_to_net transaction) in
-  assert (not (json_contains_error output)) ;
-  true]
+    let hashed = Digest.make "some arbitrary string" in
+    let operation =
+      Main_chain.CallFunction
+        ( Address.of_string (string_of_hex_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8")
+        , Bytes.of_string (Digest.to_string hashed) )
+    in
+    let transaction = {tx_header; operation} in
+    let output = Lwt_main.run (send_transaction_to_net transaction) in
+    assert (not (json_contains_error output)) ;
+    true]
+end
