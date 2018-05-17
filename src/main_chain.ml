@@ -22,12 +22,13 @@ type tx_header =
   ; gas_price: TokenAmount.t
   ; gas_limit: TokenAmount.t
   ; value: TokenAmount.t }
+  (* TODO: should this be an option? not used when creating a contract *)
   [@@deriving lens]
 
 type operation =
   | TransferTokens of Address.t
   | CreateContract of Bytes.t
-  | CallFunction of Address.t * Bytes.t (* TODO: should we have string Digest.t for the encoded parameters? *)
+  | CallFunction of Address.t * Bytes.t
 
 (* contract, data *)
 
