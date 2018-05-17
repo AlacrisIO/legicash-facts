@@ -286,7 +286,7 @@ let "call-contract-on-Ethereum-testnet" =
      the bytes are a 4-byte prefix of the Keccak256 hash of the encoding of a method
      signature, followed by the encoding of the method parameters, as described at:
 
-       https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI
+       https://solidity.readthedocs.io/en/develop/abi-spec.html
 
      This data tells the EVM which method to call, with what arguments, in the contract
 
