@@ -4,10 +4,10 @@
 
 (library
  ((name legicash_lib)
-  (modules (legibase lib data256 keypair uInt64 ethereum_rlp ethereum_patricia_merkle
-  main_chain side_chain main_chain_action side_chain_action court_registry))
+  (modules (legibase lib data256 keypair uInt64 ethereum_rlp ethereum_patricia_merkle ethereum_transaction
+		     main_chain side_chain main_chain_action side_chain_action court_registry))
   (preprocess (pps (ppx_deriving.std ppx_inline_test ppx_deriving_lens)))
-  (libraries (cryptokit integers lens secp256k1))
+  (libraries (cryptokit integers lens secp256k1 cohttp lwt cohttp-lwt-unix yojson))
   (inline_tests)))
 
 ;; main executable
