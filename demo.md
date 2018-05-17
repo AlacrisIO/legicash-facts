@@ -6,96 +6,50 @@
 
 We identified the following flows in Legicash FaCTS.
 For the M1 demo, we can stub most of them,
-and here are those we believe are really essential:
+and here are the basic ones we believe are really essential:
 
-  1. Create an Account (Necessary)
-  2. Deposit Money (Necessary)
-  3. Payment Flow (It's the whole point)
-  4. Close Account (Necessary)
-  5. Withdraw money from closed account (Necessary)
-  6. Prove Fraud (must illustrate interactive proof)
+  1. Deposit Money (Necessary)
+  2. Payment (It's the whole point)
+  3. Withdraw money (Necessary)
+  4. Prove Fraud (Must illustrate interactive proof)
 
-These are necessary for the M2 Feature Complete release:
-  7. Adversarial Close Account
-  8. Cross-Facilitator Settlement Flow (necessary to scale multi-side-chains)
-  8. Exit Settlement Flow (necessary for practical use of facilitators)
-  9. Facilitator Invalidation Flow (necessary for security)
-  10. Involuntary Transfer Assignment Flow (necessary for security that scales and is fair)
-  11. Mass Transfers (necessary for security that scales)
+These are advanced flows necessary for the M2 Feature Complete release:
+  5. Forced transaction on main chain (necessary for repudiability, atomic transactions and layer 3 contracts)
+  6. Atomic Cross-chain Settlement Flow (necessary to scale multi-side-chains)
+  7. Failed or Closed Facilitator Recovery (necessary for security that scales and is fair)
+  8. Mass Transfers(?) (necessary for security that scales?)
+  9. Forced transaction on side chain (necessary for making repudiability scale)
+  10. Create Facilitator (very incomplete version for M1)
+  11. Update facilitator sidechain state + pay penalties (partial for M1)
+  12. Close facilitator (necessary for facilitators to get their money back)
+  13. All fraud proofs (not just a few for demo)
 
-Smaller flows necessary for M2:
-  9. Create Facilitator (very incomplete version for M1)
-  10. Update facilitator sidechain state + pay penalties (partial for M1)
-  11. Close facilitator (necessary for facilitators to get their money back)
-  12. Activate account (stub for M1?)
-  13. Denounce facilitator (both minor and major violations, no double jeopardy)
+## Basic Flows
 
-
-### Payment Flow
-
-Actors: Alice (sender), Bob (recipient), Trent (facilitator).
-
-Preconditions:
-* Alice has an account on Trent's side-chain. The account is voluntary, and has balance X.
-* Bob has an account on Trent's side-chain. The account is voluntary, and has balance Y.
-
-Alice wants to send amount Z to Bob.
-Trent charges a fee F that goes to his Fred account.
-Trent has a current limit of L.
-Z+F <= X.
-Z+F <= L.
-
-Alice will send to Bob a "certified check".
-
-1. Alice write a message M1, signed by her, that says:
-  "Trent, please pay Z to Bob and receivee your fee F.
-  My previous state with you was P.
-  This message is written at time T0 (identified by main chain state M, side-chain state S).
-  This message is valid until date T1. -- signed by Alice"
-
-2. Alice sends message M1 to Trent for underwriting.
-
-3. Trents verifies that M1 is correct, then signs a message M2 certifying M1:
-  "I, Trent, certify M1 as valid and promise to make good on it in my next update to the main chain.
-  Latest side-chain update was PS. My current TXID is T. My new limit for this cycle is NL."
-
-4. Trent commits M2 to his side-chain.
-
-5. Trent sends M2 to Alice (and Bob?)
-
-6. Alice sends M2 to Bob.
-
-7. Bob sends M2 to the Gossip Network, waits to check there is no double-spend by Trent.
-
-8. Bob accepts the payment, and starts servicing Alice.
-
-9. Trent updates the main chain and the payment is fully cleared.
-
-### Enter Settlement Flow / Account Creation
+### Deposit Money
 
 Actors: Alice (sender), Trent (facilitator)
 
 Preconditions:
 * Alice has an account on the main chain with balance X+F+R.
-* Trent has an account for Alice (voluntary or involuntary) with balance Y (or no account, and balance 0)
-* Trent already has an open contract on the main
+* Trent already has an open contract as a facilitator on the main chain.
+* Alice has an account on Trent's side-chain with balance Y (0 if never used before).
+* Trent has an account for Alice with balance Y.
 
 Postconditions:
 * Alice has an account on the main chain with balance R.
-* Alice has a voluntary account on Trent's side-chain with balance X+Y.
-* Trent receives fee F from Alice.
+* Alice has an account on Trent's side-chain with balance X+Y.
+* Trent received fee F from Alice.
 
-1. Alice sends a signed account (re)activation request to Trent.
-2. Trents signs the request, stores the confirmation, sends the confirmation to Alice.
-3. Alice sends X+F to Trent's contract on the main chain
-4. Alice waits for confirmation then sends deposit request to Trent
-4. Trent writes deposit confirmation M1...
-5. Trent commits M1 to side-chain
-6. Trent sends M1 to Alice (OKish if fails)
-7. Trent commits M1 to main chain
+1. Alice sends X+F to Trent's contract on the main chain.
+2. Alice waits for confirmation then sends deposit request to Trent.
+3. Trent writes deposit confirmation M1...
+4. Trent commits M1 to side-chain
+5. Trent sends M1 to Alice (OKish if fails)
+6. Trent commits M1 to main chain
 
 1 is enough for Alice to have her money back even if Trent fails.
-If 5 didn't happen, Alice still can get her money back, which
+If 3, 4, 5 or 6 didn't happen, Alice still can get her money back, which
 the adversarial exit thing must take into account.
 
 TODO: in a future version, use contracts on the side-chain,
@@ -104,37 +58,62 @@ with a contract that if Alice sends money to Trent2 on the main chain
 then Trent will credit Alice on his side-chain.
 
 
-### Cooperative Exit Flow
 
-Actors: Alice (recipient), Trent (facilitator)
+### Payment Flow
+
+Actors: Alice (sender), Bob (recipient), Trent (facilitator).
 
 Preconditions:
-* Alice has an account on Trent's side-chain with balance X.
-* Alice has an account on the main-chain with balance F or more.
-* Alice and Trent agree on an exit fee and cooperate.
+* Alice has an account on Trent's side-chain, with balance X=Y+F+R.
+* Bob has an account on Trent's side-chain, with balance Z.
+* F is larger than the fee required by Trent for the payment.
+* If the payment expedited, Trent's limit L is larger than Y.
 
 Postconditions:
-* Alice has an account on the main chain with balance X.
-* Alice has no account on Trent's side-chain (balance 0).
-* Alice pays up to F in court fees.
-* Trent pays up to G in court fees.
+* Alice has an account on Trent's side-chain, with balance R.
+* Bob has an account on Trent's side-chain, with balance Z+Y.
+* Trent received F as a fee.
+* If the payment expedited, Trent's limit L was decreased by Y.
 
-1. Alice writes, signs and sends Trent an exit request.
+1. Alice write a message M1, signed by her, that says:
+  "Trent, please pay Z to Bob and receivee your fee F.
+  My previous state with you was P.
+  This message is written at time T0 (identified by main chain state M, side-chain state S).
+  This message is valid until date T1. -- signed by Alice"
+2. Alice sends message M1 to Trent for underwriting.
+3. Trents verifies that M1 is correct, then signs a message M2 certifying M1:
+  "I, Trent, certify M1 as valid and promise to make good on it in my next update to the main chain.
+  Latest side-chain update was PS. My current TXID is T. My new limit for this cycle is NL."
+4. Trent commits M2 to his side-chain (including remote replicas)
+5. Trent sends M2 to Alice (and Bob?)
+6. Alice sends M2 to Bob.
+7. Bob sends M2 to the Gossip Network, waits to check there is no double-spend by Trent.
+8. Bob accepts the payment, and starts servicing Alice.
+9. Trent updates the main chain and the payment is fully cleared.
 
-2. Trent completes all transactions regarding Alice and signs a confirmation for the exit.
 
-3. Trent updates the main chain.
-   It is now common knowledge that there are no floating transactions for Alice,
-   and that Alice will be able to take money away.
+### Withdraw Money
 
-4. Alice waits for a challenge period during which Trent's chain may be proven fraudulent.
+Actors: Alice (sender), Trent (facilitator)
 
-5. Past the challenge period (and past any lawsuits that may settle Alice's rights),
-   Alice may take any remaining funds out of the account.
-   Alice may also take out any funds deposited for which Trent refused to write a deposit slip.
+Preconditions:
+* Trent already has an open contract as a facilitator on the main chain.
+* Alice has an account on Trent's side chain with balance X=Y+F+R.
+
+Postconditions:
+* Alice has an account on Trent's side chain with balance R.
+* Trent's contract sent Y to an address of Alice's choice.
+* Trent received fee F from Alice.
+
+1. Alice signs a check for withdrawal of Y on Trent's side-chain, with fee F.
+2. Trent signs a confirmation, commits it, then (optionally) sends it back to Alice.
+3. Alice waits for the confirmation to be confirmed on the main chain.
+4. Alice then submits on the main-chain a claim for withdrawal.
+5. Alice waits for a challenge period during which no one disputes her request.
+6. Alice then exerts her undisputed (or successfully defended) claim on the main chain.
 
 
-### Adversarial Exit Flow
+### Fraud Proof Flow
 
 Same as above, but first Alice may have to publish her request on the main chain
 to put Trent on notice that he must close Alice's account of be proven invalid.
@@ -149,6 +128,13 @@ to put Trent on notice that he must close Alice's account of be proven invalid.
 3. Interactive proof without mutable state, in predictable, finite number of steps.
 4. Sanction.
 
+The sanction can punish Trent for mismanaging his side-chain,
+can punish Alice for making a spurious claim.
+
+
+## Advanced Flows
+
+TODO: update these flows.
 
 ### Cross-Facilitator Settlement Flow
 
