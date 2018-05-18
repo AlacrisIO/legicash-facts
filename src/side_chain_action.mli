@@ -7,31 +7,13 @@ val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
 
 val issue_user_request : (operation, request signed) user_action
 
-(* Flow 1: Opening an account *)
-
-val open_account : (Address.t, request signed) user_action
-
-(** Flow 1 Step 1: ensure an account is open.
-    Idempotent.
-    (current type assumes a single facilitator per user)
- *)
-
-val close_account : (Address.t, request signed) user_action
-
-(** Ensure an account is closed.
-    Idempotent.
-    (current type assumes a single facilitator per user)
- *)
-
 val confirm_request : (request signed, confirmation signed) facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
-val deposit :
-  ((Address.t * TokenAmount.t), request signed) user_action
+val deposit : (Address.t * TokenAmount.t, request signed) user_action
 (** Flow 1 Step 3: user sends money on the main chain *)
 
-val request_deposit :
-  (TokenAmount.t * Main_chain.confirmation, request signed) user_action
+val request_deposit : (TokenAmount.t * Main_chain.confirmation, request signed) user_action
 (** deposit request *)
 
 (* Flow 1 Step 4: user pays entry fee on the side chain *)
@@ -74,8 +56,7 @@ val send_message : 'a -> conversation -> unit legi_result
     TODO: To be implemented but not exposed
  *)
 
-val send_user_request :
-  user_state -> request signed -> conversation -> unit legi_result
+val send_user_request : user_state -> request signed -> conversation -> unit legi_result
 
 val send_facilitator_confirmation :
   facilitator_state -> confirmation signed -> conversation -> unit legi_result
@@ -85,8 +66,7 @@ val commit_facilitator_state : (unit, unit) facilitator_action
 
 (* Flow 3: Individual Adversarial Exit *)
 
-val initiate_individual_exit :
-  (unit, Main_chain.transaction_signed) user_action
+val initiate_individual_exit : (unit, Main_chain.transaction_signed) user_action
 (** Flow 3 Step 1: Alice posts an account_activity_status request for closing the account
  on the *main chain*.
  *)
@@ -100,8 +80,7 @@ val check_main_chain_for_exits : (unit, request list) facilitator_action
     Alternatively, Trent fails, and bankruptcy proceedings start — see Flow 6, 7 and 8.
  *)
 
-val request_account_liquidation :
-  (invoice, Main_chain.transaction_signed) user_action
+val request_account_liquidation : (invoice, Main_chain.transaction_signed) user_action
 (** Flow 3 Step 3: Alice, who can see the final state of her account,
     posts on the main chain a demand for the final funds.
     This is signed then posted on the *main chain* by invoking the contract.
@@ -109,8 +88,7 @@ val request_account_liquidation :
     and post a lawsuit within a timeout window.
  *)
 
-val collect_account_liquidation_funds :
-  (unit, Main_chain.transaction_signed) user_action
+val collect_account_liquidation_funds : (unit, Main_chain.transaction_signed) user_action
 (** Flow 3 Step 4: Trent signs and posts a confirmation on his side-chain.
  *)
 (* Flow 3 Step 5: After no one speaks up during a challenge period,

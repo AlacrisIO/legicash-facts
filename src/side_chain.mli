@@ -62,20 +62,13 @@ type deposit_details =
   [@@deriving lens]
 
 type withdrawal_details =
-  { withdrawal_amount: TokenAmount.t
-  ; withdrawal_fee: TokenAmount.t
-  ; main_chain_withdrawal_signed:
-      Main_chain.transaction_signed
-      (* TODO: not a transaction, but an ethereum Log event created by the contract's withdrawal method *)
-  ; main_chain_withdrawal_confirmation: Main_chain.confirmation }
+  {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
   [@@deriving lens]
 
 (** an operation on a facilitator side-chain *)
 type operation =
-  | Open_account of public_key
   | Deposit of deposit_details
   | Payment of payment_details
-  | Close_account
   | Withdrawal of withdrawal_details
 (*
 | Settlement of settlement_details
@@ -139,9 +132,7 @@ and confirmation = {tx_header: tx_header; signed_request: request signed} [@@der
 (* TODO: actually maintain the user_revision;
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
 (** public state of the account of a user with a facilitator as visible in the public side-chain *)
-and account_state =
-  {active: bool; balance: TokenAmount.t; account_revision: Revision.t}
-  [@@deriving lens]
+and account_state = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
     *)
@@ -154,7 +145,6 @@ and state =
       (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
   ; bond_posted: TokenAmount.t
   ; accounts: account_state AddressMap.t
-  ; user_keys: public_key AddressMap.t
   ; operations:
       confirmation AddressMap.t
       (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
@@ -235,6 +225,7 @@ type ('input, 'output) verifier_action = ('input, 'output, verifier_state) actio
     *)
 type facilitator_fee_schedule =
   { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
+  ; withdrawal_fee: TokenAmount.t (* fee to accept a withdrawal *)
   ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
   ; fee_per_billion: TokenAmount.t
   (* function TokenAmount.t -> TokenAmount.t ? *) }

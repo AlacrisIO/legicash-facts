@@ -248,3 +248,33 @@ that would result in breaking his promises
 The verification software will also help punish offenders
 by playing the verification game following an optimal strategy for each party:
 user, facilitator, other facilitator, and independent verifier.
+
+
+
+### Advice from Atalay
+
+Do not encode in the type an invariant that an adversary can break.
+Keep correctness properties separate.
+
+Have a concrete model of the adversaries.
+
+Use Coq as early as possible for the model.
+
+For pipelining, use some concurrent combinator monad.
+But: prove equivalence to a sequential program.
+
+Instead of implementing module per module, make progress in parallel, and
+iterate to ensure compatibility between logic encodings.
+
+Use Gallina as much as possible to let Coq do the work,
+but use an embedded logic where necessary for extraction to game semantics.
+
+Abstract Data Types for Coq:
+(see modules in https://github.com/mit-pdos/fscq/blob/master/src/Balloc.v).
+Basically reconstitute the inductive type as abstract things that Coq won't expand via reduction
+which sometimes simplifies evaluation, but makes the code explode.
+
+Read Chlipala's FRAP (introductory) and CPDT.
+
+Look F* and SMT solvers instead of Coq (?)
+

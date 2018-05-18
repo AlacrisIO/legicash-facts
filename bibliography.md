@@ -59,7 +59,8 @@
 
 * Contracts in EVM:
   [opcodes](https://ethereum.stackexchange.com/questions/119/what-opcodes-are-available-for-the-ethereum-evm),
-  [old Ethereum block hashes](https://github.com/amiller/ethereum-blockhashes).
+  [old Ethereum block hashes](https://github.com/amiller/ethereum-blockhashes),
+  [Security Audit by QuantStamp](https://quantstamp.com/start)
 
 * Compiling to the EVM:
   [Pirapira's Bamboo](https://github.com/pirapira/bamboo).
@@ -67,9 +68,11 @@
 * Formalization for smart contracts:
   [Scilla-coq](https://github.com/ilyasergey/scilla-coq)
   (see paper [Scilla: a Smart Contract Intermediate-Level LAnguage](http://ilyasergey.net/papers/scilla-overview.pdf)),
-  [TezosCoq](https://github.com/tezos/tezoscoq).
+  [TezosCoq](https://github.com/tezos/tezoscoq),
+  [Ergo](https://ergo.readthedocs.io/en/latest/Overview.html).
 
 * Atomic swaps:
   [Ethereum atomic swaps with Bitcoin and most other coins, about to hit release](https://www.reddit.com/r/ethereum/comments/865e0l/ethereum_atomic_swaps_with_bitcoin_and_most_other/),
   [AltCoin](https://github.com/AltCoinExchange/ethatomicswap/),
-  [RepublicProtocol](https://github.com/republicprotocol/eth-atomic-swap).
+  [RepublicProtocol](https://github.com/republicprotocol/eth-atomic-swap),
+  [Komodo BarterDEX](https://komodoplatform.com/decentralized-exchange/)

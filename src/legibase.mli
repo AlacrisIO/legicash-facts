@@ -63,6 +63,18 @@ exception Assertion_failed
 val action_assert : ('a, bool, 'state) pure_action -> ('a, 'a, 'state) action
 (** given a pure_action returning a bool, make an action that asserts the bool is true *)
 
+module Address : sig
+  type t
+
+  val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
+
+  val of_string : string -> t
+
+  val to_string : t -> string
+
+  val equal : t -> t -> bool
+end
+
 type public_key = Secp256k1.Key.public Secp256k1.Key.t
 
 (** private counterpart to public key *)
@@ -71,7 +83,7 @@ type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 (** a signature for an object of type 'a *)
 type 'a signature
 
-val is_signature_valid : public_key -> 'a signature -> 'a -> bool
+val is_signature_valid : Address.t -> 'a signature -> 'a -> bool
 
 val make_signature : private_key -> 'a -> 'a signature
 
@@ -119,18 +131,6 @@ module Duration : Unsigned.S
     Maybe make the state of communication static, with a session type?
  *)
 type conversation
-
-module Address : sig
-  type t
-
-  val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
-
-  val of_string : string -> t
-
-  val to_string : t -> string
-
-  val equal : t -> t -> bool
-end
 
 module type MapS = sig
   include Map.S
