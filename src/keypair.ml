@@ -51,10 +51,6 @@ let make_keys private_key_string public_key_string =
   {private_key; public_key; address}
 
 
-let address_matches_public_key address public_key =
-  Address.equal address (Address.of_public_key public_key)
-
-
 let make_keys_from_hex private_key_hex public_key_hex =
   make_keys (parse_hex private_key_hex) (parse_hex public_key_hex)
 
@@ -102,19 +98,19 @@ module Test = struct
   let "alice_signature" =
     let alice_data = "some arbitrary string for Alice to sign" in
     let alice_signature = Legibase.make_signature alice_keys.private_key alice_data in
-    Legibase.is_signature_valid alice_keys.public_key alice_signature alice_data]
+    Legibase.is_signature_valid alice_keys.address alice_signature alice_data]
 
   [%%test
   let "bob_signature" =
     let bob_data = "some arbitrary string for Bob to sign" in
     let bob_signature = Legibase.make_signature bob_keys.private_key bob_data in
-    Legibase.is_signature_valid bob_keys.public_key bob_signature bob_data]
+    Legibase.is_signature_valid bob_keys.address bob_signature bob_data]
 
   [%%test
   let "trent_signature" =
     let trent_data = "some arbitrary string for Trent to sign" in
     let trent_signature = Legibase.make_signature trent_keys.private_key trent_data in
-    Legibase.is_signature_valid trent_keys.public_key trent_signature trent_data]
+    Legibase.is_signature_valid trent_keys.address trent_signature trent_data]
 
   (* test that Cryptokit's Keccak256 hash is same as Ethereum's
 

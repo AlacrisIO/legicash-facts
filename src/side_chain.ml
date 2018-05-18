@@ -24,18 +24,13 @@ type deposit_details =
   [@@deriving lens]
 
 type withdrawal_details =
-  { withdrawal_amount: TokenAmount.t
-  ; withdrawal_fee: TokenAmount.t
-  ; main_chain_withdrawal_signed: Main_chain.transaction_signed
-  ; main_chain_withdrawal_confirmation: Main_chain.confirmation }
+  {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
   [@@deriving lens]
 
 (** an operation on a facilitator side-chain *)
 type operation =
-  | Open_account of public_key
   | Deposit of deposit_details
   | Payment of payment_details
-  | Close_account
   | Withdrawal of withdrawal_details
 
 type rx_header =
@@ -55,9 +50,7 @@ and tx_header = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriv
 
 and confirmation = {tx_header: tx_header; signed_request: request signed} [@@deriving lens]
 
-and account_state =
-  {active: bool; balance: TokenAmount.t; account_revision: Revision.t}
-  [@@deriving lens]
+and account_state = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
 
 and state =
   { previous_main_chain_state: Main_chain.state digest
@@ -66,7 +59,6 @@ and state =
   ; spending_limit: TokenAmount.t
   ; bond_posted: TokenAmount.t
   ; accounts: account_state AddressMap.t
-  ; user_keys: public_key AddressMap.t
   ; operations: confirmation AddressMap.t
   ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
   [@@deriving lens]
@@ -96,7 +88,10 @@ type verifier_state
 type ('input, 'output) verifier_action = ('input, 'output, verifier_state) action
 
 type facilitator_fee_schedule =
-  {deposit_fee: TokenAmount.t; per_account_limit: TokenAmount.t; fee_per_billion: TokenAmount.t}
+  { deposit_fee: TokenAmount.t
+  ; withdrawal_fee: TokenAmount.t
+  ; per_account_limit: TokenAmount.t
+  ; fee_per_billion: TokenAmount.t }
   [@@deriving lens]
 
 type facilitator_state =

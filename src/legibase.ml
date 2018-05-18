@@ -68,89 +68,10 @@ let compose_pure_actions c_of_b b_of_a (s, a) = c_of_b (s, b_of_a (s, a))
 
 let pure_action_seq b_of_a c_of_b (s, a) = compose_pure_actions c_of_b b_of_a (s, a)
 
-(** unique identifier for all parties, that is, customers and facilitators *)
-type public_key = Secp256k1.Key.public Secp256k1.Key.t
-
-(** private key in public-key cryptography *)
-type private_key = Secp256k1.Key.secret Secp256k1.Key.t
-
-(*module Int256 : Int with type t = Z.t : sig
-end*)
-
-type 'a signature = Secp256k1.Sign.plain Secp256k1.Sign.t
-
-type 'a signed = {payload: 'a; signature: 'a signature}
-
-(* convert OCaml string to Secp256k1 msg format
-   for strings representing hashes, the msg format is suitable for signing
- *)
-let string_to_secp256k1_msg s =
-  let open Bigarray in
-  let sz = String.length s in
-  let buffer = Array1.create char c_layout sz in
-  let _ = for i = 0 to sz - 1 do Bigarray.Array1.set buffer i s.[i] done in
-  match Secp256k1.Sign.msg_of_bytes buffer with
-  | Some msg -> msg
-  | None -> raise (Internal_error "Could not create SECP256K1.Sign.msg from string")
-
-
-(* convert arbitrary OCaml value to a Secp256k1 msg representing a hash *)
-let data_to_secp256k1_hashed data =
-  (* data is of arbitrary type, marshal to string *)
-  let data_string = Marshal.to_string data [Marshal.Compat_32] in
-  let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) in
-  let hashed = hash data_string in
-  string_to_secp256k1_msg hashed
-
-
 (* create context just once, because expensive operation; assumes
    single instantiation of this module
  *)
 let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
-
-(* digital signature is encrypted hash *)
-let make_signature private_key data =
-  (* change representation of data to use Secp256k1 signing *)
-  let secp256k1_hashed = data_to_secp256k1_hashed data in
-  match Secp256k1.Sign.sign secp256k1_ctx private_key secp256k1_hashed with
-  | Ok signature -> signature
-  | Error s -> raise (Internal_error s)
-
-
-let is_signature_valid (public_key: public_key) (signature: 'a signature) data =
-  let hashed = data_to_secp256k1_hashed data in
-  match Secp256k1.Sign.verify secp256k1_ctx ~pk:public_key ~msg:hashed ~signature with
-  | Ok b -> b
-  | Error s -> raise (Internal_error s)
-
-
-let sign private_key data = {payload= data; signature= make_signature private_key data}
-
-module Digest = struct
-  include Data256
-
-  let make v =
-    let data_string = Marshal.to_string v [Marshal.Compat_32] in
-    let hash = Cryptokit.Hash.keccak 256 in
-    of_string (Cryptokit.hash_string hash data_string)
-end
-
-type 'a digest = Digest.t
-
-(** Special magic digest for None. A bit ugly. *)
-let null_digest = Digest.zero
-
-module DigestSet = struct
-  include Set.Make (Digest)
-
-  let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
-end
-
-module Revision = Unsigned.UInt64
-module Duration = Unsigned.UInt64
-module Timestamp = Unsigned.UInt64
-
-type conversation
 
 module Address : sig
   type t
@@ -193,6 +114,89 @@ end = struct
 
   let to_string address = String.init address_size (Array.get address)
 end
+
+(** unique identifier for all parties, that is, customers and facilitators *)
+type public_key = Secp256k1.Key.public Secp256k1.Key.t
+
+(** private key in public-key cryptography *)
+type private_key = Secp256k1.Key.secret Secp256k1.Key.t
+
+(*module Int256 : Int with type t = Z.t : sig
+end*)
+
+type 'a signature = Secp256k1.Sign.recoverable Secp256k1.Sign.t
+
+type 'a signed = {payload: 'a; signature: 'a signature}
+
+(* convert OCaml string to Secp256k1 msg format
+   for strings representing hashes, the msg format is suitable for signing
+ *)
+let string_to_secp256k1_msg s =
+  let open Bigarray in
+  let sz = String.length s in
+  let buffer = Array1.create char c_layout sz in
+  let _ = for i = 0 to sz - 1 do Bigarray.Array1.set buffer i s.[i] done in
+  match Secp256k1.Sign.msg_of_bytes buffer with
+  | Some msg -> msg
+  | None -> raise (Internal_error "Could not create SECP256K1.Sign.msg from string")
+
+
+(* convert arbitrary OCaml value to a Secp256k1 msg representing a hash *)
+let data_to_secp256k1_hashed data =
+  (* data is of arbitrary type, marshal to string *)
+  let data_string = Marshal.to_string data [Marshal.Compat_32] in
+  let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) in
+  let hashed = hash data_string in
+  string_to_secp256k1_msg hashed
+
+
+(* digital signature is encrypted hash *)
+let make_signature private_key data =
+  (* change representation of data to use Secp256k1 signing *)
+  let secp256k1_hashed = data_to_secp256k1_hashed data in
+  match Secp256k1.Sign.sign_recoverable secp256k1_ctx private_key secp256k1_hashed with
+  | Ok signature -> signature
+  | Error s -> raise (Internal_error s)
+
+
+let address_matches_public_key address public_key =
+  Address.equal address (Address.of_public_key public_key)
+
+
+let is_signature_valid (address: Address.t) (signature: Secp256k1.Sign.recoverable signature) data =
+  let hashed = data_to_secp256k1_hashed data in
+  match Secp256k1.Sign.recover secp256k1_ctx ~msg:hashed ~signature with
+  | Ok public_key -> address_matches_public_key address public_key
+  | Error _ -> false
+
+
+let sign private_key data = {payload= data; signature= make_signature private_key data}
+
+module Digest = struct
+  include Data256
+
+  let make v =
+    let data_string = Marshal.to_string v [Marshal.Compat_32] in
+    let hash = Cryptokit.Hash.keccak 256 in
+    of_string (Cryptokit.hash_string hash data_string)
+end
+
+type 'a digest = Digest.t
+
+(** Special magic digest for None. A bit ugly. *)
+let null_digest = Digest.zero
+
+module DigestSet = struct
+  include Set.Make (Digest)
+
+  let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
+end
+
+module Revision = Unsigned.UInt64
+module Duration = Unsigned.UInt64
+module Timestamp = Unsigned.UInt64
+
+type conversation
 
 (** A pure mapping from 'a to 'b suitable for use in interactive merkle proofs
     Let's cheat for now.

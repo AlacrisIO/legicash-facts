@@ -6,12 +6,8 @@ open Side_chain
 open Main_chain_action
 open Lens.Infix
 
-let is_signature_matching address public_key signature payload =
-  address_matches_public_key address public_key && is_signature_valid public_key signature payload
-
-
 (** Default (empty) state for a new facilitator *)
-let new_account_state = {active= false; balance= TokenAmount.zero; account_revision= Revision.zero}
+let new_account_state = {balance= TokenAmount.zero; account_revision= Revision.zero}
 
 (** User's view of the default (empty) state for a new facilitator *)
 let new_user_account_state_per_facilitator =
@@ -20,31 +16,23 @@ let new_user_account_state_per_facilitator =
 
 type account_lens = (facilitator_state, account_state) Lens.t
 
+let facilitator_account_lens address =
+  facilitator_state_current |-- state_accounts
+  |-- defaulting_lens (konstant new_account_state) (AddressMap.lens address)
+
+
 (** Given a signed request, handle the special case of opening an account, and return
     the request, the account state (new or old), the lens to set the account back at the end, and
     the user's public key *)
 
 let ensure_user_account
     : ( request signed
-      , request signed * account_state * account_lens * public_key )
+      , request signed * account_state * account_lens * Address.t )
       facilitator_action = function
-  | ( ({current= {accounts; user_keys}} as state)
-    , ({payload= {rx_header= {requester}; operation}} as rx) ) ->
-      let account_lens =
-        facilitator_state_current |-- state_accounts
-        |-- defaulting_lens (konstant new_account_state) (AddressMap.lens requester)
-      in
+  | ({current= {accounts}} as state), ({payload= {rx_header= {requester}; operation}} as rx) ->
+      let account_lens = facilitator_account_lens requester in
       let account_state = account_lens.get state in
-      let use_key x = Ok (rx, account_state, account_lens, x) in
-      match (AddressMap.find_opt requester accounts, operation) with
-      | None, Open_account user_key ->
-          ( (facilitator_state_current |-- state_user_keys |-- AddressMap.lens requester).set
-              user_key state
-          , use_key user_key )
-      | None, _ -> (state, Error Assertion_failed)
-      | Some _, Open_account _ -> (state, Error Already_open)
-      | Some _, Withdrawal _ -> (state, use_key state.keypair.public_key)
-      | Some _, _ -> (state, use_key (AddressMap.find requester state.current.user_keys))
+      (state, Ok (rx, account_state, account_lens, requester))
 
 
 (** Is the request well-formed?
@@ -53,7 +41,7 @@ let ensure_user_account
     Thus, we can later parallelize this check.
  *)
 let is_side_chain_request_well_formed
-    : facilitator_state * (request signed * account_state * account_lens * public_key) -> bool =
+    : facilitator_state * (request signed * account_state * account_lens * Address.t) -> bool =
   function
   | ( ({current= {accounts}} as state)
     , ( { payload=
@@ -68,17 +56,15 @@ let is_side_chain_request_well_formed
                 ; validity_within }
             ; operation } as payload
         ; signature }
-      , {active; balance; account_revision}
+      , {balance; account_revision}
       , _
-      , signing_key ) ) ->
-      (active = match operation with Open_account _ -> false | Withdrawal _ -> false | _ -> true)
-      && requester_revision = Revision.add account_revision Revision.one
+      , signing_address ) ) ->
+      requester_revision = Revision.add account_revision Revision.one
       (* TODO: check confirmed main & side chain state + validity window *)
-      && is_signature_matching requester signing_key signature payload
+      && is_signature_valid requester signature payload
       (* Check that the numbers add up: *)
       &&
       match operation with
-      | Open_account _ -> true
       | Deposit
           { deposit_amount
           ; deposit_fee
@@ -93,7 +79,7 @@ let is_side_chain_request_well_formed
              | Main_chain.TransferTokens recipient -> recipient = state.keypair.address
              | _ -> false )
           (* TODO: delegate the same signature checking protocol to the main chain *)
-          && is_signature_valid signing_key signature payload
+          && is_signature_valid requester signature payload
           && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
                main_chain_deposit_signed
           && TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee >= 0
@@ -102,29 +88,13 @@ let is_side_chain_request_well_formed
           (* TODO: make per_account_limit work on the entire floating thing *)
           && TokenAmount.compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
           (* TODO: make sure the fee multiplication cannot overflow! *)
-          && TokenAmount.compare
+          && TokenAmount.compare payment_fee
                (TokenAmount.mul state.fee_schedule.fee_per_billion
                   (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
-               payment_fee
              >= 0
-          && ( facilitator_state_current |-- state_accounts
-             |-- AddressMap.lens payment_invoice.recipient |-- account_state_active )
-               .get state
-      | Close_account -> true
-      | Withdrawal
-          { withdrawal_amount
-          ; withdrawal_fee
-          ; main_chain_withdrawal_signed=
-              {signature; payload= {tx_header= {sender; value}; operation= main_chain_operation}}
-              as main_chain_withdrawal_signed
-          ; main_chain_withdrawal_confirmation } ->
-          TokenAmount.compare value (TokenAmount.add withdrawal_amount withdrawal_fee) <= 0
-          && ( match main_chain_operation with
-             | Main_chain.TransferTokens _ -> sender = state.keypair.address
-             | _ -> false )
-          (* TODO: delegate the same signature checking protocol to the main chain *)
-          && Main_chain.is_confirmation_valid main_chain_withdrawal_confirmation
-               main_chain_withdrawal_signed
+      | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+          TokenAmount.compare balance (TokenAmount.add withdrawal_amount withdrawal_fee) >= 0
+          && TokenAmount.compare withdrawal_fee state.fee_schedule.withdrawal_fee >= 0
 
 
 (** Check that the request is basically well-formed, or else fail *)
@@ -177,12 +147,11 @@ let check_against_double_accounting main_chain_transaction_signed (state, x) =
 
 (** compute the effects of a request on the account state *)
 let effect_request
-    : ( request signed * account_state * account_lens * public_key
+    : ( request signed * account_state * account_lens * Address.t
       , request signed * account_state * account_lens )
       facilitator_action = function
   | state, (({payload= {rx_header; operation}} as rx), account_state, account_lens, user_key) ->
     match operation with
-    | Open_account user_key -> (state, Ok (rx, {account_state with active= true}, account_lens))
     | Deposit
         { deposit_amount
         ; deposit_fee
@@ -197,8 +166,7 @@ let effect_request
         ^>> maybe_spend_spending_limit deposit_expedited deposit_amount
     | Payment {payment_invoice; payment_fee; payment_expedited} ->
         ( Lens.modify
-            ( facilitator_state_current |-- state_accounts
-            |-- AddressMap.lens payment_invoice.recipient |-- account_state_balance )
+            (facilitator_account_lens payment_invoice.recipient |-- account_state_balance)
             (TokenAmount.add payment_invoice.amount)
             state
         , ( rx
@@ -208,21 +176,14 @@ let effect_request
                   (TokenAmount.add payment_invoice.amount payment_fee) }
           , account_lens ) )
         ^|> maybe_spend_spending_limit payment_expedited payment_invoice.amount
-    | Close_account ->
-        ( (account_lens |-- account_state_active).set false state
-        , Ok (rx, account_state, account_lens) )
-    | Withdrawal
-        { withdrawal_amount
-        ; withdrawal_fee
-        ; main_chain_withdrawal_signed
-        ; main_chain_withdrawal_confirmation } ->
+    | Withdrawal {withdrawal_amount; withdrawal_fee} ->
         ( state
-        , ( rx
-          , Lens.modify account_state_balance
-              (TokenAmount.sub (TokenAmount.add withdrawal_amount withdrawal_fee))
-              account_state
-          , account_lens ) )
-        ^|> check_against_double_accounting main_chain_withdrawal_signed
+        , Ok
+            ( rx
+            , Lens.modify account_state_balance
+                (TokenAmount.sub (TokenAmount.add withdrawal_amount withdrawal_fee))
+                account_state
+            , account_lens ) )
 
 
 (** TODO:
@@ -247,7 +208,6 @@ let genesis_side_chain_state =
   ; spending_limit= TokenAmount.zero
   ; bond_posted= TokenAmount.zero
   ; accounts= AddressMap.empty
-  ; user_keys= AddressMap.empty
   ; operations= AddressMap.empty
   ; main_chain_transactions_posted= DigestSet.empty }
 
@@ -327,13 +287,11 @@ let issue_user_request =
     deposits confirmation will check out,
     active revision will only increase, etc.
  *)
-let update_account_state_with_trusted_operation trusted_operation
-    ({active; balance} as account_state) =
+let update_account_state_with_trusted_operation trusted_operation ({balance} as account_state) =
   let f =
     {account_state with account_revision= Revision.add account_state.account_revision Revision.one}
   in
   match trusted_operation with
-  | Open_account _ -> {f with active= true}
   | Deposit {deposit_amount; deposit_fee} ->
       if true (* check that everything is correct *) then
         {f with balance= TokenAmount.add balance deposit_amount}
@@ -343,12 +301,7 @@ let update_account_state_with_trusted_operation trusted_operation
       if TokenAmount.compare balance decrement >= 0 then
         {f with balance= TokenAmount.sub balance decrement}
       else raise (Internal_error "I mistrusted your payment operation")
-  | Close_account -> {f with active= false}
-  | Withdrawal
-      { withdrawal_amount
-      ; withdrawal_fee
-      ; main_chain_withdrawal_signed
-      ; main_chain_withdrawal_confirmation } ->
+  | Withdrawal {withdrawal_amount; withdrawal_fee} ->
       if true (* check that everything is correct *) then
         {f with balance= TokenAmount.sub balance (TokenAmount.add withdrawal_amount withdrawal_fee)}
       else raise (Internal_error "I mistrusted your withdrawal operation")
@@ -372,69 +325,38 @@ let optimistic_facilitator_account_state (user_state, facilitator_address) =
           confirmed_state
 
 
-let user_activity_status_for_facilitator (user_state, facilitator_address) =
-  (optimistic_facilitator_account_state (user_state, facilitator_address)).active
-
-
-let is_account_open (user_state, facilitator_address) =
-  user_activity_status_for_facilitator (user_state, facilitator_address)
-
-
-(**
-  TODO: exception if facilitator dishonest.
- *)
-let open_account (user_state, facilitator_address) =
-  let activity_status = user_activity_status_for_facilitator (user_state, facilitator_address) in
-  if activity_status then (user_state, Error Already_open)
-  else
-    issue_user_request
-      (user_state, Open_account user_state.main_chain_user_state.keypair.public_key)
-
-
-let close_account (user_state, facilitator_address) =
-  let activity_status = user_activity_status_for_facilitator (user_state, facilitator_address) in
-  if activity_status then issue_user_request (user_state, Close_account)
-  else (user_state, Error Already_closed)
-
-
 let lift_main_chain_user_action_to_side_chain action (user_state, input) =
   let new_state, result = action (user_state.main_chain_user_state, input) in
   ({user_state with main_chain_user_state= new_state}, result)
 
 
 let deposit ((user_state, (facilitator_address, deposit_amount)) as input) =
-  let activity_status = user_activity_status_for_facilitator (user_state, facilitator_address) in
-  if activity_status then
-    input
-    |> lift_main_chain_user_action_to_side_chain transfer_tokens
-       ^>> fun ((user_state1, main_chain_deposit_signed) as transaction) ->
-       transaction
-       |> lift_main_chain_user_action_to_side_chain Main_chain_action.wait_for_confirmation
-          ^>> fun (user_state2, main_chain_deposit_confirmation) ->
-          issue_user_request
-            ( user_state2
-            , Deposit
-                { deposit_amount
-                ; deposit_fee= TokenAmount.of_int 5 (* TODO: make config item *)
-                ; main_chain_deposit_signed
-                ; main_chain_deposit_confirmation
-                ; deposit_expedited= false } )
-  else (user_state, Error Account_closed_or_nonexistent)
+  input
+  |> lift_main_chain_user_action_to_side_chain transfer_tokens
+     ^>> fun ((user_state1, main_chain_deposit_signed) as transaction) ->
+     transaction
+     |> lift_main_chain_user_action_to_side_chain Main_chain_action.wait_for_confirmation
+        ^>> fun (user_state2, main_chain_deposit_confirmation) ->
+        issue_user_request
+          ( user_state2
+          , Deposit
+              { deposit_amount
+              ; deposit_fee= TokenAmount.of_int 5 (* TODO: make config item *)
+              ; main_chain_deposit_signed
+              ; main_chain_deposit_confirmation
+              ; deposit_expedited= false } )
 
 
 (* TODO: take into account not just the facilitator name, but the fee schedule, too. *)
 
 let payment (user_state, (facilitator_address, recipient_address, payment_amount)) =
-  let activity_status = user_activity_status_for_facilitator (user_state, facilitator_address) in
-  if activity_status then
-    let invoice = {recipient= recipient_address; amount= payment_amount; memo= None} in
-    issue_user_request
-      ( user_state
-      , Payment
-          { payment_invoice= invoice
-          ; payment_fee= TokenAmount.of_int 0 (* TODO: configuration item *)
-          ; payment_expedited= false } )
-  else (user_state, Error Account_closed_or_nonexistent)
+  let invoice = {recipient= recipient_address; amount= payment_amount; memo= None} in
+  issue_user_request
+    ( user_state
+    , Payment
+        { payment_invoice= invoice
+        ; payment_fee= TokenAmount.of_int 0 (* TODO: configuration item *)
+        ; payment_expedited= false } )
 
 
 let detect_main_chain_facilitator_issues = bottom
@@ -474,17 +396,23 @@ module Test = struct
       "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
 
 
+  let trent_address = trent_keys.address
+
   let alice_keys =
     Keypair.make_keys_from_hex
       "d5:69:84:dc:08:3d:76:97:01:71:4e:eb:1d:4c:47:a4:54:25:5a:3b:bc:3e:9f:44:84:20:8c:52:bd:a3:b6:4e"
       "04:23:a7:cd:9a:03:fa:9c:58:57:e5:14:ae:5a:cb:18:ca:91:e0:7d:69:45:3e:d8:51:36:ea:6a:00:36:10:67:b8:60:a5:b2:0f:11:53:33:3a:ef:2d:1b:a1:3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
 
 
+  let alice_address = alice_keys.address
+
   let bob_keys =
     Keypair.make_keys_from_hex
       "f1:d3:cd:20:22:e1:d6:64:98:32:76:04:83:4d:f0:73:06:64:f7:1a:8d:d1:1e:46:a3:3b:4a:0e:bb:40:ca:8e"
       "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
 
+
+  let bob_address = bob_keys.address
 
   let create_side_chain_user_state_for_testing user_keys main_chain_balance =
     let main_chain_user_state =
@@ -495,7 +423,7 @@ module Test = struct
       ; nonce= Nonce.zero }
     in
     let user_account_state = new_user_account_state_per_facilitator in
-    let facilitators = AddressMap.singleton trent_keys.address user_account_state in
+    let facilitators = AddressMap.singleton trent_address user_account_state in
     {main_chain_user_state; facilitators}
 
 
@@ -505,6 +433,7 @@ module Test = struct
 
   let trent_fee_schedule =
     { deposit_fee= TokenAmount.of_int 5
+    ; withdrawal_fee= TokenAmount.of_int 5
     ; per_account_limit= TokenAmount.of_int 20000
     ; fee_per_billion= TokenAmount.of_int 42 }
 
@@ -516,7 +445,6 @@ module Test = struct
     ; spending_limit= TokenAmount.of_int 1000000
     ; bond_posted= TokenAmount.of_int 5000000
     ; accounts= AddressMap.empty
-    ; user_keys= AddressMap.empty
     ; operations= AddressMap.empty
     ; main_chain_transactions_posted= DigestSet.empty }
 
@@ -528,146 +456,40 @@ module Test = struct
     ; fee_schedule= trent_fee_schedule }
 
 
-  [%%test
-  (* open/close account test *)
-
-  let "open_account_and_close_it" =
-    let trent_account st = AddressMap.find trent_keys.address st.facilitators in
-    (* Capture initial state, check that it is not open *)
-    let alice_state_trent = trent_account alice_state in
-    let pending_ops0 = alice_state_trent.pending_operations in
-    assert (not (is_account_open (alice_state, trent_keys.address))) ;
-    (* Step 1a: Alice can't close an account that doesn't exist *)
-    ( close_account (alice_state, trent_keys.address)
-    |> function
-      | _, Ok _ -> raise (Internal_error "shouldn't be able to close a non-open account")
-      | _, Error e -> assert (e = Already_closed) ) ;
-    (* Step 1: Alice issues request to open the account *)
-    open_account (alice_state, trent_keys.address)
-    |> function
-      | _, Error e -> raise e
-      | alice_state1, Ok signed_request1 ->
-          let pending_ops1 = (trent_account alice_state1).pending_operations in
-          (* Opening adds an episteme to the pending_operations *)
-          assert (
-            List.length pending_ops1 = List.length pending_ops0 + 1
-            && List.tl pending_ops1 = pending_ops0 ) ;
-          (* Step 2: Trent confirm open_account request *)
-          confirm_request (trent_state, signed_request1)
-          |> function
-            | _, Error e -> raise e
-            | trent_state1, Ok _ ->
-                assert (is_account_open (alice_state1, trent_keys.address)) ;
-                (* TODO: add step where Trent replies the confirmation,
-               and Alice adds it to her episteme list *)
-                (* Step 3a: Attempting to open the account twice should fail *)
-                ( open_account (alice_state1, trent_keys.address)
-                |> function
-                  | alice_state2, Ok _ ->
-                      raise (Internal_error "succeeded to open an account twice")
-                  | _, Error exn -> assert (exn = Already_open) ) ;
-                (* Step 3b: *)
-                close_account (alice_state1, trent_keys.address)
-                |> function
-                  | _, Error e -> raise e
-                  | alice_state2, Ok signed_request2 ->
-                      assert (not (is_account_open (alice_state2, trent_keys.address))) ;
-                      confirm_request (trent_state1, signed_request2)
-                      |> function
-                        | _, Error e -> raise e
-                        | trent_state2, Ok _ ->
-                            (* Step 4: attempting to close the account twice should fail *)
-                            close_account (alice_state2, trent_keys.address)
-                            |> function
-                              | _, Ok _ ->
-                                  raise (Internal_error "Succeeded at double-closing the account")
-                              | _, Error exn -> exn = Already_closed]
+  let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | state, Error y -> raise y
 
   [%%test
   (* deposit and payment test *)
 
   let "deposit_valid" =
-    (* open Alice's account, as in test "open_account_and_close_it" *)
-    assert (not (is_account_open (alice_state, trent_keys.address))) ;
     let amount_to_deposit = TokenAmount.of_int 523 in
-    open_account (alice_state, trent_keys.address)
-    |> function
-      | _, Error e -> raise e
-      | alice_state1, Ok signed_request1 ->
-          confirm_request (trent_state, signed_request1)
-          |> function
-            | _, Error e -> raise e
-            | trent_state1, Ok signed_request2 ->
-                assert (is_account_open (alice_state1, trent_keys.address)) ;
-                (* deposit into open account *)
-                deposit (alice_state1, (trent_keys.address, amount_to_deposit))
-                |> function
-                  | _, Error e -> raise e
-                  | alice_state3, Ok signed_request3 ->
-                      confirm_request (trent_state1, signed_request3)
-                      |> function
-                        | _, Error e -> raise e
-                        | trent_state3, Ok signed_confirmation ->
-                            (* verify the deposit to Alice's account on Trent *)
-                            let trent_accounts = trent_state3.current.accounts in
-                            let alice_account =
-                              try AddressMap.find alice_keys.address trent_accounts
-                              with Not_found ->
-                                raise (Internal_error "Alice has no account on Trent")
-                            in
-                            assert (alice_account.balance = amount_to_deposit) ;
-                            (* open Bob's account *)
-                            open_account (bob_state, trent_keys.address)
-                            |> function
-                              | _, Error e -> raise e
-                              | bob_state1, Ok signed_request4 ->
-                                  confirm_request (trent_state3, signed_request4)
-                                  |> function
-                                    | _, Error e -> raise e
-                                    | trent_state4, Ok signed_request5 ->
-                                        let payment_amount = TokenAmount.of_int 17 in
-                                        payment
-                                          ( alice_state3
-                                          , (trent_keys.address, bob_keys.address, payment_amount)
-                                          )
-                                        |> function
-                                          | _, Error e -> raise e
-                                          | alice_state4, Ok signed_request6 ->
-                                              confirm_request (trent_state4, signed_request6)
-                                              |> function
-                                                | _, Error e -> raise e
-                                                | trent_state4, Ok signed_confirmation ->
-                                                    (* verify the payment to Bob's account on Trent *)
-                                                    let trent_accounts_after_payment =
-                                                      trent_state4.current.accounts
-                                                    in
-                                                    let get_trent_account name address =
-                                                      try
-                                                        AddressMap.find address
-                                                          trent_accounts_after_payment
-                                                      with Not_found ->
-                                                        raise
-                                                          (Internal_error
-                                                             ( name
-                                                             ^ " has no account on Trent after payment"
-                                                             ))
-                                                    in
-                                                    let alice_account =
-                                                      get_trent_account "Alice" alice_keys.address
-                                                    in
-                                                    let bob_account =
-                                                      get_trent_account "Bob" bob_keys.address
-                                                    in
-                                                    (* Alice has payment debited from her earlier deposit; Bob has just the payment in his account *)
-                                                    let alice_expected_balance =
-                                                      TokenAmount.sub amount_to_deposit
-                                                        payment_amount
-                                                    in
-                                                    let bob_expected_balance = payment_amount in
-                                                    assert (
-                                                      alice_account.balance
-                                                      = alice_expected_balance ) ;
-                                                    assert (
-                                                      bob_account.balance = bob_expected_balance ) ;
-                                                    true]
+    (* deposit into open account *)
+    (alice_state, (trent_address, amount_to_deposit)) |^>> deposit
+    |> fun (alice_state1, signed_request1) ->
+    (trent_state, signed_request1) |^>> confirm_request
+    |> fun (trent_state1, signed_confirmation1) ->
+    (* verify the deposit to Alice's account on Trent *)
+    let trent_accounts = trent_state1.current.accounts in
+    let alice_account = AddressMap.find alice_address trent_accounts in
+    assert (alice_account.balance = amount_to_deposit) ;
+    (* open Bob's account *)
+    let payment_amount = TokenAmount.of_int 17 in
+    (alice_state1, (trent_address, bob_address, payment_amount)) |^>> payment
+    |> fun (alice_state2, signed_request2) ->
+    (trent_state1, signed_request2) |^>> confirm_request
+    |> fun (trent_state2, signed_confirmation2) ->
+    (* verify the payment to Bob's account on Trent *)
+    let trent_accounts_after_payment = trent_state2.current.accounts in
+    let get_trent_account name address =
+      try AddressMap.find address trent_accounts_after_payment with Not_found ->
+        raise (Internal_error (name ^ " has no account on Trent after payment"))
+    in
+    let alice_account = get_trent_account "Alice" alice_address in
+    let bob_account = get_trent_account "Bob" bob_address in
+    (* Alice has payment debited from her earlier deposit; Bob has just the payment in his account *)
+    let alice_expected_balance = TokenAmount.sub amount_to_deposit payment_amount in
+    let bob_expected_balance = payment_amount in
+    assert (alice_account.balance = alice_expected_balance) ;
+    assert (bob_account.balance = bob_expected_balance) ;
+    true]
 end
