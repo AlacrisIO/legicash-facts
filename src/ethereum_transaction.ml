@@ -15,6 +15,8 @@ type ethereum_rpc_call =
   | Eth_sendTransaction
   | Eth_getTransactionReceipt
   (* Geth-specific methods, should only be used in tests *)
+  | Personal_listAccounts
+  | Personal_newAccount
   | Personal_unlockAccount
 [@@deriving show]
 
@@ -145,7 +147,19 @@ let transaction_executed transaction_hash =
   not (List.mem "error" keys) && List.mem "blockHash" keys && List.mem "blockNumber" keys
 
 module Test = struct
-  (* for testing only; all test accounts have empty password *)
+  open Yojson
+  open Main_chain
+
+  let list_accounts () =
+    let params = [] in
+    let json = build_json_rpc_call Personal_listAccounts params in
+    send_rpc_call_to_net json
+
+  let new_account () =
+    (* all test accounts have empty password *)
+    let params = [`String ""] in
+    let json = build_json_rpc_call Personal_newAccount params in
+    send_rpc_call_to_net json
 
   let unlock_account address =
     let params =
@@ -160,6 +174,13 @@ module Test = struct
   let json_result_to_int json =
     int_of_string (Yojson.Basic.Util.to_string (Yojson.Basic.Util.member "result" json))
 
+  let get_first_account () =
+    let accounts_json = Lwt_main.run (list_accounts ()) in
+    assert (not (json_contains_error accounts_json)) ;
+    let accounts = Basic.Util.to_list (Basic.Util.member "result" accounts_json) in
+    assert (not (accounts = [])) ;
+    Basic.Util.to_string (List.hd accounts)
+
   let get_nonce =
     let test_nonce = ref 0 in
     fun () ->
@@ -167,23 +188,19 @@ module Test = struct
       incr test_nonce ; nonce
 
   let%test "transfer-on-Ethereum-testnet" =
-    let open Main_chain in
-    (* accounts on test net *)
-    let sender_hex = "0xebd008d25ace6b456b5b6bda8175d534d4788e9f" in
-    let sender_address = Address.of_string (Ethereum_util.string_of_hex_string sender_hex) in
-    let recipient_hex = "0xa07275f5125079d7c4c85a116a19292413045b5c" in
-    let recipient_address = Address.of_string (Ethereum_util.string_of_hex_string recipient_hex) in
+    let sender_account = get_first_account () in
+    let sender_address = Address.of_string (Ethereum_util.string_of_hex_string sender_account) in
+    let new_account_json = Lwt_main.run (new_account ()) in
+    assert (not (json_contains_error new_account_json)) ;
+    let new_account = Basic.Util.to_string (Basic.Util.member "result" new_account_json) in
+    let recipient_address = Address.of_string (Ethereum_util.string_of_hex_string new_account) in
     (* unlock accounts *)
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
     let unlock_recipient_json = Lwt_main.run (unlock_account recipient_address) in
     assert (not (json_contains_error unlock_recipient_json)) ;
-    (* get opening balance *)
+    (* we don't check opening balance, which may be too large to parse *)
     let transfer_amount = 22 in
-    let sender_start_balance_json = Lwt_main.run (send_balance_request_to_net sender_address) in
-    assert (not (json_contains_error sender_start_balance_json)) ;
-    let sender_start_balance = json_result_to_int sender_start_balance_json in
-    assert (sender_start_balance >= transfer_amount) ;
     let tx_header =
       { sender= sender_address
       ; nonce= get_nonce ()
@@ -199,11 +216,8 @@ module Test = struct
     true
 
   let%test "create-contract-on-Ethereum-testnet" =
-    let open Main_chain in
-    (* account on test net *)
-    let sender_hex = "0xcb6f085e91138ddcd14d6987318c66457e6c2918" in
-    let sender_address = Address.of_string (Ethereum_util.string_of_hex_string sender_hex) in
-    (* unlock accounts *)
+    let sender_account = get_first_account () in
+    let sender_address = Address.of_string (Ethereum_util.string_of_hex_string sender_account) in
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
     let tx_header =
@@ -215,8 +229,8 @@ module Test = struct
     in
     (* a valid contract contains compiled EVM code
      for testing, we just use a buffer with arbitrary contents
-   *)
-    let operation = Main_chain.CreateContract (Bytes.create 128) in
+     *)
+    let operation = CreateContract (Bytes.create 128) in
     let transaction = {tx_header; operation} in
     (* create contract *)
     let output = Lwt_main.run (send_transaction_to_net transaction) in
@@ -225,13 +239,10 @@ module Test = struct
 
   let%test "call-contract-on-Ethereum-testnet" =
     let open Main_chain in
-    (* account on test net *)
-    let sender_hex = "0x5440d0b23296809bdffad4ea481d0fe687954d41" in
-    let sender_address = Address.of_string (Ethereum_util.string_of_hex_string sender_hex) in
-    (* unlock accounts *)
+    let sender_account = get_first_account () in
+    let sender_address = Address.of_string (Ethereum_util.string_of_hex_string sender_account) in
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
-    (* get opening balance *)
     let tx_header =
       { sender= sender_address
       ; nonce= get_nonce ()

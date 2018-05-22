@@ -1,8 +1,7 @@
 build-legicash:
   image: registry.gitlab.com/legicash/legicash-facts:build-env
   script:
-    # dump Geth initial state for test net
-    - tar -xzf scripts/ethereum-testnet/geth-data.tgz
+    # run test net in "dev" mode
     - ./scripts/ethereum-testnet/run.sh
     # build and run Legicash
     - eval `opam config env` && make && make test
