@@ -45,3 +45,6 @@ and hex_string_of_string s =
   in
   let hex_digits = String.init (2 * len) get_hex_digit in
   "0x" ^ hex_digits
+
+(* TokenAmount.of_string doesn't grok hex strings *)
+let token_amount_of_hex_string s = Main_chain.TokenAmount.of_int64 (Int64.of_string s)

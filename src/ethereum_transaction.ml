@@ -13,6 +13,7 @@ type ethereum_rpc_call =
   (* DApps methods, use anywhere *)
   | Eth_getBalance
   | Eth_sendTransaction
+  | Eth_getTransactionByHash
   | Eth_getTransactionReceipt
   (* Geth-specific methods, should only be used in tests *)
   | Personal_listAccounts
@@ -122,9 +123,10 @@ let send_rpc_call_to_net json =
     ethereum_net
   >>= fun (resp, body) ->
   let _ = resp |> Response.status |> Code.code_of_status in
-  body |> Cohttp_lwt.Body.to_string >|= fun s -> Yojson.Basic.from_string s
+  body |> Cohttp_lwt.Body.to_string >|= fun s -> Basic.from_string s
 
-let send_transaction_to_net transaction =
+let send_transaction_to_net signed_transaction =
+  let transaction = signed_transaction.payload in
   let json = build_transaction_json transaction in
   send_rpc_call_to_net json
 
@@ -140,15 +142,72 @@ let get_transaction_receipt transaction_hash =
   let json = build_json_rpc_call Eth_getTransactionReceipt params in
   send_rpc_call_to_net json
 
+let get_transaction_by_hash transaction_hash =
+  let params = [`String transaction_hash] in
+  let json = build_json_rpc_call Eth_getTransactionByHash params in
+  send_rpc_call_to_net json
+
 let transaction_executed transaction_hash =
   let rpc_call = get_transaction_receipt transaction_hash in
   let receipt_json = Lwt_main.run rpc_call in
-  let keys = Yojson.Basic.Util.keys receipt_json in
-  not (List.mem "error" keys) && List.mem "blockHash" keys && List.mem "blockNumber" keys
+  let keys = Basic.Util.keys receipt_json in
+  not (List.mem "error" keys)
+  && List.mem "result" keys
+  &&
+  let result_json = Basic.Util.member "result" receipt_json in
+  result_json != `Null
+  &&
+  let result_keys = Basic.Util.keys result_json in
+  List.mem "blockHash" result_keys && List.mem "blockNumber" result_keys
+
+let transaction_execution_matches_transaction transaction_hash
+    (signed_transaction: Main_chain.transaction_signed) =
+  transaction_executed transaction_hash
+  &&
+  let transaction_json = Lwt_main.run (get_transaction_by_hash transaction_hash) in
+  let keys = Basic.Util.keys transaction_json in
+  not (List.mem "error" keys)
+  &&
+  let transaction = signed_transaction.payload in
+  let result_json = Basic.Util.member "result" transaction_json in
+  (* for all operations, check these fields *)
+  let get_result_json key = Basic.Util.to_string (Basic.Util.member key result_json) in
+  let actual_sender = get_result_json "from" in
+  (*  let actual_nonce = get_result_json "nonce" in *)
+  let actual_gas_price = Ethereum_util.token_amount_of_hex_string (get_result_json "gasPrice") in
+  let actual_gas = Ethereum_util.token_amount_of_hex_string (get_result_json "gas") in
+  let actual_value = Ethereum_util.token_amount_of_hex_string (get_result_json "value") in
+  let tx_header = transaction.tx_header in
+  let expected_sender = Ethereum_util.hex_string_of_string (Address.to_string tx_header.sender) in
+  (* let expected_nonce = Printf.sprintf "0x%Lx" (Main_chain.Nonce.to_int64 tx_header.nonce) in *)
+  let expected_gas_limit = tx_header.gas_limit in
+  let expected_gas_price = tx_header.gas_price in
+  let expected_value = tx_header.value in
+  (* can't compare nonces, because geth tracks nonces independently *)
+  actual_sender = expected_sender
+  && TokenAmount.compare actual_gas expected_gas_limit <= 0
+  && TokenAmount.compare actual_gas_price expected_gas_price <= 0
+  && TokenAmount.compare actual_value expected_value = 0
+  &&
+  (* operation-specific checks *)
+  match transaction.operation with
+  | TransferTokens recipient_address ->
+      let actual_to = get_result_json "to" in
+      let expected_to = Ethereum_util.hex_string_of_string (Address.to_string recipient_address) in
+      actual_to = expected_to
+  | CreateContract _ -> true
+  | CallFunction (contract_address, _) ->
+      let actual_to = get_result_json "to" in
+      let expected_to = Ethereum_util.hex_string_of_string (Address.to_string contract_address) in
+      actual_to = expected_to
 
 module Test = struct
-  open Yojson
   open Main_chain
+
+  let alice_keys =
+    Keypair.make_keys_from_hex
+      "d5:69:84:dc:08:3d:76:97:01:71:4e:eb:1d:4c:47:a4:54:25:5a:3b:bc:3e:9f:44:84:20:8c:52:bd:a3:b6:4e"
+      "04:23:a7:cd:9a:03:fa:9c:58:57:e5:14:ae:5a:cb:18:ca:91:e0:7d:69:45:3e:d8:51:36:ea:6a:00:36:10:67:b8:60:a5:b2:0f:11:53:33:3a:ef:2d:1b:a1:3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
 
   let list_accounts () =
     let params = [] in
@@ -169,10 +228,10 @@ module Test = struct
     send_rpc_call_to_net json
 
   let json_contains_error json =
-    match Yojson.Basic.Util.member "error" json with `Null -> false | _ -> true
+    match Basic.Util.member "error" json with `Null -> false | _ -> true
 
   let json_result_to_int json =
-    int_of_string (Yojson.Basic.Util.to_string (Yojson.Basic.Util.member "result" json))
+    int_of_string (Basic.Util.to_string (Basic.Util.member "result" json))
 
   let get_first_account () =
     let accounts_json = Lwt_main.run (list_accounts ()) in
@@ -186,6 +245,15 @@ module Test = struct
     fun () ->
       let nonce = Main_chain.Nonce.of_int !test_nonce in
       incr test_nonce ; nonce
+
+  let wait_for_contract_execution transaction_hash =
+    let counter = ref 0 in
+    let max_counter = 20 in
+    (* wait for transaction to appear in block *)
+    while not (transaction_executed transaction_hash && !counter <= max_counter) do
+      (* Printf.printf "Waiting for transaction execution...\n%!" ; *)
+      Unix.sleepf 0.25 ; incr counter
+    done
 
   let%test "transfer-on-Ethereum-testnet" =
     let sender_account = get_first_account () in
@@ -210,10 +278,14 @@ module Test = struct
     in
     let operation = Main_chain.TransferTokens recipient_address in
     let transaction = {tx_header; operation} in
+    let signed_transaction = sign alice_keys.private_key transaction in
     (* send tokens *)
-    let output = Lwt_main.run (send_transaction_to_net transaction) in
+    let output = Lwt_main.run (send_transaction_to_net signed_transaction) in
     assert (not (json_contains_error output)) ;
-    true
+    let result_json = Basic.Util.member "result" output in
+    let transaction_hash = Basic.Util.to_string result_json in
+    let _ = wait_for_contract_execution transaction_hash in
+    transaction_execution_matches_transaction transaction_hash signed_transaction
 
   let%test "create-contract-on-Ethereum-testnet" =
     let sender_account = get_first_account () in
@@ -232,10 +304,15 @@ module Test = struct
      *)
     let operation = CreateContract (Bytes.create 128) in
     let transaction = {tx_header; operation} in
+    let signed_transaction = sign alice_keys.private_key transaction in
     (* create contract *)
-    let output = Lwt_main.run (send_transaction_to_net transaction) in
+    let output = Lwt_main.run (send_transaction_to_net signed_transaction) in
     assert (not (json_contains_error output)) ;
-    true
+    let result_json = Basic.Util.member "result" output in
+    let transaction_hash = Basic.Util.to_string result_json in
+    let _ = wait_for_contract_execution transaction_hash in
+    let signed_transaction = sign alice_keys.private_key transaction in
+    transaction_execution_matches_transaction transaction_hash signed_transaction
 
   let%test "call-contract-on-Ethereum-testnet" =
     let open Main_chain in
@@ -272,7 +349,12 @@ module Test = struct
         , Bytes.of_string (Digest.to_string hashed) )
     in
     let transaction = {tx_header; operation} in
-    let output = Lwt_main.run (send_transaction_to_net transaction) in
+    let signed_transaction = sign alice_keys.private_key transaction in
+    let output = Lwt_main.run (send_transaction_to_net signed_transaction) in
     assert (not (json_contains_error output)) ;
-    true
+    let result_json = Basic.Util.member "result" output in
+    let transaction_hash = Basic.Util.to_string result_json in
+    let _ = wait_for_contract_execution transaction_hash in
+    let signed_transaction = sign alice_keys.private_key transaction in
+    transaction_execution_matches_transaction transaction_hash signed_transaction
 end
