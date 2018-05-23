@@ -14,6 +14,7 @@ type ethereum_rpc_call =
   | Eth_getBalance
   | Eth_sendTransaction
   | Eth_getTransactionByHash
+  | Eth_getTransactionCount
   | Eth_getTransactionReceipt
   (* Geth-specific methods, should only be used in tests *)
   | Personal_listAccounts
@@ -147,6 +148,12 @@ let get_transaction_by_hash transaction_hash =
   let json = build_json_rpc_call Eth_getTransactionByHash params in
   send_rpc_call_to_net json
 
+let get_transaction_count address =
+  let address_hex_string = Ethereum_util.hex_string_of_string (Address.to_string address) in
+  let params = [`String address_hex_string; `String "latest"] in
+  let json = build_json_rpc_call Eth_getTransactionCount params in
+  send_rpc_call_to_net json
+
 let transaction_executed transaction_hash =
   let rpc_call = get_transaction_receipt transaction_hash in
   let receipt_json = Lwt_main.run rpc_call in
@@ -173,18 +180,17 @@ let transaction_execution_matches_transaction transaction_hash
   (* for all operations, check these fields *)
   let get_result_json key = Basic.Util.to_string (Basic.Util.member key result_json) in
   let actual_sender = get_result_json "from" in
-  (*  let actual_nonce = get_result_json "nonce" in *)
+  let actual_nonce = get_result_json "nonce" in
   let actual_gas_price = Ethereum_util.token_amount_of_hex_string (get_result_json "gasPrice") in
   let actual_gas = Ethereum_util.token_amount_of_hex_string (get_result_json "gas") in
   let actual_value = Ethereum_util.token_amount_of_hex_string (get_result_json "value") in
   let tx_header = transaction.tx_header in
   let expected_sender = Ethereum_util.hex_string_of_string (Address.to_string tx_header.sender) in
-  (* let expected_nonce = Printf.sprintf "0x%Lx" (Main_chain.Nonce.to_int64 tx_header.nonce) in *)
+  let expected_nonce = Printf.sprintf "0x%Lx" (Main_chain.Nonce.to_int64 tx_header.nonce) in
   let expected_gas_limit = tx_header.gas_limit in
   let expected_gas_price = tx_header.gas_price in
   let expected_value = tx_header.value in
-  (* can't compare nonces, because geth tracks nonces independently *)
-  actual_sender = expected_sender
+  actual_sender = expected_sender && actual_nonce = expected_nonce
   && TokenAmount.compare actual_gas expected_gas_limit <= 0
   && TokenAmount.compare actual_gas_price expected_gas_price <= 0
   && TokenAmount.compare actual_value expected_value = 0
@@ -240,11 +246,11 @@ module Test = struct
     assert (not (accounts = [])) ;
     Basic.Util.to_string (List.hd accounts)
 
-  let get_nonce =
-    let test_nonce = ref 0 in
-    fun () ->
-      let nonce = Main_chain.Nonce.of_int !test_nonce in
-      incr test_nonce ; nonce
+  let get_nonce address =
+    let contract_count_json = Lwt_main.run (get_transaction_count address) in
+    assert (not (json_contains_error contract_count_json)) ;
+    let result = Basic.Util.to_string (Basic.Util.member "result" contract_count_json) in
+    Nonce.of_int64 (Int64.of_string result)
 
   let wait_for_contract_execution transaction_hash =
     let counter = ref 0 in
@@ -252,7 +258,7 @@ module Test = struct
     (* wait for transaction to appear in block *)
     while not (transaction_executed transaction_hash && !counter <= max_counter) do
       (* Printf.printf "Waiting for transaction execution...\n%!" ; *)
-      Unix.sleepf 0.25 ; incr counter
+      Unix.sleepf 0.1 ; incr counter
     done
 
   let%test "transfer-on-Ethereum-testnet" =
@@ -271,7 +277,7 @@ module Test = struct
     let transfer_amount = 22 in
     let tx_header =
       { sender= sender_address
-      ; nonce= get_nonce ()
+      ; nonce= get_nonce sender_address
       ; gas_price= TokenAmount.of_int 2
       ; gas_limit= TokenAmount.of_int 1000000
       ; value= TokenAmount.of_int transfer_amount }
@@ -294,7 +300,7 @@ module Test = struct
     assert (not (json_contains_error unlock_sender_json)) ;
     let tx_header =
       { sender= sender_address
-      ; nonce= get_nonce ()
+      ; nonce= get_nonce sender_address
       ; gas_price= TokenAmount.of_int 2
       ; gas_limit= TokenAmount.of_int 1000000
       ; value= TokenAmount.of_int 42 }
@@ -322,7 +328,7 @@ module Test = struct
     assert (not (json_contains_error unlock_sender_json)) ;
     let tx_header =
       { sender= sender_address
-      ; nonce= get_nonce ()
+      ; nonce= get_nonce sender_address
       ; gas_price= TokenAmount.of_int 2
       ; gas_limit= TokenAmount.of_int 1000000
       ; value= TokenAmount.zero }

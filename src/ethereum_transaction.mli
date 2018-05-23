@@ -8,6 +8,9 @@ val send_transaction_to_net : Main_chain.transaction_signed -> Yojson.Basic.json
 val send_balance_request_to_net : Address.t -> Yojson.Basic.json Lwt.t
 (** for a given address, request its balance on Ethereum network *)
 
+val get_transaction_count : Address.t -> Yojson.Basic.json Lwt.t
+(** get count of transactions sent from an address; use to find next transaction nonce *)
+
 val get_transaction_receipt : string -> Yojson.Basic.json Lwt.t
 (** get receipt for transaction identified by its transaction hash *)
 
