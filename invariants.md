@@ -250,6 +250,29 @@ by playing the verification game following an optimal strategy for each party:
 user, facilitator, other facilitator, and independent verifier.
 
 
+## Model Resistance to Attacks
+
+### 50% attack against Court Registry
+
+For state to be considered valid, it must come with signatures from a quorum of 50% of the court registry.
+Why 50%? Because let's assume the quorum is q.
+Then, if proportion q of registrars collude with Trent,
+then Trent can withhold blocks, and the system crumbles.
+Meanwhile, if proportion 1-q of registrars collude against Trent,
+then they can prevent Trent from creating blocks, and the system also crumbles.
+To minimize both q and 1-q, the quorum q must be 50%.
+And then, we have a 50% attack on the court registry.
+For the q attack, non-working registrars don't count as attacking.
+For the 1-q attack, non-working registrars do count as attacking.
+If some proportion of registrars stop being trusted (10%? 25%?),
+then all users of all facilitators must issue *voluntarily* mass exits.
+Involuntary mass exits cannot help laggards in the case of failing registry.
+
+As a mitigation, if a majority of facilitators (by account volume) agree that the registry is failing,
+then facilitators using that registry can declare that after some date D sufficiently in the future,
+use of the registry will not be accepted, and
+only slow non-scaling exits to the main chain will be accepted.
+
 
 ### Advice from Atalay
 
