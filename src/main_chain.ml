@@ -22,7 +22,7 @@ type tx_header =
   ; gas_price: TokenAmount.t
   ; gas_limit: TokenAmount.t
   ; value: TokenAmount.t }
-  [@@deriving lens]
+[@@deriving lens]
 
 type operation =
   | TransferTokens of Address.t
@@ -43,7 +43,7 @@ type user_state =
       TokenAmount.t (* Only store the confirmed state, and have any updates in pending *)
   ; pending_transactions: transaction_signed list
   ; nonce: Nonce.t }
-  [@@deriving lens]
+[@@deriving lens]
 
 type ('input, 'output) user_action = ('input, 'output, user_state) action
 
