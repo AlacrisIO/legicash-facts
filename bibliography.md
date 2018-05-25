@@ -62,7 +62,9 @@
   [opcodes](https://ethereum.stackexchange.com/questions/119/what-opcodes-are-available-for-the-ethereum-evm),
   [old Ethereum block hashes](https://github.com/amiller/ethereum-blockhashes),
   [Security Audit by QuantStamp](https://quantstamp.com/start),
-  [Towards verifying ethereum smart contract bytecode in Isabelle/HOL](https://dl.acm.org/citation.cfm?doid=3176245.3167084).
+  [Towards verifying ethereum smart contract bytecode in Isabelle/HOL](https://dl.acm.org/citation.cfm?doid=3176245.3167084),
+  [the Parity Light Protocol](https://wiki.parity.io/The-Parity-Light-Protocol-%28PIP%29)
+  (PR for similar light client functionality [in geth](https://github.com/ethereum/go-ethereum/pull/16534/files)).
 
 * Compiling to the EVM:
   [Pirapira's Bamboo](https://github.com/pirapira/bamboo).
