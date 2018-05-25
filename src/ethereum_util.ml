@@ -46,5 +46,20 @@ and hex_string_of_string s =
   let hex_digits = String.init (2 * len) get_hex_digit in
   "0x" ^ hex_digits
 
+let hex_string_of_bytes bs = hex_string_of_string (Bytes.to_string bs)
+
+let hex_string_of_address address = hex_string_of_string (Address.to_string address)
+
+let address_of_hex_string hs = Address.of_string (string_of_hex_string hs)
+
+let hex_string_of_int64 num64 = Format.sprintf "0x%Lx" num64
+
+let hex_string_of_token_amount token_amount =
+  hex_string_of_int64 (Main_chain.TokenAmount.to_int64 token_amount)
+
+let hex_string_of_nonce nonce = hex_string_of_int64 (Main_chain.Nonce.to_int64 nonce)
+
 (* TokenAmount.of_string doesn't grok hex strings *)
 let token_amount_of_hex_string s = Main_chain.TokenAmount.of_int64 (Int64.of_string s)
+
+let hash s = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s

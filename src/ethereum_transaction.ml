@@ -101,10 +101,10 @@ let build_call_function_json transaction =
   let gas_price = tx_header.gas_price in
   let params =
     `Assoc
-      [ ("from", `String (Ethereum_util.hex_string_of_string (Address.to_string sender)))
-      ; ("to", `String (Ethereum_util.hex_string_of_string (Address.to_string contract_address)))
-      ; ("gas", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas)))
-      ; ("gasPrice", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas_price)))
+      [ ("from", `String (Ethereum_util.hex_string_of_address sender))
+      ; ("to", `String (Ethereum_util.hex_string_of_address contract_address))
+      ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
+      ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
       ; ("data", `String (Ethereum_util.hex_string_of_string (Bytes.to_string call_hash))) ]
   in
   build_json_rpc_call Eth_sendTransaction [params]
@@ -263,11 +263,11 @@ module Test = struct
 
   let%test "transfer-on-Ethereum-testnet" =
     let sender_account = get_first_account () in
-    let sender_address = Address.of_string (Ethereum_util.string_of_hex_string sender_account) in
+    let sender_address = Ethereum_util.address_of_hex_string sender_account in
     let new_account_json = Lwt_main.run (new_account ()) in
     assert (not (json_contains_error new_account_json)) ;
     let new_account = Basic.Util.to_string (Basic.Util.member "result" new_account_json) in
-    let recipient_address = Address.of_string (Ethereum_util.string_of_hex_string new_account) in
+    let recipient_address = Ethereum_util.address_of_hex_string new_account in
     (* unlock accounts *)
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
@@ -295,7 +295,7 @@ module Test = struct
 
   let%test "create-contract-on-Ethereum-testnet" =
     let sender_account = get_first_account () in
-    let sender_address = Address.of_string (Ethereum_util.string_of_hex_string sender_account) in
+    let sender_address = Ethereum_util.address_of_hex_string sender_account in
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
     let tx_header =
@@ -323,7 +323,7 @@ module Test = struct
   let%test "call-contract-on-Ethereum-testnet" =
     let open Main_chain in
     let sender_account = get_first_account () in
-    let sender_address = Address.of_string (Ethereum_util.string_of_hex_string sender_account) in
+    let sender_address = Ethereum_util.address_of_hex_string sender_account in
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
     let tx_header =

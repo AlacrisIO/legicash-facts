@@ -344,8 +344,7 @@ let encode_signature function_call =
   let tys = List.map snd function_call.parameters in
   let params = show_type_for_function_selector (Tuple tys) in
   let signature = function_call.function_name ^ params in
-  let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) in
-  let hashed = hash signature in
+  let hashed = Ethereum_util.hash signature in
   Bytes.of_string (String.sub hashed 0 4)
 
 (* encoding of parameter depends on classification of types as static or dynamic *)
