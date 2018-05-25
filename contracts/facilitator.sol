@@ -20,9 +20,10 @@ contract Facilitator {
     // after which it is considered fact, if left unchallenged or unsatisfactorily challenged.
     // If the validity date if not zero. If the date is in the future, the fact may be challenged
     // and removed from the set of accepted facts.
+    // If the validity date is negative, the entry won't expire, etc.
     // TODO: to handle third-party litigation, etc., we may have to store more than just a validity date.
     // Or can we do that entirely with parallel claims?
-    mapping(bytes32 => uint) public active_claims;
+    mapping(bytes32 => int) public active_claims;
 
     // Is this side-chain active? If not, there won't be updates or expiries anymore.
     // There can still be claims, though.
@@ -35,19 +36,24 @@ contract Facilitator {
      */
     function make_claim(bytes32 claim) private {
         require(active_claims[claim]==0);
-        active_claims[claim] = now + challenge_period_in_seconds;
+        active_claims[claim] = int(now) + challenge_period_in_seconds;
     }
 
     // Check that a claim is valid
     function check_claim(bytes32 claim) private view {
-        uint valid_time = active_claims[claim];
-        require(valid_time > 0 && valid_time <= now);
+        int valid_time = active_claims[claim];
+        require(valid_time > 0 && valid_time <= int(now));
     }
 
     // Check that a claim is valid, then make it valid no more.
     function consume_claim(bytes32 claim) private {
         check_claim(claim);
-        active_claims[claim] = 0;
+        // TODO: the implementation below, storing -1, leaves the claim invalid and unexpirable.
+        // It would be cheaper to set it to 0, which would reclaim some gas, but
+        // make the claim renewable, at which point verifiers must step in to reject double-claims
+        // based on an event log entry for the claim --- and must step in
+        // *after* the log entry is confirmed, yet *before* the claim challenge period times out.
+        active_claims[claim] = -1;
     }
 
     // Counter a claim, pushing back its validity date.
@@ -56,9 +62,9 @@ contract Facilitator {
     // shouldn't the original claim then become valid immediately?
     // TODO: figure out how third-party litigation affects validity times and challenge timeouts.
     function counter_claim(bytes32 claim) private {
-        uint valid_time = active_claims[claim];
-        require(valid_time > now); // claim must still be active.
-        uint challenge_timeout = now + challenge_period_in_seconds;
+        int valid_time = active_claims[claim];
+        require(valid_time > int(now)); // claim must still be active.
+        int challenge_timeout = int(now) + challenge_period_in_seconds;
         if (valid_time < challenge_timeout) {
             active_claims[claim] = challenge_timeout;
         }
@@ -66,7 +72,7 @@ contract Facilitator {
 
     // Expiry delay, in seconds. Claims may disappear after this delay.
     // TODO: Make sure it's large enough.
-    uint constant expiry_delay = 31 days;
+    int constant expiry_delay = 31 days;
 
     // Function called by the operator only, to forget about some old enough claim,
     // too old to be involved in an active lawsuit.
@@ -74,13 +80,13 @@ contract Facilitator {
     function expire_old_claim(bytes32 _claim) private {
         require(active);
         require(msg.sender == operator);
-        uint valid_time = active_claims[_claim];
-        require(valid_time>0 && valid_time < now-expiry_delay);
+        int valid_time = active_claims[_claim];
+        require(valid_time>0 && valid_time < int(now)-expiry_delay);
         active_claims[_claim] = 0;
     }
 
     // One challenge period is 2h, about 423 blocks at the expected rate of 1 block/17 s.
-    uint constant challenge_period_in_seconds = 2 hours;
+    int constant challenge_period_in_seconds = 2 hours;
 
     // The minimum bond for each operation should be low enough to be affordable,
     // yet large enough to cover the gas costs of an entire trial over the duration of
@@ -89,7 +95,7 @@ contract Facilitator {
     // The contract ought to comfortably and conservatively overestimate of the price of gas
     // for the duration of any upcoming legal argument.
     // TODO: Ideally, gas cost estimates should be dynamically computed from the environment.
-    function get_gas_cost_estimate () pure private returns(uint) {
+    function get_gas_cost_estimate () pure private returns(int) {
         // 100 shannon (= 100 gwei, .1 szabo),
         // a somewhat conservative value for May 2018 (when the median is about 10).
         // But NOT a future-proof value.
@@ -99,11 +105,11 @@ contract Facilitator {
 
     // TODO: The cost of a legal argument in gas should be statically deduced
     // from the structure of the contract itself.
-    uint maximum_withdrawal_challenge_gas = 100*1000;
+    int maximum_withdrawal_challenge_gas = 100*1000;
 
     // NB: We assume no overflow(!)
     // If the gas_cost_estimate becomes astronomically high, this is a vulnerability.
-    function minimum_bond(uint maximum_gas) pure private returns(uint) {
+    function minimum_bond(int maximum_gas) pure private returns(int) {
         return maximum_gas*get_gas_cost_estimate();
     }
 
@@ -152,6 +158,7 @@ contract Facilitator {
     // }
 
     uint8 constant WITHDRAWAL_CLAIM = 2;
+    uint8 constant WITHDRAWAL = 3;
 
     // Logging a Withdrawal event allows validators to reject double-withdrawal
     // without keeping the withdrawal claim alive indefinitely.
@@ -160,7 +167,7 @@ contract Facilitator {
     function claim_withdrawal(uint64 _ticket, uint _value, bytes32 _confirmed_state)
             public payable {
         // Check that a sufficient bond was included in the message.
-        require(msg.value >= minimum_bond(maximum_withdrawal_challenge_gas));
+        require(msg.value >= uint(minimum_bond(maximum_withdrawal_challenge_gas)));
 
         // Make the claim, assuming it wasn't made yet.
         make_claim(keccak256(abi.encodePacked(
@@ -173,8 +180,13 @@ contract Facilitator {
         consume_claim(keccak256(abi.encodePacked(
             WITHDRAWAL_CLAIM, msg.sender, _ticket, _value, _bond, _confirmed_state)));
 
-        // Log the withdrawal so future claim attempts can be duly rejected.
-        emit Withdrawal(_ticket);
+        // TODO: As a more elaborate measure that is cheaper on-chain but requires
+        // more careful watching off-chain,
+        // Log the withdrawal so future double-claim attempts can be duly rejected.
+        //        emit Withdrawal(_ticket);
+        // Until we get the verification of logged events just right, here we make do with
+        // the more expensive (in gas) but simpler solution of consume_claim storing
+        // an unexpirable entry for the withdrawal.
 
         // NB: Always transfer money LAST!
         // TODO: Should we allow a recipient different from the sender?
@@ -199,6 +211,7 @@ contract Facilitator {
        //    * and the ticket entry, which does not match the account and value
        // + The _ticket was already withdrawn:
        //    * as evidence, the log entry for the Withdrawal
+       //        https://ethereum.stackexchange.com/questions/49441/verifying-that-an-event-did-happen
        //    * a path to the log entry within a block
        //    * a path to the block from a known ethereum block
        //        (using https://github.com/amiller/ethereum-blockhashes if needs be)
