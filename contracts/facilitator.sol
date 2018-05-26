@@ -23,6 +23,7 @@ contract Facilitator {
     // If the validity date is negative, the entry won't expire, etc.
     // TODO: to handle third-party litigation, etc., we may have to store more than just a validity date.
     // Or can we do that entirely with parallel claims?
+
     mapping(bytes32 => int) public active_claims;
 
     // Is this side-chain active? If not, there won't be updates or expiries anymore.
@@ -56,18 +57,12 @@ contract Facilitator {
         active_claims[claim] = -1;
     }
 
-    // Counter a claim, pushing back its validity date.
-    // TODO: can there be multiple periods before the timeout?
-    // TODO: if all counter-claims are resolved early and the initial timeout is passed,
-    // shouldn't the original claim then become valid immediately?
-    // TODO: figure out how third-party litigation affects validity times and challenge timeouts.
-    function counter_claim(bytes32 claim) private {
-        int valid_time = active_claims[claim];
-        require(valid_time > int(now)); // claim must still be active.
-        int challenge_timeout = int(now) + challenge_period_in_seconds;
-        if (valid_time < challenge_timeout) {
-            active_claims[claim] = challenge_timeout;
-        }
+    // Counter a claim, to organize in a priority heap of claims
+    // (interested party first, then third party litigants in order of first claim)
+    // that must be empty for the claim to be considered valid.
+    // TODO: Implement that heap. Maybe store its size in the a same struct as the validity time?
+    function counter_claim(bytes32 claim) private view {
+        require(active_claims[claim] > int(now)); // claim must still be active.
     }
 
     // Expiry delay, in seconds. Claims may disappear after this delay.
@@ -81,7 +76,7 @@ contract Facilitator {
         require(active);
         require(msg.sender == operator);
         int valid_time = active_claims[_claim];
-        require(valid_time>0 && valid_time < int(now)-expiry_delay);
+        require(valid_time > 0 && valid_time < int(now)-expiry_delay);
         active_claims[_claim] = 0;
     }
 
@@ -110,6 +105,7 @@ contract Facilitator {
     // NB: We assume no overflow(!)
     // If the gas_cost_estimate becomes astronomically high, this is a vulnerability.
     function minimum_bond(int maximum_gas) pure private returns(int) {
+        // require(maximum_gas) < 2**254 / get_gas_cost_estimate()).
         return maximum_gas*get_gas_cost_estimate();
     }
 
@@ -128,6 +124,7 @@ contract Facilitator {
     //    emit Deposited(msg.sender, msg.value, memo);
     //}
 
+    enum ClaimType {STATE_UPDATE, WITHDRAWAL_CLAIM, WITHDRAWAL}
 
     // STATE UPDATE
 
@@ -136,14 +133,13 @@ contract Facilitator {
     // so instead I fell back to doing my own poor man's struct.
     // StateUpdateClaim { bytes32 state; },
 
-    uint8 constant STATE_UPDATE = 1;
 
     // Function called by the operator only, to update the new state.
     // This is a claim only, because users may dispute its validity.
     function claim_state_update(bytes32 _new_state) public {
         require(active);
         require(msg.sender == operator);
-        make_claim(keccak256(abi.encodePacked(STATE_UPDATE, _new_state)));
+        make_claim(keccak256(abi.encodePacked(ClaimType.STATE_UPDATE, _new_state)));
     }
 
 
@@ -157,9 +153,6 @@ contract Facilitator {
     //     bytes32 _confirmed_state; // digest of a confirmed state of the side-chain
     // }
 
-    uint8 constant WITHDRAWAL_CLAIM = 2;
-    uint8 constant WITHDRAWAL = 3;
-
     // Logging a Withdrawal event allows validators to reject double-withdrawal
     // without keeping the withdrawal claim alive indefinitely.
     event Withdrawal(uint64 _ticket);
@@ -171,14 +164,14 @@ contract Facilitator {
 
         // Make the claim, assuming it wasn't made yet.
         make_claim(keccak256(abi.encodePacked(
-            WITHDRAWAL_CLAIM, msg.sender, _ticket, _value, msg.value, _confirmed_state)));
+            ClaimType.WITHDRAWAL_CLAIM, msg.sender, _ticket, _value, msg.value, _confirmed_state)));
     }
 
     function withdraw(uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
             public payable {
         // Consume a valid withdrawal claim.
         consume_claim(keccak256(abi.encodePacked(
-            WITHDRAWAL_CLAIM, msg.sender, _ticket, _value, _bond, _confirmed_state)));
+            ClaimType.WITHDRAWAL_CLAIM, msg.sender, _ticket, _value, _bond, _confirmed_state)));
 
         // TODO: As a more elaborate measure that is cheaper on-chain but requires
         // more careful watching off-chain,
@@ -216,7 +209,7 @@ contract Facilitator {
        //    * a path to the block from a known ethereum block
        //        (using https://github.com/amiller/ethereum-blockhashes if needs be)
        bytes32 claim = keccak256(abi.encodePacked(
-           WITHDRAWAL_CLAIM, _account, _ticket, _value, _bond, _confirmed_state));
+           ClaimType.WITHDRAWAL_CLAIM, _account, _ticket, _value, _bond, _confirmed_state));
        // TODO: implement this method!
        require(false);
        _proof;
@@ -228,6 +221,9 @@ contract Facilitator {
 // NB: For involuntary transfer, beware to only use offsprings
 // that have compatible court registries.
 // Initialization argument: the signatures that make the court registry.
+//
+// TODO: Have only a single contract for all facilitators who share the same code and court registry (?)
+// No need to remember offsprings, it's now just one contract (thanks @coventry)
 contract Matrix {
 
 }
