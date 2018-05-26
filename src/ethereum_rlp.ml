@@ -20,12 +20,14 @@ let rec get_rlp_items_len = function
       let lens = List.map get_rlp_items_len items in
       len + List.fold_right ( + ) lens 0
 
+
 (* convert number to string, used for
     - encoding lengths within RLP-encodings
     - encoding integers to string, which can then be RLP-encoded
  *)
 let rec encode_int_as_string n =
   if n == 0 then "" else encode_int_as_string (n / 0x100) ^ String.make 1 (Char.chr (n mod 0x100))
+
 
 (* encode length of string to prepend to RLP-encoding *)
 let encode_length len offset =
@@ -35,8 +37,10 @@ let encode_length len offset =
     let first_byte = String.make 1 (Char.chr (String.length len_string + offset + 55)) in
     first_byte ^ len_string
 
+
 let rec encode data =
   match data with RlpItem _ -> rlp_encode_item data | RlpItems _ -> rlp_encode_items data
+
 
 and rlp_encode_item = function
   | RlpItem item ->
@@ -48,6 +52,7 @@ and rlp_encode_item = function
         RlpEncoding (encoded_length ^ item)
   | RlpItems _ -> raise (Internal_error "Expected single item to RLP-encode, got list of items")
 
+
 and rlp_encode_items = function
   | RlpItem _ -> raise (Internal_error "Expected list of items to RLP-encode, got single item")
   | RlpItems items as rlp_items ->
@@ -57,6 +62,7 @@ and rlp_encode_items = function
       (* strip off constructor to allow concatenation *)
       let raw_encodings = List.map (fun (RlpEncoding rlp) -> rlp) encodings in
       RlpEncoding (String.concat "" (encoded_length :: raw_encodings))
+
 
 let encode_string s = rlp_encode_item (RlpItem s)
 
@@ -72,7 +78,8 @@ let rec decode_int_string n =
   let len = String.length n in
   if len = 0 then 0
   else if len = 1 then Char.code n.[0]
-  else Char.code n.[len - 1] + (decode_int_string (String.sub n 0 (len - 1)) * 0x100)
+  else Char.code n.[len - 1] + decode_int_string (String.sub n 0 (len - 1)) * 0x100
+
 
 type rlp_length_bounds = {start: int; length: int}
 
@@ -89,25 +96,22 @@ let decode_length input =
     if prefix <= 0x7F then RlpItemLengthDecoded {start= 0; length= 1}
     else if prefix <= 0xB7 && len > prefix - 0x80 then
       RlpItemLengthDecoded {start= 1; length= prefix - 0x80}
-    else if
-      prefix <= 0xbf
-      && len > prefix - 0xb7
-      && len > prefix - 0xB7 + decode_int_string (String.sub input 1 (prefix - 0xB7))
+    else if prefix <= 0xbf && len > prefix - 0xb7
+            && len > prefix - 0xB7 + decode_int_string (String.sub input 1 (prefix - 0xB7))
     then
       let len_of_strlen = prefix - 0xB7 in
       let strlen = decode_int_string (String.sub input 1 len_of_strlen) in
       RlpItemLengthDecoded {start= 1 + len_of_strlen; length= strlen}
     else if prefix <= 0xF7 && len > prefix - 0xC0 then
       RlpItemsLengthDecoded {start= 1; length= prefix - 0xC0}
-    else if
-      prefix <= 0xFF
-      && len > prefix - 0xF7
-      && len > prefix - 0xF7 + decode_int_string (String.sub input 1 (prefix - 0xF7))
+    else if prefix <= 0xFF && len > prefix - 0xF7
+            && len > prefix - 0xF7 + decode_int_string (String.sub input 1 (prefix - 0xF7))
     then
       let len_of_items_len = prefix - 0xF7 in
       let items_len = decode_int_string (String.sub input 1 len_of_items_len) in
       RlpItemsLengthDecoded {start= 1 + len_of_items_len; length= items_len}
     else raise (Internal_error "decode_length: nonconforming RLP encoding")
+
 
 (* entry point for RLP decoding *)
 let decode (RlpEncoding s as encoding) =
@@ -141,74 +145,117 @@ let decode (RlpEncoding s as encoding) =
       (Internal_error
          (Printf.sprintf "For encoding: %s, got leftover data: %s" (show encoding) leftover))
 
+
 module Test = struct
+  [%%test
   (* tests of encoding, from reference given at top *)
 
-  let%test "empty_string_rlp" = encode_string "" = RlpEncoding (String.make 1 (Char.chr 0x80))
+  let "empty_string_rlp" = encode_string "" = RlpEncoding (String.make 1 (Char.chr 0x80))]
 
-  let%test "dog_string_rlp" = encode_string "dog" = RlpEncoding "Édog"
+  [%%test
+  let "dog_string_rlp" = encode_string "dog" = RlpEncoding "Édog"]
 
-  let%test "cat_dog_rlp" =
+  [%%test
+  (* from https://github.com/ethereum/tests/blob/develop/RLPTests/rlptest.json *)
+  let "short_list_rlp" =
+    let items = List.map (fun it -> RlpItem it) ["dog"; "god"; "cat"] in
+    to_string (encode (RlpItems items))
+    = Ethereum_util.string_of_hex_string "0xcc83646f6783676f6483636174"]
+
+  [%%test
+  (* from https://github.com/ethereum/tests/blob/develop/RLPTests/rlptest.json *)
+  let "dict_rlp" =
+    let mk_row its = RlpItems (List.map (fun it -> RlpItem it) its) in
+    let row1 = mk_row ["key1"; "val1"] in
+    let row2 = mk_row ["key2"; "val2"] in
+    let row3 = mk_row ["key3"; "val3"] in
+    let row4 = mk_row ["key4"; "val4"] in
+    let items = RlpItems [row1; row2; row3; row4] in
+    to_string (encode items)
+    = Ethereum_util.string_of_hex_string
+        "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"]
+
+  [%%test
+  let "small_int_rlp" = to_string (encode_int 1000) = Ethereum_util.string_of_hex_string "0x8203e8"]
+
+  [%%test
+  let "cat_dog_rlp" =
     let cat_item = RlpItem "cat" in
     let dog_item = RlpItem "dog" in
     let items = RlpItems [cat_item; dog_item] in
-    rlp_encode_items items = RlpEncoding "»ÉcatÉdog"
+    rlp_encode_items items = RlpEncoding "»ÉcatÉdog"]
 
-  let%test "empty_list_rlp" =
+  [%%test
+  let "empty_list_rlp" =
     let empty_list = RlpItems [] in
-    rlp_encode_items empty_list = RlpEncoding "¿"
+    rlp_encode_items empty_list = RlpEncoding "¿"]
 
-  let%test "two_set_rlp" =
+  [%%test
+  let "two_set_rlp" =
     let zero = RlpItems [] in
     let one = RlpItems [zero] in
     let two = RlpItems [zero; one; RlpItems [zero; one]] in
-    rlp_encode_items two = RlpEncoding "«¿¡¿√¿¡¿"
+    rlp_encode_items two = RlpEncoding "«¿¡¿√¿¡¿"]
 
-  let%test "fifteen_rlp" = encode_int 15 = RlpEncoding "\015"
+  [%%test
+  let "fifteen_rlp" = encode_int 15 = RlpEncoding "\015"]
 
-  let%test "kilo_rlp" = encode_int 1024 = RlpEncoding "Ç\004\000"
+  [%%test
+  let "kilo_rlp" = encode_int 1024 = RlpEncoding "Ç\004\000"]
 
-  let%test "latin_rlp" =
+  [%%test
+  let "latin_rlp" =
     let s = "Lorem ipsum dolor sit amet, consectetur adipisicing elit" in
-    encode_string s = RlpEncoding ("∏8" ^ s)
+    encode_string s = RlpEncoding ("∏8" ^ s)]
 
   (* tests of int (not rlp) encoding / decoding *)
 
   let test_int_encoding n = decode_int_string (encode_int_as_string n) = n
 
-  let%test "int_encoding_inverse_1" = test_int_encoding 42
+  [%%test
+  let "int_encoding_inverse_1" = test_int_encoding 42]
 
-  let%test "int_encoding_inverse_2" = test_int_encoding 1024
+  [%%test
+  let "int_encoding_inverse_2" = test_int_encoding 1024]
 
-  let%test "int_encoding_inverse_3" = test_int_encoding 1000000
+  [%%test
+  let "int_encoding_inverse_3" = test_int_encoding 1000000]
 
-  let%test "int_encoding_inverse_4" = test_int_encoding 0
+  [%%test
+  let "int_encoding_inverse_4" = test_int_encoding 0]
 
-  let%test "int_encoding_inverse_5" = test_int_encoding 1
+  [%%test
+  let "int_encoding_inverse_5" = test_int_encoding 1]
 
   (* test that encode and decode are inverses *)
 
   let make_rlp_encode_decode_test item = decode (encode item) = item
 
-  let%test "encode_decode_1" = make_rlp_encode_decode_test (RlpItem "this is a test")
+  [%%test
+  let "encode_decode_1" = make_rlp_encode_decode_test (RlpItem "this is a test")]
 
-  let%test "encode_decode_2" =
+  [%%test
+  let "encode_decode_2" =
     make_rlp_encode_decode_test
       (RlpItem
-         "a very long string a very long string a very long string a very long string a very long string a very long string a very long string")
+         "a very long string a very long string a very long string a very long string a very long string a very long string a very long string")]
 
-  let%test "encode_decode_3" =
+  [%%test
+  let "encode_decode_3" =
     make_rlp_encode_decode_test
       (RlpItems
          [ RlpItem "something"
          ; RlpItems
-             [RlpItem "anything"; RlpItems [RlpItem "une chose quelconque"; RlpItem "un truc"]] ])
+             [RlpItem "anything"; RlpItems [RlpItem "une chose quelconque"; RlpItem "un truc"]] ])]
 
-  let%test "encode_decode_4" = make_rlp_encode_decode_test (RlpItems [])
+  [%%test
+  let "encode_decode_4" = make_rlp_encode_decode_test (RlpItems [])]
 
-  let%test "encode_decode_5" = make_rlp_encode_decode_test (RlpItem "")
+  [%%test
+  let "encode_decode_5" = make_rlp_encode_decode_test (RlpItem "")]
 
-  let%test "encode_decode_6" =
+  [%%test
+  let "encode_decode_6" =
     make_rlp_encode_decode_test
       (RlpItems
          [ RlpItems
@@ -216,5 +263,5 @@ module Test = struct
                  [ RlpItems
                      [ RlpItems
                          [RlpItems [RlpItems [RlpItems [RlpItems [RlpItem "hi, I'm a leaf"]]]]] ]
-                 ] ] ])
+                 ] ] ])]
 end

@@ -37,7 +37,7 @@ type abi_type =
   | Function
   (* address: equivalent to uint160, except for the assumed interpretation and language typing. For computing the function selector, address is used. *)
   | Address
-[@@deriving show]
+  [@@deriving show]
 
 type abi_function_call = {function_name: string; parameters: (abi_value * abi_type) list}
 
@@ -59,7 +59,7 @@ and abi_value =
   | Tuple_value of abi_value list
   | Function_value of Address.t * abi_function_call
   | Address_value of Address.t
-[@@deriving show]
+  [@@deriving show]
 
 (* are constraints on types fulfilled *)
 let rec is_valid_type = function
@@ -73,6 +73,7 @@ let rec is_valid_type = function
   | FixedDefault | UfixedDefault | BytesDynamic | String | Address | Function | Bool
    |UintDefault | IntDefault ->
       true
+
 
 (* must get this right for hash of signature to work *)
 let rec show_type_for_function_selector ty =
@@ -101,6 +102,7 @@ let rec show_type_for_function_selector ty =
   | Address -> "address"
   | Bool -> "bool"
 
+
 (* build ABI values and types from OCaml values *)
 
 let abi_string_of_string s = (String_value s, String)
@@ -110,6 +112,7 @@ let abi_string_of_string s = (String_value s, String)
 let rec pow2 n =
   if n < 0 then raise (Internal_error "pow2: expected nonnegative n") ;
   if n = 0 then 1 else 2 * pow2 (n - 1)
+
 
 and get_big_endian_int_bytes bits n =
   (* create byte array representing big-endian representation *)
@@ -128,6 +131,7 @@ and get_big_endian_int_bytes bits n =
   in
   Bytes.init num_bytes get_byte
 
+
 and make_abi_intN_of_int bits n =
   if bits < 8 then raise (Internal_error (Printf.sprintf "bits = %d must be at least 8" bits)) ;
   if bits mod 8 != 0 then
@@ -138,6 +142,7 @@ and make_abi_intN_of_int bits n =
     raise (Internal_error (Printf.sprintf "Value %d cannot be represented with type int%d" n bits)) ;
   let bytes = get_big_endian_int_bytes bits n in
   (Int_value bytes, Int bits)
+
 
 and make_abi_uintN_of_int bits n =
   if bits < 8 then raise (Internal_error (Printf.sprintf "bits = %d must be at least 8" bits)) ;
@@ -150,6 +155,7 @@ and make_abi_uintN_of_int bits n =
       (Internal_error (Printf.sprintf "Value %d cannot be represented with type uint%d" n bits)) ;
   let bytes = get_big_endian_int_bytes bits n in
   (Uint_value bytes, Uint bits)
+
 
 let abi_int8_of_int = make_abi_intN_of_int 8
 
@@ -203,9 +209,11 @@ let rec get_big_endian_int64_bytes n_64 =
   in
   Bytes.init 8 get_byte
 
+
 and abi_int64_of_int64 n_64 =
   let bytes = get_big_endian_int64_bytes n_64 in
   (Int_value bytes, Int 64)
+
 
 (* convert positive int64 values to ABI uint64 values *)
 let abi_uint64_of_int64 n_64 =
@@ -214,6 +222,7 @@ let abi_uint64_of_int64 n_64 =
   match fst (abi_int64_of_int64 n_64) with
   | Int_value bytes -> (Uint 64, Uint_value bytes)
   | v -> raise (Internal_error (Printf.sprintf "Expected Int_value, got %s" (show_abi_value v)))
+
 
 (* TODO: have builders for larger bit-width types that take an int64, or maybe Signed/Unsigned from
    integers library
@@ -234,6 +243,7 @@ let abi_address_of_address address = (Address_value address, Address)
 let abi_function_call_of_encoded_call address encoded_call =
   (Function_value (address, encoded_call), Function)
 
+
 let abi_array_of_abi_values ty abi_typed_vals =
   if not (List.for_all (fun (ty', _) -> ty' = ty) abi_typed_vals) then
     raise (Internal_error "Array elements don't all match specified type") ;
@@ -241,100 +251,120 @@ let abi_array_of_abi_values ty abi_typed_vals =
   let vals = List.map snd abi_typed_vals in
   (Array_value vals, Array (len, ty))
 
+
 let abi_array_dynamic_of_abi_values ty abi_typed_vals =
   match fst (abi_array_of_abi_values ty abi_typed_vals) with
   | Array_value vals -> (vals, ArrayDynamic ty)
   | v -> raise (Internal_error (Printf.sprintf "Expected Array value, got %s" (show_abi_value v)))
+
 
 let abi_tuple_of_abi_values abi_typed_vals =
   let vals = List.map fst abi_typed_vals in
   let tys = List.map snd abi_typed_vals in
   (Tuple_value vals, Tuple tys)
 
+
 (* for Fixed encodings, num is an int or int64 which represents num * 10**n *)
 
 let expected_int v =
   raise (Internal_error (Printf.sprintf "Expected Int value, got %s" (show_abi_value v)))
+
 
 let abi_fixed8n_of_int n num =
   match fst (abi_int8_of_int num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (8, n))
   | v -> expected_int v
 
+
 let abi_fixed16n_of_int n num =
   match fst (abi_int16_of_int num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (16, n))
   | v -> expected_int v
+
 
 let abi_fixed24_of_int n num =
   match fst (abi_int24_of_int num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (24, n))
   | v -> expected_int v
 
+
 let abi_fixed32_of_int n num =
   match fst (abi_int32_of_int num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (32, n))
   | v -> expected_int v
+
 
 let abi_fixed40_of_int n num =
   match fst (abi_int40_of_int num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (40, n))
   | v -> expected_int v
 
+
 let abi_fixed48_of_int n num =
   match fst (abi_int48_of_int num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (48, n))
   | v -> expected_int v
+
 
 let abi_fixed56_of_int n num =
   match fst (abi_int56_of_int num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (56, n))
   | v -> expected_int v
 
+
 let abi_fixed64_of_int64 n num =
   match fst (abi_int64_of_int64 num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (64, n))
   | v -> expected_int v
+
 
 let abi_ufixed8n_of_int n num =
   match fst (abi_int8_of_int num) with
   | Int_value bytes -> (Ufixed (8, n), Ufixed_value bytes)
   | v -> expected_int v
 
+
 let abi_ufixed16n_of_int n num =
   match fst (abi_int16_of_int num) with
   | Int_value bytes -> (Ufixed (16, n), Ufixed_value bytes)
   | v -> expected_int v
+
 
 let abi_ufixed24_of_int n num =
   match fst (abi_int24_of_int num) with
   | Int_value bytes -> (Ufixed (24, n), Ufixed_value bytes)
   | v -> expected_int v
 
+
 let abi_ufixed32_of_int n num =
   match fst (abi_int32_of_int num) with
   | Int_value bytes -> (Ufixed (32, n), Ufixed_value bytes)
   | v -> expected_int v
+
 
 let abi_ufixed40_of_int n num =
   match fst (abi_int40_of_int num) with
   | Int_value bytes -> (Ufixed (40, n), Ufixed_value bytes)
   | v -> expected_int v
 
+
 let abi_ufixed48_of_int n num =
   match fst (abi_int48_of_int num) with
   | Int_value bytes -> (Ufixed (48, n), Ufixed_value bytes)
   | v -> expected_int v
+
 
 let abi_ufixed56_of_int n num =
   match fst (abi_int56_of_int num) with
   | Int_value bytes -> (Ufixed (56, n), Ufixed_value bytes)
   | v -> expected_int v
 
+
 let abi_ufixed64_of_int64 n num =
   match fst (abi_int64_of_int64 num) with
   | Int_value bytes -> (Ufixed (64, n), Ufixed_value bytes)
   | v -> expected_int v
+
 
 (* first four bytes of call are the first four bytes of the Keccak256 hash of the
    signature
@@ -347,6 +377,7 @@ let encode_signature function_call =
   let hashed = Ethereum_util.hash signature in
   Bytes.of_string (String.sub hashed 0 4)
 
+
 (* encoding of parameter depends on classification of types as static or dynamic *)
 let rec is_dynamic_type = function
   | BytesDynamic | String | ArrayDynamic _ -> true
@@ -354,6 +385,7 @@ let rec is_dynamic_type = function
   | Tuple tys when List.exists is_dynamic_type tys -> true
   (* static type *)
   | _ -> false
+
 
 (* for a given type, the number of bytes it needs in the "heads" part of the encoding *)
 let rec get_head_space ty =
@@ -368,9 +400,10 @@ let rec get_head_space ty =
   | Array (m, ty') ->
       if is_dynamic_type ty then 32
       else (* sum of length encoding and length of element encodings *)
-        32 + (m * get_head_space ty')
+        32 + m * get_head_space ty'
   | Tuple tys ->
       if is_dynamic_type ty then 32 else List.fold_right ( + ) (List.map get_head_space tys) 0
+
 
 (* encoding is driven by types; check that the value matches the type *)
 let rec encode_abi_value v ty =
@@ -484,6 +517,7 @@ let rec encode_abi_value v ty =
            (Printf.sprintf "Value to be encoded: %s\nDoes not match its type: %s"
               (show_abi_value v) (show_abi_type ty)))
 
+
 (* an encoding of the function call is what we pass to Ethereum in a transaction *)
 let encode_function_call function_call =
   let encoded_signature = encode_signature function_call in
@@ -491,8 +525,10 @@ let encode_function_call function_call =
   let encoded_params = encode_abi_value param_val param_ty in
   Bytes.cat encoded_signature encoded_params
 
+
 module Test = struct
-  let%test "int64-of-int64-encoding" =
+  [%%test
+  let "int64-of-int64-encoding" =
     let ff = 0xff in
     let ff_64 = Int64.of_int ff in
     match abi_int64_of_int64 ff_64 with
@@ -509,10 +545,11 @@ module Test = struct
           get_byte 6 []
         in
         Bytes.length bytes = 8 && hi_byte = ff && List.for_all (Char.equal '\000') other_bytes_64
-    | _ -> false
+    | _ -> false]
 
+  [%%test
   (* similar test, but provide int that fits in 56 bits instead of int64 *)
-  let%test "int64-of-int-encoding" =
+  let "int64-of-int-encoding" =
     let ff = 0xff in
     match abi_int56_of_int ff with
     | Int_value bytes, Int 56 ->
@@ -528,9 +565,10 @@ module Test = struct
           get_byte 5 []
         in
         Bytes.length bytes = 7 && hi_byte = ff && List.for_all (Char.equal '\000') other_bytes
-    | _ -> false
+    | _ -> false]
 
-  let%test "contract-call-encoding-1" =
+  [%%test
+  let "contract-call-encoding-1" =
     (* first example from ABI spec *)
     let param1 = abi_uint32_of_int 69 in
     let param2 = abi_bool_of_bool true in
@@ -542,9 +580,10 @@ module Test = struct
     let expected_bytes =
       Bytes.of_string (Ethereum_util.string_of_hex_string expected_hex_string)
     in
-    bytes = expected_bytes
+    bytes = expected_bytes]
 
-  let%test "contract-call-encoding-2" =
+  [%%test
+  let "contract-call-encoding-2" =
     (* second example from ABI spec *)
     let bytes1, ty1 = abi_bytes_of_string "abc" in
     let bytes2, ty2 = abi_bytes_of_string "def" in
@@ -560,9 +599,10 @@ module Test = struct
     let expected_bytes =
       Bytes.of_string (Ethereum_util.string_of_hex_string expected_hex_string)
     in
-    bytes = expected_bytes
+    bytes = expected_bytes]
 
-  let%test "contract-call-encoding-3" =
+  [%%test
+  let "contract-call-encoding-3" =
     (* third example from ABI spec *)
     let param1 = abi_bytes_dynamic_of_string "dave" in
     let param2 = abi_bool_of_bool true in
@@ -578,9 +618,10 @@ module Test = struct
     let expected_bytes =
       Bytes.of_string (Ethereum_util.string_of_hex_string expected_hex_string)
     in
-    bytes = expected_bytes
+    bytes = expected_bytes]
 
-  let%test "contract-call-encoding-4" =
+  [%%test
+  let "contract-call-encoding-4" =
     (* fourth example from ABI spec *)
     let param1 = abi_uint_of_int 0x123 in
     let param2 =
@@ -599,5 +640,5 @@ module Test = struct
     let expected_bytes =
       Bytes.of_string (Ethereum_util.string_of_hex_string expected_hex_string)
     in
-    bytes = expected_bytes
+    bytes = expected_bytes]
 end

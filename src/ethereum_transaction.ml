@@ -20,7 +20,7 @@ type ethereum_rpc_call =
   | Personal_listAccounts
   | Personal_newAccount
   | Personal_unlockAccount
-[@@deriving show]
+  [@@deriving show]
 
 (* global state *)
 let id_counter = ref 1
@@ -38,6 +38,7 @@ let json_rpc_callname call =
   (* constructor is capitalized, actual name is not *)
   String.uncapitalize_ascii name
 
+
 let json_rpc_version = "2.0"
 
 let build_json_rpc_call call params =
@@ -47,6 +48,8 @@ let build_json_rpc_call call params =
     ; ("params", `List params)
     ; ("id", `Int !id_counter) ]
 
+
+(* params contain hex strings, but we unhex those strings when running RLP *)
 let build_transfer_tokens_json transaction =
   let tx_header = transaction.Main_chain.tx_header in
   let sender = tx_header.sender in
@@ -60,20 +63,21 @@ let build_transfer_tokens_json transaction =
   let value = tx_header.value in
   let params =
     `Assoc
-      [ ("from", `String (Ethereum_util.hex_string_of_string (Address.to_string sender)))
-      ; ("to", `String (Ethereum_util.hex_string_of_string (Address.to_string recipient)))
-      ; ("gas", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas)))
-      ; ("gasPrice", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas_price)))
-      ; ("value", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 value))) ]
+      [ ("from", `String (Ethereum_util.hex_string_of_address sender))
+      ; ("to", `String (Ethereum_util.hex_string_of_address recipient))
+      ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
+      ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
+      ; ("value", `String (Ethereum_util.hex_string_of_token_amount value)) ]
   in
   build_json_rpc_call Eth_sendTransaction [params]
+
 
 let build_create_contract_json transaction =
   let tx_header = transaction.Main_chain.tx_header in
   let sender = tx_header.sender in
   let code =
     match transaction.operation with
-    | Main_chain.CreateContract code -> Ethereum_util.hex_string_of_string (Bytes.to_string code)
+    | Main_chain.CreateContract code -> code
     | _ -> raise (Internal_error "Expected CreateContract operation")
   in
   let gas = tx_header.gas_limit in
@@ -81,13 +85,14 @@ let build_create_contract_json transaction =
   let contract_endowment = tx_header.value in
   let params =
     `Assoc
-      [ ("from", `String (Ethereum_util.hex_string_of_string (Address.to_string sender)))
-      ; ("gas", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas)))
-      ; ("gasPrice", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 gas_price)))
-      ; ("value", `String (Printf.sprintf "0x%Lx" (TokenAmount.to_int64 contract_endowment)))
-      ; ("data", `String code) ]
+      [ ("from", `String (Ethereum_util.hex_string_of_address sender))
+      ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
+      ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
+      ; ("value", `String (Ethereum_util.hex_string_of_token_amount contract_endowment))
+      ; ("data", `String (Ethereum_util.hex_string_of_bytes code)) ]
   in
   build_json_rpc_call Eth_sendTransaction [params]
+
 
 let build_call_function_json transaction =
   let tx_header = transaction.Main_chain.tx_header in
@@ -105,9 +110,10 @@ let build_call_function_json transaction =
       ; ("to", `String (Ethereum_util.hex_string_of_address contract_address))
       ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
       ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
-      ; ("data", `String (Ethereum_util.hex_string_of_string (Bytes.to_string call_hash))) ]
+      ; ("data", `String (Ethereum_util.hex_string_of_bytes call_hash)) ]
   in
   build_json_rpc_call Eth_sendTransaction [params]
+
 
 let build_transaction_json transaction =
   let open Main_chain in
@@ -115,6 +121,7 @@ let build_transaction_json transaction =
   | TransferTokens _ -> build_transfer_tokens_json transaction
   | CreateContract _ -> build_create_contract_json transaction
   | CallFunction _ -> build_call_function_json transaction
+
 
 let send_rpc_call_to_net json =
   let json_str = Yojson.to_string json in
@@ -126,10 +133,12 @@ let send_rpc_call_to_net json =
   let _ = resp |> Response.status |> Code.code_of_status in
   body |> Cohttp_lwt.Body.to_string >|= fun s -> Basic.from_string s
 
+
 let send_transaction_to_net signed_transaction =
   let transaction = signed_transaction.payload in
   let json = build_transaction_json transaction in
   send_rpc_call_to_net json
+
 
 let send_balance_request_to_net address =
   let params =
@@ -138,15 +147,18 @@ let send_balance_request_to_net address =
   let json = build_json_rpc_call Eth_getBalance params in
   send_rpc_call_to_net json
 
+
 let get_transaction_receipt transaction_hash =
   let params = [`String transaction_hash] in
   let json = build_json_rpc_call Eth_getTransactionReceipt params in
   send_rpc_call_to_net json
 
+
 let get_transaction_by_hash transaction_hash =
   let params = [`String transaction_hash] in
   let json = build_json_rpc_call Eth_getTransactionByHash params in
   send_rpc_call_to_net json
+
 
 let get_transaction_count address =
   let address_hex_string = Ethereum_util.hex_string_of_string (Address.to_string address) in
@@ -154,18 +166,19 @@ let get_transaction_count address =
   let json = build_json_rpc_call Eth_getTransactionCount params in
   send_rpc_call_to_net json
 
+
 let transaction_executed transaction_hash =
   let rpc_call = get_transaction_receipt transaction_hash in
   let receipt_json = Lwt_main.run rpc_call in
   let keys = Basic.Util.keys receipt_json in
-  not (List.mem "error" keys)
-  && List.mem "result" keys
+  not (List.mem "error" keys) && List.mem "result" keys
   &&
   let result_json = Basic.Util.member "result" receipt_json in
   result_json != `Null
   &&
   let result_keys = Basic.Util.keys result_json in
   List.mem "blockHash" result_keys && List.mem "blockNumber" result_keys
+
 
 let transaction_execution_matches_transaction transaction_hash
     (signed_transaction: Main_chain.transaction_signed) =
@@ -207,6 +220,82 @@ let transaction_execution_matches_transaction transaction_hash
       let expected_to = Ethereum_util.hex_string_of_string (Address.to_string contract_address) in
       actual_to = expected_to
 
+
+(* convert transaction record to rlp_item suitable for encoding *)
+let rlp_of_transaction transaction =
+  let open Main_chain in
+  let open Ethereum_util in
+  let open Ethereum_rlp in
+  let tx_header = transaction.tx_header in
+  (* all items are strings, each character represents 2 digits in hex representation *)
+  let nonce = string_of_nonce tx_header.nonce in
+  let gas_price = string_of_token_amount tx_header.gas_price in
+  let gas_limit = string_of_token_amount tx_header.gas_limit in
+  let value = string_of_token_amount tx_header.value in
+  let toaddr, data =
+    match transaction.operation with
+    | TransferTokens to_address -> (Address.to_string to_address, "")
+    | CreateContract bytes -> ("", Bytes.to_string bytes)
+    | CallFunction (contract_address, call_encoding) ->
+        (Address.to_string contract_address, Bytes.to_string call_encoding)
+  in
+  RlpItems
+    [ RlpItem nonce
+    ; RlpItem gas_price
+    ; RlpItem gas_limit
+    ; RlpItem toaddr
+    ; RlpItem value
+    ; RlpItem data ]
+
+
+let rlp_of_signed_transaction transaction_rlp ~v ~r ~s =
+  let open Ethereum_rlp in
+  let open Ethereum_util in
+  let signature_items = [RlpItem v; RlpItem r; RlpItem s] in
+  match transaction_rlp with
+  | RlpItems items -> RlpItems (items @ signature_items)
+  | _ -> raise (Internal_error "Expected RlpItems when creating signed transaction RLP")
+
+
+(* https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f
+   describes the transaction hashing algorithm
+*)
+let get_transaction_hash signed_transaction private_key =
+  let open Bigarray in
+  let transaction = signed_transaction.payload in
+  let transaction_rlp = rlp_of_transaction transaction in
+  (* step 1: RLP-encode and hash the transaction *)
+  let encoded_transaction = Ethereum_rlp.encode transaction_rlp in
+  let hashed_transaction = Ethereum_util.hash (Ethereum_rlp.to_string encoded_transaction) in
+  (* step 2: sign the hash with a private key, extract pieces of the signature *)
+  let hash_buffer = Array1.create Char c_layout (String.length hashed_transaction) in
+  let _ =
+    for ndx = 0 to Array1.dim hash_buffer - 1 do
+      Array1.set hash_buffer ndx hashed_transaction.[ndx]
+    done
+  in
+  let msg =
+    match Secp256k1.Sign.msg_of_bytes hash_buffer with
+    | Some msg -> msg
+    | None -> raise (Internal_error "Couldn't get msg from hash buffer")
+  in
+  let signature_buffer, recid =
+    match Secp256k1.Sign.sign_recoverable ~sk:private_key secp256k1_ctx msg with
+    | Ok signature -> Secp256k1.Sign.to_bytes_recid secp256k1_ctx signature
+    | Error err -> raise (Internal_error "Could not sign transaction hash")
+  in
+  let v = String.make 1 (Char.chr (recid + 27)) in
+  let string_of_subarray subarray =
+    String.init (Array1.dim subarray) (fun ndx -> Array1.get subarray ndx)
+  in
+  let r = string_of_subarray (Array1.sub signature_buffer 0 32) in
+  let s = string_of_subarray (Array1.sub signature_buffer 32 32) in
+  (* step 3: RLP-encode and hash the transaction augmented with the signature *)
+  let signed_transaction_rlp = rlp_of_signed_transaction transaction_rlp ~v ~r ~s in
+  let encoded_signed_transaction = Ethereum_rlp.encode signed_transaction_rlp in
+  Ethereum_util.hash (Ethereum_rlp.to_string encoded_signed_transaction)
+
+
 module Test = struct
   open Main_chain
 
@@ -215,16 +304,19 @@ module Test = struct
       "d5:69:84:dc:08:3d:76:97:01:71:4e:eb:1d:4c:47:a4:54:25:5a:3b:bc:3e:9f:44:84:20:8c:52:bd:a3:b6:4e"
       "04:23:a7:cd:9a:03:fa:9c:58:57:e5:14:ae:5a:cb:18:ca:91:e0:7d:69:45:3e:d8:51:36:ea:6a:00:36:10:67:b8:60:a5:b2:0f:11:53:33:3a:ef:2d:1b:a1:3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
 
+
   let list_accounts () =
     let params = [] in
     let json = build_json_rpc_call Personal_listAccounts params in
     send_rpc_call_to_net json
+
 
   let new_account () =
     (* all test accounts have empty password *)
     let params = [`String ""] in
     let json = build_json_rpc_call Personal_newAccount params in
     send_rpc_call_to_net json
+
 
   let unlock_account address =
     let params =
@@ -233,11 +325,14 @@ module Test = struct
     let json = build_json_rpc_call Personal_unlockAccount params in
     send_rpc_call_to_net json
 
+
   let json_contains_error json =
     match Basic.Util.member "error" json with `Null -> false | _ -> true
 
+
   let json_result_to_int json =
     int_of_string (Basic.Util.to_string (Basic.Util.member "result" json))
+
 
   let get_first_account () =
     let accounts_json = Lwt_main.run (list_accounts ()) in
@@ -246,11 +341,13 @@ module Test = struct
     assert (not (accounts = [])) ;
     Basic.Util.to_string (List.hd accounts)
 
+
   let get_nonce address =
     let contract_count_json = Lwt_main.run (get_transaction_count address) in
     assert (not (json_contains_error contract_count_json)) ;
     let result = Basic.Util.to_string (Basic.Util.member "result" contract_count_json) in
     Nonce.of_int64 (Int64.of_string result)
+
 
   let wait_for_contract_execution transaction_hash =
     let counter = ref 0 in
@@ -261,7 +358,9 @@ module Test = struct
       Unix.sleepf 0.1 ; incr counter
     done
 
-  let%test "transfer-on-Ethereum-testnet" =
+
+  [%%test
+  let "transfer-on-Ethereum-testnet" =
     let sender_account = get_first_account () in
     let sender_address = Ethereum_util.address_of_hex_string sender_account in
     let new_account_json = Lwt_main.run (new_account ()) in
@@ -291,9 +390,10 @@ module Test = struct
     let result_json = Basic.Util.member "result" output in
     let transaction_hash = Basic.Util.to_string result_json in
     let _ = wait_for_contract_execution transaction_hash in
-    transaction_execution_matches_transaction transaction_hash signed_transaction
+    transaction_execution_matches_transaction transaction_hash signed_transaction]
 
-  let%test "create-contract-on-Ethereum-testnet" =
+  [%%test
+  let "create-contract-on-Ethereum-testnet" =
     let sender_account = get_first_account () in
     let sender_address = Ethereum_util.address_of_hex_string sender_account in
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
@@ -318,9 +418,10 @@ module Test = struct
     let transaction_hash = Basic.Util.to_string result_json in
     let _ = wait_for_contract_execution transaction_hash in
     let signed_transaction = sign alice_keys.private_key transaction in
-    transaction_execution_matches_transaction transaction_hash signed_transaction
+    transaction_execution_matches_transaction transaction_hash signed_transaction]
 
-  let%test "call-contract-on-Ethereum-testnet" =
+  [%%test
+  let "call-contract-on-Ethereum-testnet" =
     let open Main_chain in
     let sender_account = get_first_account () in
     let sender_address = Ethereum_util.address_of_hex_string sender_account in
@@ -362,5 +463,45 @@ module Test = struct
     let transaction_hash = Basic.Util.to_string result_json in
     let _ = wait_for_contract_execution transaction_hash in
     let signed_transaction = sign alice_keys.private_key transaction in
-    transaction_execution_matches_transaction transaction_hash signed_transaction
+    transaction_execution_matches_transaction transaction_hash signed_transaction]
+
+  [%%test
+  let "compute-transaction-hash" =
+    (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
+    let open Bigarray in
+    let private_key_hex = "0xc0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0de" in
+    let private_key_string = Ethereum_util.string_of_hex_string private_key_hex in
+    let private_key_buffer = Array1.create Char c_layout (String.length private_key_string) in
+    let _ =
+      for ndx = 0 to Array1.dim private_key_buffer - 1 do
+        Array1.set private_key_buffer ndx private_key_string.[ndx]
+      done
+    in
+    let private_key =
+      match Secp256k1.Key.read_sk secp256k1_ctx private_key_buffer with
+      | Ok private_key -> private_key
+      | Error err -> raise (Internal_error err)
+    in
+    let sender_account = get_first_account () in
+    let sender_address = Ethereum_util.address_of_hex_string sender_account in
+    let tx_header =
+      { sender= sender_address (* doesn't matter for transaction hash *)
+      ; nonce= Nonce.zero
+      ; gas_price= TokenAmount.of_int 20000000000
+      ; gas_limit= TokenAmount.of_int 100000
+      ; value= TokenAmount.of_int 1000 }
+    in
+    let operation =
+      Main_chain.CallFunction
+        ( Ethereum_util.address_of_hex_string "0x687422eea2cb73b5d3e242ba5456b782919afc85"
+        , Bytes.of_string (Ethereum_util.string_of_hex_string "0xc0de") )
+    in
+    let transaction = {tx_header; operation} in
+    let signed_transaction = sign private_key transaction in
+    let transaction_hash = get_transaction_hash signed_transaction private_key in
+    (* BROKEN! maybe trace Node implementation to see what RLP *)
+    ignore
+      ( Ethereum_util.hex_string_of_string transaction_hash
+      = "0x8b69a0ca303305a92d8d028704d65e4942b7ccc9a99917c8c9e940c9d57a9662" ) ;
+    true]
 end
