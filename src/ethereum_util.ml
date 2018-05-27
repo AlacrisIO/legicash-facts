@@ -76,9 +76,7 @@ let hex_string_of_address address = hex_string_of_string ~left_pad:true (Address
 
 let address_of_hex_string hs = Address.of_string (string_of_hex_string hs)
 
-let hex_string_of_int64 num64 =
-  if num64 = Int64.zero then "0x0" else "0x" ^ Format.sprintf "%Lx" num64
-
+let hex_string_of_int64 num64 = Format.sprintf "0x%Lx" num64
 
 let string_of_int64 num64 = string_of_hex_string (hex_string_of_int64 num64)
 
@@ -93,14 +91,6 @@ let string_of_token_amount token_amount =
 let hex_string_of_nonce nonce = hex_string_of_int64 (Main_chain.Nonce.to_int64 nonce)
 
 let string_of_nonce nonce = string_of_int64 (Main_chain.Nonce.to_int64 nonce)
-
-let hex_string_of_bytes bs = hex_string_of_string (Bytes.to_string bs)
-
-let hex_string_of_address address = hex_string_of_string (Address.to_string address)
-
-let address_of_hex_string hs = Address.of_string (string_of_hex_string hs)
-
-let hex_string_of_int64 num64 = Format.sprintf "0x%Lx" num64
 
 let hex_string_of_token_amount token_amount =
   hex_string_of_int64 (Main_chain.TokenAmount.to_int64 token_amount)
