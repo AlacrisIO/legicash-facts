@@ -39,4 +39,4 @@ clean :
 	$(HIDE) $(BUILDER) clean --root=src
 
 contract:
-	solc contracts/facilitator.sol
+	(cd contracts/ && solc facilitator.sol)
