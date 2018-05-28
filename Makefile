@@ -38,3 +38,5 @@ clean :
 	$(SHOW) "Cleaning via jbuilder"
 	$(HIDE) $(BUILDER) clean --root=src
 
+contract:
+	(cd contracts/ && solc facilitator.sol)

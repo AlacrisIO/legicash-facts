@@ -4,3 +4,4 @@ tezos
 *~
 *.cmo
 *.cmi
+scripts/ethereum-testnet/geth-data/
