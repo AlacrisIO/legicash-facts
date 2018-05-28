@@ -53,15 +53,16 @@ contract Claims {
      *
      * One challenge period is 2h, about 423 blocks at the expected rate of 1 block per 17 s.
      */
-    int challenge_period_in_seconds;
+    int constant internal challenge_period_in_seconds = 2 hours;
 
     /** @dev expiry delay, in seconds.
      *
      * Claims may disappear after this delay.
      * TODO: Make sure it's large enough.
+     * TODO: Don't start actually using it until we have a good solution for verifying log entries,
+     * thus allowing to prevent a replay of old claims with log entries rather than storage.
      */
-    int expiry_delay;
-
+    int constant internal expiry_delay = 31 days;
 
     /** True if a claim is still pending */
     function is_claim_status_pending(int _status) internal view returns(bool) {

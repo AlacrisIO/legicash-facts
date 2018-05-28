@@ -1,4 +1,5 @@
 pragma solidity ^0.4.23;
+//pragma experimental ABIEncoderV2;
 
 import "claims.sol";
 import "bonds.sol";
@@ -12,9 +13,6 @@ import "bonds.sol";
  * Contract for a number of facilitator using the same court registry
  */
 contract Facilitators is Claims, Bonds {
-
-    int constant challenge_period_in_seconds = 2 hours;
-    int constant expiry_delay = 31 days;
 
     // Solidity won't hash a struct, so we manually use abi.encodePacked in an untyped way.
     // Moreover, we want to distinguish between struct's, so we tag them with a type tag.
@@ -159,26 +157,6 @@ contract Facilitators is Claims, Bonds {
 
 
     // TODO: challenges and counter-challenges for withdrawal (and then for all other claims)
-    //
-    // proof (tree, with + for disjunction, * for conjunction)
-    // + the claimed confirmed offered state isn't valid:
-    //    + it is not present as an active claim with a validity date in the past.
-    //    + the known preimage to the claim, shown as evidence, does not start with STATE_UPDATE.
-    //      NB: if the claim is in the data base, the preimage comes from some public transaction.
-    // + The _ticket number is too new compared to side-chain revision of latest confirmed state.
-    //    * as evidence, a preimage for the state,
-    //    * the maximum revision of which is less than the ticket.
-    // + The actual ticket entry content does not match:
-    //    * as evidence, a preimage for the state, a merkle tree path to the ticket entry,
-    //    * and the ticket entry, which does not match the account and value
-    // + The _ticket was already withdrawn:
-    //    * as current evidence (temporary), check the claim in permanent storage.
-    //   TODO: Instead,
-    //    * as evidence, access the log entry for the Withdrawal
-    //      https://ethereum.stackexchange.com/questions/49441/verifying-that-an-event-did-happen
-    //    * a path to the log entry within a block
-    //    * a path to the block from a known ethereum block
-    //      (using https://github.com/amiller/ethereum-blockhashes if needs be)
 
     /**
      * Challenge a withdrawal claim because its confirmed_state isn't accepted as valid.
@@ -196,6 +174,10 @@ contract Facilitators is Claims, Bonds {
 
     /**
      * Challenge a withdrawal claim because its confirmed_state isn't actually a state update.
+     *
+     * Parameters from _facilitator to _confirmed_state describe the claim being disputed.
+     * Parameters from _preimage_facilitator to _preimage_data describe a preimage to _confirmed_state,
+     * that fail to match a state update.
      */
     function challenge_withdrawal__confirmed_state_not_state(
         address _facilitator, address _account,
@@ -250,12 +232,10 @@ contract Facilitators is Claims, Bonds {
 
     /**
      * Challenge a withdrawal claim because the ticket number doesn't correspond to a withdrawal.
+     *
+     * Parameters from _facilitator to _confirmed_state describe the claim being disputed.
+     * Parameters afterwards exhibit the ticket at given number, which is of the wrong subtype.
      */
-    /*
-facilitator.sol:286:13: Compiler error: Stack too deep, try removing local variables.
-            _facilitator, _account, _ticket, _value, _bond, _confirmed_state));
-            ^----------^
-
     function challenge_withdrawal__ticket_not_withdrawal(
         address _facilitator,
         address _account,
@@ -263,36 +243,50 @@ facilitator.sol:286:13: Compiler error: Stack too deep, try removing local varia
         uint _value,
         uint _bond,
         bytes32 _confirmed_state,
-        bytes32 _previous_main_chain_state,
-        bytes32 _previous_side_chain_state,
-        uint64 _facilitator_revision,
-        uint _spending_limit,
-        uint _bond_posted,
-        bytes32 _accounts,
-        bytes32 _operations,
-        bytes32 _main_chain_transactions_posted,
+        bytes32[] state_bits,
         bytes32[] _merkle_path_in_operations
         // TODO: side-chain operation support
             )
             public {
         require(_confirmed_state ==
-            digest_claim(_facilitator, ClaimType.STATE_UPDATE,
-                facilitator_state(
-                    _previous_main_chain_state,
-                    _previous_side_chain_state,
-                    _facilitator_revision,
-                    _spending_limit,
-                    _bond_posted,
-                    _accounts,
-                    _operations,
-                    _main_chain_transactions_posted)));
-        // TODO: complete this thing
+            digest_claim(_facilitator, ClaimType.STATE_UPDATE, keccak256(state_bits)));
+        bytes32 operations = state_bits[6]; // TODO: make sure that's correct!
+        // TODO: complete this thing XXXXX
+        _merkle_path_in_operations; operations;
         reject_claim(withdrawal_claim(
             _facilitator, _account, _ticket, _value, _bond, _confirmed_state));
         // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
     }
-    */
+
+    /**
+     * Challenge a withdrawal claim because the actual ticket doesn't match the claim
+     *
+     * Parameters from _facilitator to _confirmed_state describe the claim being disputed.
+     * Parameters afterwards exhibit the ticket at given number, which fails to match the claim.
+     */
+    function challenge_withdrawal__ticket_mismatch(
+        address _facilitator,
+        address _account,
+        uint64 _ticket,
+        uint _value,
+        uint _bond,
+        bytes32 _confirmed_state,
+        bytes32[] state_bits,
+        bytes32[] _merkle_path_in_operations
+        // TODO: side-chain operation support
+            )
+            public {
+        require(_confirmed_state ==
+            digest_claim(_facilitator, ClaimType.STATE_UPDATE, keccak256(state_bits)));
+        bytes32 operations = state_bits[6]; // TODO: make sure that's correct!
+        // TODO: complete this thing XXXXX
+        _merkle_path_in_operations; operations;
+        reject_claim(withdrawal_claim(
+            _facilitator, _account, _ticket, _value, _bond, _confirmed_state));
+        // LAST, send the bond as reward to the sender.
+        msg.sender.transfer(_bond);
+    }
 
     /**
      * Challenge a withdrawal claim because the ticket was already withdrawn.
@@ -307,6 +301,7 @@ facilitator.sol:286:13: Compiler error: Stack too deep, try removing local varia
      * a path to the block from a known ethereum block
      *     (using https://github.com/amiller/ethereum-blockhashes if needs be)
      */
+    /*
     function challenge_withdrawal__ticket_already_withdrawn(
         address _facilitator,
         address _account,
@@ -315,10 +310,11 @@ facilitator.sol:286:13: Compiler error: Stack too deep, try removing local varia
         uint _bond,
         bytes32 _confirmed_state)
             public {
-        // TODO: complete this thing
+        // TODO: complete this thing XXXXXX
         reject_claim(withdrawal_claim(
             _facilitator, _account, _ticket, _value, _bond, _confirmed_state));
         // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
     }
+    */
 }
