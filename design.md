@@ -131,9 +131,9 @@ ill-formed report, and perhaps instructions on how to invalidate it. Signature
 of the responsible facilitator must always be verified, though, because they are
 fined.
 
-##### Complaint about transaction unsigned by sender, but signed by facilitators
+##### Complaint about transaction unsigned by sender, but signed by facilitator
 
-
+Structure of
 
 ##### Complaint about invalid transaction 
 
