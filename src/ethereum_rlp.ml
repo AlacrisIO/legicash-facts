@@ -11,23 +11,12 @@ type rlp_item = RlpItem of string | RlpItems of rlp_item list
 
 type t = RlpEncoding of string [@@deriving show]
 
-(* total length of items to be encoded *)
-let rec get_rlp_items_len = function
-  | RlpItem item -> String.length item
-  | RlpItems items ->
-      (* length is sum of length of items, plus length of the list containing them *)
-      let len = List.length items in
-      let lens = List.map get_rlp_items_len items in
-      len + List.fold_right ( + ) lens 0
-
-
 (* convert number to string, used for
     - encoding lengths within RLP-encodings
     - encoding integers to string, which can then be RLP-encoded
  *)
 let rec encode_int_as_string n =
   if n == 0 then "" else encode_int_as_string (n / 0x100) ^ String.make 1 (Char.chr (n mod 0x100))
-
 
 (* encode length of string to prepend to RLP-encoding *)
 let encode_length len offset =
@@ -37,10 +26,8 @@ let encode_length len offset =
     let first_byte = String.make 1 (Char.chr (String.length len_string + offset + 55)) in
     first_byte ^ len_string
 
-
 let rec encode data =
   match data with RlpItem _ -> rlp_encode_item data | RlpItems _ -> rlp_encode_items data
-
 
 and rlp_encode_item = function
   | RlpItem item ->
@@ -52,17 +39,15 @@ and rlp_encode_item = function
         RlpEncoding (encoded_length ^ item)
   | RlpItems _ -> raise (Internal_error "Expected single item to RLP-encode, got list of items")
 
-
 and rlp_encode_items = function
   | RlpItem _ -> raise (Internal_error "Expected list of items to RLP-encode, got single item")
-  | RlpItems items as rlp_items ->
-      let len = get_rlp_items_len rlp_items in
-      let encoded_length = encode_length len 0xC0 in
-      let encodings = List.map encode items in
-      (* strip off constructor to allow concatenation *)
-      let raw_encodings = List.map (fun (RlpEncoding rlp) -> rlp) encodings in
-      RlpEncoding (String.concat "" (encoded_length :: raw_encodings))
+  | RlpItems items ->
+      let encodings = List.map (fun it -> to_string (encode it)) items in
+      let merged_encodings = String.concat "" encodings in
+      let encoded_length = encode_length (String.length merged_encodings) 0xC0 in
+      RlpEncoding (encoded_length ^ merged_encodings)
 
+and to_string (RlpEncoding s) = s
 
 let encode_string s = rlp_encode_item (RlpItem s)
 
@@ -70,16 +55,13 @@ let encode_bytes bytes = encode_string (Bytes.to_string bytes)
 
 let encode_int n = encode_string (encode_int_as_string n)
 
-let to_string (RlpEncoding s) = s
-
 (* decoding *)
 (* inverse of encode_int_as_string *)
 let rec decode_int_string n =
   let len = String.length n in
   if len = 0 then 0
   else if len = 1 then Char.code n.[0]
-  else Char.code n.[len - 1] + decode_int_string (String.sub n 0 (len - 1)) * 0x100
-
+  else Char.code n.[len - 1] + (decode_int_string (String.sub n 0 (len - 1)) * 0x100)
 
 type rlp_length_bounds = {start: int; length: int}
 
@@ -96,22 +78,25 @@ let decode_length input =
     if prefix <= 0x7F then RlpItemLengthDecoded {start= 0; length= 1}
     else if prefix <= 0xB7 && len > prefix - 0x80 then
       RlpItemLengthDecoded {start= 1; length= prefix - 0x80}
-    else if prefix <= 0xbf && len > prefix - 0xb7
-            && len > prefix - 0xB7 + decode_int_string (String.sub input 1 (prefix - 0xB7))
+    else if
+      prefix <= 0xbf
+      && len > prefix - 0xb7
+      && len > prefix - 0xB7 + decode_int_string (String.sub input 1 (prefix - 0xB7))
     then
       let len_of_strlen = prefix - 0xB7 in
       let strlen = decode_int_string (String.sub input 1 len_of_strlen) in
       RlpItemLengthDecoded {start= 1 + len_of_strlen; length= strlen}
     else if prefix <= 0xF7 && len > prefix - 0xC0 then
       RlpItemsLengthDecoded {start= 1; length= prefix - 0xC0}
-    else if prefix <= 0xFF && len > prefix - 0xF7
-            && len > prefix - 0xF7 + decode_int_string (String.sub input 1 (prefix - 0xF7))
+    else if
+      prefix <= 0xFF
+      && len > prefix - 0xF7
+      && len > prefix - 0xF7 + decode_int_string (String.sub input 1 (prefix - 0xF7))
     then
       let len_of_items_len = prefix - 0xF7 in
       let items_len = decode_int_string (String.sub input 1 len_of_items_len) in
       RlpItemsLengthDecoded {start= 1 + len_of_items_len; length= items_len}
     else raise (Internal_error "decode_length: nonconforming RLP encoding")
-
 
 (* entry point for RLP decoding *)
 let decode (RlpEncoding s as encoding) =
@@ -145,26 +130,21 @@ let decode (RlpEncoding s as encoding) =
       (Internal_error
          (Printf.sprintf "For encoding: %s, got leftover data: %s" (show encoding) leftover))
 
-
 module Test = struct
-  [%%test
   (* tests of encoding, from reference given at top *)
 
-  let "empty_string_rlp" = encode_string "" = RlpEncoding (String.make 1 (Char.chr 0x80))]
+  let%test "empty_string_rlp" = encode_string "" = RlpEncoding (String.make 1 (Char.chr 0x80))
 
-  [%%test
-  let "dog_string_rlp" = encode_string "dog" = RlpEncoding "ƒdog"]
+  let%test "dog_string_rlp" = encode_string "dog" = RlpEncoding "ƒdog"
 
-  [%%test
   (* from https://github.com/ethereum/tests/blob/develop/RLPTests/rlptest.json *)
-  let "short_list_rlp" =
+  let%test "short_list_rlp" =
     let items = List.map (fun it -> RlpItem it) ["dog"; "god"; "cat"] in
     to_string (encode (RlpItems items))
-    = Ethereum_util.string_of_hex_string "0xcc83646f6783676f6483636174"]
+    = Ethereum_util.string_of_hex_string "0xcc83646f6783676f6483636174"
 
-  [%%test
   (* from https://github.com/ethereum/tests/blob/develop/RLPTests/rlptest.json *)
-  let "dict_rlp" =
+  let%test "dict_rlp" =
     let mk_row its = RlpItems (List.map (fun it -> RlpItem it) its) in
     let row1 = mk_row ["key1"; "val1"] in
     let row2 = mk_row ["key2"; "val2"] in
@@ -173,89 +153,72 @@ module Test = struct
     let items = RlpItems [row1; row2; row3; row4] in
     to_string (encode items)
     = Ethereum_util.string_of_hex_string
-        "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"]
+        "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"
 
-  [%%test
-  let "small_int_rlp" = to_string (encode_int 1000) = Ethereum_util.string_of_hex_string "0x8203e8"]
+  let%test "small_int_rlp" =
+    to_string (encode_int 1000) = Ethereum_util.string_of_hex_string "0x8203e8"
 
-  [%%test
-  let "cat_dog_rlp" =
+  let%test "cat_dog_rlp" =
     let cat_item = RlpItem "cat" in
     let dog_item = RlpItem "dog" in
     let items = RlpItems [cat_item; dog_item] in
-    rlp_encode_items items = RlpEncoding "Èƒcatƒdog"]
+    rlp_encode_items items = RlpEncoding "Èƒcatƒdog"
 
-  [%%test
-  let "empty_list_rlp" =
+  let%test "empty_list_rlp" =
     let empty_list = RlpItems [] in
-    rlp_encode_items empty_list = RlpEncoding "À"]
+    rlp_encode_items empty_list = RlpEncoding "À"
 
-  [%%test
-  let "two_set_rlp" =
+  let%test "two_set_rlp" =
     let zero = RlpItems [] in
     let one = RlpItems [zero] in
     let two = RlpItems [zero; one; RlpItems [zero; one]] in
-    rlp_encode_items two = RlpEncoding "ÇÀÁÀÃÀÁÀ"]
+    rlp_encode_items two = RlpEncoding "ÇÀÁÀÃÀÁÀ"
 
-  [%%test
-  let "fifteen_rlp" = encode_int 15 = RlpEncoding "\015"]
+  let%test "fifteen_rlp" = encode_int 15 = RlpEncoding "\015"
 
-  [%%test
-  let "kilo_rlp" = encode_int 1024 = RlpEncoding "‚\004\000"]
+  let%test "kilo_rlp" = encode_int 1024 = RlpEncoding "‚\004\000"
 
-  [%%test
-  let "latin_rlp" =
+  let%test "latin_rlp" =
     let s = "Lorem ipsum dolor sit amet, consectetur adipisicing elit" in
-    encode_string s = RlpEncoding ("¸8" ^ s)]
+    encode_string s = RlpEncoding ("¸8" ^ s)
 
   (* tests of int (not rlp) encoding / decoding *)
 
   let test_int_encoding n = decode_int_string (encode_int_as_string n) = n
 
-  [%%test
-  let "int_encoding_inverse_1" = test_int_encoding 42]
+  let%test "int_encoding_inverse_1" = test_int_encoding 42
 
-  [%%test
-  let "int_encoding_inverse_2" = test_int_encoding 1024]
+  let%test "int_encoding_inverse_2" = test_int_encoding 1024
 
-  [%%test
-  let "int_encoding_inverse_3" = test_int_encoding 1000000]
+  let%test "int_encoding_inverse_3" = test_int_encoding 1000000
 
-  [%%test
-  let "int_encoding_inverse_4" = test_int_encoding 0]
+  let%test "int_encoding_inverse_4" = test_int_encoding 0
 
-  [%%test
-  let "int_encoding_inverse_5" = test_int_encoding 1]
+  let%test "int_encoding_inverse_5" = test_int_encoding 1
 
   (* test that encode and decode are inverses *)
 
   let make_rlp_encode_decode_test item = decode (encode item) = item
 
-  [%%test
-  let "encode_decode_1" = make_rlp_encode_decode_test (RlpItem "this is a test")]
+  let%test "encode_decode_1" = make_rlp_encode_decode_test (RlpItem "this is a test")
 
-  [%%test
-  let "encode_decode_2" =
+  let%test "encode_decode_2" =
     make_rlp_encode_decode_test
       (RlpItem
-         "a very long string a very long string a very long string a very long string a very long string a very long string a very long string")]
+         "a very long string a very long string a very long string a very long string a very long string a very long string a very long string")
 
-  [%%test
-  let "encode_decode_3" =
+  let%test "encode_decode_3" =
     make_rlp_encode_decode_test
       (RlpItems
          [ RlpItem "something"
          ; RlpItems
-             [RlpItem "anything"; RlpItems [RlpItem "une chose quelconque"; RlpItem "un truc"]] ])]
+             [RlpItem "anything"; RlpItems [RlpItem "une chose quelconque"; RlpItem "un truc"]] ])
 
-  [%%test
-  let "encode_decode_4" = make_rlp_encode_decode_test (RlpItems [])]
+  let%test "encode_decode_4" = make_rlp_encode_decode_test (RlpItems [])
 
-  [%%test
-  let "encode_decode_5" = make_rlp_encode_decode_test (RlpItem "")]
+  let%test "encode_decode_5" = make_rlp_encode_decode_test (RlpItem "")
 
-  [%%test
-  let "encode_decode_6" =
+  let%test "encode_decode_6" =
     make_rlp_encode_decode_test
       (RlpItems
          [ RlpItems
@@ -263,5 +226,27 @@ module Test = struct
                  [ RlpItems
                      [ RlpItems
                          [RlpItems [RlpItems [RlpItems [RlpItems [RlpItem "hi, I'm a leaf"]]]]] ]
-                 ] ] ])]
+                 ] ] ])
+
+  let%test "encode-list" =
+    (* based on example at https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f;
+       the expected value below is what the NodeJS implementation gives *)
+    let open Ethereum_util in
+    let items =
+      [ "0x0"
+      ; "0x04a817c800"
+      ; "0x0186a0"
+      ; "0x687422eea2cb73b5d3e242ba5456b782919afc85"
+      ; "0x03e8"
+      ; "0xc0de"
+      ; "0x1c"
+      ; "0x668ed6500efd75df7cb9c9b9d8152292a75453ec2d11030b0eec42f6a7ace602"
+      ; "0x3efcbbf4d53e0dfa4fde5c6d9a73221418652abc66dff7fddd78b81cc28b9fbf" ]
+    in
+    let rlp_items = RlpItems (List.map (fun it -> RlpItem (string_of_hex_string it)) items) in
+    let rlp = to_string (encode rlp_items) in
+    let expected_rlp =
+      "0xf869808504a817c800830186a094687422eea2cb73b5d3e242ba5456b782919afc858203e882c0de1ca0668ed6500efd75df7cb9c9b9d8152292a75453ec2d11030b0eec42f6a7ace602a03efcbbf4d53e0dfa4fde5c6d9a73221418652abc66dff7fddd78b81cc28b9fbf"
+    in
+    hex_string_of_string rlp = expected_rlp
 end
