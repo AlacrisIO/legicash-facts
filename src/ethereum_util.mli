@@ -11,6 +11,9 @@ val hex_string_of_string : ?left_pad:bool -> string -> string
 val hex_string_of_bytes : Bytes.t -> string
 (** convert bytes to string, where each character represents a hex digit *)
 
+val bytes_of_hex_string : string -> Bytes.t
+(** convert Ethereum hex string to bytes; useful for converting solc --bin output to bytes *)
+
 val string_of_int64 : int64 -> string
 (** convert int64 to string, where each character represents a hex digit *)
 
