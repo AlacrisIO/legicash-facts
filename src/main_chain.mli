@@ -19,7 +19,7 @@ type tx_header =
   ; gas_price: TokenAmount.t
   ; gas_limit: TokenAmount.t
   ; value: TokenAmount.t }
-  [@@deriving lens]
+[@@deriving lens]
 
 type operation =
   | TransferTokens of Address.t
@@ -38,7 +38,11 @@ type transaction_signed = transaction signed
     an old enough block on the main chain
     TODO: maybe also include a path and/or merkle tree from there?
     *)
-type confirmation = state digest
+type confirmation =
+  { transaction_hash: Digest.t
+  ; transaction_index: Unsigned.UInt64.t
+  ; block_number: Revision.t
+  ; block_hash: Digest.t }
 
 val is_confirmation_valid : confirmation -> transaction_signed -> bool
 
@@ -49,7 +53,7 @@ type user_state =
       TokenAmount.t (* Only store the confirmed state, and have any updates in pending *)
   ; pending_transactions: transaction_signed list
   ; nonce: Nonce.t }
-  [@@deriving lens]
+[@@deriving lens]
 
 type ('input, 'output) user_action = ('input, 'output, user_state) action
 

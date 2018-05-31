@@ -9,9 +9,16 @@ module ContractAddress = Address
 
 type state = {revision: Revision.t; accounts: TokenAmount.t AddressMap.t} [@@deriving lens]
 
-type confirmation = state digest
+type confirmation =
+  { transaction_hash: Digest.t
+  ; transaction_index: Unsigned.UInt64.t
+  ; block_number: Revision.t
+  ; block_hash: Digest.t }
 
-(** TODO: have an actual confirmation *)
+(** TODO: have an actual confirmation
+    For Ethereum, we might check the transaction hashes match, or
+    perform a Merkle proof using the transactionsRoot in the given block
+ *)
 let is_confirmation_valid confirmation transaction = true
 
 let genesis_state = {revision= Revision.zero; accounts= AddressMap.empty}
