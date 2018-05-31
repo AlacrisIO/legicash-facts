@@ -20,7 +20,7 @@ project:
 If you don't have Docker installed, look at https://www.docker.com/get-docker.
 
 If you would rather install the needed software manually, look at the
-file scripts/Dockerfile to see what's installed in the Docker image.
+file [scripts/Dockerfile](scripts/Dockerfile) to see what's installed in the Docker image.
 
 To run the Docker image, find its "IMAGE ID" with
 
