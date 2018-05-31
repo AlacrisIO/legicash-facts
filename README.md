@@ -10,28 +10,44 @@ If you'd like to build the Legicash software, follow these instructions.
 
 ### Toolchain
 
-First, we need some basic libraries that can be installed as follows on Debian-based distributions:
-```
-sudo apt-get install -y unzip aspcud libgmp-dev dh-autoreconf opam
-```
-Next, build the secp256k1 library from sources:
-```
-  ./scripts/install-secp256k1.sh
-```
-Note that on Debian and perhaps other distros, as of April 2018, the available secp256k1-dev package is out-of-date and won't work.
+We're using Gitlab CI to build and test our software. The CI uses a
+custom Docker image with the needed software installed in Ubuntu. You
+can use the image by downloading it from the Docker registry for the
+project:
 
-Install OCaml via opam:
-```
-opam init
-opam switch 4.06.1
-eval `opam config env`
-opam install -y cryptokit jane-street-tests lens ppxfind ppx_deriving secp256k1
-```
-Last, build and run Legicash:
-```
-make
-./src/_build/default/hello_legicash.exe
-```
+  docker pull registry.gitlab.com/legicash/legicash-facts:build-env
+
+If you don't have Docker installed, look at https://www.docker.com/get-docker.
+
+If you would rather install the needed software manually, look at the
+file scripts/Dockerfile to see what's installed in the Docker image.
+
+To run the Docker image, find its "IMAGE ID" with
+
+     docker images
+
+and then run
+
+     docker run -i -t <IMAGE ID> /bin/bash
+
+Once you have all the software installed, run the Docker image (or your
+own machine) and clone the Gitlab repository.
+
+From the root directory of the repo, run an Ethereum test net with
+
+    ./scripts/ethereum-testnet/run.sh
+
+Build the software with `make` and run the tests with `make test`. Run
+the executable that's created with
+
+    ./src/_build/default/hello_legicash.exe
+
+These same build and run steps appear in the Gitlab CI YAML file
+
+    ./.gitlab-ci.yml
+
+Note: So far, we've only tried to build and run the software on Linux
+x86_64. It may be possible to build and run it on other platforms.
 
 If you'd like to contribute to the Legicash codebase, please submit a
 Gitlab merge request, and note the following:
