@@ -470,11 +470,8 @@ module Test = struct
     let transaction = {tx_header; operation} in
     let signed_transaction = sign private_key transaction in
     let transaction_hash = get_transaction_hash signed_transaction private_key in
-    (* BROKEN! maybe trace Node implementation to see what RLP *)
-    ignore
-      ( Ethereum_util.hex_string_of_string transaction_hash
-      = "0x8b69a0ca303305a92d8d028704d65e4942b7ccc9a99917c8c9e940c9d57a9662" ) ;
-    true
+    Ethereum_util.hex_string_of_string transaction_hash
+    = "0x8b69a0ca303305a92d8d028704d65e4942b7ccc9a99917c8c9e940c9d57a9662"
 
   let%test "hello-solidity" =
     let open Ethereum_abi in
