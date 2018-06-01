@@ -15,7 +15,7 @@ custom Docker image with the needed software installed in Ubuntu. You
 can use the image by downloading it from the Docker registry for the
 project:
 
-  docker pull registry.gitlab.com/legicash/legicash-facts:build-env
+    docker pull registry.gitlab.com/legicash/legicash-facts:build-env
 
 If you don't have Docker installed, look at https://www.docker.com/get-docker.
 
@@ -56,3 +56,8 @@ Gitlab merge request, and note the following:
 
 We'll be using ocamlformat to keep code well-formatted, but otherwise following the
 [Jane Street coding standards](https://opensource.janestreet.com/standards/).
+
+### License
+
+The Legicash FaCTS software is distributed under the GNU Lesser General Public License,
+version 2.1. See the file [LICENSE](LICENSE).
