@@ -2,7 +2,8 @@
 
 * [Plasma](http://plasma.io),
   [ETH Research on Plasma](https://ethresear.ch/search?q=plasma),
-  [Construction of a Plasma Chain 0x1](https://blog.omisego.network/construction-of-a-plasma-chain-0x1-614f6ebd1612) ([MVP git](https://github.com/omisego/plasma-mvp.git)).
+  [Construction of a Plasma Chain 0x1](https://blog.omisego.network/construction-of-a-plasma-chain-0x1-614f6ebd1612) ([MVP git](https://github.com/omisego/plasma-mvp.git)),
+  [Joseph Poon's talk at Deconomy 2018: "Consensus and Cryptoeconomic Incentive Mechanisms"](https://youtu.be/nZKdy7kZGBc).
 
 * [Efficiently Bridging EVM Blockchains Relay Networks V2](https://blog.gridplus.io/efficiently-bridging-evm-blockchains-8421504e9ced) by Alex Miller
 
