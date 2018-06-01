@@ -2,55 +2,28 @@ pragma solidity ^0.4.23;
 //pragma experimental ABIEncoderV2;
 
 import "claims.sol";
+import "claimtypes.sol";
 import "bonds.sol";
+import "ethereum-blocks.sol";
 
-// For patricia tree verification:
+// TODO: For patricia tree verification, import code from:
 //   https://github.com/chriseth/patricia-trie
 //   https://github.com/ethereum/solidity-examples
+
+// TODO: For ethereum block verification, have part of the contract consist in validating
+// a patricia tree of Ethereum blocks, with a recent one (directly checkable) as root,
+// and all the subsequent ones verifiably linking each to its parent.
+
+// TODO: make sure to only use abi.encodePacked if (1) it's cheaper than RLP, and
+// (2a) it's for things we create in this contract that do not interface with RLP encoded
+// data on the blockchain, or (2b) it's actually encoding parameters for contract calls,
+// for which encodePacked was meant. Otherwise, use RLP.sol.
 
 
 /**
  * Contract for a number of facilitator using the same court registry
  */
-contract Facilitators is Claims, Bonds {
-
-    // Solidity won't hash a struct, so we manually use abi.encodePacked in an untyped way.
-    // Moreover, we want to distinguish between struct's, so we tag them with a type tag.
-
-    enum ClaimType {
-        STATE_UPDATE, // for a facilitator, claim an update to the side chain state.
-        WITHDRAWAL_CLAIM, // for a user, claim a withdrawal
-        WITHDRAWAL // for a user, exercise a valid withdrawal claim and withdraw the money
-    }
-
-    /**
-     * Digest a claim.
-     *
-     * Usage pattern: digest_claim(facilitator, tag, abi.encodePacked(struct_values...))
-     * Unhappily, that pattern can't be made a function (bad types) and can't be made a macro (no macros).
-     *
-     * @param _facilitator the facilitator for the side-chain.
-     * @param _tag identification of the type of data structure being claimed.
-     * @param _data data for the claim, typically itself the digest of a larger data structure.
-     * @return the digest for the claim.
-     */
-    function digest_claim(address _facilitator, ClaimType _tag, bytes32 _data)
-            private pure returns(bytes32) {
-        return keccak256(abi.encodePacked(_facilitator, _tag, _data));
-    }
-
-    /**
-     * Forget about some expired claim.
-     *
-     * Must be called by the operator only, with a known tag.
-     * This allows the operator to get a partial gas refund,
-     * But is also a precursor to releasing his bond.
-     */
-    function expire_claim(ClaimType _tag, bytes32 _data) private {
-        bytes32 claim = digest_claim(msg.sender, _tag, _data);
-        require(is_claim_status_expired(claim_status[claim]));
-        claim_status[claim] = 0;
-    }
+contract Facilitators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // DEPOSITS
     //
@@ -65,7 +38,8 @@ contract Facilitators is Claims, Bonds {
     //function deposit(bytes memo) public {
     //    emit Deposited(msg.sender, msg.value, memo);
     //}
-
+    function() public payable {
+    }
 
     // STATE UPDATE
 
@@ -142,7 +116,7 @@ contract Facilitators is Claims, Bonds {
     }
 
     function withdraw(address _facilitator, uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
-            public payable {
+            public {
         // Consume a valid withdrawal claim.
         consume_claim(withdrawal_claim(
             _facilitator, msg.sender, _ticket, _value, _bond, _confirmed_state));
