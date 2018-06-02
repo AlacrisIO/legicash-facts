@@ -15,7 +15,15 @@ MAINTAINER Paul Steckler <steck@legi.cash>
 
 # Install Ubuntu packages
 RUN apt-get update -y
-RUN apt-get install -y aspcud dh-autoreconf libgmp-dev make opam pkg-config unzip zlib1g-dev
+RUN apt-get install -y aspcud dh-autoreconf libgmp-dev make nodejs npm opam pkg-config software-properties-common unzip zlib1g-dev
+
+# Install Solidity compiler
+RUN add-apt-repository ppa:ethereum/ethereum
+RUN apt-get update -y
+RUN apt-get install -y solc
+
+# Install truffle environment for Solidity
+RUN npm install -g truffle
 
 # Install Secp256k1 libraries
 RUN git clone https://github.com/bitcoin-core/secp256k1.git
