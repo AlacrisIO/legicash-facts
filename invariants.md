@@ -29,6 +29,10 @@ relationship to the main-chain:
     * transactions and requests are properly signed by the proper participants
     * authorization only happens on active accounts
     * updates indeed lead from the previous state to the current state
+    * All observed gossip recorded in the facilitator's transaction record
+      corresponds to VRF-mandated gossip transactions with no causal
+      contradictions, and all sufficiently old gossip which has been reported as
+      transmitted to a facilitator has been acknowledged by them.
   * Consistency:
     * No two pieces of conflicting history are ever found (i.e. no
       double-spending) (in the gossip network, on the main chain, etc.)
@@ -46,9 +50,9 @@ relationship to the main-chain:
   * Relationship with user chain:
     * the state of the user-account is always making progress
   * Relationship with other side chains:
-    * Takes part honestly in bankrupcy proceedings for and mass exits from other
+    * Takes part honestly in bankruptcy proceedings for and mass exits from other
       facilitators (see section below).
-
+      
 Note that if the side-chain data structure includes suitable indexes with
 redundant copies of all the intermediate results of the relevant reductions
 (folds), then all proofs of dysfunction can be done in one step without further
@@ -61,6 +65,155 @@ might save some time and space for verifiers (not at all on the server) by
 summarizing away all the ancillary data required to assert correctness
 (signatures, intermediate results, etc.).
 
+## Court-registry invariants
+
+### Background
+
+All facilitators are mandated Court registrars. Others may participate as
+registrars, if they wish, by posting a suitable bond. They receive rewards for
+the gossip and Merkle proofs they provide, though the exact reward they should
+receive is yet to be determined. It may be that facilitators' rewards for
+performance of Court-registrar duties should be zero, for instance.
+
+The primary purpose of registrars is to mitigate the so-called
+"Data-Availability Issue." That is, how can the system incentivize provision of
+data which may otherwise be harmful to the interests of a dishonest participant?
+
+This is mainly important for liveness/performance guarantees. It's easy enough
+to mandate that a transaction request from Alice to Trent isn't valid until both
+have collaborated on a signature, but what if Alice's initial request goes
+unheeded by Trent? Alice reports to the network, "This request I gossiped about:
+I never heard back from Trent." Trent says "No, I did respond: Here's the
+response." Now we seemingly have to fall back on network observation consenus to
+resolve the question of whether Trent's response was generally available.
+
+Thus it is the duty of a registrar to track and gossip about the duties of
+facilitators and other registrars, and report when an irregularity occurs.
+Registrars maintain two data structures: A set of duties for each facilitator /
+registrar for which no signature from the responsible agent has been observed
+(i.e., duties not yet acknowledged), and linearized sets of acknowledged duties,
+from which Merkle trees and Merkle proof-paths can be computed. For
+facilitators, there are two such sets of duties: The transaction duties, and the
+gossip duties. For other registrars, there are only the gossip duties.
+
+After a sufficient delay to allow any duty and the corresponding signature to
+saturate the network, an accusation about an unacknowledged duty can be
+reported to the main chain with a Merkle proof showing the observation of the
+duty on some registrar's gossip-duties tree. That registrar can post the
+acknowledgment in refutation.
+
+Since this is only for disputes, the process of information propagation does not
+have to be particularly fast. However, any dispute deadlines must take the
+expected saturation time for relevant documents into account. It may be sensible
+to allow deadline extensions until some cited document is provided by someone.
+
+### Gossip hand-shake
+
+This is a first pass at a gossip-sharing protocol. There are many opportunities
+for improvement of it, which should be taken. It is written mainly to convince
+myself that gossip is a plausible strategy for enforcing performance guarantees
+and data availability on the Court registrars. At this point, I'm 95% convinced
+this can work, as long as the pool of registrars is large enough, and enough of
+the registrars are honest. I believe the amount of computation and network
+involved is bilinear in the number of transactions, and the number of
+registrars.
+
+On each time slot (probably one main-chain block, but there needs to be a way to
+handle the case where the time between blocks is very small, perhaps by making
+the slots corrsepond to multiple blocks), each registrar R is mandated to gossip
+with a number of other registrars, according to the output of a VRF using R's
+signing key and the block height.
+
+Gossip between two registrars R and S occurs via some protocol like this:
+
+1. Based on each other's perception of what the other already knows from prior
+   gossip, they make a list of side-chain duties the other may not have seen.
+   They exchange the lengths of these lists.
+   
+   This list includes
+   
+   - Side-chain requests, and main-chain events requiring side-chain action.
+   - All reports of who has gossiped what to who, as mandated by registrar VRF
+     outputs.
+   - All registrar signatures on each of the first two items (which is used to
+     construct the perception of what each registrar knows, in order to
+     construct this list.)
+
+2. Based on the list length, they exchange bloom filters of sufficient precision
+   to make the probability of a false positive over the number of items in the
+   list less than 1e-1. For gossip reports, they need only send the novel
+   events which were gossiped about, a bit string or bloom filter corresponding
+   to the exact set which was gossiped about (∗), and the VRF outputs used to
+   generate the official bloom filters for them.
+   
+   (∗) Since they know, at the end of this transfer, the exact events each will
+   be reasoning over, they can check and adjust this bloom filter to avoid false
+   positives. 
+   
+   During the initial bloom filter construction, they also check that it's
+   complex enough to avoid false positives on the events they know about. That
+   way, they can be sure that if a false positive happens, it's on an event the
+   other party is going to share with them. Avoidable false positives can be
+   reported as disputes.
+   
+   There may be a more efficient way to establish this consensus on what to
+   share; this is just a first pass. Bit strings on linearized events related to
+   each facilitator/registrar/account, perhaps?
+   
+3. They exchange the entries they've each identified as missing from the other's
+   list according to the bloom filters.
+   
+4. They each check, based on the events they've received from the other registrar,
+   whether their bloom filter had any false positives on events they didn't know
+   about but the other registrar did. If so, they assume the matching event on
+   their side is still unavailable to the other registrar.
+   
+4. They repeat steps 1-3 until they've verified that they've updated each other
+   on all duties they've observed.
+   
+5. They compare hashes on the data. If the hashes don't match, they
+   collaboratively logarithmically search the hashed data structure until they
+   find the point of disagreement, á la Truebit. If they find an inconsistency
+   in someone else's attested data, they report that together.
+   
+Their reports to each other on what they themselves have gossiped are also Bloom
+filters, based on bits in SHA-256 hashes of inputs prefixed by some VRF-mandated
+nonce. They cover all the events described above for which they do not yet have
+a signature from every participant, and have a 1e-100 false-positive rate,
+assuming there are 10 times as many events as they know of. Again, there might
+be a better way, here... 1e-100 corresponds to a bloom filter 40-50 bytes long
+per event gossiped on... By providing efficient indexing information about the
+participants each gossip pertains to, and linearization values, it might be
+possible to reduce this substantially. Ignoring signatures, some gossip might
+actually have a shorter explicit representation than that.
+
+If this handshake fails at any point, R and S report that on subsequent gossip
+time slots. A certain amount of such failure is tolerated, to make the
+probability that collusion among x% of registrars could result in them framing
+another registrar for noncompliance less than 1e-20. Probably this will result
+in registrars making short-term optimizations on the amount of gossiping they
+do, unless the reward for gossiping exceeds the cost. In order to reduce the
+probability of framing to an acceptable level, the pool of registrars and the
+number of registrars each is mandated to gossip with needs to be fairly large.
+
+### Gossip-Data-Structure Invariants
+
+  * All the [Side-chain Well-formedness](#side-chain-well-formedness)
+    constraints, in line with the linearized acknowledged duties, for each
+    facilitator, or a dispute launched by this registrar, or received as gossip
+    from another registrar.
+  * Last-known state for each of the other registrars in the system is
+    maintained, based on the gossip they've been observed to attest to in the
+    gossip received.
+  * Causal consistency of gossip: Having received a gossip, a path from its
+    origin to this registrar should also be available in the current set of
+    data.
+  * All VRF outputs and bloom filters match for all gossip. The bloom filters
+    have no false positives on known data.
+  * The Merkle tree for the next update, based on the last set of data shared
+    with another registrar. (This is what people will use to prove events during
+    disputes.)
+  * All data is verified *before* it is signed.
 
 ## Crucial Protocol Workflows
 
