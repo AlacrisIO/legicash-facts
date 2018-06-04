@@ -694,9 +694,9 @@ module Test = struct
       let tuple_value, tuple_ty = abi_tuple_of_abi_values event_parameters in
       Ethereum_util.hex_string_of_bytes (encode_abi_value tuple_value tuple_ty)
     in
-    (* the is data almost identical to the encoding of event_parameter in a parameter list
-       but the right 0-padding of the bytes parameter is omitted; it's redundant, so this saves
-       some space when sending a receipt
+    (* the is data almost identical to the encoding of the event parameters, but the
+       right 0-padding of the bytes parameter is omitted; it's redundant, so this saves
+       some space when creating a receipt
      *)
     assert (String.sub event_parameter_encoding 0 (String.length data) = data) ;
     (* confirm contract has received amount transferred *)
