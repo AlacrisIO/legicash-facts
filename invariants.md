@@ -115,14 +115,16 @@ myself that gossip is a plausible strategy for enforcing performance guarantees
 and data availability on the Court registrars. At this point, I'm 95% convinced
 this can work, as long as the pool of registrars is large enough, and enough of
 the registrars are honest. I believe the amount of computation and network
-involved is bilinear in the number of transactions, and the number of
+traffic involved is bilinear in the number of transactions and the number of
 registrars.
 
-On each time slot (probably one main-chain block, but there needs to be a way to
-handle the case where the time between blocks is very small, perhaps by making
-the slots corrsepond to multiple blocks), each registrar R is mandated to gossip
-with a number of other registrars, according to the output of a VRF using R's
-signing key and the block height.
+On each time slot (probably one main-chain block, and multiple parallel gossip
+duties arise from contemporaneous uncles), each registrar R is mandated to
+gossip with a number of other registrars, according to the output of a VRF using
+R's signing key and the block height. The reason for using a VRF here is to make
+it impossible for colluders to form gossip-network cliques by mandating who they
+interact with, and to make it impossible for them to predict who non-colluding
+participants are sharing their perceptions with.
 
 Gossip between two registrars R and S occurs via some protocol like this:
 
@@ -139,16 +141,9 @@ Gossip between two registrars R and S occurs via some protocol like this:
      construct the perception of what each registrar knows, in order to
      construct this list.)
 
-2. Based on the list length, they exchange bloom filters of sufficient precision
-   to make the probability of a false positive over the number of items in the
-   list less than 1e-1. For gossip reports, they need only send the novel
-   events which were gossiped about, a bit string or bloom filter corresponding
-   to the exact set which was gossiped about (∗), and the VRF outputs used to
-   generate the official bloom filters for them.
-   
-   (∗) Since they know, at the end of this transfer, the exact events each will
-   be reasoning over, they can check and adjust this bloom filter to avoid false
-   positives. 
+2. They exchange lists of the events they have, which they don't know the other
+   has. These events would be represented by a pair: an index into the
+   registrars and/or facilitators, an index into the serialized history
    
    During the initial bloom filter construction, they also check that it's
    complex enough to avoid false positives on the events they know about. That

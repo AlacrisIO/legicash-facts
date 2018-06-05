@@ -26,6 +26,143 @@ These are advanced flows necessary for the M2 Feature Complete release:
   7. Update facilitator sidechain state + pay penalties (partial for M1)
   8. Close facilitator (necessary for facilitators to get their money back)
   9. All fraud proofs (not just a few for demo)
+  
+### Court-registrar flows
+
+#### Registration of fundamental side-chain events
+
+Each of these events has two flows associated with it: The initial report, and
+obtaining the Merkle path associated with it once it's committed to the
+main-chain root hash. The Merkle-path request generates a new event, which
+generates gossip about the request itself.
+
+1. Main-chain deposit by Alice.
+2. Main-chain request by Alice to deposit to Trent's side chain.
+3. Trent's acknowledgment of of deposit request, including new balance.
+4. Request for side-chain transfer from Alice to Bob, via Trent.
+5. Trent's acknowledgment of transfer request, including new account balances.
+6. Withdrawal request by Alice to Trent.
+7. Trent's acknowledgment of withdrawal request, including new account balance.
+8. Trent's call to main-chain contract, giving Alice custody of withdrawn funds.
+
+#### Registration of fundamental side-chain complaints
+
+This section should cover all Court-registry behaviors which are necessary for
+fraud proof, assuming the registrar is honest.
+
+These events are complaints which must be registered with Court registrars. As
+with the above events, these have both report and retrieval flows. In addition,
+they should eventually have refutation flows where possible, though this should
+not be part of the demo goals. (It's probably sensible to allow for refutation
+on the side-chain first, to reduce on-chain costs when things get out of sync.)
+
+1. Trent did not acknowledge Alice's deposit request from flow 2, after a
+   time-out. Refutation: A timely gossip containing Trent's acknowledgement.
+2. Alice tried to deposit more from her main-chain account to Trent's side chain
+   than she has. This is irrefutable.
+3. Alice tried to transfer more from her Trent account than she has.
+   Irrefutable.
+4. Trent did not acknowledge Alice's side-chain transfer to Bob from flow 4
+   above, after a time-out. Refutation: Timely gossip about Trent's
+   acknowledgement.
+5. Alice tried to withdraw, to the main chain, from her Trent account, more than
+   her balance. Irrefutable.
+6. Trent failed to acknowledge Alice's withdrawal request. Refutation: A timely
+   gossip.
+   
+#### Registrar-specific events
+
+1. Reggie posts a registrar bond on the main chain, reporting the point at which
+   he will begin behaving as a registrar. This point should be in terms of the
+   gossip epistemology: The posting of this bond has been registered by 100% of
+   current registrars, or five times the Exponential Moving Average (EMA) of
+   observed network saturation times for recent events, or something like that.
+   This is so that he has time to observe the gossip network and acquire fresh
+   observations, prior to participating. (Note that this could lead to liveness
+   problems, if a large fraction of registrars need to be thrown out
+   simultaneously, for instance. There will need to be a way to bootstrap the
+   registrar pool. Though, I supose the EMA would quickly fall to an acceptable
+   pace, if the network freezes due to lack of registrars.)
+2. Reggie's registrar tenure ends, or he exits the role, and his bond is
+   returned.   
+
+##### Gossip
+
+There are interactions between registrars to mitigate the risk of fraudulent
+collusion between side-chain participants by sharing information between
+hopefully-independent observers. We probably don't want this for the first demo,
+but will want it for production with independent, untrusted registrars.
+
+1. A new main-chain block is published. Registrar computes which other
+   registrars to share with, based on VRF, with blockhash as input.
+   
+   When there are uncles, registrars are obliged to gossip according to all
+   plausibly live chains.
+2. Reggie initiates gossip with fellow registrar Renée for the given blockhash,
+   sharing, among other things the VRF of registrars he's mandated to gossip
+   with.
+3. Renée verifies that they haven't performed this gossip already. 
+4. Renée and Reggie share, for each facilitator, the last event number for which
+   they have the full history of that facilitator.
+5. For each facilitator and registrar, they share the event numbers they have
+   beyond the last-full-history numbers.
+6. For each facilitator and registrar, they share the events they've concluded
+   the other is missing.
+7. They use VRF output to generate commitments to the events they've each
+   learned of from the other. These could be a list of the event coordinates
+   (say, facilitator index, and event index, per the facilitator linearization,
+   plus a Merkle root hash for the events.)
+8. They sign each others' commitments.
+9. Those commitments become part of the history of their registrar events, and
+   they share them in future gossip sessions.
+
+###### Gossip complaints
+
+1. No VRF report is available from Reggie from n time slots ago, where n is some
+   function of gossip-network saturation time. Refutation: Timely gossip of VRF
+   report.
+   
+   This may lead to an incentive to be as slow as allowed for the gossip
+   interactions. If main-chain blocks are used to mark the time slots, n does
+   have to be greater than 1, though, to allow for very fast blocks.
+2. No record of mandated gossip interaction between Reggie and Renée.
+   Refutation: Timely gossip of gossip.
+3. Renée perceived Reggie's gossip request for block b after she'd perceived
+   block b+1. Irrefutable. (Reggie has the *option to abandon the gossip** once
+   he learns of the new block from Renée, and potentially be punished for gossip
+   SLA violation via the next complaint, or to **wear this tardiness complaint**
+   from Renée **by signing off on their gossip interaction**.)
+4. Number of mandated gossip interactions Reggie completed in some timeslot is
+   below SLA threshold. Refutation: Timely gossip of the gossips demonstrating
+   SLA compliance.
+5. Reggie's spammed Renée with repeated or ill-formed gossip requests.
+   Irrefutable, unless the ill-formedness results from a bad signature, which
+   we're assuming is cheap enough to check freely.
+6. Reggie's hosed Renée by requesting events he's attested to having seen on
+   prior gossips. Irrefutable.
+7. Reggie subsequently attested to ignorance of an event he'd previously
+   implicitly represented as known to him, during the interaction with Renée.
+   Irrefutable.
+8. Reggie subsequently attested to ignorance of an event he'd previously
+   implicitly represented as known to him, in response to a request for a Merkle
+   proof. Irrefutable.
+9. Reggie contacted Renée to gossip after he's indicated that he's exiting the
+   registrar role on the main chain.
+10. The causal path to Reggie's knowledge of some fact (the chain of reports and
+   gossip which led to him knowing the fact) is unclear, after some time-out.
+   Refutation: the chain.
+11. Reggie's signed off on some commitment from step 7. of the previous section
+    which is ill-formed or acausal. Refutation: Ill-formed is irrefutable.
+    Refutation of acausality is the causal path.
+ 
+##### Poison gossip
+
+It may be sensible to make a quick-check style generator of corrupted gossip,
+and include VRF-mandate sharing of this poison between gossipers. If during the
+handshake a gossiper fails to catch this poison, they could be punished.
+Gossipers could check that the poison they received was valid after the initial
+handshake. This would mitigate the issue of gossipers being tempted to skimp on
+their verification duties for short-term gain.
 
 ## Basic Flows
 
