@@ -597,7 +597,7 @@ module Test = struct
     let open Ethereum_abi in
     (* code is result of running "solc --bin facilitator-fallback.sol", and prepending "0x" *)
     let code =
-      "0x6080604052348015600f57600080fd5b50608c80601d6000396000f30060806040527f2396cdd32f62f192de25cdc41d7969a4a362c1c628935e18c3a6daee5e71b4c56000363460405180806020018381526020018281038252858582818152602001925080828437820191505094505050505060405180910390a10000a165627a7a72305820512b4cb7df8322c55903814d3da5ac81c2c69b41841a7f2e93952b0a6d9b8c980029"
+      "0x608060405234801561001057600080fd5b5060e48061001f6000396000f30060806040527facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a5605f6000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060aa565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000601482015190509190505600a165627a7a723058202091e8d135ab21f370f9e632d1bd31e4a6add8179253a6a45a2a7e56ea7d3e090029"
     in
     let code_string = Ethereum_util.string_of_hex_string code in
     let code_bytes = Bytes.of_string code_string in
@@ -650,8 +650,10 @@ module Test = struct
       ; value= TokenAmount.of_int amount_to_transfer }
     in
     (* use (dummy) facilitator address as code to trigger fallback *)
-    let facilitator_address = "0x112233445566778899AA112233445566778899AA" in
-    let address_bytes = Ethereum_util.bytes_of_hex_string facilitator_address in
+    let facilitator_address =
+      Ethereum_util.address_of_hex_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00"
+    in
+    let address_bytes = Ethereum_util.bytes_of_address facilitator_address in
     let operation1 =
       Main_chain.CallFunction (Ethereum_util.address_of_hex_string contract_address, address_bytes)
     in
@@ -678,8 +680,7 @@ module Test = struct
     let topic = List.hd topics in
     let logged_event = Basic.Util.to_string topic in
     let event_parameters =
-      [ (Bytes_value (Ethereum_util.bytes_of_hex_string facilitator_address), BytesDynamic)
-      ; Ethereum_abi.abi_uint_of_int amount_to_transfer ]
+      [(Address_value facilitator_address, Address); abi_uint_of_int amount_to_transfer]
     in
     let event_signature =
       Ethereum_util.hex_string_of_string
@@ -689,15 +690,11 @@ module Test = struct
     assert (logged_event = event_signature) ;
     (* the facilitator address is visible as data *)
     let data = Basic.Util.to_string (Basic.Util.member "data" log_json) in
-    let event_parameter_encoding =
+    let logged_encoding =
       let tuple_value, tuple_ty = abi_tuple_of_abi_values event_parameters in
       Ethereum_util.hex_string_of_bytes (encode_abi_value tuple_value tuple_ty)
     in
-    (* the is data almost identical to the encoding of the event parameters, but the
-       right 0-padding of the bytes parameter is omitted; it's redundant, so this saves
-       some space when creating a receipt
-     *)
-    assert (String.sub event_parameter_encoding 0 (String.length data) = data) ;
+    assert (logged_encoding = data) ;
     (* confirm contract has received amount transferred *)
     let ending_balance_json =
       Lwt_main.run

@@ -5,20 +5,15 @@ pragma solidity ^0.4.22;
 
 contract Facilitator {
   event logTransfer(address facilitator,uint amount);
-  event invalidTransfer(bytes not_an_address,uint amount);
 
+  // fallback receives a value of 'bytes' type, want to log it as an address
   function bytesToAddress(bytes bys) private pure returns (address addr) {
     assembly {
-      addr := mload(add(32,bys))
+      addr := mload(add(bys,20))
     }
   }
 
   function () public payable {
-    if (msg.data.length != 20) {
-      emit invalidTransfer(msg.data,msg.value);
-    }
-    else {
-      emit logTransfer(bytesToAddress(msg.data),msg.value);
-    }
+    emit logTransfer(bytesToAddress(msg.data),msg.value);
   }
 }
