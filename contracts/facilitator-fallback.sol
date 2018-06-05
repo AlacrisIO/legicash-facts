@@ -5,6 +5,7 @@ pragma solidity ^0.4.22;
 
 contract Facilitator {
   event logTransfer(address facilitator,uint amount);
+  event invalidTransfer(bytes invalidAddress,uint amount);
 
   // fallback receives a value of 'bytes' type, want to log it as an address
   function bytesToAddress(bytes bys) private pure returns (address addr) {
@@ -14,6 +15,11 @@ contract Facilitator {
   }
 
   function () public payable {
-    emit logTransfer(bytesToAddress(msg.data),msg.value);
+    if (msg.data.length != 20) {
+      emit invalidTransfer(msg.data,msg.value);
+    }
+    else {
+      emit logTransfer(bytesToAddress(msg.data),msg.value);
+    }
   }
 }
