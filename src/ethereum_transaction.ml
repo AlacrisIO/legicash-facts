@@ -631,8 +631,7 @@ module Test = struct
     (* check balance of new contract *)
     let starting_balance_json =
       Lwt_main.run
-        (send_balance_request_to_net
-           (Ethereum_util.address_of_hex_string "0x1122334455667788990011223344556677889900"))
+        (send_balance_request_to_net (Ethereum_util.address_of_hex_string contract_address))
     in
     assert (not (json_contains_error starting_balance_json)) ;
     let starting_balance =
