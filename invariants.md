@@ -122,16 +122,14 @@ On each time slot (probably one main-chain block, and multiple parallel gossip
 duties arise from contemporaneous uncles), each registrar R is mandated to
 gossip with a number of other registrars, according to the output of a VRF using
 R's signing key and the block height. The reason for using a VRF here is to make
-it impossible for colluders to form gossip-network cliques by mandating who they
-interact with, and to make it impossible for them to predict who non-colluding
-participants are sharing their perceptions with.
+it impossible for colluders to form gossip-network cliques (because it mandates
+who they interact with), and to make it impossible for them to predict which
+non-colluding participants are sharing their perceptions.
 
 Gossip between two registrars R and S occurs via some protocol like this:
 
 1. Based on each other's perception of what the other already knows from prior
    gossip, they make a list of side-chain duties the other may not have seen.
-   They exchange the lengths of these lists.
-   
    This list includes
    
    - Side-chain requests, and main-chain events requiring side-chain action.
@@ -142,26 +140,24 @@ Gossip between two registrars R and S occurs via some protocol like this:
      construct this list.)
 
 2. They exchange lists of the events they have, which they don't know the other
-   has. These events would be represented by a pair: an index into the
-   registrars and/or facilitators, an index into the serialized history
+   has. Duties would be represented by a triple: an index over the participants
+   in the network, indicating some party participating in the transaction the
+   duty pertains to; an index into the serialized event history for events that
+   agent has; and some hash of the event data long enough to make the
+   probability of collision less than 1-e100.
    
-   During the initial bloom filter construction, they also check that it's
-   complex enough to avoid false positives on the events they know about. That
-   way, they can be sure that if a false positive happens, it's on an event the
-   other party is going to share with them. Avoidable false positives can be
-   reported as disputes.
+   During the hash construction, they also check that it's complex enough to
+   avoid false positives on the events they know about. That way, they can be
+   sure that if a false positive happens, it's on an event the other party is
+   going to share with them. Avoidable false positives can be reported as
+   disputes.
    
    There may be a more efficient way to establish this consensus on what to
    share; this is just a first pass. Bit strings on linearized events related to
    each facilitator/registrar/account, perhaps?
    
 3. They exchange the entries they've each identified as missing from the other's
-   list according to the bloom filters.
-   
-4. They each check, based on the events they've received from the other registrar,
-   whether their bloom filter had any false positives on events they didn't know
-   about but the other registrar did. If so, they assume the matching event on
-   their side is still unavailable to the other registrar.
+   list according to the manifests shared in the last step.
    
 4. They repeat steps 1-3 until they've verified that they've updated each other
    on all duties they've observed.
@@ -171,16 +167,9 @@ Gossip between two registrars R and S occurs via some protocol like this:
    find the point of disagreement, á la Truebit. If they find an inconsistency
    in someone else's attested data, they report that together.
    
-Their reports to each other on what they themselves have gossiped are also Bloom
-filters, based on bits in SHA-256 hashes of inputs prefixed by some VRF-mandated
-nonce. They cover all the events described above for which they do not yet have
-a signature from every participant, and have a 1e-100 false-positive rate,
-assuming there are 10 times as many events as they know of. Again, there might
-be a better way, here... 1e-100 corresponds to a bloom filter 40-50 bytes long
-per event gossiped on... By providing efficient indexing information about the
-participants each gossip pertains to, and linearization values, it might be
-possible to reduce this substantially. Ignoring signatures, some gossip might
-actually have a shorter explicit representation than that.
+Their reports to each other on what they themselves have gossiped are lists of
+indexes into the events, similar to the ones described in step 2. above, and a
+Merkle root-hash commitment to the specific data in those events.
 
 If this handshake fails at any point, R and S report that on subsequent gossip
 time slots. A certain amount of such failure is tolerated, to make the

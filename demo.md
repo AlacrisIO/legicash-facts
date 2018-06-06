@@ -74,17 +74,15 @@ on the side-chain first, to reduce on-chain costs when things get out of sync.)
 
 1. Reggie posts a registrar bond on the main chain, reporting the point at which
    he will begin behaving as a registrar. This point should be in terms of the
-   gossip epistemology: The posting of this bond has been registered by 100% of
-   current registrars, or five times the Exponential Moving Average (EMA) of
-   observed network saturation times for recent events, or something like that.
-   This is so that he has time to observe the gossip network and acquire fresh
-   observations, prior to participating. (Note that this could lead to liveness
-   problems, if a large fraction of registrars need to be thrown out
-   simultaneously, for instance. There will need to be a way to bootstrap the
-   registrar pool. Though, I supose the EMA would quickly fall to an acceptable
-   pace, if the network freezes due to lack of registrars.)
+   gossip epistemology: Reggie has requested an update about all live activity
+   from all extant registrars, and all those transfers have saturated the gossip
+   network, or something like that.
+2. With that in mind, as soon as he has posted the bond he can request a
+   one-sided version of the gossip protocol below, where he only tells Renée
+   what he knows, and she gives him any extra information she has. 
 2. Reggie's registrar tenure ends, or he exits the role, and his bond is
-   returned.   
+   returned, after a delay long enough for any reports of him misbehaving to
+   saturate the gossip network.
 
 ##### Gossip
 
@@ -108,10 +106,10 @@ but will want it for production with independent, untrusted registrars.
    beyond the last-full-history numbers.
 6. For each facilitator and registrar, they share the events they've concluded
    the other is missing.
-7. They use VRF output to generate commitments to the events they've each
-   learned of from the other. These could be a list of the event coordinates
-   (say, facilitator index, and event index, per the facilitator linearization,
-   plus a Merkle root hash for the events.)
+7. They generate commitments to the events they've each learned of from the
+   other. These could be a list of the event coordinates (say, facilitator
+   index, and event index, per the facilitator linearization, plus a Merkle root
+   hash for the events.)
 8. They sign each others' commitments.
 9. Those commitments become part of the history of their registrar events, and
    they share them in future gossip sessions.
@@ -122,15 +120,18 @@ but will want it for production with independent, untrusted registrars.
    function of gossip-network saturation time. Refutation: Timely gossip of VRF
    report.
    
+   If main-chain blocks are used to mark the time slots, it's probably
+   acceptable to require registrars to follow parallel gossip for all live
+   uncles.
+   
    This may lead to an incentive to be as slow as allowed for the gossip
-   interactions. If main-chain blocks are used to mark the time slots, n does
-   have to be greater than 1, though, to allow for very fast blocks.
+   interactions (i.e., n timeslots). Complaint 3. below mitigates this risk.
 2. No record of mandated gossip interaction between Reggie and Renée.
    Refutation: Timely gossip of gossip.
 3. Renée perceived Reggie's gossip request for block b after she'd perceived
-   block b+1. Irrefutable. (Reggie has the *option to abandon the gossip** once
+   block b+1. Irrefutable. (Reggie has the **option to abandon the gossip*** once
    he learns of the new block from Renée, and potentially be punished for gossip
-   SLA violation via the next complaint, or to **wear this tardiness complaint**
+   SLA violation via the next complaint, **or** to **wear this tardiness complaint**
    from Renée **by signing off on their gossip interaction**.)
 4. Number of mandated gossip interactions Reggie completed in some timeslot is
    below SLA threshold. Refutation: Timely gossip of the gossips demonstrating
@@ -158,7 +159,7 @@ but will want it for production with independent, untrusted registrars.
 ##### Poison gossip
 
 It may be sensible to make a quick-check style generator of corrupted gossip,
-and include VRF-mandate sharing of this poison between gossipers. If during the
+and include VRF-mandated sharing of this poison between gossipers. If during the
 handshake a gossiper fails to catch this poison, they could be punished.
 Gossipers could check that the poison they received was valid after the initial
 handshake. This would mitigate the issue of gossipers being tempted to skimp on
