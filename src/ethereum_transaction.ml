@@ -400,8 +400,7 @@ module Test = struct
     let hashed = Digest.make "some arbitrary string" in
     let operation =
       Main_chain.CallFunction
-        ( Address.of_string
-            (Ethereum_util.string_of_hex_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8")
+        ( Ethereum_util.address_of_hex_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
         , Bytes.of_string (Digest.to_string hashed) )
     in
     let transaction = {tx_header; operation} in
