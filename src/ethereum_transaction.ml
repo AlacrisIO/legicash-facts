@@ -1,56 +1,11 @@
+(* ethereum_transaction.ml -- code for running transactions on Ethereum net via JSON RPC *)
+
 open Legibase
 open Lib
-open Lwt
-open Cohttp
-open Cohttp_lwt_unix
-open Yojson
-open Lens.Infix
 module TokenAmount = Main_chain.TokenAmount
 
-let ethereum_net = Uri.make ~scheme:"http" ~host:"localhost" ~port:8080 ()
-
-type ethereum_rpc_call =
-  (* DApps methods, use anywhere *)
-  | Eth_getBalance
-  | Eth_sendTransaction
-  | Eth_getTransactionByHash
-  | Eth_getTransactionCount
-  | Eth_getTransactionReceipt
-  (* Geth-specific methods, should only be used in tests *)
-  | Personal_listAccounts
-  | Personal_newAccount
-  | Personal_unlockAccount
-  [@@deriving show]
-
-(* global state *)
-let id_counter = ref 1
-
-(* given constructor, build JSON RPC call name *)
-let json_rpc_callname call =
-  let full_name = show_ethereum_rpc_call call in
-  let len = String.length full_name in
-  let name =
-    try
-      let dotndx = String.index full_name '.' in
-      String.sub full_name (dotndx + 1) (len - dotndx - 1)
-    with Not_found -> full_name
-  in
-  (* constructor is capitalized, actual name is not *)
-  String.uncapitalize_ascii name
-
-
-let json_rpc_version = "2.0"
-
-let build_json_rpc_call call params =
-  `Assoc
-    [ ("jsonrpc", `String json_rpc_version)
-    ; ("method", `String (json_rpc_callname call))
-    ; ("params", `List params)
-    ; ("id", `Int !id_counter) ]
-
-
 (* params contain hex strings, but we unhex those strings when running RLP *)
-let build_transfer_tokens_json transaction =
+let build_transfer_tokens_parameters transaction : Yojson.json =
   let tx_header = transaction.Main_chain.tx_header in
   let sender = tx_header.sender in
   let recipient =
@@ -61,18 +16,15 @@ let build_transfer_tokens_json transaction =
   let gas = tx_header.gas_limit in
   let gas_price = tx_header.gas_price in
   let value = tx_header.value in
-  let params =
-    `Assoc
-      [ ("from", `String (Ethereum_util.hex_string_of_address sender))
-      ; ("to", `String (Ethereum_util.hex_string_of_address recipient))
-      ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
-      ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
-      ; ("value", `String (Ethereum_util.hex_string_of_token_amount value)) ]
-  in
-  build_json_rpc_call Eth_sendTransaction [params]
+  `Assoc
+    [ ("from", `String (Ethereum_util.hex_string_of_address sender))
+    ; ("to", `String (Ethereum_util.hex_string_of_address recipient))
+    ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
+    ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
+    ; ("value", `String (Ethereum_util.hex_string_of_token_amount value)) ]
 
 
-let build_create_contract_json transaction =
+let build_create_contract_parameters transaction : Yojson.json =
   let tx_header = transaction.Main_chain.tx_header in
   if TokenAmount.compare tx_header.value TokenAmount.zero != 0 then
     raise (Internal_error "New contract must have zero value") ;
@@ -84,17 +36,14 @@ let build_create_contract_json transaction =
   in
   let gas = tx_header.gas_limit in
   let gas_price = tx_header.gas_price in
-  let params =
-    `Assoc
-      [ ("from", `String (Ethereum_util.hex_string_of_address sender))
-      ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
-      ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
-      ; ("data", `String (Ethereum_util.hex_string_of_bytes code)) ]
-  in
-  build_json_rpc_call Eth_sendTransaction [params]
+  `Assoc
+    [ ("from", `String (Ethereum_util.hex_string_of_address sender))
+    ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
+    ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
+    ; ("data", `String (Ethereum_util.hex_string_of_bytes code)) ]
 
 
-let build_call_function_json transaction =
+let build_call_function_parameters transaction : Yojson.json =
   let tx_header = transaction.Main_chain.tx_header in
   let sender = tx_header.sender in
   let contract_address, call_hash =
@@ -105,72 +54,66 @@ let build_call_function_json transaction =
   let gas = tx_header.gas_limit in
   let gas_price = tx_header.gas_price in
   let value = tx_header.value in
-  let params =
-    `Assoc
-      [ ("from", `String (Ethereum_util.hex_string_of_address sender))
-      ; ("to", `String (Ethereum_util.hex_string_of_address contract_address))
-      ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
-      ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
-        (* allows transferring value to contract *)
-      ; ("value", `String (Ethereum_util.hex_string_of_token_amount value))
-      ; ("data", `String (Ethereum_util.hex_string_of_bytes call_hash)) ]
-  in
-  build_json_rpc_call Eth_sendTransaction [params]
+  `Assoc
+    [ ("from", `String (Ethereum_util.hex_string_of_address sender))
+    ; ("to", `String (Ethereum_util.hex_string_of_address contract_address))
+    ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
+    ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
+      (* allows transferring value to contract *)
+    ; ("value", `String (Ethereum_util.hex_string_of_token_amount value))
+    ; ("data", `String (Ethereum_util.hex_string_of_bytes call_hash)) ]
 
 
 let build_transaction_json transaction =
   let open Main_chain in
-  match transaction.operation with
-  | TransferTokens _ -> build_transfer_tokens_json transaction
-  | CreateContract _ -> build_create_contract_json transaction
-  | CallFunction _ -> build_call_function_json transaction
-
-
-let send_rpc_call_to_net json =
-  let json_str = Yojson.to_string json in
-  Client.post
-    ~body:(Cohttp_lwt__.Body.of_string json_str)
-    ~headers:(Cohttp.Header.add (Cohttp.Header.init ()) "Content-Type" "application/json")
-    ethereum_net
-  >>= fun (resp, body) ->
-  let _ = resp |> Response.status |> Code.code_of_status in
-  body |> Cohttp_lwt.Body.to_string >|= fun s -> Basic.from_string s
+  let params =
+    match transaction.operation with
+    | TransferTokens _ -> build_transfer_tokens_parameters transaction
+    | CreateContract _ -> build_create_contract_parameters transaction
+    | CallFunction _ -> build_call_function_parameters transaction
+  in
+  Ethereum_json_rpc.build_json_rpc_call_with_tagged_parameters Eth_sendTransaction [params]
 
 
 let send_transaction_to_net signed_transaction =
   let transaction = signed_transaction.payload in
   let json = build_transaction_json transaction in
-  send_rpc_call_to_net json
+  Ethereum_json_rpc.send_rpc_call_to_net json
 
 
 let send_balance_request_to_net address =
-  let params =
-    [`String (Ethereum_util.hex_string_of_string (Address.to_string address)); `String "latest"]
-  in
-  let json = build_json_rpc_call Eth_getBalance params in
-  send_rpc_call_to_net json
+  let params = [Ethereum_util.hex_string_of_address address; "latest"] in
+  let json = Ethereum_json_rpc.build_json_rpc_call Ethereum_json_rpc.Eth_getBalance params in
+  Ethereum_json_rpc.send_rpc_call_to_net json
 
 
 let get_transaction_receipt transaction_hash =
-  let params = [`String transaction_hash] in
-  let json = build_json_rpc_call Eth_getTransactionReceipt params in
-  send_rpc_call_to_net json
+  let params = [transaction_hash] in
+  let json =
+    Ethereum_json_rpc.build_json_rpc_call Ethereum_json_rpc.Eth_getTransactionReceipt params
+  in
+  Ethereum_json_rpc.send_rpc_call_to_net json
 
 
 let get_transaction_by_hash transaction_hash =
-  let params = [`String transaction_hash] in
-  let json = build_json_rpc_call Eth_getTransactionByHash params in
-  send_rpc_call_to_net json
+  let params = [transaction_hash] in
+  let json =
+    Ethereum_json_rpc.build_json_rpc_call Ethereum_json_rpc.Eth_getTransactionByHash params
+  in
+  Ethereum_json_rpc.send_rpc_call_to_net json
 
 
 let get_transaction_count address =
-  let address_hex_string = Ethereum_util.hex_string_of_string (Address.to_string address) in
-  let params = [`String address_hex_string; `String "latest"] in
-  let json = build_json_rpc_call Eth_getTransactionCount params in
-  send_rpc_call_to_net json
+  let address_hex_string = Ethereum_util.hex_string_of_address address in
+  let params = [address_hex_string; "latest"] in
+  let json =
+    Ethereum_json_rpc.build_json_rpc_call Ethereum_json_rpc.Eth_getTransactionCount params
+  in
+  Ethereum_json_rpc.send_rpc_call_to_net json
 
 
 let transaction_executed transaction_hash =
+  let open Yojson in
   let rpc_call = get_transaction_receipt transaction_hash in
   let receipt_json = Lwt_main.run rpc_call in
   let keys = Basic.Util.keys receipt_json in
@@ -185,6 +128,7 @@ let transaction_executed transaction_hash =
 
 let transaction_execution_matches_transaction transaction_hash
     (signed_transaction: Main_chain.transaction_signed) =
+  let open Yojson in
   transaction_executed transaction_hash
   &&
   let transaction_json = Lwt_main.run (get_transaction_by_hash transaction_hash) in
@@ -301,6 +245,8 @@ let get_transaction_hash signed_transaction private_key =
 
 module Test = struct
   open Main_chain
+  open Ethereum_json_rpc
+  open Yojson
 
   let alice_keys =
     Keypair.make_keys_from_hex
@@ -316,7 +262,7 @@ module Test = struct
 
   let new_account () =
     (* all test accounts have empty password *)
-    let params = [`String ""] in
+    let params = [""] in
     let json = build_json_rpc_call Personal_newAccount params in
     send_rpc_call_to_net json
 
@@ -325,7 +271,7 @@ module Test = struct
     let params =
       [`String (Ethereum_util.hex_string_of_string (Address.to_string address)); `String ""; `Int 5]
     in
-    let json = build_json_rpc_call Personal_unlockAccount params in
+    let json = build_json_rpc_call_with_tagged_parameters Personal_unlockAccount params in
     send_rpc_call_to_net json
 
 

@@ -1,4 +1,4 @@
-(* ethereum_transaction.mli *)
+(* ethereum_transaction.mli -- run transactions on Ethereum net *)
 
 open Legibase
 
