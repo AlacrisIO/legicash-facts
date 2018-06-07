@@ -27,18 +27,19 @@ and string_of_hex_string hs =
       String.init
         ((len - 1) / 2)
         (fun ndx ->
-          let ndx2 = 2 + (2 * ndx) in
+          let ndx2 = 2 + 2 * ndx in
           let hi_nybble = if ndx = 0 then 0 else unhex_digit hs.[ndx2 - 1] in
           let lo_nybble = unhex_digit hs.[ndx2] in
-          Char.chr ((hi_nybble lsl 4) + lo_nybble) )
+          Char.chr (hi_nybble lsl 4 + lo_nybble) )
     else
       String.init
         ((len - 2) / 2)
         (fun ndx ->
-          let ndx2 = 2 + (2 * ndx) in
+          let ndx2 = 2 + 2 * ndx in
           let hi_nybble = unhex_digit hs.[ndx2] in
           let lo_nybble = unhex_digit hs.[ndx2 + 1] in
-          Char.chr ((hi_nybble lsl 4) + lo_nybble) )
+          Char.chr (hi_nybble lsl 4 + lo_nybble) )
+
 
 and hex_string_of_string ?(left_pad= false) s =
   if s = "" then "0x0"
@@ -54,7 +55,7 @@ and hex_string_of_string ?(left_pad= false) s =
     (* if no leading zero, hex string is shorter by one, and
        even indexes, rather than odd, get low hex digit *)
     let hex_len, parity, get_ndx2 =
-      if trim_leading_zero then ((2 * len) - 1, 1, fun ndx -> (ndx + 1) / 2)
+      if trim_leading_zero then (2 * len - 1, 1, fun ndx -> (ndx + 1) / 2)
       else (2 * len, 0, fun ndx -> ndx / 2)
     in
     let get_hex_digit ndx =
@@ -66,6 +67,7 @@ and hex_string_of_string ?(left_pad= false) s =
     let hex_digits = String.init hex_len get_hex_digit in
     "0x" ^ hex_digits
 
+
 (* allow leading 0 in hex representation of bytes *)
 let hex_string_of_bytes bs = hex_string_of_string ~left_pad:true (Bytes.to_string bs)
 
@@ -76,6 +78,8 @@ let hex_string_of_address address = hex_string_of_string ~left_pad:true (Address
 
 let address_of_hex_string hs = Address.of_string (string_of_hex_string hs)
 
+let bytes_of_address address = Bytes.of_string (Address.to_string address)
+
 let hex_string_of_int64 num64 = Format.sprintf "0x%Lx" num64
 
 let string_of_int64 num64 = string_of_hex_string (hex_string_of_int64 num64)
@@ -83,8 +87,10 @@ let string_of_int64 num64 = string_of_hex_string (hex_string_of_int64 num64)
 let hex_string_of_token_amount token_amount =
   hex_string_of_int64 (Main_chain.TokenAmount.to_int64 token_amount)
 
+
 let string_of_token_amount token_amount =
   string_of_int64 (Main_chain.TokenAmount.to_int64 token_amount)
+
 
 let hex_string_of_nonce nonce = hex_string_of_int64 (Main_chain.Nonce.to_int64 nonce)
 
@@ -92,6 +98,7 @@ let string_of_nonce nonce = string_of_int64 (Main_chain.Nonce.to_int64 nonce)
 
 let hex_string_of_token_amount token_amount =
   hex_string_of_int64 (Main_chain.TokenAmount.to_int64 token_amount)
+
 
 let hex_string_of_nonce nonce = hex_string_of_int64 (Main_chain.Nonce.to_int64 nonce)
 
@@ -105,13 +112,17 @@ module Test = struct
 
   let make_hex_unhex_pad_test s = hex_string_of_string ~left_pad:true (string_of_hex_string s) = s
 
-  let%test "hex-unhex-hash" =
+  [%%test
+  let "hex-unhex-hash" =
     make_hex_unhex_test
-      "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"
+      "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"]
 
-  let%test "hex-unhex-zer0" = make_hex_unhex_test "0x0"
+  [%%test
+  let "hex-unhex-zer0" = make_hex_unhex_test "0x0"]
 
-  let%test "hex-unhex-no-pad" = make_hex_unhex_test "0x123"
+  [%%test
+  let "hex-unhex-no-pad" = make_hex_unhex_test "0x123"]
 
-  let%test "hex-unhex-pad" = make_hex_unhex_pad_test "0x0123"
+  [%%test
+  let "hex-unhex-pad" = make_hex_unhex_pad_test "0x0123"]
 end
