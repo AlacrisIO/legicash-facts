@@ -597,7 +597,7 @@ module Test = struct
     let open Ethereum_abi in
     (* code is result of running "solc --bin facilitator-fallback.sol", and prepending "0x" *)
     let code =
-      "0x608060405234801561001057600080fd5b5060f68061001f6000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000601482015190509190505600a165627a7a72305820adadebc06e793a4a9c491be32078c91ba2b325f0f36acccfcf364da8dc131c820029"
+      "0x608060405234801561001057600080fd5b50610108806100206000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000602082015190506c01000000000000000000000000810490509190505600a165627a7a7230582098fc57c39988f3dcf9f7168b876b9f491273775ea6b44db8cb9483966fa1adc10029"
     in
     let code_string = Ethereum_util.string_of_hex_string code in
     let code_bytes = Bytes.of_string code_string in
@@ -704,5 +704,24 @@ module Test = struct
     let ending_balance =
       int_of_string (Basic.Util.to_string (Basic.Util.member "result" ending_balance_json))
     in
-    ending_balance = amount_to_transfer]
+    assert (ending_balance = amount_to_transfer) ;
+    (* now try invalid address, make sure it's not logged *)
+    let bogus_address_bytes = Ethereum_util.bytes_of_hex_string "0xFF" in
+    let operation2 =
+      Main_chain.CallFunction
+        (Ethereum_util.address_of_hex_string contract_address, bogus_address_bytes)
+    in
+    let tx_header2 = tx_header1 in
+    let transaction2 = {tx_header= tx_header2; operation= operation2} in
+    let signed_transaction2 = sign alice_keys.private_key transaction2 in
+    let output2 = Lwt_main.run (send_transaction_to_net signed_transaction2) in
+    assert (not (json_contains_error output2)) ;
+    let result_json2 = Basic.Util.member "result" output2 in
+    let transaction_hash2 = Basic.Util.to_string result_json2 in
+    let _ = wait_for_contract_execution transaction_hash2 in
+    let rpc_call2 = get_transaction_receipt transaction_hash2 in
+    let receipt_json2 = Lwt_main.run rpc_call2 in
+    let receipt_result2_json = Basic.Util.member "result" receipt_json2 in
+    let logs2 = Basic.Util.to_list (Basic.Util.member "logs" receipt_result2_json) in
+    List.length logs2 = 0]
 end

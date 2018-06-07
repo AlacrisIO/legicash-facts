@@ -10,7 +10,10 @@ contract Facilitator {
   // fallback receives a value of 'bytes' type, want to log it as an address
   function bytesToAddress(bytes bys) private pure returns (address addr) {
     assembly {
-      addr := mload(add(bys,20))
+      // skip past length prefix to load address bytes
+      addr := mload(add(bys,32))
+      // shift right 12 bytes
+      addr := div(addr,0x1000000000000000000000000)
     }
   }
 
