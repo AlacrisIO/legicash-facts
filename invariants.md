@@ -180,6 +180,15 @@ do, unless the reward for gossiping exceeds the cost. In order to reduce the
 probability of framing to an acceptable level, the pool of registrars and the
 number of registrars each is mandated to gossip with needs to be fairly large.
 
+### Forks of the main chain, and gossip
+
+If there are forks on the main chain forks with material variations, the gossip
+for each fork could be different. On the other hand, presumably most of the
+time, the gossip will be the same, and most of it will be the same even when
+there *are* material variations, because those will only pertain to a few
+accounts. So the optimum would be to allow for shared data between the forks,
+where it's consistent. That sounds very complex to write, though.
+
 ### Gossip-Data-Structure Invariants
 
   * All the [Side-chain Well-formedness](#side-chain-well-formedness)
@@ -189,6 +198,7 @@ number of registrars each is mandated to gossip with needs to be fairly large.
   * Last-known state for each of the other registrars in the system is
     maintained, based on the gossip they've been observed to attest to in the
     gossip received.
+  * Known-cause DAG for gossip. List of all currently acausal gossip.
   * Causal consistency of gossip: Having received a gossip, a path from its
     origin to this registrar should also be available in the current set of
     data.
@@ -198,6 +208,12 @@ number of registrars each is mandated to gossip with needs to be fairly large.
     with another registrar. (This is what people will use to prove events during
     disputes.)
   * All data is verified *before* it is signed.
+  * These data structures exist for all live main-chain forks. There needs to be
+    tracking of consistency between the gossip on each fork. If a duty is
+    reported by a registrar on one fork, and it is consistent with the
+    main-chain state on another fork at that block height, the registrar should
+    report that duty there, as well. **This is a complex invariant which needs
+    to be nailed down.**
 
 ## Crucial Protocol Workflows
 

@@ -155,6 +155,8 @@ but will want it for production with independent, untrusted registrars.
 11. Reggie's signed off on some commitment from step 7. of the previous section
     which is ill-formed or acausal. Refutation: Ill-formed is irrefutable.
     Refutation of acausality is the causal path.
+12. Reggie reported inconsistent events in the gossip for two different
+    main-chain forks.
  
 ##### Poison gossip
 
