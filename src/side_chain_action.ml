@@ -307,9 +307,8 @@ let lift_main_chain_user_action_to_side_chain action (user_state, input) =
   let new_state, result = action (user_state.main_chain_user_state, input) in
   ({user_state with main_chain_user_state= new_state}, result)
 
-let deposit_fee = TokenAmount.of_int 5
-
 (* TODO: make config item *)
+let deposit_fee = TokenAmount.of_int 5
 
 let deposit ((user_state, (facilitator_address, deposit_amount)) as input) =
   input
