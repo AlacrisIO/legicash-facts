@@ -12,7 +12,7 @@ let update_stub_state new_state =
   stub_state := new_state ;
   stub_state_digest := Digest.make new_state
 
-let make_tx_header (user_state, (gas_limit, value)) =
+let make_tx_header (user_state, (value, gas_limit)) =
   { sender= user_state.keypair.address
   ; nonce= user_state.nonce
   ; gas_price= !stub_gas_price
