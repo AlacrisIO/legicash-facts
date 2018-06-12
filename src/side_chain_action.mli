@@ -48,6 +48,8 @@ val confirm_request : (request signed, confirmation signed) facilitator_action
     Step 4: Bob accepts the payment, notifies Alice and delivers the service
  *)
 
+val payment : (Address.t * Address.t * TokenAmount.t, request signed) user_action
+
 (** message-sending operations *)
 
 val send_message : 'a -> conversation -> unit legi_result
