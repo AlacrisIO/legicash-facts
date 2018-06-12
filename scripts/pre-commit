@@ -49,11 +49,11 @@ fi
 for file in `git diff-index --cached --name-only $against`
     do (if [ "${file#*.}" = "ml" ]; then
 	    echo "Formatting ML file" $file;
-	    ocamlformat --inplace $file
+	    ocp-indent --inplace $file
             git add $file
 	elif [ "${file#*.}" = "mli" ]; then
 	    echo "Formatting MLI file" $file;
-	    ocamlformat --inplace $file
+	    ocp-indent --inplace $file
             git add $file
 	fi)
 done
