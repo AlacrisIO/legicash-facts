@@ -4,5 +4,5 @@ build-legicash:
     # run test net in "dev" mode
     - ./scripts/ethereum-testnet/run.sh
     # build and run Legicash
-    - eval `opam config env` && make && make test
+    - make && make test
     - ./src/_build/default/hello_legicash.exe
