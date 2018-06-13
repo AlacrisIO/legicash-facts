@@ -36,7 +36,7 @@ RUN opam install -y cohttp cohttp-lwt-unix cryptokit integers jbuilder secp256k1
 
 # Install ocaml-lens library
 RUN git clone https://github.com/legicash-patches/ocaml-lens.git
-ENV PATH /root/.opam/4.06.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV PATH /root/.opam/4.06.1/bin:${PATH}
 RUN eval jbuilder build @install --root=ocaml-lens && jbuilder install --root=ocaml-lens
 
 # Install geth (Ethereum node)
