@@ -51,7 +51,7 @@ Gitlab merge request, and note the following:
 
 ### Coding Style
 
-We'll be using ocamlformat to keep code well-formatted, but otherwise following the
+We'll be using ocp-indent to keep code well-formatted, but otherwise following the
 [Jane Street coding standards](https://opensource.janestreet.com/standards/).
 
 ### License
