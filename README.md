@@ -11,24 +11,21 @@ If you'd like to build the Legicash software, follow these instructions.
 ### Toolchain
 
 We're using Gitlab CI to build and test our software. The CI uses a
-custom Docker image with the needed software installed in Ubuntu. You
-can use the image by downloading it from the Docker registry for the
-project:
-
-    docker pull registry.gitlab.com/legicash/legicash-facts:build-env
-
-If you don't have Docker installed, look at https://www.docker.com/get-docker.
+custom Docker image with the needed software installed in Ubuntu. If you don't 
+have Docker installed, look at https://www.docker.com/get-docker.
 
 If you would rather install the needed software manually, look at the
-file [scripts/Dockerfile](scripts/Dockerfile) to see what's installed in the Docker image.
+file [scripts/Dockerfile](scripts/Dockerfile) to see what's installed in the 
+Docker image.
 
-To run the Docker image, find its "IMAGE ID" with
+To run the Docker image, use this command:
 
-     docker images
+     docker run -it -v /host-legicash-facts-path:/legicash-facts registry.gitlab.com/legicash/legicash-facts:build-env /bin/bash
+     
+where `/host-legicash-facts-path` is the path to this source code on your host 
+machine. You can give the image a more concise name with the command
 
-and then run
-
-     docker run -i -t <IMAGE ID> /bin/bash
+     docker tag registry.gitlab.com/legicash/legicash-facts:build-env legicash-facts
 
 Once you have all the software installed, run the Docker image (or your
 own machine) and clone the Gitlab repository.
