@@ -14,11 +14,11 @@ type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output legi
 let effect_action action state_ref x =
   match action (!state_ref, x) with
   | s, Ok y ->
-      state_ref := s ;
-      y
+    state_ref := s ;
+    y
   | s, Error e ->
-      state_ref := s ;
-      raise e
+    state_ref := s ;
+    raise e
 
 let no_action (s, a) = (s, Ok a)
 
@@ -50,10 +50,10 @@ let action_seq action1 action2 = compose_actions action2 action1
 
 let ( ^>> ) = action_seq
 
-exception Assertion_failed
+exception Assertion_failed of string
 
-let action_assert pure_action (state, value) =
-  if pure_action (state, value) then (state, Ok value) else (state, Error Assertion_failed)
+let action_assert where pure_action (state, value) =
+  if pure_action (state, value) then (state, Ok value) else (state, Error (Assertion_failed where))
 
 type ('input, 'output, 'state) pure_action = 'state * 'input -> 'output
 
@@ -66,7 +66,7 @@ let pure_action_seq b_of_a c_of_b (s, a) = compose_pure_actions c_of_b b_of_a (s
 
 (* create context just once, because expensive operation; assumes
    single instantiation of this module
- *)
+*)
 let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
 module Address : sig
@@ -116,7 +116,7 @@ type public_key = Secp256k1.Key.public Secp256k1.Key.t
 type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 
 (*module Int256 : Int with type t = Z.t : sig
-end*)
+  end*)
 
 type 'a signature = Secp256k1.Sign.recoverable Secp256k1.Sign.t
 
@@ -124,7 +124,7 @@ type 'a signed = {payload: 'a; signature: 'a signature}
 
 (* convert OCaml string to Secp256k1 msg format
    for strings representing hashes, the msg format is suitable for signing
- *)
+*)
 let string_to_secp256k1_msg s =
   let open Bigarray in
   let sz = String.length s in
@@ -144,7 +144,7 @@ let data_to_secp256k1_hashed data =
 
 (* create context just once, because expensive operation; assumes
    single instantiation of this module
- *)
+*)
 let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
 (* digital signature is encrypted hash *)
@@ -196,7 +196,7 @@ type conversation
     Let's cheat for now.
     TODO: Tezos must have something we should use.
     probably Tezos_crypto.S.MERKLE_TREE or Tezos_crypto.Blake2B.Make_merkle_tree
- *)
+*)
 
 (* maps with lenses and defaults *)
 

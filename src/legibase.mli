@@ -1,6 +1,6 @@
 (* base.mli -- base types for Legicash platform
    This code is for basic infrastructure somewhat specific to Legicash
- *)
+*)
 
 exception Timeout of string
 
@@ -28,19 +28,19 @@ val do_action : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 
 val ( ^|> ) : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 'output legi_result
 
 val compose_actions :
-     ('intermediate, 'output, 'state) action
+  ('intermediate, 'output, 'state) action
   -> ('input, 'intermediate, 'state) action
   -> ('input, 'output, 'state) action
 (** compose two actions *)
 
 val action_seq :
-     ('input, 'intermediate, 'state) action
+  ('input, 'intermediate, 'state) action
   -> ('intermediate, 'output, 'state) action
   -> ('input, 'output, 'state) action
 (** compose two actions, left to right *)
 
 val ( ^>> ) :
-     ('input, 'intermediate, 'state) action
+  ('input, 'intermediate, 'state) action
   -> ('intermediate, 'output, 'state) action
   -> ('input, 'output, 'state) action
 
@@ -54,19 +54,21 @@ val action_of_pure_action :
   ('input, 'output, 'state) pure_action -> ('input, 'output, 'state) action
 
 val compose_pure_actions :
-     ('intermediate, 'output, 'state) pure_action
+  ('intermediate, 'output, 'state) pure_action
   -> ('input, 'intermediate, 'state) pure_action
   -> ('input, 'output, 'state) pure_action
 
 val pure_action_seq :
-     ('input, 'intermediate, 'state) pure_action
+  ('input, 'intermediate, 'state) pure_action
   -> ('intermediate, 'output, 'state) pure_action
   -> ('input, 'output, 'state) pure_action
 
-exception Assertion_failed
+exception Assertion_failed of string
 
-val action_assert : ('a, bool, 'state) pure_action -> ('a, 'a, 'state) action
-(** given a pure_action returning a bool, make an action that asserts the bool is true *)
+val action_assert : string -> ('a, bool, 'state) pure_action -> ('a, 'a, 'state) action
+(** given a pure_action returning a bool, make an action that asserts the bool is true
+    the string could be the file location as given by Pervasives.__LOC__, or other
+    string identifying the point of failure, which is provided to Assertion_failed *)
 
 module Address : sig
   type t [@@deriving show]
@@ -120,7 +122,7 @@ end
     Can serve as a local counter in a Lamport clock.
     Should a user record have two of them, one for the user one for the server?
     Not for now: the server can use the global clock for the server.
- *)
+*)
 
 (** sequence number for changes in a side-chain *)
 module Revision : Unsigned.S
@@ -134,7 +136,7 @@ module Duration : Unsigned.S
 (** A conversation between two parties
     The type embodies an endpoint + state of communication + possibility of reconnection
     Maybe make the state of communication static, with a session type?
- *)
+*)
 type conversation
 
 module type MapS = sig
