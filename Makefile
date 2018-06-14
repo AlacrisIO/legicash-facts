@@ -18,6 +18,10 @@ HIDE := $(if $(VERBOSE),,@)
 # will change to dune when released
 BUILDER=jbuilder
 
+# name of custom toplevel
+TOPLEVEL=legicaml
+LIBCMO=legicash_lib.cmo
+
 all : hello_legicash
 
 .PHONY: hello_legicash test clean
@@ -33,6 +37,10 @@ hello_legicash : legicash_lib
 test :
 	$(SHOW) "Running Legicash tests"
 	$(HIDE) $(BUILDER) runtest --root=src
+
+toplevel : legicash_lib
+	$(SHOW) "Building custom OCaml toplevel"
+	$(HIDE) $(BUILDER) build --root=src legicaml.exe
 
 clean :
 	$(SHOW) "Cleaning via jbuilder"

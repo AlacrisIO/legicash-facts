@@ -19,3 +19,11 @@
    (preprocess (pps (ppx_deriving.std ppx_deriving_lens ppx_inline_test)))
    (modules (hello_legicash))
    (libraries (legicash_lib))))
+
+;; custom toplevel
+(executable
+ ((name       legicaml)
+  (modules (legicaml))
+  (libraries  (compiler-libs.toplevel legicash_lib))
+  (link_flags (-linkall -cclib -lintegers))
+  (modes      (byte))))
