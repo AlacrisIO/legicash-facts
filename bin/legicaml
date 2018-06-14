@@ -1,0 +1,15 @@
+#!/bin/bash
+
+CURR_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+EXEDIR=$CURR_DIR/../src/_build/default
+CMOSDIR=$EXEDIR/.legicash_lib.objs
+LEGICAMLEXE=$EXEDIR/legicaml.exe
+
+if [ ! -x $LEGICAMLEXE ] ; then
+    echo "Please run \"make toplevel\" before running $0";
+    exit 0
+fi
+
+echo "Starting Legicash OCaml toplevel..."
+echo
+$LEGICAMLEXE -I $CMOSDIR
