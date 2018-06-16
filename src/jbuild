@@ -4,7 +4,7 @@
 
 (library
  ((name legicash_lib)
-  (modules (legibase lib data256 keypair uInt64
+  (modules (legibase lib data256 keypair uInt64 trie
             ethereum_rlp ethereum_patricia_merkle ethereum_transaction ethereum_abi
             ethereum_util ethereum_rlp ethereum_json_rpc
             main_chain side_chain main_chain_action side_chain_action court_registry

@@ -1,18 +1,38 @@
+(** Common exceptions *)
 exception Not_implemented
 
 exception Internal_error of string
 
 let bottom : 'a -> 'b = fun _ -> raise Not_implemented
 
+(** SKI TZ combinators *)
+let identity x = x
+
+let konstant x y = x
+
+let schoenfinkel x y z = x z (y z)
+
+let transpose x y z = x z y
+
+let zcompose x y z = x (y z)
+
+
+(** Options *)
+let defaulting default = function None -> default () | Some x -> x
+
+let unwrap_option = function None -> raise Not_found | Some x -> x
+
+let is_option_some = function None -> false | Some _ -> true
+
 let list_of_option = function None -> [] | Some x -> [x]
 
-(* TODO: find which is canonical according to the style guide between this and
-let list_of_option x = match x with None -> [] | Some x -> [x]
-  and/or define a new style guide rule with motivation.
- *)
-
+(** TODO: find which is canonical according to the style guide between this and
+    let list_of_option x = match x with None -> [] | Some x -> [x]
+    and/or define a new style guide rule with motivation.
+*)
 let option_map f = function Some x -> Some (f x) | None -> None
 
+(** Hexadecimal *)
 let hex_char_to_int hex =
   let hex_code = Char.code hex in
   match hex with
@@ -48,13 +68,3 @@ let unparse_hex s =
       loop (ndx + 1) (hex :: accum)
   in
   loop 0 []
-
-
-(** SKI combinators *)
-let identity x = x
-
-let konstant x y = x
-
-let schoenfinkel x y z = x z (y z)
-
-let defaulting default = function None -> default () | Some x -> x
