@@ -1,8 +1,10 @@
 (* See documentation in main_chain.mli *)
 
-open Legibase
-open Data256
 open Lib
+open Legibase
+open Action
+open Data256
+open Crypto
 module TokenAmount = Unsigned.UInt64
 module Nonce = Unsigned.UInt64
 module ContractAddress = Address
@@ -18,7 +20,7 @@ type confirmation =
 (** TODO: have an actual confirmation
     For Ethereum, we might check the transaction hashes match, or
     perform a Merkle proof using the transactionsRoot in the given block
- *)
+*)
 let is_confirmation_valid confirmation transaction = true
 
 let genesis_state = {revision= Revision.zero; accounts= AddressMap.empty}

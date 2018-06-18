@@ -2,6 +2,7 @@
 
 open Legibase
 open Lib
+open Crypto
 
 let hash s = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
 
@@ -32,9 +33,9 @@ and validate_address_checksum hs =
     | 'a'..'f' -> ( match hashed_digits.[ndx] with '0'..'7' -> () | _ -> flag_error ndx )
     | 'A'..'F' -> ( match hashed_digits.[ndx] with '0'..'7' -> flag_error ndx | _ -> () )
     | _ ->
-        raise
-          (Internal_error
-             (Format.sprintf "Invalid hex digit at index %d in address %s" (ndx + 2) hs))
+      raise
+        (Internal_error
+           (Format.sprintf "Invalid hex digit at index %d in address %s" (ndx + 2) hs))
   done
 
 
@@ -57,18 +58,18 @@ and string_of_hex_string ?(is_address= false) hs =
       String.init
         ((len - 1) / 2)
         (fun ndx ->
-          let ndx2 = 2 + 2 * ndx in
-          let hi_nybble = if ndx = 0 then 0 else unhex_digit hs.[ndx2 - 1] in
-          let lo_nybble = unhex_digit hs.[ndx2] in
-          Char.chr (hi_nybble lsl 4 + lo_nybble) )
+           let ndx2 = 2 + 2 * ndx in
+           let hi_nybble = if ndx = 0 then 0 else unhex_digit hs.[ndx2 - 1] in
+           let lo_nybble = unhex_digit hs.[ndx2] in
+           Char.chr (hi_nybble lsl 4 + lo_nybble) )
     else
       String.init
         ((len - 2) / 2)
         (fun ndx ->
-          let ndx2 = 2 + 2 * ndx in
-          let hi_nybble = unhex_digit hs.[ndx2] in
-          let lo_nybble = unhex_digit hs.[ndx2 + 1] in
-          Char.chr (hi_nybble lsl 4 + lo_nybble) )
+           let ndx2 = 2 + 2 * ndx in
+           let hi_nybble = unhex_digit hs.[ndx2] in
+           let lo_nybble = unhex_digit hs.[ndx2 + 1] in
+           Char.chr (hi_nybble lsl 4 + lo_nybble) )
 
 
 and hex_string_of_string ?(left_pad= false) ?(is_address= false) s =
@@ -108,14 +109,14 @@ and hex_string_of_string ?(left_pad= false) ?(is_address= false) s =
         String.sub hash_in_hex 2 (String.length hash_in_hex - 2)
       in
       String.init hex_len (fun ndx ->
-          let ch = hex_digits.[ndx] in
-          match ch with
-          | '0'..'9' -> ch
-          | 'a'..'f' -> (
+        let ch = hex_digits.[ndx] in
+        match ch with
+        | '0'..'9' -> ch
+        | 'a'..'f' -> (
             match hashed_digits.[ndx] with
             | '0'..'7' -> ch
             | _ -> Char.chr (Char.code ch - uppercase_difference) )
-          | _ -> raise (Internal_error "Unexpected digit in hex string") )
+        | _ -> raise (Internal_error "Unexpected digit in hex string") )
     in
     "0x" ^ if is_address then get_checksummed_hex_digits () else hex_digits
 
@@ -173,43 +174,43 @@ module Test = struct
   let make_hex_unhex_pad_test s = hex_string_of_string ~left_pad:true (string_of_hex_string s) = s
 
   [%%test
-  let "hex-unhex-hash" =
-    make_hex_unhex_test
-      "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"]
+    let "hex-unhex-hash" =
+      make_hex_unhex_test
+        "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"]
 
   [%%test
-  let "hex-unhex-zer0" = make_hex_unhex_test "0x0"]
+    let "hex-unhex-zer0" = make_hex_unhex_test "0x0"]
 
   [%%test
-  let "hex-unhex-no-pad" = make_hex_unhex_test "0x123"]
+    let "hex-unhex-no-pad" = make_hex_unhex_test "0x123"]
 
   [%%test
-  let "hex-unhex-pad" = make_hex_unhex_pad_test "0x0123"]
+    let "hex-unhex-pad" = make_hex_unhex_pad_test "0x0123"]
 
   [%%test
-  let "valid-address-make-checksum" =
-    let address = address_of_hex_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
-    let hex_address = hex_string_of_address_with_checksum address in
-    validate_address_checksum hex_address ;
-    true]
+    let "valid-address-make-checksum" =
+      let address = address_of_hex_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
+      let hex_address = hex_string_of_address_with_checksum address in
+      validate_address_checksum hex_address ;
+      true]
 
   [%%test
-  let "invalid-address-checksum" =
-    try
-      validate_address_checksum "0x9797809415e4b8efea0963e362ff68b9d98f9e00" ;
-      false
-    with Internal_error _ -> true]
+    let "invalid-address-checksum" =
+      try
+        validate_address_checksum "0x9797809415e4b8efea0963e362ff68b9d98f9e00" ;
+        false
+      with Internal_error _ -> true]
 
   [%%test
-  let "valid-address-checksum-already-checksummed" =
-    validate_address_checksum "0x507877C2E26f1387432D067D2DaAfa7d0420d90a" ;
-    true]
+    let "valid-address-checksum-already-checksummed" =
+      validate_address_checksum "0x507877C2E26f1387432D067D2DaAfa7d0420d90a" ;
+      true]
 
   [%%test
-  let "invalid-address-checksum-already-checksummed" =
-    try
-      (* one bad character at index 33 *)
-      validate_address_checksum "0x507877C2E26f1387432D067D2DaAfa7D0420d90a" ;
-      false
-    with Internal_error _ -> true]
+    let "invalid-address-checksum-already-checksummed" =
+      try
+        (* one bad character at index 33 *)
+        validate_address_checksum "0x507877C2E26f1387432D067D2DaAfa7D0420d90a" ;
+        false
+      with Internal_error _ -> true]
 end

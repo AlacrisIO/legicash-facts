@@ -1,6 +1,7 @@
 (* ethereum_util.mli *)
 
 open Legibase
+open Crypto
 
 val hash : string -> string
 (** Keccak256 hash *)

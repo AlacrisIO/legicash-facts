@@ -1,8 +1,9 @@
 (* keypair.ml -- Secp256k1 key pairs *)
 
 open Bigarray
-open Legibase
 open Lib
+open Legibase
+open Crypto
 
 type t =
   { private_key: Secp256k1.Key.secret Secp256k1.Key.t
@@ -88,27 +89,27 @@ module Test = struct
 
   let%test "alice_signature" =
     let alice_data = "some arbitrary string for Alice to sign" in
-    let alice_signature = Legibase.make_signature alice_keys.private_key alice_data in
-    Legibase.is_signature_valid alice_keys.address alice_signature alice_data
+    let alice_signature = make_signature alice_keys.private_key alice_data in
+    is_signature_valid alice_keys.address alice_signature alice_data
 
   let%test "bob_signature" =
     let bob_data = "some arbitrary string for Bob to sign" in
-    let bob_signature = Legibase.make_signature bob_keys.private_key bob_data in
-    Legibase.is_signature_valid bob_keys.address bob_signature bob_data
+    let bob_signature = make_signature bob_keys.private_key bob_data in
+    is_signature_valid bob_keys.address bob_signature bob_data
 
   let%test "trent_signature" =
     let trent_data = "some arbitrary string for Trent to sign" in
-    let trent_signature = Legibase.make_signature trent_keys.private_key trent_data in
-    Legibase.is_signature_valid trent_keys.address trent_signature trent_data
+    let trent_signature = make_signature trent_keys.private_key trent_data in
+    is_signature_valid trent_keys.address trent_signature trent_data
 
   (* test that Cryptokit's Keccak256 hash is same as Ethereum's
 
-   this is the hash and message found in function TestKeccak256Hash in
-   https://github.com/ethereum/go-ethereum/blob/master/crypto/crypto_test.go
+     this is the hash and message found in function TestKeccak256Hash in
+     https://github.com/ethereum/go-ethereum/blob/master/crypto/crypto_test.go
 
-   we put this test here because parse_hex is not exported
+     we put this test here because parse_hex is not exported
 
- *)
+  *)
 
   let%test "ethereum_keccak256_hash" =
     let msg = "abc" in

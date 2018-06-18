@@ -1,6 +1,7 @@
 (* ethereum_transaction.mli -- run transactions on Ethereum net *)
 
 open Legibase
+open Crypto
 
 val send_transaction_to_net : Main_chain.transaction_signed -> Yojson.Basic.json Lwt.t
 (** post a transaction to Ethereum network *)
