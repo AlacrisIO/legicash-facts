@@ -40,7 +40,7 @@ ENV PATH /root/.opam/4.06.1/bin:${PATH}
 RUN jbuilder build @install --root=ocaml-lens && jbuilder install --root=ocaml-lens
 
 # Install geth (Ethereum node)
-ENV GETH_VERSION geth-linux-amd64-1.8.8-2688dab4
+ENV GETH_VERSION geth-linux-amd64-1.8.11-dea1ce05
 RUN cd && curl https://gethstore.blob.core.windows.net/builds/${GETH_VERSION}.tar.gz > ${GETH_VERSION}.tar.gz
 RUN cd && tar -xzvf ${GETH_VERSION}.tar.gz
 RUN cd && mv ${GETH_VERSION}/geth /usr/local/bin/geth
