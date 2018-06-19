@@ -3,6 +3,8 @@ build-legicash:
   script:
     # run test net in "dev" mode
     - ./scripts/ethereum-testnet/run.sh
+    # allow test net to initialize
+    - sleep 2
     # build and run Legicash
     - make && make test
     - ./src/_build/default/hello_legicash.exe
