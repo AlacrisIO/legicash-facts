@@ -122,23 +122,26 @@ module type MapS = sig
   val fold_right : (key -> value -> 'acc -> 'acc) -> t -> 'acc -> 'acc
 
   (** Zipping through a Map *)
-  type path
-  type step
-  val step_apply : int -> step -> t -> t
-  val step_map : (value -> value) -> step -> step
+  type 'a step
+  val step_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
+    'a step -> ('a*int) -> ('a*int)
+  val step_map : ('a -> 'b) -> 'a step -> 'b step
+  type 'a path
+  val path_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
+    'a path -> ('a*int) -> ('a*int)
+  val path_map: ('a -> 'b) -> 'a path -> 'b path
+
+  exception Invalid_path
 
   (** a zipper is a pair of a focused submap and a path,
       from which to retrieve the complete map *)
-  type zipper = t * path
+  type zipper = t * t path
 
   (** given a map, return the zipper for the top of map *)
   val zip : t -> zipper
 
   (** apply a path to a focused submap to retrive the complete map *)
   val unzip : zipper -> t
-
-  (** paths are a functor *)
-  val path_map: (value -> value) -> path -> path
 
   (** Given a focus on a subtrie, return focuses on the next level of subtries
       TODO: also return a (t list -> zipper) to reconstruct the zipper from the next submaps?

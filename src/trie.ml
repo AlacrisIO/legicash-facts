@@ -7,15 +7,18 @@
 *)
 open Lib
 open Integer
+open Crypto
 
 module type TrieSynthS = sig
   module Key : UnsignedS
   module Value : T
-  type t
+  module Type : T
+  type t = Type.t
   val empty : t
   val leaf : Value.t -> t
-  val branch : t -> t -> t
+  val branch : int -> t -> t -> t
 end
+
 module type TrieSkipSynthS = sig
   include TrieSynthS
   val skip : int -> int -> Key.t -> t -> t
@@ -24,25 +27,62 @@ end
 module TrieSynthCardinal (Key : UnsignedS) (Value : T) = struct
   module Key = Key
   module Value = Value
+  module Type = Z
   type t = Z.t
   let empty = Z.zero
   let leaf _ = Z.one
-  let branch x y = Z.add x y
+  let branch _ x y = Z.add x y
   let skip _ _ _ child = child
 end
 
-module TrieSynthComputeSkip (Synth: TrieSynthS) : TrieSkipSynthS = struct
+module TrieSynthComputeSkip (Type : T) (Synth: TrieSynthS with module Type = Type) = struct
   include Synth
   let skip height length bits synth =
     let rec c len synth =
       if len = length then synth else
         let s = if Key.has_bit bits len then
-            branch empty synth
+            branch height empty synth
           else
-            branch synth empty in
+            branch height synth empty in
         c (len + 1) s
     in
     c 0 synth
+end
+
+module type TrieS = sig
+  module Key : UnsignedS
+  module Value : T
+
+  module Synth : TrieSynthS with module Key = Key and module Value = Value
+  type synth = Synth.t
+
+  type trie =
+    | Empty
+    | Leaf of {value: Value.t; synth: synth}
+    | Branch of {left: trie; right: trie; height: int; synth: synth}
+    | Skip of {child: trie; bits: Key.t; length: int; height: int; synth: synth}
+
+  type 'a trie_step =
+    | LeftBranch of {right: 'a}
+    | RightBranch of {left: 'a}
+    | SkipChild of {bits: Key.t; length: int}
+
+  type 'a trie_path = {index: Key.t; height: int; steps: 'a trie_step list}
+
+  include MapS
+    with type key = Key.t
+     and type value = Value.t
+     and type t = trie
+     and type 'a step = 'a trie_step
+     and type 'a path = 'a trie_path
+
+  val trie_height : t -> int
+  val ensure_height : int -> t -> t
+  val ensure_same_height : t -> t -> t*t
+  val get_synth : t -> synth
+  val check_invariant : t -> bool
+  val verify : t -> t
+
 end
 
 module Trie (Key : UnsignedS) (Value : T)
@@ -50,16 +90,19 @@ module Trie (Key : UnsignedS) (Value : T)
 
   module Key = Key
   module Value = Value
+  module Synth = Synth
 
   type key = Key.t
   type value = Value.t
   type synth = Synth.t
 
-  type t =
+  type trie =
     | Empty
     | Leaf of {value: value; synth: synth}
-    | Branch of {left: t; right: t; height: int; synth: synth}
-    | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
+    | Branch of {left: trie; right: trie; height: int; synth: synth}
+    | Skip of {child: trie; bits: key; length: int; height: int; synth: synth}
+
+  type t = trie
 
   let get_synth = function
     | Empty -> Synth.empty
@@ -81,7 +124,7 @@ module Trie (Key : UnsignedS) (Value : T)
       synth = Synth.leaf value ||
       raise (Internal_error "bad leaf synth")
     | Branch {left; right; height; synth} ->
-      (synth = Synth.branch (get_synth left) (get_synth right)
+      (synth = Synth.branch height (get_synth left) (get_synth right)
        || raise (Internal_error "bad branch synth"))
       && (height > 0 || raise (Internal_error "bad branch height"))
       && (height - 1 = trie_height left (* in particular, left isn't Empty *)
@@ -146,7 +189,7 @@ module Trie (Key : UnsignedS) (Value : T)
     verify (Leaf {value; synth=Synth.leaf value})
 
   let mk_branch height left right =
-    verify (Branch {left; right; height; synth=Synth.branch (get_synth left) (get_synth right)})
+    verify (Branch {left; right; height; synth=Synth.branch height (get_synth left) (get_synth right)})
 
   let mk_skip height length bits child =
     Skip {child; height; length; bits; synth=Synth.skip height length bits (get_synth child)}
@@ -479,36 +522,42 @@ module Trie (Key : UnsignedS) (Value : T)
   let ensure_same_height ta tb =
     (ensure_height (trie_height tb) ta, ensure_height (trie_height ta) tb)
 
-  type step =
-    | LeftBranch of {right: t}
-    | RightBranch of {left: t}
+  type 'a trie_step =
+    | LeftBranch of {right: 'a}
+    | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
+  type 'a step = 'a trie_step
 
-  let step_apply height step trie =
+  let step_apply make_branch make_skip step (trie, height) =
     match step with
-    | LeftBranch {right} -> (make_branch height trie right)
-    | RightBranch {left} -> (make_branch height left trie)
-    | SkipChild {bits; length} -> (make_skip height length bits trie)
+    | LeftBranch {right} -> let h = height + 1 in (make_branch h trie right, h)
+    | RightBranch {left} -> let h = height + 1 in (make_branch h left trie, h)
+    | SkipChild {bits; length} -> let h = height + length in (make_skip h length bits trie, h)
 
   let step_map f = function
-    | LeftBranch {right} -> LeftBranch {right= map f right}
-    | RightBranch {left} -> RightBranch {left= map f left}
-    | SkipChild _ as s -> s
+    | LeftBranch {right} -> LeftBranch {right= f right}
+    | RightBranch {left} -> RightBranch {left= f left}
+    | SkipChild {bits;length} -> SkipChild {bits;length}
 
-  type path = {index: key; height: int; steps: step list}
+  type 'a trie_path = {index: key; height: int; steps: 'a step list}
+  type 'a path = 'a trie_path
 
-  type zipper = t * path
-
-  let zip t = (t, {index=Key.zero; height=trie_height t; steps=[]})
-
-  let unzip (t, {height;steps}) =
-    fst (List.fold_left
-           (fun (t, h) s -> (step_apply h s t, h + 1))
-           (ensure_height height t, height)
-           steps)
+  let path_apply make_branch make_skip {height;steps} (t, h) =
+    List.fold_left (fun th s -> step_apply make_branch make_skip s th) (t, h) steps
 
   let path_map f {index;height;steps} =
     {index;height;steps= List.map (step_map f) steps}
+
+  exception Invalid_path
+
+  type zipper = t * (t path)
+
+  let zip t = (t, {index=Key.zero; height=trie_height t; steps=[]})
+
+  let unzip (t, path) = match path with
+    | {height;steps} ->
+      if not (t = Empty || trie_height t = height) then raise Invalid_path else
+        fst (path_apply make_branch make_skip path (t, trie_height t))
 
   let next = function
     | (Empty, up) -> []
@@ -694,7 +743,46 @@ module Trie (Key : UnsignedS) (Value : T)
       | None, (Some v) -> Some v
       | (Some va), (Some vb) -> f i va vb in
     merge f' a b
+end
 
+module type TrieSynthMerkleS = sig
+  include TrieSkipSynthS
+  val leaf_digest : Digest.t -> t
+end
+
+module TrieSynthMerkle (Key : UnsignedS) (Value : Digestible) =
+struct
+  module Key = Key
+  module Value = Value
+  module Type = Digest
+  type t = Digest.t
+  let empty = Digest.zero
+  let leaf_digest digest = Digest.make (1, digest)
+  let leaf v = leaf_digest (Digest.make v)
+  let branch h x y = Digest.make (2, h, x, y)
+  let skip height length bits child = Digest.make (3, height, length, bits, child)
+end
+module MerkleTrie (Key : UnsignedS) (Value : Digestible) = struct
+  module SynthMerkle = TrieSynthMerkle (Key) (Value)
+  include Trie (Key) (Value) (SynthMerkle)
+
+  let trie_digest = get_synth
+
+  let path_digest = path_map trie_digest
+
+  let get_proof (key: key) (trie: trie) : (key*Digest.t*Digest.t*(Digest.t step list)) option =
+    match find_path key trie with
+    | Leaf {value}, up -> Some (key, trie_digest trie, Digest.make value, (path_digest up).steps)
+    | _ -> None
+
+  (** Check the consistency of a Proof.
+      1- starting from the leaf_digest of the value's digest and applying the path,
+      we should arrive at the top trie's hash.
+      TODO: 2- starting from the key, the path should follow the key's bits.
+  *)
+  let check_proof_consistency (key, trie_d, value_d, steps_d) =
+    let path_d = {index=key;height=0;steps=steps_d} in
+    trie_d = path_apply Synth.branch Synth.skip path_d (SynthMerkle.leaf_digest value_d, 0)
 end
 
 module Test = struct
@@ -878,44 +966,3 @@ module Test = struct
     not (equal (=) trie_4 trie_1)
 
 end
-(*
-   module Key = Nat
-   module Value = StringT (* XXX *)
-   Printf.printf "add %s value=%S trie=" (s key) value ; showln trie ;
-   Printf.printf "ADD %s value=%S key_height=%d height=%d trie=" (s key) value key_height height ; showln trie ;
-   Printf.printf "height=%d length=%d child_height=%d diff_length=%d same_length=%d branch_node_height=%d branch_height=%d old_branch_length=%d\n" height length child_height diff_length same_length branch_node_height branch_height old_branch_length ;
-   Printf.printf "find_opt %s height=%d\n" (s key) height ; showln trie ;
-   Printf.printf "CO SS height=%d alength=%d blength=%d length=%d abits=%s bbits=%s achild_height=%d bchild_height=%d ahighbits=%s bhighbits=%s difflength=%d samelength=%d sameheight=%d samebits=%s isame=%s adifflength=%d bdifflength=%d\n%!" height alength blength length (s abits) (s bbits) (trie_height achild) (trie_height bchild) (s ahighbits) (s bhighbits) difflength samelength sameheight (s samebits) (s isame) adifflength bdifflength ;
-   if (height < length) || length = 0 then
-   raise (Internal_error "mk_skip")
-   else
-   (Printf.printf "BAD MS height=%d length=%d bits=%s child=" height length (s bits);showln child;
-   (Printf.printf "MS height=%d length=%d bits=%s child=" height length (s bits);showln child;
-   verify (
-   (Printf.printf "ML heigth=%d key=%s value=%S\n%!" height (s key) value;
-   if (height < length) || length = 0 then
-   (Printf.printf "BAD MS height=%d length=%d bits=%s child=" height length (s bits);showln child;raise(Internal_error "BAR 10"))
-   else
-   Printf.printf "MS2 height=%d length=%d length'=%d length''=%d child'="
-   height length length' length'' ; showln child';
-   verify (
-   Printf.printf "MS3 height=%d length=%d " height length;
-   try verify (
-   )
-   with exn -> (Printf.printf "CAUGHT BAD MS height=%d length=%d bits=%s child=" height length (s bits) ; showln child ; raise exn)
-
-   (Printf.printf "MB0 height=%d left=" height; showln left;
-   verify
-   Printf.printf "MB1 ";
-   verify (          Printf.printf "MH1 height=%d length=%d n=%d h=%d bits=%s child="
-   height length n h (s bits) ; showln child;
-   Printf.printf "ADD1 ";
-   Printf.printf "ADD2 ";
-   Printf.printf "R height=%d t=" height ; showln t ;
-   Printf.printf "R B height=%d child_height=%d\n" height child_height ;
-   Printf.printf "R S height=%d bits=%s length=%d\n" height (s bits) length ;
-   Printf.printf "\nRRRRR key=%s\n" (s key);
-   Printf.printf "MAP ";
-   Printf.printf "MAPI ";
-   Printf.printf "\nEQ\n" ; showln a; showln b;
-*)
