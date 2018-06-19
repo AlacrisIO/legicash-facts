@@ -15,6 +15,9 @@ exception Internal_error of string
 (** the bottom function turns anything into anything, by raising an exception *)
 val bottom : 'a -> 'b
 
+(** Check that calling a thunk indeed causes exception exn. A useful function for tests. *)
+val throws : exn -> (unit -> 'a) -> bool
+
 (* SKI combiantors and their name:
    https://www.johndcook.com/blog/2014/02/06/schonfinkel-combinators/ *)
 
@@ -223,11 +226,11 @@ module type MapS = sig
   val fold_right : (key -> value -> 'acc -> 'acc) -> t -> 'acc -> 'acc
 
   (** Zipping through a Map *)
-  type 'a step
+  type (+'a) step
   val step_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
     'a step -> ('a*int) -> ('a*int)
   val step_map : ('a -> 'b) -> 'a step -> 'b step
-  type 'a path
+  type (+'a) path
   val path_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
     'a path -> ('a*int) -> ('a*int)
   val path_map: ('a -> 'b) -> 'a path -> 'b path
@@ -319,7 +322,16 @@ module type MapS = sig
   val equal: (value -> value -> bool) -> t -> t -> bool
 
   (** Generic binary operation on maps, in CPS
-      argument: recursek, branchk, skipk, leafk, onlyak, onlybk, base_index, tables, continuation
+      arguments (that all take a continuation as final argument):
+   * recursek, handles the recursive case of another pair of maps
+   * branchk, combines at given height the results from recursing on left and right sides.
+   * skipk, given height, length and bits, handles the results from recursing on the child of a Skip
+   * leafk, given two leaves, return a result (to the continuation)
+   * onlyak, handle the case where only the first argument is non-empty
+   * onlybk, handle the case where only the second argument is non-empty
+   * base_index, index for the lowest binding covered by the table (initially, Key.zero)
+   * tables, a pair of tables
+   * continuation, a continuation
   *)
   val co_match :
     (key -> t * t -> ('c -> 'r) -> 'r) ->

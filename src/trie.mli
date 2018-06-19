@@ -49,19 +49,19 @@ module type TrieS = sig
     | Branch of {left: trie; right: trie; height: int; synth: synth}
     | Skip of {child: trie; bits: trie_key; length: int; height: int; synth: synth}
 
-  type 'a trie_step =
+  type (+'a) trie_step =
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
     | SkipChild of {bits: trie_key; length: int}
 
-  type 'a trie_path = {index: trie_key; height: int; steps: 'a trie_step list}
+  type (+'a) trie_path = {index: trie_key; height: int; steps: 'a trie_step list}
 
   include MapS
     with type key = trie_key
      and type value = trie_value
      and type t = trie
-     and type 'a step = 'a trie_step
-     and type 'a path = 'a trie_path
+     and type (+'a) step = 'a trie_step
+     and type (+'a) path = 'a trie_path
 
   val trie_height : t -> int
   val ensure_height : int -> t -> t

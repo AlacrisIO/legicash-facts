@@ -5,6 +5,9 @@ exception Internal_error of string
 
 let bottom : 'a -> 'b = fun _ -> raise Not_implemented
 
+let throws exn thunk =
+  try ignore (thunk ()) ; false with x -> x = exn
+
 (** SKI TZ combinators *)
 let identity x = x
 
@@ -122,11 +125,11 @@ module type MapS = sig
   val fold_right : (key -> value -> 'acc -> 'acc) -> t -> 'acc -> 'acc
 
   (** Zipping through a Map *)
-  type 'a step
+  type (+'a) step
   val step_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
     'a step -> ('a*int) -> ('a*int)
   val step_map : ('a -> 'b) -> 'a step -> 'b step
-  type 'a path
+  type (+'a) path
   val path_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
     'a path -> ('a*int) -> ('a*int)
   val path_map: ('a -> 'b) -> 'a path -> 'b path

@@ -59,19 +59,19 @@ module type TrieS = sig
     | Branch of {left: trie; right: trie; height: int; synth: synth}
     | Skip of {child: trie; bits: trie_key; length: int; height: int; synth: synth}
 
-  type 'a trie_step =
+  type (+'a) trie_step =
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
     | SkipChild of {bits: trie_key; length: int}
 
-  type 'a trie_path = {index: trie_key; height: int; steps: 'a trie_step list}
+  type (+'a) trie_path = {index: trie_key; height: int; steps: 'a trie_step list}
 
   include MapS
     with type key = trie_key
      and type value = trie_value
      and type t = trie
-     and type 'a step = 'a trie_step
-     and type 'a path = 'a trie_path
+     and type (+ 'a) step = 'a trie_step
+     and type (+'a) path = 'a trie_path
 
   val trie_height : t -> int
   val ensure_height : int -> t -> t
@@ -297,9 +297,15 @@ module Trie (Key : UnsignedS) (Value : T)
     in
     r (trie_height trie) (verify trie) make_head
 
+  (** Given a Skip at given height, with given length and bits,
+      and given the index for the lowest binding it covers,
+      return the index for the lowest binding covered by its child. *)
   let skip_index index bits length height =
     (Key.add index (Key.shift_left bits (height - length)))
 
+  (** Given a Branch at given height and index for its lowest binding,
+      return the index for the lowest binding of its right branch
+      (for its left branch, the index is the same) *)
   let right_index index height =
     (Key.add index (Key.shift_left Key.one (height - 1)))
 
@@ -333,9 +339,6 @@ module Trie (Key : UnsignedS) (Value : T)
     in
     m Key.zero t
 
-
-  (* A fold left in continuation-passing style, that allows for functional escapes.
-     It trivializes fold, iter, for_all, exists, {{min,max}_binding,find_first}{,_opt} *)
   let foldlk f trie acc k =
     let rec frec index acc k = function
       | Empty -> k acc
@@ -347,7 +350,6 @@ module Trie (Key : UnsignedS) (Value : T)
     in
     frec Key.zero acc k trie
 
-  (* A fold right in continuation-passing style, that allows for functional escapes *)
   let foldrk f t acc k =
     let rec frec index acc k = function
       | Empty -> k acc
@@ -599,17 +601,17 @@ module Trie (Key : UnsignedS) (Value : T)
           | (Empty, _) -> x
           | (Leaf _, _) -> x
           | (Skip {child; bits; length; height}, {index; steps}) ->
-            let height = height - length in
-            if Key.equal bits (Key.extract l height length) then
+            let child_height = height - length in
+            if Key.equal bits (Key.extract l child_height length) then
               let index=skip_index index bits length height in
-              f (child, {index;height;steps=SkipChild{bits; length}::steps})
+              f (child, {index;height=child_height;steps=SkipChild{bits; length}::steps})
             else x
           | (Branch {left; right; height}, {index; steps}) ->
-            let height = height - 1 in
-            if Key.has_bit l height then
-              f (right, {index= right_index index height; height; steps=RightBranch{left}::steps})
+            let child_height = height - 1 in
+            if Key.has_bit l child_height then
+              f (right, {index= right_index index height; height=child_height; steps=RightBranch{left}::steps})
             else
-              f (left, {index; height; steps=LeftBranch{right}::steps})
+              f (left, {index; height=child_height; steps=LeftBranch{right}::steps})
         in
         f (zip t)
 
@@ -737,17 +739,17 @@ module Trie (Key : UnsignedS) (Value : T)
     m Key.zero (a, b) (konstant 0)
 
   let equal eq a b =
-    let rec m i (a, b) k =
+    let rec loop i (a, b) k =
       if a == b then k () else
         co_match
-          m
+          loop
           (fun _ _ _ _ k -> k ())
           (fun _ _ _ _ _ k -> k ())
           (fun _ va vb k -> if eq va vb then k () else false)
           (fun _ ta k -> false)
           (fun _ tb k -> false)
           i (a, b) k in
-    m Key.zero (a, b) (konstant true)
+    loop Key.zero (a, b) (konstant true)
 
   let union f a b =
     let f' i a b = match (a, b) with
@@ -805,25 +807,25 @@ module Test = struct
   module MyTrie = Trie (Nat) (StringT) (TrieSynthCardinal (Nat) (StringT))
   include MyTrie
 
-  let rec p out = function
+  let rec print_trie out_channel = function
     | Empty ->
-      Printf.fprintf out "Empty"
+      Printf.fprintf out_channel "Empty"
     | Leaf {value} ->
-      Printf.fprintf out "Leaf{value=%S}" value
+      Printf.fprintf out_channel "Leaf{value=%S}" value
     | Branch {height; left; right} ->
-      Printf.fprintf out "Branch{height=%d;left=" height ;
-      p out left ; Printf.fprintf out ";right=" ;
-      p out right ; Printf.fprintf out "}"
+      Printf.fprintf out_channel "Branch{height=%d;left=" height ;
+      print_trie out_channel left ; Printf.fprintf out_channel ";right=" ;
+      print_trie out_channel right ; Printf.fprintf out_channel "}"
     | Skip {height; length; bits; child} ->
       Printf.fprintf
-        out "Skip{height=%d;length=%d;bits=%s;child="
+        out_channel "Skip{height=%d;length=%d;bits=%s;child="
         height length (Nat.to_string bits) ;
-      p out child ; Printf.fprintf out "}"
+      print_trie out_channel child ; Printf.fprintf out_channel "}"
 
   let n = Nat.of_int
   let s = Nat.to_string
   let println s = Printf.printf "%s\n" s
-  let showln x = p stdout x ; Printf.printf "\n"
+  let showln x = print_trie stdout x ; Printf.printf "\n"
 
   let verify x =
     if check_invariant x then
@@ -836,9 +838,9 @@ module Test = struct
   let make_bindings n f = List.init n (fun i -> let j = i + 1 in (Nat.of_int j, f j))
   let bindings_equal x y = (sort_bindings x) = (sort_bindings y)
 
-  let knuth_shuffle a =
-    let n = Array.length a in
-    let a = Array.copy a in
+  let knuth_shuffle array =
+    let n = Array.length array in
+    let a = Array.copy array in
     for i = n - 1 downto 1 do
       let k = Random.int (i+1) in
       let x = a.(k) in
@@ -873,9 +875,6 @@ module Test = struct
   let trie_10_12_57 = verify (of_bindings bindings_10_12_57)
 
   let test_bindings = [[]; [(n 42, "x")]; bindings_10_12_57; bindings_4; bindings_10; bindings_1; bindings_2; bindings_3; bindings_5]
-
-  let throws exn thunk =
-    try ignore (thunk ()) ; false with x -> x = exn
 
   let%test "empty" =
     (bindings empty = []) && (of_bindings [] = Empty)
