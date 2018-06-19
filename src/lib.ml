@@ -68,3 +68,128 @@ let unparse_hex s =
       loop (ndx + 1) (hex :: accum)
   in
   loop 0 []
+
+module type T = sig
+  type t
+end
+
+(** Interface analogous to Map.S from the stdlib, but monomorphic in value *)
+module type MapS = sig
+  type key
+  type value
+  type t
+
+  (* Constructing a map *)
+  val empty: t
+  val add: key -> value -> t -> t
+  val remove: key -> t -> t
+  val singleton: key -> value -> t
+
+  (* Consulting a map *)
+  val is_empty: t -> bool
+  val mem: key -> t -> bool
+  val find: key -> t -> value
+  val find_opt: key -> t -> value option
+  val find_first: (key -> bool) -> t -> key * value
+  val find_first_opt: (key -> bool) -> t -> (key * value) option
+  val find_last: (key -> bool) -> t -> key * value
+  val find_last_opt: (key -> bool) -> t -> (key * value) option
+  val bindings: t -> (key * value) list
+  val of_bindings: (key * value) list -> t
+  val min_binding: t -> (key * value)
+  val min_binding_opt: t -> (key * value) option
+  val max_binding: t -> (key * value)
+  val max_binding_opt: t -> (key * value) option
+  val choose: t -> (key * value)
+  val choose_opt: t -> (key * value) option
+
+  val cardinal: t -> int
+
+  (* Iterating over a map *)
+  val iter: (key -> value -> unit) -> t -> unit
+  val fold: (key -> value -> 'r -> 'r) -> t -> 'r -> 'r
+  val for_all: (key -> value -> bool) -> t -> bool
+  val exists: (key -> value -> bool) -> t -> bool
+  val filter: (key -> value -> bool) -> t -> t
+
+  (** General variant of fold-left in CPS *)
+  val foldlk : (key -> value -> 'acc -> ('acc -> 'res) -> 'res) -> t -> 'acc -> ('acc -> 'res) -> 'res
+
+  (** General variant of fold-right in continuation-passing style *)
+  val foldrk : (key -> value -> 'acc -> ('acc -> 'res) -> 'res) -> t -> 'acc -> ('acc -> 'res) -> 'res
+
+  (** fold in reverse order (top index to bottom index), fold right *)
+  val fold_right : (key -> value -> 'acc -> 'acc) -> t -> 'acc -> 'acc
+
+  (** Zipping through a Map *)
+  type path
+  type step
+  val step_apply : int -> step -> t -> t
+  val step_map : (value -> value) -> step -> step
+
+  (** a zipper is a pair of a focused submap and a path,
+      from which to retrieve the complete map *)
+  type zipper = t * path
+
+  (** given a map, return the zipper for the top of map *)
+  val zip : t -> zipper
+
+  (** apply a path to a focused submap to retrive the complete map *)
+  val unzip : zipper -> t
+
+  (** paths are a functor *)
+  val path_map: (value -> value) -> path -> path
+
+  (** Given a focus on a subtrie, return focuses on the next level of subtries
+      TODO: also return a (t list -> zipper) to reconstruct the zipper from the next submaps?
+  *)
+  val next: zipper -> zipper list
+
+  (** Focus on the closest sub map of a map that matches given index *)
+  val find_path : key -> t -> zipper
+
+  (* Modifying a map
+     NB: unlike the corresponding standard library operations, these are not polymorphic
+     in the second value types, because that would require more module scaffolding :-/ *)
+  val update: key -> (value option -> value option) -> t -> t
+  val map: (value -> value) -> t -> t
+  val mapi: (key -> value -> value) -> t -> t
+
+  val mapiopt : (key -> value -> value option) -> t -> t
+  (** Variant of map that takes key into account and allows for element removal *)
+
+  (* Binary operations on maps.
+     NB: unlike the corresponding standard library operations, merge and union are not polymorphic
+     in the value types, because that would require more module scaffolding :-/ *)
+  val merge: (key -> value option -> value option -> value option) -> t -> t -> t
+  val union: (key -> value -> value -> value option) -> t -> t -> t
+  val compare: (value -> value -> int) -> t -> t -> int
+  val equal: (value -> value -> bool) -> t -> t -> bool
+
+  (** Generic binary operation on maps, in CPS
+      argument: recursek, branchk, skipk, leafk, onlyak, onlybk, base_index, tables, continuation
+  *)
+  val co_match :
+    (key -> t * t -> ('c -> 'r) -> 'r) ->
+    (key -> int -> 'c -> 'c -> ('c -> 'r) -> 'r) ->
+    (key -> int -> int -> key -> 'c -> ('c -> 'r) -> 'r) ->
+    (key -> value -> value -> ('c -> 'r) -> 'r) ->
+    (key -> t -> ('c -> 'r) -> 'r) ->
+    (key -> t -> ('c -> 'r) -> 'r) ->
+    key -> t * t -> ('c -> 'r) -> 'r
+
+  (* Splitting a map *)
+  val partition: (key -> value -> bool) -> t -> t * t
+  val split: key -> t -> t * value option * t
+
+  (* Unimplemented from the standard library's map
+     val to_seq : t -> (key * value) Seq.t
+     val to_seq_from : key -> t -> (key * value) Seq.t
+     val add_seq : (key * value) Seq.t -> t -> t
+     val of_seq : (key * value) Seq.t -> t
+  *)
+end
+
+module StringT = struct
+  type t = string
+end
