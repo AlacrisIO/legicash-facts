@@ -539,6 +539,11 @@ module Trie (Key : UnsignedS) (Value : T)
     | RightBranch {left} -> RightBranch {left= f left}
     | SkipChild {bits;length} -> SkipChild {bits;length}
 
+  let step_length = function
+    | LeftBranch _ -> 1
+    | RightBranch _ -> 1
+    | SkipChild {length} -> length
+
   type 'a trie_path = {index: key; height: int; steps: 'a step list}
   type 'a path = 'a trie_path
 
@@ -548,7 +553,19 @@ module Trie (Key : UnsignedS) (Value : T)
   let path_map f {index;height;steps} =
     {index;height;steps= List.map (step_map f) steps}
 
-  exception Invalid_path
+  exception Inconsistent_path
+
+  let check_path_consistency {index;height;steps} =
+    Key.sign (Key.extract index 0 height) = 0 &&
+    let rec c index height = function
+      | [] -> true
+      | step :: steps ->
+        (match step with
+         | LeftBranch _ -> not (Key.has_bit index height)
+         | RightBranch _ -> Key.has_bit index height
+         | SkipChild {bits; length} -> Key.equal bits (Key.extract index height length))
+        && c index (height + step_length step) steps in
+    c index height steps
 
   type zipper = t * (t path)
 
@@ -556,7 +573,7 @@ module Trie (Key : UnsignedS) (Value : T)
 
   let unzip (t, path) = match path with
     | {height;steps} ->
-      if not (t = Empty || trie_height t = height) then raise Invalid_path else
+      if not (t = Empty || trie_height t = height) then raise Inconsistent_path else
         fst (path_apply make_branch make_skip path (t, trie_height t))
 
   let next = function
@@ -778,11 +795,12 @@ module MerkleTrie (Key : UnsignedS) (Value : Digestible) = struct
   (** Check the consistency of a Proof.
       1- starting from the leaf_digest of the value's digest and applying the path,
       we should arrive at the top trie's hash.
-      TODO: 2- starting from the key, the path should follow the key's bits.
+      2- starting from the key, the path should follow the key's bits.
   *)
   let check_proof_consistency (key, trie_d, value_d, steps_d) =
     let path_d = {index=key;height=0;steps=steps_d} in
-    trie_d = path_apply Synth.branch Synth.skip path_d (SynthMerkle.leaf_digest value_d, 0)
+    check_path_consistency path_d
+    && trie_d = path_apply Synth.branch Synth.skip path_d (SynthMerkle.leaf_digest value_d, 0)
 end
 
 module Test = struct
