@@ -10,24 +10,22 @@ open Integer
 open Crypto
 
 module type TrieSynthS = sig
-  module Key : UnsignedS
-  module Value : T
-  module Type : T
-  type t = Type.t
+  type value
+  type t
   val empty : t
-  val leaf : Value.t -> t
+  val leaf : value -> t
   val branch : int -> t -> t -> t
 end
 
 module type TrieSkipSynthS = sig
   include TrieSynthS
-  val skip : int -> int -> Key.t -> t -> t
+  type key
+  val skip : int -> int -> key -> t -> t
 end
 
 module TrieSynthCardinal (Key : UnsignedS) (Value : T) = struct
-  module Key = Key
-  module Value = Value
-  module Type = Z
+  type key = Key.t
+  type value = Value.t
   type t = Z.t
   let empty = Z.zero
   let leaf _ = Z.one
@@ -35,8 +33,9 @@ module TrieSynthCardinal (Key : UnsignedS) (Value : T) = struct
   let skip _ _ _ child = child
 end
 
-module TrieSynthComputeSkip (Type : T) (Synth: TrieSynthS with module Type = Type) = struct
+module TrieSynthComputeSkip (Key : UnsignedS) (Synth: TrieSynthS) = struct
   include Synth
+  type key = Key.t
   let skip height length bits synth =
     let rec c len synth =
       if len = length then synth else
@@ -50,28 +49,26 @@ module TrieSynthComputeSkip (Type : T) (Synth: TrieSynthS with module Type = Typ
 end
 
 module type TrieS = sig
-  module Key : UnsignedS
-  module Value : T
-
-  module Synth : TrieSynthS with module Key = Key and module Value = Value
-  type synth = Synth.t
+  type trie_key
+  type trie_value
+  type synth
 
   type trie =
     | Empty
-    | Leaf of {value: Value.t; synth: synth}
+    | Leaf of {value: trie_value; synth: synth}
     | Branch of {left: trie; right: trie; height: int; synth: synth}
-    | Skip of {child: trie; bits: Key.t; length: int; height: int; synth: synth}
+    | Skip of {child: trie; bits: trie_key; length: int; height: int; synth: synth}
 
   type 'a trie_step =
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
-    | SkipChild of {bits: Key.t; length: int}
+    | SkipChild of {bits: trie_key; length: int}
 
-  type 'a trie_path = {index: Key.t; height: int; steps: 'a trie_step list}
+  type 'a trie_path = {index: trie_key; height: int; steps: 'a trie_step list}
 
   include MapS
-    with type key = Key.t
-     and type value = Value.t
+    with type key = trie_key
+     and type value = trie_value
      and type t = trie
      and type 'a step = 'a trie_step
      and type 'a path = 'a trie_path
@@ -82,15 +79,16 @@ module type TrieS = sig
   val get_synth : t -> synth
   val check_invariant : t -> bool
   val verify : t -> t
+  val step_length : 'a step -> int
+  val check_path_consistency : 'a path -> bool
 
 end
 
 module Trie (Key : UnsignedS) (Value : T)
-    (Synth : TrieSkipSynthS with module Key = Key and module Value = Value) = struct
+    (Synth : TrieSkipSynthS with type key = Key.t and type value = Value.t) = struct
 
-  module Key = Key
-  module Value = Value
-  module Synth = Synth
+  type trie_key = Key.t
+  type trie_value = Value.t
 
   type key = Key.t
   type value = Value.t
@@ -389,8 +387,6 @@ module Trie (Key : UnsignedS) (Value : T)
         if samechild then (x, true) else (make_skip height length bits newchild, false)
     in
     fst (filterrec Key.zero t)
-
-  let numbits_max_int = Key.numbits (Key.of_int max_int)
 
   let rec cardinal = function
     | Empty -> 0
@@ -769,9 +765,8 @@ end
 
 module TrieSynthMerkle (Key : UnsignedS) (Value : Digestible) =
 struct
-  module Key = Key
-  module Value = Value
-  module Type = Digest
+  type key = Key.t
+  type value = Value.t
   type t = Digest.t
   let empty = Digest.zero
   let leaf_digest digest = Digest.make (1, digest)
@@ -780,8 +775,8 @@ struct
   let skip height length bits child = Digest.make (3, height, length, bits, child)
 end
 module MerkleTrie (Key : UnsignedS) (Value : Digestible) = struct
-  module SynthMerkle = TrieSynthMerkle (Key) (Value)
-  include Trie (Key) (Value) (SynthMerkle)
+  module Synth = TrieSynthMerkle (Key) (Value)
+  include Trie (Key) (Value) (Synth)
 
   let trie_digest = get_synth
 
@@ -800,7 +795,9 @@ module MerkleTrie (Key : UnsignedS) (Value : Digestible) = struct
   let check_proof_consistency (key, trie_d, value_d, steps_d) =
     let path_d = {index=key;height=0;steps=steps_d} in
     check_path_consistency path_d
-    && trie_d = path_apply Synth.branch Synth.skip path_d (SynthMerkle.leaf_digest value_d, 0)
+    && let (top_d, height) = path_apply Synth.branch Synth.skip path_d (Synth.leaf_digest value_d, 0) in
+    trie_d = top_d
+    && height >= Key.numbits key
 end
 
 module Test = struct

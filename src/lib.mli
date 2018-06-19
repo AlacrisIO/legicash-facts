@@ -232,7 +232,7 @@ module type MapS = sig
     'a path -> ('a*int) -> ('a*int)
   val path_map: ('a -> 'b) -> 'a path -> 'b path
 
-  exception Invalid_path
+  exception Inconsistent_path
 
   (** a zipper is a pair of a focused submap and a path,
       from which to retrieve the complete map *)
