@@ -38,7 +38,7 @@ generates gossip about the request itself.
 
 1. Main-chain deposit by Alice.
 2. Main-chain request by Alice to deposit to Trent's side chain.
-3. Trent's acknowledgment of of deposit request, including new balance.
+3. Trent's acknowledgment of deposit request, including new balance.
 4. Request for side-chain transfer from Alice to Bob, via Trent.
 5. Trent's acknowledgment of transfer request, including new account balances.
 6. Withdrawal request by Alice to Trent.
