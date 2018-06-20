@@ -104,12 +104,14 @@ let is_signature_valid (address: Address.t) (signature: Secp256k1.Sign.recoverab
 let sign private_key data = {payload= data; signature= make_signature private_key data}
 
 module Digest = struct
-  include Data256
+  include Integer.Nat
 
   let make v =
     let data_string = Marshal.to_string v [Marshal.Compat_32] in
     let hash = Cryptokit.Hash.keccak 256 in
-    of_string (Cryptokit.hash_string hash data_string)
+    let hashed = Cryptokit.hash_string hash data_string in
+    let hashed_hex = "0x" ^ (unparse_hex ~with_colons:false hashed) in
+    of_string hashed_hex
 end
 
 type 'a digest = Digest.t
@@ -123,9 +125,23 @@ module DigestSet = struct
   let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
 end
 
-module type Digestible = sig
+module type DigestibleS = sig
   type t
   val digest: t -> t digest
+end
+
+module DigestibleNat : DigestibleS =
+struct
+  type t = Integer.Nat.t
+  let digest nat = nat
+end
+
+module DigestibleAddress : DigestibleS =
+struct
+  type t = Address.t
+  let digest address =
+    let s = Address.to_string address in
+    Integer.Nat.of_bits s
 end
 
 module AddressMap = MapMake (Address)
@@ -134,21 +150,21 @@ module Test = struct
   (* test digests *)
   let mk_digest_test data expected =
     let digest = Digest.make data in
-    expected = unparse_hex (Digest.to_string digest)
+    expected = Digest.to_string digest
 
   let%test "digest_1" =
     mk_digest_test "this is a test"
-      "d5:02:39:01:b6:e1:b3:fd:03:54:3a:a1:ee:40:3b:77:36:a9:08:5a:b0:4e:71:a0:47:d4:5b:2a:57:7f:72:e8"
+      "96346563888126697166588750846833720374728628752847738452105337420790724784872"
 
   let%test "digest_2" =
     mk_digest_test (Some "nonsense")
-      "e2:9d:d9:ae:ca:d9:44:3b:f6:ea:17:3d:70:57:d3:22:1c:97:cb:94:1a:c9:aa:93:86:ab:ed:ac:e7:16:88:d0"
+      "102501601160338844936142598555848829880685647109855746236499212080808421918928"
 
   let%test "digest_3" =
     mk_digest_test Int64.one
-      "c6:c6:80:47:7d:5c:20:cd:35:1e:ab:56:54:05:85:3a:9f:09:00:f4:93:d0:3e:c4:e5:72:c6:f5:98:53:41:83"
+      "89908665089203403328549695563738178150748540732630798379661072574227034620291"
 
   let%test "digest_4" =
     mk_digest_test [99.9; 100.4; 22.0; 1033.7]
-      "f4:d7:ee:d0:ed:86:14:cf:aa:4c:f1:af:0f:f5:dc:23:45:a4:a6:62:d5:aa:57:ed:7a:9b:f4:75:94:50:65:4a"
+      "110745855421557965285881006516000194355535263091999206059295831136738250614090"
 end

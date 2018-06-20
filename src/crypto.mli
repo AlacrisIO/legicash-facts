@@ -34,9 +34,11 @@ val sign : private_key -> 'a -> 'a signed
 
 (** a cryptographic digest, "hash", for an object of type 'a *)
 module Digest : sig
-  include module type of Data256
+  include module type of Integer.Nat
 
   val make : 'a -> t
+  (** polymorphic 256-bit digest maker; for demos/tests
+      use instances of DigestibleS, below, for real data *)
 end
 
 type 'a digest = Digest.t
@@ -49,10 +51,14 @@ module DigestSet : sig
   val lens : Digest.t -> (t, bool) Lens.t
 end
 
-module type Digestible = sig
+module type DigestibleS = sig
   type t
   val digest: t -> t digest
 end
+
+module DigestibleNat : DigestibleS
+module DigestibleAddress : DigestibleS
+
 
 (** count of changes in an object.
     A positive integer less than 2**63, incremented at every change to a notional object's state.
