@@ -38,11 +38,11 @@ generates gossip about the request itself.
 
 1. Main-chain deposit by Alice.
 2. Main-chain request by Alice to deposit to Trent's side chain.
-3. Trent's acknowledgment of deposit request, including new balance.
+3. Trent's confirmation of deposit request, including new balance.
 4. Request for side-chain transfer from Alice to Bob, via Trent.
-5. Trent's acknowledgment of transfer request, including new account balances.
+5. Trent's confirmation of transfer request, including new account balances.
 6. Withdrawal request by Alice to Trent.
-7. Trent's acknowledgment of withdrawal request, including new account balance.
+7. Trent's confirmation of withdrawal request, including new account balance.
 8. Trent's call to main-chain contract, giving Alice custody of withdrawn funds.
 
 #### Registration of fundamental side-chain complaints
