@@ -62,21 +62,26 @@ Each facilitator has a duty to gossip with other facilitators about all the
 transactions they've seen. Other people may sign up for this duty as well, by
 posting an adequate bond.
 
-There are two sets of gossip: One about duties facilitators are observed to
-have, but not yet performed; the other about duties which have been performed. A
-performed duty is signed by the relevant facilitator, and he/she assigns a
-number to it in a linearization of all their known duties. The signed, numbered
-version is then reported to other facilitators, who take it off their list of
-unperformed duties for that facilitator. That whole linearization goes into
-their next on-chain Merkle hash.
+There are two sets of gossip, bifurcating on whether the duty the gossip
+pertains to has been acknowledged and/or performed by the relevant agent. (Since
+this is just a registrar, side-chain actions need only be acknowledged, and
+later failure to perform will be justified to the main chain in terms of that
+signed acknowledgment. However, there are duties associated with the registrar
+role, and performance of those duties is synonomous with acknowledging them.)
+
+An acknowledged/performed duty is signed by the relevant facilitator, and he/she
+assigns a number to it in a linearization of all their known duties. The signed,
+numbered version is then reported to other facilitators, who take it off their
+list of unperformed duties for that facilitator. That whole linearization goes
+into their next on-chain Merkle hash.
 
 Facilitators use a VRF to choose who to gossip with, and report on the VRF
-output when initiating gossip. That initiation is itself a performed duty the
-facilitator then reports in other gossips, and the response is a duty of the
-interlocutor. A rapid means for facilitators to identify which duty reports to
-share needs to be figured out. This is very similar to the problems faced by a
-write-heavy distributed database, so that may be a fruitful place to look for
-solutions.
+output when initiating gossip. That initiation is itself a performed duty by the
+facilitator, and those he gossiped to then have a duty to gossip their signed
+acknowledgment back to him. A rapid means for facilitators to identify which
+duty reports to share needs to be figured out. This is very similar to the
+problems faced by a write-heavy distributed database, so that may be a fruitful
+place to look for solutions.
 
 Since this will lead to n<sup>2</sup> transmission and storage, we may want to
 break the facilitators into random cliques of, say, size 20-100, all of whom are
