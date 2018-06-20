@@ -80,7 +80,7 @@ on the side-chain first, to reduce on-chain costs when things get out of sync.)
 2. With that in mind, as soon as he has posted the bond he can request a
    one-sided version of the gossip protocol below, where he only tells Renée
    what he knows, and she gives him any extra information she has. 
-2. Reggie's registrar tenure ends, or he exits the role, and his bond is
+3. Reggie's registrar tenure ends, or he exits the role, and his bond is
    returned, after a delay long enough for any reports of him misbehaving to
    saturate the gossip network.
 
