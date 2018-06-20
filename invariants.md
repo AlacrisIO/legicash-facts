@@ -84,7 +84,7 @@ to mandate that a transaction request from Alice to Trent isn't valid until both
 have collaborated on a signature, but what if Alice's initial request goes
 unheeded by Trent? Alice reports to the network, "This request I gossiped about:
 I never heard back from Trent." Trent says "No, I did respond: Here's the
-response." Now we seemingly have to fall back on network observation consenus to
+response." Now we seemingly have to fall back on network observation consensus to
 resolve the question of whether Trent's response was generally available.
 
 Thus it is the duty of a registrar to track and gossip about the duties of
