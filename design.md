@@ -28,7 +28,7 @@ valid until both have collaborated on a signature, but what if Alice's initial
 request goes unheeded by Trent? Alice reports to the network, "This request I
 gossiped about; I never heard back from Trent." Trent says "No, I did respond:
 Here's the response." Now we seemingly have to fall back on network observation
-consenus to resolve the question of whether Trent's response was generally
+consensus to resolve the question of whether Trent's response was generally
 available.
 
 The problem is particularly acute for performance-assurance of the court
@@ -38,7 +38,7 @@ So not only does the registry need to record the facilitators' actions, someone
 needs to be scrutinizing the registry's responsiveness, leading to an infinite
 regress...
 
-It's likely that some kind of gossip network of putatively indepedent registries
+It's likely that some kind of gossip network of putatively independent registries
 could be useful for this issue, and a sketch of that network is included below,
 without assertion of any security guarantees at this stage. Those guarantees
 will likely be probabilistic, and assume a threshold number of honest
