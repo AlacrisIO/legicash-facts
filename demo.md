@@ -41,9 +41,12 @@ generates gossip about the request itself.
 3. Trent's confirmation of deposit request, including new balance.
 4. Request for side-chain transfer from Alice to Bob, via Trent.
 5. Trent's confirmation of transfer request, including new account balances.
-6. Withdrawal request by Alice to Trent.
-7. Trent's confirmation of withdrawal request, including new account balance.
-8. Trent's call to main-chain contract, giving Alice custody of withdrawn funds.
+6. Trent's confirmation of withdrawal request, including new account balance.
+   (Alice requests withdrawal on the main chain. Initially, this will set
+   contract state. Later, the request transaction itself will be noticed.)
+7. Trent's call to main-chain contract, giving Alice custody of withdrawn funds.
+
+In addition, all on-chain contract-state changes must be gossiped.
 
 #### Registration of fundamental side-chain complaints
 
