@@ -66,7 +66,7 @@ and state =
     ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
 [@@deriving lens]
 
-module DigestibleAccountState : DigestibleS = struct
+module AccountState = struct
   type t = account_state
 
   let digest account_state =
