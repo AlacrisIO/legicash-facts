@@ -154,6 +154,9 @@ and state =
     ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
 [@@deriving lens]
 
+module DigestibleAccountState : DigestibleS
+(** produce a Digest.t from an account_state *)
+
 (** side chain operation + knowledge about the operation *)
 type episteme =
   { request: request signed
