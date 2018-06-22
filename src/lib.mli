@@ -324,12 +324,12 @@ module type MapS = sig
       the data associated with the keys. *)
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  (** [iterate_over_matching_tree_pair recursek branchk skipk leafk onlyak onlybk i (a, b) k]
-      Describes a recursive computation over a pair of trees in great generality, using
-      continuation-passing style. This style allows the calculation to abort and
-      return the calculation result if it has been determined before the last
-      node of the tree is visited, or continue processing other nodes if
-      necessary.
+  (** [iterate_over_matching_tree_pair ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k]
+      Describes a recursive computation over a pair of trees in great generality,
+      using continuation-passing style. This style allows the calculation to
+      abort and return the calculation result if it has been determined before
+      the last node of the tree is visited, or continue processing other nodes
+      if necessary.
 
      The following are caller-specified types:
 
@@ -339,24 +339,24 @@ module type MapS = sig
 
      Inputs:
 
-     - [recursek i (a', b') k]: Result from recursing into the [i]th nodes of
-       [a] and [b], here denoted by [a'] and [b'].
+     - [recursek ~i ~treea ~treeb ~k]: Result from recursing into the [i]th nodes of
+       [treea] and [treeb].
 
-     - [branchk i h cleft cright k]: Result from recursing down both branches
-       from node [i] at height [h], given results [cleft] and [cright] from the
-       two children of that node.
+     - [branchk ~i ~height ~cleft ~cright ~k]: Result from recursing down both
+       branches from node [i] at specified [height], given results [cleft] and
+       [cright] from the two children of that node.
 
-     - [skipk i height depth i' c k]: Result from recursing down [depth] skipped
-       children of node [i], given that the result from extant child of the
-       skipped nodes is [c].
+     - [skipk ~i ~height ~depth ~childi ~childres ~k]: Result from recursing
+       down [depth] skipped children of node [i], given that the result from
+       extant child of the skipped nodes, at index ~childi, is [childres].
 
-     - [leafk i va vb k]: Result from comparing two leaf nodes at index [i],
-       with values [va] and [vb].
+     - [leafk ~i ~valuea ~valueb ~k]: Result from comparing two leaf nodes at
+       index [i], with values [valuea] and [valueb].
 
-     - [onlyak i n k]: Result given that [i]th node [n] is only explicitly
-       present in the first tree argument, [a].
+     - [onlyak ~i ~anode ~k]: Result given that [i]th node [anode] is only
+       explicitly present in the first tree argument, [treea].
 
-     - [onlybk i n k]: Like [onlyak], mutatis mutandis.
+     - [onlybk ~i ~bnode ~k]: Like [onlyak], mutatis mutandis.
 
      - [i]: Prefix index of [treea], [treeb] nodes.
 
