@@ -1,6 +1,8 @@
-open Legibase
-open Keypair
 open Lib
+open Legibase
+open Action
+open Crypto
+open Keypair
 open Main_chain
 open Side_chain
 open Main_chain_action
@@ -72,12 +74,12 @@ let is_side_chain_request_well_formed :
         ; deposit_expedited } ->
       TokenAmount.compare value (TokenAmount.add deposit_amount deposit_fee) >= 0
       && ( match main_chain_operation with
-          | Main_chain.TransferTokens recipient -> recipient = state.keypair.address
-          | _ -> false )
+        | Main_chain.TransferTokens recipient -> recipient = state.keypair.address
+        | _ -> false )
       (* TODO: delegate the same signature checking protocol to the main chain *)
       && is_signature_valid requester signature payload
       && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
-        main_chain_deposit_signed
+           main_chain_deposit_signed
       && TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee >= 0
     | Payment {payment_invoice; payment_fee; payment_expedited} ->
       TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee) >= 0
@@ -85,8 +87,8 @@ let is_side_chain_request_well_formed :
       && TokenAmount.compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
       (* TODO: make sure the fee multiplication cannot overflow! *)
       && TokenAmount.compare payment_fee
-        (TokenAmount.mul state.fee_schedule.fee_per_billion
-           (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
+           (TokenAmount.mul state.fee_schedule.fee_per_billion
+              (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
          >= 0
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
       TokenAmount.compare balance (TokenAmount.add withdrawal_amount withdrawal_fee) >= 0
@@ -259,7 +261,7 @@ let issue_user_request =
   (fun (user_state, operation) ->
      (user_state, ()) ^|> get_first_facilitator ^>> make_rx_header
      ^>> action_of_pure_action (fun (user_state, rx_header) ->
-         sign user_state.main_chain_user_state.keypair.private_key {rx_header; operation} ) )
+       sign user_state.main_chain_user_state.keypair.private_key {rx_header; operation} ) )
   ^>> fun (user_state, request) ->
     (add_user_episteme user_state (mk_rx_episteme request), Ok request)
 

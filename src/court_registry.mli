@@ -1,4 +1,5 @@
 open Legibase
+open Action
 
 (** type for a description of a data schema *)
 type schema

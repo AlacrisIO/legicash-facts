@@ -3,6 +3,7 @@
 
 open Legibase
 open Lib
+open Crypto
 
 type abi_type =
   (* uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256 *)
@@ -71,8 +72,8 @@ let rec is_valid_type = function
   | Tuple tys -> List.for_all is_valid_type tys
   (* no constraints *)
   | FixedDefault | UfixedDefault | BytesDynamic | String | Address | Function | Bool
-   |UintDefault | IntDefault ->
-      true
+  |UintDefault | IntDefault ->
+    true
 
 (* must get this right for hash of signature to work *)
 let rec show_type_for_function_selector ty =
@@ -92,9 +93,9 @@ let rec show_type_for_function_selector ty =
   | Array (m, ty) -> show_type_for_function_selector ty ^ "[" ^ string_of_int m ^ "]"
   | ArrayDynamic ty -> show_type_for_function_selector ty ^ "[]"
   | Tuple tys ->
-      let shown_tys = List.map show_type_for_function_selector tys in
-      let tys_with_commas = String.concat "," shown_tys in
-      "(" ^ tys_with_commas ^ ")"
+    let shown_tys = List.map show_type_for_function_selector tys in
+    let tys_with_commas = String.concat "," shown_tys in
+    "(" ^ tys_with_commas ^ ")"
   (* "show" prefixes the name with the module name, don't use it here *)
   | String -> "string"
   | Function -> "function"
@@ -168,7 +169,7 @@ let abi_int56_of_int = make_abi_intN_of_int 56
 (* int is synonym for int256
    don't use make... because bounds checks will fail,
    and any int can be represented in 256 bits
- *)
+*)
 let abi_int_of_int n = (Int_value (get_big_endian_int_bytes 256 n), IntDefault)
 
 let abi_uint8_of_int = make_abi_uintN_of_int 8
@@ -188,7 +189,7 @@ let abi_uint56_of_int = make_abi_uintN_of_int 56
 (* uint is synonym for uint256
    don't use make... because bounds checks will fail,
    and any int can be represented in 256 bits
- *)
+*)
 let abi_uint_of_int n = (Uint_value (get_big_endian_int_bytes 256 n), UintDefault)
 
 let rec get_big_endian_int64_bytes n_64 =
@@ -217,7 +218,7 @@ let abi_uint64_of_int64 n_64 =
 
 (* TODO: have builders for larger bit-width types that take an int64, or maybe Signed/Unsigned from
    integers library
- *)
+*)
 
 let abi_bytes_of_bytes bytes = (Bytes_value bytes, Bytes (Bytes.length bytes))
 
@@ -344,7 +345,7 @@ let make_signature function_call =
 
 (* first four bytes of call are the first four bytes of the Keccak256 hash of the
    signature
- *)
+*)
 let encode_signature function_call =
   let signature = make_signature function_call in
   let hashed = Ethereum_util.hash signature in
@@ -363,129 +364,129 @@ let rec get_head_space ty =
   match ty with
   (* static types with 32-byte representation *)
   | Uint _ | Int _ | UintDefault | IntDefault | Bool | Bytes _ | Fixed _ | Ufixed _
-   |FixedDefault | UfixedDefault | Function | Address ->
-      32
+  |FixedDefault | UfixedDefault | Function | Address ->
+    32
   (* dynamic types where we encode a uint256 offset *)
   | BytesDynamic | String | ArrayDynamic _ -> 32
   (* cases for aggregates *)
   | Array (m, ty') ->
-      if is_dynamic_type ty then 32
-      else (* sum of length encoding and length of element encodings *)
-        32 + (m * get_head_space ty')
+    if is_dynamic_type ty then 32
+    else (* sum of length encoding and length of element encodings *)
+      32 + (m * get_head_space ty')
   | Tuple tys ->
-      if is_dynamic_type ty then 32 else List.fold_right ( + ) (List.map get_head_space tys) 0
+    if is_dynamic_type ty then 32 else List.fold_right ( + ) (List.map get_head_space tys) 0
 
 (* encoding is driven by types; check that the value matches the type *)
 let rec encode_abi_value v ty =
   match (v, ty) with
   | Uint_value bytes, Uint m ->
-      let bytes_len = Bytes.length bytes in
-      if m / 8 != bytes_len then
-        raise
-          (Internal_error (Printf.sprintf "have type uint%d, got value with %d bytes" m bytes_len)) ;
-      (* left-pad to 32 bytes *)
-      let padding = Bytes.make (32 - bytes_len) '\000' in
-      Bytes.cat padding bytes
+    let bytes_len = Bytes.length bytes in
+    if m / 8 != bytes_len then
+      raise
+        (Internal_error (Printf.sprintf "have type uint%d, got value with %d bytes" m bytes_len)) ;
+    (* left-pad to 32 bytes *)
+    let padding = Bytes.make (32 - bytes_len) '\000' in
+    Bytes.cat padding bytes
   | Int_value bytes, Int m ->
-      let bytes_len = Bytes.length bytes in
-      if m / 8 != bytes_len then
-        raise
-          (Internal_error (Printf.sprintf "have type int%d, got value with %d bytes" m bytes_len)) ;
-      (* left-pad to 32 bytes *)
-      let is_negative = Char.code (Bytes.get bytes 0) land 0b10000000 = 0 in
-      let pad_byte = if is_negative then Char.chr 0xff else '\000' in
-      let padding = Bytes.make (32 - bytes_len) pad_byte in
-      Bytes.cat padding bytes
+    let bytes_len = Bytes.length bytes in
+    if m / 8 != bytes_len then
+      raise
+        (Internal_error (Printf.sprintf "have type int%d, got value with %d bytes" m bytes_len)) ;
+    (* left-pad to 32 bytes *)
+    let is_negative = Char.code (Bytes.get bytes 0) land 0b10000000 = 0 in
+    let pad_byte = if is_negative then Char.chr 0xff else '\000' in
+    let padding = Bytes.make (32 - bytes_len) pad_byte in
+    Bytes.cat padding bytes
   | Uint_value bytes, UintDefault -> encode_abi_value v (Uint 256)
   | Int_value bytes, IntDefault -> encode_abi_value v (Int 256)
   | String_value s, String ->
-      (* assume that s is already UTF-8, so just convert it to bytes *)
-      let bytes = Bytes.of_string s in
-      encode_abi_value (Bytes_value bytes) BytesDynamic
+    (* assume that s is already UTF-8, so just convert it to bytes *)
+    let bytes = Bytes.of_string s in
+    encode_abi_value (Bytes_value bytes) BytesDynamic
   | Bool_value b, Bool ->
-      let num = if b then 1 else 0 in
-      let uint8_val, uint8_ty = abi_uint8_of_int num in
-      encode_abi_value uint8_val uint8_ty
+    let num = if b then 1 else 0 in
+    let uint8_val, uint8_ty = abi_uint8_of_int num in
+    encode_abi_value uint8_val uint8_ty
   | Ufixed_value bys, Ufixed (m, n) when Bytes.length bys = m / 8 ->
-      encode_abi_value (Uint_value bys) (Uint 256)
+    encode_abi_value (Uint_value bys) (Uint 256)
   | Ufixed_value bys, UfixedDefault -> encode_abi_value v (Ufixed (128, 18))
   | Fixed_value bys, Fixed (m, n) when Bytes.length bys = m / 8 ->
-      encode_abi_value (Int_value bys) (Int 256)
+    encode_abi_value (Int_value bys) (Int 256)
   | Fixed_value bys, FixedDefault -> encode_abi_value v (Fixed (128, 18))
   | Bytes_value bys, Bytes n when Bytes.length bys = n ->
-      let padding = Bytes.make (32 - Bytes.length bys) '\000' in
-      (* right-pad to 32 bytes *)
-      Bytes.cat bys padding
+    let padding = Bytes.make (32 - Bytes.length bys) '\000' in
+    (* right-pad to 32 bytes *)
+    Bytes.cat bys padding
   | Bytes_value bys, BytesDynamic ->
-      (* uint256 encoding of length of bys, then bys, then padding to make multiple of 32 bytes *)
-      let len = Bytes.length bys in
-      (* use 64 bits to make uniform on all architectures *)
-      let len_64 = Int64.of_int len in
-      let lo_8_bytes = get_big_endian_int64_bytes len_64 in
-      let len_padding = Bytes.make 24 '\000' in
-      let bytes_32 = Bytes.cat len_padding lo_8_bytes in
-      let len_encoding = encode_abi_value (Uint_value bytes_32) (Uint 256) in
-      let total_len = Bytes.length len_encoding + len in
-      let extra_padding_len =
-        let mod32 = total_len mod 32 in
-        if mod32 = 0 then 0 else 32 - mod32
-      in
-      let extra_padding = Bytes.make extra_padding_len '\000' in
-      Bytes.concat Bytes.empty [len_encoding; bys; extra_padding]
+    (* uint256 encoding of length of bys, then bys, then padding to make multiple of 32 bytes *)
+    let len = Bytes.length bys in
+    (* use 64 bits to make uniform on all architectures *)
+    let len_64 = Int64.of_int len in
+    let lo_8_bytes = get_big_endian_int64_bytes len_64 in
+    let len_padding = Bytes.make 24 '\000' in
+    let bytes_32 = Bytes.cat len_padding lo_8_bytes in
+    let len_encoding = encode_abi_value (Uint_value bytes_32) (Uint 256) in
+    let total_len = Bytes.length len_encoding + len in
+    let extra_padding_len =
+      let mod32 = total_len mod 32 in
+      if mod32 = 0 then 0 else 32 - mod32
+    in
+    let extra_padding = Bytes.make extra_padding_len '\000' in
+    Bytes.concat Bytes.empty [len_encoding; bys; extra_padding]
   | Fixed_value _, Fixed (m, n) -> bottom () (* TODO *)
   | Ufixed_value _, Ufixed (m, n) -> bottom () (* TODO *)
   | Address_value address, Address ->
-      let bytes = Bytes.of_string (Address.to_string address) in
-      encode_abi_value (Uint_value bytes) (Uint 160)
+    let bytes = Bytes.of_string (Address.to_string address) in
+    encode_abi_value (Uint_value bytes) (Uint 160)
   | Function_value (address, function_call), Function ->
-      let address_bytes = Bytes.of_string (Address.to_string address) in
-      let signature_bytes = encode_signature function_call in
-      let bytes = Bytes.cat address_bytes signature_bytes in
-      encode_abi_value (Bytes_value bytes) (Bytes 24)
+    let address_bytes = Bytes.of_string (Address.to_string address) in
+    let signature_bytes = encode_signature function_call in
+    let bytes = Bytes.cat address_bytes signature_bytes in
+    encode_abi_value (Bytes_value bytes) (Bytes 24)
   | Array_value elts, Array (m, ty) ->
-      let element_encodings = List.map (fun elt -> encode_abi_value elt ty) elts in
-      Bytes.concat Bytes.empty element_encodings
+    let element_encodings = List.map (fun elt -> encode_abi_value elt ty) elts in
+    Bytes.concat Bytes.empty element_encodings
   | Array_value elts, ArrayDynamic ty ->
-      let len = List.length elts in
-      let len_encoding = get_big_endian_int_bytes 256 len in
-      let element_encodings = List.map (fun elt -> encode_abi_value elt ty) elts in
-      Bytes.cat len_encoding (Bytes.concat Bytes.empty element_encodings)
+    let len = List.length elts in
+    let len_encoding = get_big_endian_int_bytes 256 len in
+    let element_encodings = List.map (fun elt -> encode_abi_value elt ty) elts in
+    Bytes.cat len_encoding (Bytes.concat Bytes.empty element_encodings)
   | Tuple_value vals, Tuple tys ->
-      let val_tys = List.map2 (fun v ty -> (v, ty)) vals tys in
-      let arrays_len = List.length val_tys in
-      let heads = Array.make arrays_len Bytes.empty in
-      let tails = Array.make arrays_len Bytes.empty in
-      let cum_tail_lens = Array.make arrays_len 0 in
-      let head_spaces = List.map get_head_space tys in
-      let total_head_space = List.fold_right ( + ) head_spaces 0 in
-      let _ =
-        List.iteri
-          (fun ndx (v, ty) ->
-            let _ =
-              let encoding = encode_abi_value v ty in
-              (* update heads entry *)
-              if is_dynamic_type ty then (
-                let offset =
-                  if ndx = 0 then total_head_space else total_head_space + cum_tail_lens.(ndx - 1)
-                in
-                let offset_bytes = get_big_endian_int_bytes 256 offset in
-                heads.(ndx) <- offset_bytes ; tails.(ndx) <- encoding )
-              else (* tails already initialized with empty bytes *)
-                heads.(ndx) <- encoding
-            in
-            let curr_len = Bytes.length tails.(ndx) in
-            cum_tail_lens.(ndx)
-            <- (if ndx = 0 then curr_len else cum_tail_lens.(ndx - 1) + curr_len) )
-          val_tys
-      in
-      let heads_bytes = Array.fold_right Bytes.cat heads Bytes.empty in
-      let tails_bytes = Array.fold_right Bytes.cat tails Bytes.empty in
-      Bytes.cat heads_bytes tails_bytes
+    let val_tys = List.map2 (fun v ty -> (v, ty)) vals tys in
+    let arrays_len = List.length val_tys in
+    let heads = Array.make arrays_len Bytes.empty in
+    let tails = Array.make arrays_len Bytes.empty in
+    let cum_tail_lens = Array.make arrays_len 0 in
+    let head_spaces = List.map get_head_space tys in
+    let total_head_space = List.fold_right ( + ) head_spaces 0 in
+    let _ =
+      List.iteri
+        (fun ndx (v, ty) ->
+           let _ =
+             let encoding = encode_abi_value v ty in
+             (* update heads entry *)
+             if is_dynamic_type ty then (
+               let offset =
+                 if ndx = 0 then total_head_space else total_head_space + cum_tail_lens.(ndx - 1)
+               in
+               let offset_bytes = get_big_endian_int_bytes 256 offset in
+               heads.(ndx) <- offset_bytes ; tails.(ndx) <- encoding )
+             else (* tails already initialized with empty bytes *)
+               heads.(ndx) <- encoding
+           in
+           let curr_len = Bytes.length tails.(ndx) in
+           cum_tail_lens.(ndx)
+           <- (if ndx = 0 then curr_len else cum_tail_lens.(ndx - 1) + curr_len) )
+        val_tys
+    in
+    let heads_bytes = Array.fold_right Bytes.cat heads Bytes.empty in
+    let tails_bytes = Array.fold_right Bytes.cat tails Bytes.empty in
+    Bytes.cat heads_bytes tails_bytes
   | _ ->
-      raise
-        (Internal_error
-           (Printf.sprintf "Value to be encoded: %s\nDoes not match its type: %s"
-              (show_abi_value v) (show_abi_type ty)))
+    raise
+      (Internal_error
+         (Printf.sprintf "Value to be encoded: %s\nDoes not match its type: %s"
+            (show_abi_value v) (show_abi_type ty)))
 
 (* an encoding of the function call is what we pass to Ethereum in a transaction *)
 let encode_function_call function_call =
@@ -500,18 +501,18 @@ module Test = struct
     let ff_64 = Int64.of_int ff in
     match abi_int64_of_int64 ff_64 with
     | Int_value bytes, Int 64 ->
-        (* ff_64 has an all-1s lo byte on little-endian Intel CPU
-           in big-endian representation, should have all-1s hi byte
-           all other bytes should be 0
-        *)
-        let hi_byte = Char.code (Bytes.get bytes 7) in
-        let other_bytes_64 =
-          let rec get_byte ndx accum =
-            if ndx < 0 then accum else get_byte (ndx - 1) (Bytes.get bytes ndx :: accum)
-          in
-          get_byte 6 []
+      (* ff_64 has an all-1s lo byte on little-endian Intel CPU
+         in big-endian representation, should have all-1s hi byte
+         all other bytes should be 0
+      *)
+      let hi_byte = Char.code (Bytes.get bytes 7) in
+      let other_bytes_64 =
+        let rec get_byte ndx accum =
+          if ndx < 0 then accum else get_byte (ndx - 1) (Bytes.get bytes ndx :: accum)
         in
-        Bytes.length bytes = 8 && hi_byte = ff && List.for_all (Char.equal '\000') other_bytes_64
+        get_byte 6 []
+      in
+      Bytes.length bytes = 8 && hi_byte = ff && List.for_all (Char.equal '\000') other_bytes_64
     | _ -> false
 
   (* similar test, but provide int that fits in 56 bits instead of int64 *)
@@ -519,18 +520,18 @@ module Test = struct
     let ff = 0xff in
     match abi_int56_of_int ff with
     | Int_value bytes, Int 56 ->
-        (* ff has an all-1s lo byte on little-endian Intel CPU
-           in big-endian representation, should have all-1s hi byte
-           all other bytes should be 0
-        *)
-        let hi_byte = Char.code (Bytes.get bytes 6) in
-        let other_bytes =
-          let rec get_byte ndx accum =
-            if ndx < 0 then accum else get_byte (ndx - 1) (Bytes.get bytes ndx :: accum)
-          in
-          get_byte 5 []
+      (* ff has an all-1s lo byte on little-endian Intel CPU
+         in big-endian representation, should have all-1s hi byte
+         all other bytes should be 0
+      *)
+      let hi_byte = Char.code (Bytes.get bytes 6) in
+      let other_bytes =
+        let rec get_byte ndx accum =
+          if ndx < 0 then accum else get_byte (ndx - 1) (Bytes.get bytes ndx :: accum)
         in
-        Bytes.length bytes = 7 && hi_byte = ff && List.for_all (Char.equal '\000') other_bytes
+        get_byte 5 []
+      in
+      Bytes.length bytes = 7 && hi_byte = ff && List.for_all (Char.equal '\000') other_bytes
     | _ -> false
 
   let%test "contract-call-encoding-1" =

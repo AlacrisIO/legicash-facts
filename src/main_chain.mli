@@ -1,4 +1,7 @@
 open Legibase
+open Action
+open Crypto
+open Keypair
 
 module TokenAmount : Unsigned.S
 
@@ -9,7 +12,7 @@ module Nonce : Unsigned.S
     1- Make it work with Ethereum, where it describes a block
     2- Make it work for tezos, where it's a Block_header.t (?)
     3- Abstract into a module signature that can be provided by one or the other.
- *)
+*)
 type state = {revision: Revision.t; accounts: TokenAmount.t AddressMap.t} [@@deriving lens]
 
 (** TODO: make sure it matches Ethereum transfer data *)
@@ -37,7 +40,7 @@ type transaction_signed = transaction signed
 (** Confirmation of a transaction on the main chain
     an old enough block on the main chain
     TODO: maybe also include a path and/or merkle tree from there?
-    *)
+*)
 type confirmation =
   { transaction_hash: Digest.t
   ; transaction_index: Unsigned.UInt64.t

@@ -1,30 +1,33 @@
 (* Types for LegiCash Facilitator side-chains *)
 
 open Legibase
+open Action
+open Crypto
+
 module TokenAmount = Main_chain.TokenAmount
 
 (** Internal witness for proof that Trent is a liar
- *)
+*)
 type fraud_proof
 
 (** Stage of knowledge of one actor about an operation
 
-  Main chain status: we assume Judy is honest and stable and never goes from Confirmed to Rejected.
-  Transitions for the consensus:
+    Main chain status: we assume Judy is honest and stable and never goes from Confirmed to Rejected.
+    Transitions for the consensus:
     Unknown => Pending, Confirmed, Rejected
     Pending => Confirmed, Rejected
 
-  Self status: Alice assumes she is honest and stable, but she relies on Trent who can lie.
-  We don't need to represent self-status: if we don't know about it, we have nothing to represent;
-  and if we do know about it, there is no transition about that, only about the status of Trent and Judy.
+    Self status: Alice assumes she is honest and stable, but she relies on Trent who can lie.
+    We don't need to represent self-status: if we don't know about it, we have nothing to represent;
+    and if we do know about it, there is no transition about that, only about the status of Trent and Judy.
 
-  Trent status: Alice weakly assumes honesty of Trent (or wouldn't even bother dealing with Trent),
-  but has to take into account the possibility that Trent goes rogue at some point,
-  and status of some operations go from Confirmed to Rejected via incompetence or malice.
+    Trent status: Alice weakly assumes honesty of Trent (or wouldn't even bother dealing with Trent),
+    but has to take into account the possibility that Trent goes rogue at some point,
+    and status of some operations go from Confirmed to Rejected via incompetence or malice.
 
-  confirmation/rejection: either we move that to a functor so we have the proper kind,
-  or we leave that aside.
- *)
+    confirmation/rejection: either we move that to a functor so we have the proper kind,
+    or we leave that aside.
+*)
 type knowledge_stage =
   | Unknown
   (* 0. that actor never heard of it *)
@@ -34,7 +37,7 @@ type knowledge_stage =
   (* of operation_confirmation *)
   (* 2. that actor confirmed it *)
   | Rejected
-(* of operation_rejection *)
+  (* of operation_rejection *)
 (* 3. that actor rejected it, timed out, or lied, etc. *)
 
 (** memo identifying the invoice
@@ -44,26 +47,26 @@ type memo = string option
 
 (** invoice sent from payee to payer
     TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
- *)
+*)
 type invoice = {recipient: Address.t; amount: TokenAmount.t; memo: memo} [@@deriving lens]
 
 type payment_details =
   {payment_invoice: invoice; payment_fee: TokenAmount.t; payment_expedited: bool}
-  [@@deriving lens]
+[@@deriving lens]
 
 type deposit_details =
   { deposit_amount: TokenAmount.t
   ; deposit_fee: TokenAmount.t
   ; main_chain_deposit_signed:
       Main_chain.transaction_signed
-      (* TODO: not a transaction, but an ethereum Log event created by the contract's deposit method *)
+  (* TODO: not a transaction, but an ethereum Log event created by the contract's deposit method *)
   ; main_chain_deposit_confirmation: Main_chain.confirmation
   ; deposit_expedited: bool }
-  [@@deriving lens]
+[@@deriving lens]
 
 type withdrawal_details =
   {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
-  [@@deriving lens]
+[@@deriving lens]
 
 (** an operation on a facilitator side-chain *)
 type operation =
@@ -71,14 +74,14 @@ type operation =
   | Payment of payment_details
   | Withdrawal of withdrawal_details
 (*
-| Settlement of settlement_details
+     | Settlement of settlement_details
 
-type settlement_details =
-  { sender: public_key
-  ; sender_facilitator: public_key
-  ; recipient: public_key
-  ; recipient_facilitator: public_key }
-*)
+     type settlement_details =
+     { sender: public_key
+     ; sender_facilitator: public_key
+     ; recipient: public_key
+     ; recipient_facilitator: public_key }
+  *)
 
 (** headers for a request to a facilitator
     Every client request that initiates a transaction comes with a request window,
@@ -94,7 +97,7 @@ type settlement_details =
     so that is a space loss in the short run (and/or for long-term archivers).
     Alternatively, to save space, the root may not be stored in places where the validity
     requires the root to be the same as *the* known consensual root at the given date.
-    *)
+*)
 type rx_header =
   { facilitator: Address.t
   ; requester: Address.t
@@ -104,11 +107,11 @@ type rx_header =
   ; confirmed_side_chain_state_digest: state digest
   ; confirmed_side_chain_state_revision: Revision.t
   ; validity_within: Duration.t }
-  [@@deriving lens]
+[@@deriving lens]
 
 (** request from user to facilitator for operation on the side chain
     an operation, plus headers that provide a reference to the past and a timeout
-    *)
+*)
 and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
 
 (** header for a confirmation from a facilitator:
@@ -121,12 +124,12 @@ and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
     give a revision so contradiction is trivial to check.
     Should we also provide log(n) digests to the previous confirmation
     whose revision is a multiple of 2**k for all k?
-    *)
+*)
 and tx_header = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
 
 (** A transaction confirmation from a facilitator:
     a request, plus headers that help validate against fraud.
-    *)
+*)
 and confirmation = {tx_header: tx_header; signed_request: request signed} [@@deriving lens]
 
 (* TODO: actually maintain the user_revision;
@@ -135,37 +138,43 @@ and confirmation = {tx_header: tx_header; signed_request: request signed} [@@der
 and account_state = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
-    *)
+*)
 and state =
-  { previous_main_chain_state: Main_chain.state digest
-  ; previous_side_chain_state: state digest (* state previously posted on the above *)
-  ; facilitator_revision: Revision.t
-  ; spending_limit:
-      TokenAmount.t
-      (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
-  ; bond_posted: TokenAmount.t
-  ; accounts: account_state AddressMap.t
-  ; operations:
-      confirmation AddressMap.t
-      (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
-  ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
-  [@@deriving lens]
+    { previous_main_chain_state: Main_chain.state digest
+    ; previous_side_chain_state: state digest (* state previously posted on the above *)
+    ; facilitator_revision: Revision.t
+    ; spending_limit:
+        TokenAmount.t
+    (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
+    ; bond_posted: TokenAmount.t
+    ; accounts: account_state AddressMap.t
+    ; operations:
+        confirmation AddressMap.t
+    (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
+    ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
+[@@deriving lens]
+
+module AccountState : sig
+  type t = account_state
+  val digest : t -> t digest
+end
+(** wrapper module for account_state that conforms to DigestS signature *)
 
 (** side chain operation + knowledge about the operation *)
 type episteme =
   { request: request signed
   ; confirmation_option: confirmation signed option
   ; main_chain_confirmation_option: Main_chain.confirmation option }
-  [@@deriving lens]
+[@@deriving lens]
 
 (** private state a user keeps for his account with a facilitator *)
 type user_account_state_per_facilitator =
   { facilitator_validity:
       knowledge_stage
-      (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
+  (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
   ; confirmed_state: account_state
   ; pending_operations: episteme list }
-  [@@deriving lens]
+[@@deriving lens]
 
 (** User state (for Alice)
     For now, only one facilitator; but in the future, allow for many.
@@ -174,40 +183,40 @@ type user_account_state_per_facilitator =
     of the state of the system, and the status of each change in the system.
 
     main chain status:
-      J0 => J1, J2, J3; J1 => J2, J3; J2; J3
+    J0 => J1, J2, J3; J1 => J2, J3; J2; J3
 
     side chain status:
-      T0 => T1, T2, T3; T1 => T2, T3; T2 => T3 (ouch); T3 pulls in Ursula(!), with *a separate data structure*
-        (T2.J0: unknown to Judy yet
-         OR T2.J1: almost confirmed by Judy (seen on the main blockchain, not confirmed yet)
-         OR T2.J2: confirmed all the way to Judy
-         OR T3.J0: Trent is a liar, got to do something about it -- send to Ursula
-         OR T3.J3: LOSER: overridden by another lie of Trent that made it to Judy first.
+    T0 => T1, T2, T3; T1 => T2, T3; T2 => T3 (ouch); T3 pulls in Ursula(!), with *a separate data structure*
+    (T2.J0: unknown to Judy yet
+    OR T2.J1: almost confirmed by Judy (seen on the main blockchain, not confirmed yet)
+    OR T2.J2: confirmed all the way to Judy
+    OR T3.J0: Trent is a liar, got to do something about it -- send to Ursula
+    OR T3.J3: LOSER: overridden by another lie of Trent that made it to Judy first.
 
-         OR T3.U1: Trent is a liar, we sent the claim to Ursula
-         OR T3.U2.J0: SOME Ursula accepted to replace Trent, Judy doesn't know
-         OR T3.U2.J1: SOME Ursula accepted to replace Trent, posted to Judy, who didn't confirm yet
-         OR T3.U2.J2: SOME Ursula accepted to replace Trent, posted to Judy, who confirmed
-         OR T3.U3.J0: ALL Ursulas are dishonest, do your own thing, quick,
-                   do an individual exit or become a facilitator yourself, etc.
-         OR T3.U3.J1: ALL Ursulas are dishonest, did our thing, waiting for confirmation.
-         OR T3.U3.J2: ALL Ursulas are dishonest, did our thing, won.)
+    OR T3.U1: Trent is a liar, we sent the claim to Ursula
+    OR T3.U2.J0: SOME Ursula accepted to replace Trent, Judy doesn't know
+    OR T3.U2.J1: SOME Ursula accepted to replace Trent, posted to Judy, who didn't confirm yet
+    OR T3.U2.J2: SOME Ursula accepted to replace Trent, posted to Judy, who confirmed
+    OR T3.U3.J0: ALL Ursulas are dishonest, do your own thing, quick,
+    do an individual exit or become a facilitator yourself, etc.
+    OR T3.U3.J1: ALL Ursulas are dishonest, did our thing, waiting for confirmation.
+    OR T3.U3.J2: ALL Ursulas are dishonest, did our thing, won.)
 
-   A. We start from the last state S confirmed by Judy (summary of all operations of status J2).
-   B. We want to maintain a list/set of operations that currently matter to the user.
-      WHEN the operations are either confirmed or rejected by Judy (status J2 or J3),
-      then the user may flush them out of active memory (but they are logged to disk for accounting).
-   C. The operations are indexed somehow by knowledge_stage of Trent, Judy, etc.? by type?
-   D. The user can play all the operations, and get an idea of what's confirmed,
-      what's the expected result if everything goes right,
-      what are the upper and lower bounds if some things go wrong.
-   E. If Trent lies, we want to be able to divert the unconfirmed *incoming* transactions
-      to Ursula and/or Judy (TODO: and their dependency history if any?)
- *)
+    A. We start from the last state S confirmed by Judy (summary of all operations of status J2).
+    B. We want to maintain a list/set of operations that currently matter to the user.
+    WHEN the operations are either confirmed or rejected by Judy (status J2 or J3),
+    then the user may flush them out of active memory (but they are logged to disk for accounting).
+    C. The operations are indexed somehow by knowledge_stage of Trent, Judy, etc.? by type?
+    D. The user can play all the operations, and get an idea of what's confirmed,
+    what's the expected result if everything goes right,
+    what are the upper and lower bounds if some things go wrong.
+    E. If Trent lies, we want to be able to divert the unconfirmed *incoming* transactions
+    to Ursula and/or Judy (TODO: and their dependency history if any?)
+*)
 type user_state =
   { main_chain_user_state: Main_chain.user_state
   ; facilitators: user_account_state_per_facilitator AddressMap.t }
-  [@@deriving lens]
+[@@deriving lens]
 
 (** function from 'input to 'output that acts on a user_state *)
 type ('input, 'action) user_action = ('input, 'action, user_state) action
@@ -222,24 +231,24 @@ type ('input, 'output) verifier_action = ('input, 'output, verifier_state) actio
     NB: an important constraint is that we need to advertise this fee structure to users
     TODO: account for size of transaction if memo can be long.
     TODO: make fee structure updatable by posting a new fee schedule in advance.
-    *)
+*)
 type facilitator_fee_schedule =
   { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
   ; withdrawal_fee: TokenAmount.t (* fee to accept a withdrawal *)
   ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
   ; fee_per_billion: TokenAmount.t
   (* function TokenAmount.t -> TokenAmount.t ? *) }
-  [@@deriving lens]
+[@@deriving lens]
 
 (** Private state of a facilitator (as opposed to what's public in the side-chain)
     TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
-    *)
+*)
 type facilitator_state =
   { keypair: Keypair.t
   ; previous: state option
   ; current: state
   ; fee_schedule: facilitator_fee_schedule }
-  [@@deriving lens]
+[@@deriving lens]
 
 (** function from 'a to 'b that acts on a facilitator_state *)
 type ('input, 'output) facilitator_action = ('input, 'output, facilitator_state) action

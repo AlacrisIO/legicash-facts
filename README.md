@@ -11,18 +11,18 @@ If you'd like to build the Legicash software, follow these instructions.
 ### Toolchain
 
 We're using Gitlab CI to build and test our software. The CI uses a
-custom Docker image with the needed software installed in Ubuntu. If you don't 
+custom Docker image with the needed software installed in Ubuntu. If you don't
 have Docker installed, look at https://www.docker.com/get-docker.
 
 If you would rather install the needed software manually, look at the
-file [scripts/Dockerfile](scripts/Dockerfile) to see what's installed in the 
+file [scripts/Dockerfile](scripts/Dockerfile) to see what's installed in the
 Docker image.
 
 To run the Docker image, use this command:
 
      docker run -it -v /host-legicash-facts-path:/legicash-facts registry.gitlab.com/legicash/legicash-facts:build-env /bin/bash
-     
-where `/host-legicash-facts-path` is the path to this source code on your host 
+
+where `/host-legicash-facts-path` is the path to this source code on your host
 machine. You can give the image a more concise name with the command
 
      docker tag registry.gitlab.com/legicash/legicash-facts:build-env legicash-facts
@@ -48,6 +48,15 @@ x86_64. It may be possible to build and run it on other platforms.
 
 If you'd like to contribute to the Legicash codebase, please submit a
 Gitlab merge request, and note the following:
+
+### Toplevel
+
+You can play with our OCaml toplevel with, e.g.:
+
+    make toplevel
+    ./bin/legicaml
+    open Lib;;
+    bottom ();;
 
 ### Coding Style
 
