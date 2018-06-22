@@ -644,6 +644,48 @@ module Trie (Key : UnsignedS) (Value : T)
     else
       (make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child, Empty)
 
+  (** [co_match recursek branchk skipk leafk onlyak onlybk i (a, b) k] describes
+      an iterative computation over a pair of trees in great generality, using
+      continuation-passing style. This style allows the calculation to abort and
+      return the calculation result if it has been determined before the last
+      node of the tree is visited, or continue processing other nodes if
+      necessary.
+
+     The following are caller-specified types:
+
+     - ['c]: type for context needed for continuation of the computation.
+      
+     - ['r]: return type of the computation (and for [co_match] itself.)
+
+     Inputs:
+
+     - [recursek i (a', b') k]: Result from recursing into the [i]th nodes of
+       [a] and [b], here denoted by [a'] and [b'].
+
+     - [branchk i h cleft cright k]: Result from recursing down both branches
+       from node [i] at height [h], given results [cleft] and [cright] from the
+       two children of that node.
+
+     - [skipk i height depth i' c k]: Result from recursing down [depth] skipped
+       children of node [i], given that the result from extant child of the
+       skipped nodes is [c].
+
+     - [leafk i va vb k]: Result from comparing two leaf nodes at index [i],
+       with values [va] and [vb].
+
+     - [onlyak i n k]: Result given that [i]th node [n] is only explicitly
+       present in the first tree argument, [a].
+
+     - [onlybk i n k]: Like [onlyak], mutatis mutandis.
+
+     - [i]: Index of node at which to start the computation.
+
+     - [(a, b)]: The two input trees.
+
+     - [k]: Continuation called on the result of the above recursion, to
+       (eventually) produce the final result.
+
+  *)
   let co_match
         (recursek: Key.t -> t * t -> ('c -> 'r) -> 'r)
         (branchk: Key.t -> int -> 'c -> 'c -> ('c -> 'r) -> 'r)
