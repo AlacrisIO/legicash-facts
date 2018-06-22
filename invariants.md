@@ -182,12 +182,12 @@ number of registrars each is mandated to gossip with needs to be fairly large.
 
 ### Forks of the main chain, and gossip
 
-If there are forks on the main chain forks with material variations, the gossip
-for each fork could be different. On the other hand, presumably most of the
-time, the gossip will be the same, and most of it will be the same even when
-there *are* material variations, because those will only pertain to a few
-accounts. So the optimum would be to allow for shared data between the forks,
-where it's consistent. That sounds very complex to write, though.
+If there are forks on the main chain with material variations, the gossip for
+each fork could be different. On the other hand, presumably most of the time,
+the gossip will be the same, and most of it will be the same even when there
+*are* material variations, because those will only pertain to a few accounts. So
+the optimum would be to allow for shared data between the forks, where it's
+consistent. That sounds very complex to write, though.
 
 ### Gossip-Data-Structure Invariants
 
