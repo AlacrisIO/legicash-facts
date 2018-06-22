@@ -178,12 +178,12 @@ module type MapS = sig
       argument: recursek, branchk, skipk, leafk, onlyak, onlybk, base_index, tables, continuation
   *)
   val co_match :
-    (key -> t * t -> ('c -> 'r) -> 'r) ->
-    (key -> int -> 'c -> 'c -> ('c -> 'r) -> 'r) ->
-    (key -> int -> int -> key -> 'c -> ('c -> 'r) -> 'r) ->
-    (key -> value -> value -> ('c -> 'r) -> 'r) ->
-    (key -> t -> ('c -> 'r) -> 'r) ->
-    (key -> t -> ('c -> 'r) -> 'r) ->
+    recursek:(key -> t * t -> ('c -> 'r) -> 'r) ->
+    branchk:(key -> int -> 'c -> 'c -> ('c -> 'r) -> 'r) ->
+    skipk:(key -> int -> int -> key -> 'c -> ('c -> 'r) -> 'r) ->
+    leafk:(key -> value -> value -> ('c -> 'r) -> 'r) ->
+    onlyak:(key -> t -> ('c -> 'r) -> 'r) ->
+    onlybk:(key -> t -> ('c -> 'r) -> 'r) ->
     key -> t * t -> ('c -> 'r) -> 'r
 
   (* Splitting a map *)

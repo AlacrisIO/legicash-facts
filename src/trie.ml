@@ -9,7 +9,7 @@ open Lib
 open Integer
 open Crypto
 
-module type TrieSynthS = sig
+module type TreeSynthS = sig
   type value
   type t
   val empty : t
@@ -17,8 +17,8 @@ module type TrieSynthS = sig
   val branch : int -> t -> t -> t
 end
 
-module type TrieSkipSynthS = sig
-  include TrieSynthS
+module type TrieSynthS = sig
+  include TreeSynthS
   type key
   val skip : int -> int -> key -> t -> t
 end
@@ -33,7 +33,7 @@ module TrieSynthCardinal (Key : UnsignedS) (Value : T) = struct
   let skip _ _ _ child = child
 end
 
-module TrieSynthComputeSkip (Key : UnsignedS) (Synth: TrieSynthS) = struct
+module TrieSynthComputeSkip (Key : UnsignedS) (Synth: TreeSynthS) = struct
   include Synth
   type key = Key.t
   let skip height length bits synth =
@@ -85,7 +85,7 @@ module type TrieS = sig
 end
 
 module Trie (Key : UnsignedS) (Value : T)
-    (Synth : TrieSkipSynthS with type key = Key.t and type value = Value.t) = struct
+    (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
 
   type trie_key = Key.t
   type trie_value = Value.t
@@ -247,6 +247,12 @@ module Trie (Key : UnsignedS) (Value : T)
         let rec ins height t k = match t with
           | Empty -> k (make_leaf height key value)
           | Leaf {value=old} -> if value==old then trie else k (mk_leaf value)
+          | Branch {left; right} ->
+            let branch_height = height - 1 in
+            if Key.has_bit key branch_height then
+              ins branch_height right (fun t -> k (verify (make_branch height left t)))
+            else
+              ins branch_height left (fun t -> k (verify (make_branch height t right)))
           | Skip {child; bits; length} ->
             let child_height = height - length in
             let key_bits = Key.extract key child_height length in
@@ -272,13 +278,7 @@ module Trie (Key : UnsignedS) (Value : T)
                   make_branch branch_node_height new_branch old_branch
                 else
                   make_branch branch_node_height old_branch new_branch in
-              k (make_skip height same_length (Key.shift_right bits diff_length) branch_node)
-          | Branch {left; right} ->
-            let branch_height = height - 1 in
-            if Key.has_bit key branch_height then
-              ins branch_height right (fun t -> k (verify (make_branch height left t)))
-            else
-              ins branch_height left (fun t -> k (verify (make_branch height t right))) in
+              k (make_skip height same_length (Key.shift_right bits diff_length) branch_node) in
         ins height trie identity
 
   let remove key trie =
@@ -687,83 +687,82 @@ module Trie (Key : UnsignedS) (Value : T)
 
   *)
   let co_match
-        (recursek: Key.t -> t * t -> ('c -> 'r) -> 'r)
-        (branchk: Key.t -> int -> 'c -> 'c -> ('c -> 'r) -> 'r)
-        (skipk: Key.t -> int -> int -> Key.t -> 'c -> ('c -> 'r) -> 'r)
-        (leafk: Key.t -> Value.t -> Value.t -> ('c -> 'r) -> 'r)
-        (onlyak: Key.t -> t -> ('c -> 'r) -> 'r)
-        (onlybk: Key.t -> t -> ('c -> 'r) -> 'r)
-        (i : Key.t)
-        ((a : t), (b : t))
-        (k : 'c -> 'r) = match (a, b) with
-    | (_, Empty) -> onlyak i a k
-    | (Empty, _) -> onlybk i b k
-    | (Leaf {value=va}, Leaf {value=vb}) -> leafk i va vb k
-    | (Branch {left=aleft; right=aright; height}, Branch {left=bleft; right=bright}) ->
-      recursek i (aleft, bleft) (fun left ->
-        recursek (right_index i height) (aright, bright) (fun right ->
-          branchk i height left right k))
-    | (Branch {left=left; right=right}, Skip {child; bits; length; height}) ->
-      let l1 = length - 1 in
-      let ri = right_index i height in
-      if Key.has_bit bits l1 then
-        onlyak i left (fun left ->
-          recursek ri (right, make_skip height l1 bits child) (fun right ->
+        ~recursek:(recursek:Key.t -> t * t -> ('c -> 'r) -> 'r)
+        ~branchk:(branchk:Key.t -> int -> 'c -> 'c -> ('c -> 'r) -> 'r)
+        ~skipk:(skipk:Key.t -> int -> int -> Key.t -> 'c -> ('c -> 'r) -> 'r)
+        ~leafk:(leafk:Key.t -> Value.t -> Value.t -> ('c -> 'r) -> 'r)
+        ~onlyak:(onlyak:Key.t -> t -> ('c -> 'r) -> 'r)
+        ~onlybk:(onlybk:Key.t -> t -> ('c -> 'r) -> 'r) =
+    fun (i : Key.t) ((a : t), (b : t)) (k : 'c -> 'r) ->
+      match (a, b) with
+      | (_, Empty) -> onlyak i a k
+      | (Empty, _) -> onlybk i b k
+      | (Leaf {value=va}, Leaf {value=vb}) -> leafk i va vb k
+      | (Branch {left=aleft; right=aright; height}, Branch {left=bleft; right=bright}) ->
+        recursek i (aleft, bleft) (fun left ->
+          recursek (right_index i height) (aright, bright) (fun right ->
             branchk i height left right k))
-      else
-        recursek i (left, make_skip height l1 bits child) (fun left ->
-          onlyak ri right (fun right ->
-            branchk i height left right k))
-    | (Skip {child;bits;length;height}, Branch {left;right}) ->
-      let l1 = length - 1 in
-      let ri = right_index i height in
-      if Key.has_bit bits l1 then
-        onlybk i left (fun left ->
-          recursek ri (make_skip height l1 bits child, right) (fun right ->
-            branchk i height left right k))
-      else
-        recursek i (make_skip height l1 bits child, left) (fun left ->
-          onlybk ri right (fun right ->
-            branchk i height left right k))
-    | (Skip {child=achild;bits=abits;length=alength;height}, Skip {child=bchild;bits=bbits;length=blength}) ->
-      let length = min alength blength in
-      let ahighbits = Key.extract abits (alength - length) length in
-      let bhighbits = Key.extract bbits (blength - length) length in
-      let difflength = Key.numbits (Key.logxor ahighbits bhighbits) in
-      let samelength = length - difflength in
-      let sameheight = height - samelength in
-      let (samebits, isame, samek) =
-        if samelength = 0 then
-          (Key.zero, i, k)
+      | (Branch {left=left; right=right}, Skip {child; bits; length; height}) ->
+        let l1 = length - 1 in
+        let ri = right_index i height in
+        if Key.has_bit bits l1 then
+          onlyak i left (fun left ->
+            recursek ri (right, make_skip height l1 bits child) (fun right ->
+              branchk i height left right k))
         else
-          let samebits = Key.extract ahighbits (length - samelength) samelength in
-          let isame = Key.logor i (Key.shift_left samebits sameheight) in
-          let samek = fun child -> skipk isame height samelength samebits child k in
-          (samebits, isame, samek) in
-      let adifflength = alength - samelength in
-      let bdifflength = blength - samelength in
-      if difflength = 0 then
-        recursek isame
-          ((make_skip sameheight adifflength abits achild),
-           (make_skip sameheight bdifflength bbits bchild)) samek
-      else
-        let (aleft, aright) = skip_choice height alength abits achild (adifflength - 1) in
-        let (bleft, bright) = skip_choice height blength bbits bchild (bdifflength - 1) in
-        recursek isame (aleft, bleft) (fun left ->
-          recursek (right_index isame (sameheight - 1)) (aright, bright) (fun right ->
-            branchk isame sameheight left right samek))
-    | _ -> raise (Internal_error "co_match")
+          recursek i (left, make_skip height l1 bits child) (fun left ->
+            onlyak ri right (fun right ->
+              branchk i height left right k))
+      | (Skip {child;bits;length;height}, Branch {left;right}) ->
+        let l1 = length - 1 in
+        let ri = right_index i height in
+        if Key.has_bit bits l1 then
+          onlybk i left (fun left ->
+            recursek ri (make_skip height l1 bits child, right) (fun right ->
+              branchk i height left right k))
+        else
+          recursek i (make_skip height l1 bits child, left) (fun left ->
+            onlybk ri right (fun right ->
+              branchk i height left right k))
+      | (Skip {child=achild;bits=abits;length=alength;height}, Skip {child=bchild;bits=bbits;length=blength}) ->
+        let length = min alength blength in
+        let ahighbits = Key.extract abits (alength - length) length in
+        let bhighbits = Key.extract bbits (blength - length) length in
+        let difflength = Key.numbits (Key.logxor ahighbits bhighbits) in
+        let samelength = length - difflength in
+        let sameheight = height - samelength in
+        let (samebits, isame, samek) =
+          if samelength = 0 then
+            (Key.zero, i, k)
+          else
+            let samebits = Key.extract ahighbits (length - samelength) samelength in
+            let isame = Key.logor i (Key.shift_left samebits sameheight) in
+            let samek = fun child -> skipk isame height samelength samebits child k in
+            (samebits, isame, samek) in
+        let adifflength = alength - samelength in
+        let bdifflength = blength - samelength in
+        if difflength = 0 then
+          recursek isame
+            ((make_skip sameheight adifflength abits achild),
+             (make_skip sameheight bdifflength bbits bchild)) samek
+        else
+          let (aleft, aright) = skip_choice height alength abits achild (adifflength - 1) in
+          let (bleft, bright) = skip_choice height blength bbits bchild (bdifflength - 1) in
+          recursek isame (aleft, bleft) (fun left ->
+            recursek (right_index isame (sameheight - 1)) (aright, bright) (fun right ->
+              branchk isame sameheight left right samek))
+      | _ -> raise (Internal_error "co_match")
 
   let merge f a b =
     let (a, b) = ensure_same_height a b in
     let rec m i (a, b) k =
       co_match
-        m
-        (fun _ height left right k -> k (make_branch height left right))
-        (fun _ height length bits child k -> k (make_skip height length bits child))
-        (fun i va vb k -> k (match (f i (Some va) (Some vb)) with None -> Empty | Some v -> mk_leaf v))
-        (fun i ta k -> k (mapiopt (fun _ v -> f i (Some v) None) ta))
-        (fun i tb k -> k (mapiopt (fun _ v -> f i None (Some v)) tb))
+        ~recursek: m
+        ~branchk: (fun _ height left right k -> k (make_branch height left right))
+        ~skipk: (fun _ height length bits child k -> k (make_skip height length bits child))
+        ~leafk: (fun i va vb k -> k (match (f i (Some va) (Some vb)) with None -> Empty | Some v -> mk_leaf v))
+        ~onlyak: (fun i ta k -> k (mapiopt (fun _ v -> f i (Some v) None) ta))
+        ~onlybk: (fun i tb k -> k (mapiopt (fun _ v -> f i None (Some v)) tb))
         i (a, b) k in
     m Key.zero (a, b) identity
 
@@ -771,12 +770,12 @@ module Trie (Key : UnsignedS) (Value : T)
     let (a, b) = ensure_same_height a b in
     let rec m i (a, b) k =
       co_match
-        m
-        (fun _ _ _ _ k -> k ())
-        (fun _ _ _ _ _ k -> k ())
-        (fun _ va vb k -> let r = cmp va vb in if r = 0 then k () else r)
-        (fun _ ta k -> 1)
-        (fun _ tb k -> -1)
+        ~recursek:m
+        ~branchk:(fun _ _ _ _ k -> k ())
+        ~skipk:(fun _ _ _ _ _ k -> k ())
+        ~leafk:(fun _ va vb k -> let r = cmp va vb in if r = 0 then k () else r)
+        ~onlyak:(fun _ ta k -> 1)
+        ~onlybk:(fun _ tb k -> -1)
         i (a, b) k in
     m Key.zero (a, b) (konstant 0)
 
@@ -784,12 +783,12 @@ module Trie (Key : UnsignedS) (Value : T)
     let rec loop i (a, b) k =
       if a == b then k () else
         co_match
-          loop
-          (fun _ _ _ _ k -> k ())
-          (fun _ _ _ _ _ k -> k ())
-          (fun _ va vb k -> if eq va vb then k () else false)
-          (fun _ ta k -> false)
-          (fun _ tb k -> false)
+          ~recursek:loop
+          ~branchk:(fun _ _ _ _ k -> k ())
+          ~skipk:(fun _ _ _ _ _ k -> k ())
+          ~leafk:(fun _ va vb k -> if eq va vb then k () else false)
+          ~onlyak:(fun _ ta k -> false)
+          ~onlybk:(fun _ tb k -> false)
           i (a, b) k in
     loop Key.zero (a, b) (konstant true)
 
@@ -803,7 +802,7 @@ module Trie (Key : UnsignedS) (Value : T)
 end
 
 module type TrieSynthMerkleS = sig
-  include TrieSkipSynthS
+  include TrieSynthS
   val leaf_digest : Digest.t -> t
 end
 
@@ -813,6 +812,10 @@ struct
   type value = Value.t
   type t = Digest.t
   let empty = Digest.zero
+  (* TODO: have a global table of non-clashing constants instead of all these numbers.
+     Or better: make sure these constants are actually themselves the digests of a descriptor
+     for the type of data being digested.
+  *)
   let leaf_digest digest = Digest.make (1, digest)
   let leaf v = leaf_digest (Digest.make v)
   let branch h x y = Digest.make (2, h, x, y)

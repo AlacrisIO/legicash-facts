@@ -1,15 +1,15 @@
 (* Big Endian Patricia Trees (Tries)
-   See article "Fast Mergable Integer Maps" by Chris Okasaki & Andrew Gill, 1998
+   See notably the article "Fast Mergable Integer Maps" by Chris Okasaki & Andrew Gill, 1998
    http://www.eecs.usma.edu/webs/people/okasaki/ml98maps.ps
 *)
 
-(* A big endian patricia tree maps non-negative integers to values.
-*)
+(* A big endian patricia tree maps non-negative integers to values. *)
 open Lib
 open Integer
 open Crypto
 
-module type TrieSynthS = sig
+(** A signature for the computation of a synthesized attribute from a binary tree *)
+module type TreeSynthS = sig
   type value
   type t
   val empty : t
@@ -17,12 +17,14 @@ module type TrieSynthS = sig
   val branch : int -> t -> t -> t
 end
 
-module type TrieSkipSynthS = sig
-  include TrieSynthS
+(** A signature for the computation of a synthesized attribute from a Patricia tree *)
+module type TrieSynthS = sig
+  include TreeSynthS
   type key
   val skip : int -> int -> key -> t -> t
 end
 
+(** A module to synthesize the cardinal of a trie as an attribute of said trie *)
 module TrieSynthCardinal (Key : UnsignedS) (Value : T) : sig
   type key = Key.t
   type value = Value.t
@@ -33,11 +35,13 @@ module TrieSynthCardinal (Key : UnsignedS) (Value : T) : sig
   val skip : int -> int -> key -> t -> t
 end
 
+(** A module to synthesize attributes for Skip by reducing it to Branch and Leaf. *)
 module TrieSynthComputeSkip (Key : UnsignedS) (Synth: TrieSynthS) : sig
-  include TrieSynthS
+  include TreeSynthS
   type key = Key.t
 end
 
+(** A module for Big-Endian Patricia Tree. *)
 module type TrieS = sig
   type trie_key
   type trie_value
@@ -73,17 +77,20 @@ module type TrieS = sig
   val check_path_consistency : 'a path -> bool
 end
 
+(** A module for Big-Endian Patricia Tree, a.k.a. Trie. *)
 module Trie (Key : UnsignedS) (Value : T)
-    (Synth : TrieSkipSynthS with type key = Key.t and type value = Value.t)
+    (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
   : TrieS with type trie_key = Key.t
            and type trie_value = Value.t
            and type synth = Synth.t
 
+(** A signature for Merklizing a Trie . *)
 module type TrieSynthMerkleS = sig
-  include TrieSkipSynthS
+  include TrieSynthS
   val leaf_digest : Digest.t -> t
 end
 
+(** A module for Merklizing a Trie . *)
 module TrieSynthMerkle (Key : UnsignedS) (Value : DigestibleS) : sig
   include TrieSynthMerkleS
     with type key = Key.t
@@ -91,6 +98,7 @@ module TrieSynthMerkle (Key : UnsignedS) (Value : DigestibleS) : sig
      and type t = Digest.t
 end
 
+(** Merkle Trie . *)
 module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) : sig
   module Synth : TrieSynthMerkleS with type key = Key.t and type value = Value.t and type t = Digest.t
   include TrieS
