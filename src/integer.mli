@@ -9,7 +9,9 @@ module type UnsignedS = sig
   val has_bit : t -> int -> bool
 end
 
-module Nat : UnsignedS
+module Nat : sig
+  include UnsignedS
+  val of_bits : string -> t
+end
 
 module UInt64 : UnsignedS
-

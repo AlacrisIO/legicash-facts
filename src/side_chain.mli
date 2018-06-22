@@ -154,6 +154,12 @@ and state =
     ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
 [@@deriving lens]
 
+module AccountState : sig
+  type t = account_state
+  val digest : t -> t digest
+end
+(** wrapper module for account_state that conforms to DigestS signature *)
+
 (** side chain operation + knowledge about the operation *)
 type episteme =
   { request: request signed

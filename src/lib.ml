@@ -62,10 +62,12 @@ let parse_hex hex_string =
   String.init len parse_char
 
 
-let unparse_hex s =
+let unparse_hex ?(with_colons=true) s =
   let len = String.length s in
   let rec loop ndx accum =
-    if ndx >= len then String.concat ":" (List.rev accum)
+    if ndx >= len then
+      let separator = if with_colons then ":" else "" in
+      String.concat separator (List.rev accum)
     else
       let hex = Printf.sprintf "%02x" (Char.code s.[ndx]) in
       loop (ndx + 1) (hex :: accum)

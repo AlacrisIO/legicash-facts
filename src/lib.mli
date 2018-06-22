@@ -59,7 +59,7 @@ val option_map : ('a -> 'b) -> 'a option -> 'b option
 val parse_hex : string -> string
 
 (** Unparse a binary string into a hex string, reversing parse_hex *)
-val unparse_hex : string -> string
+val unparse_hex : ?with_colons:bool -> string -> string
 
 
 (** Base interface for a type

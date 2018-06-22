@@ -3,7 +3,6 @@
 open Lib
 open Legibase
 open Action
-open Data256
 open Crypto
 module TokenAmount = Unsigned.UInt64
 module Nonce = Unsigned.UInt64

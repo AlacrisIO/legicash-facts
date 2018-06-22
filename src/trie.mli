@@ -84,14 +84,14 @@ module type TrieSynthMerkleS = sig
   val leaf_digest : Digest.t -> t
 end
 
-module TrieSynthMerkle (Key : UnsignedS) (Value : Digestible) : sig
+module TrieSynthMerkle (Key : UnsignedS) (Value : DigestibleS) : sig
   include TrieSynthMerkleS
     with type key = Key.t
      and type value = Value.t
      and type t = Digest.t
 end
 
-module MerkleTrie (Key : UnsignedS) (Value : Digestible) : sig
+module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) : sig
   module Synth : TrieSynthMerkleS with type key = Key.t and type value = Value.t and type t = Digest.t
   include TrieS
     with type trie_key = Key.t

@@ -3,6 +3,7 @@
 open Legibase
 open Action
 open Crypto
+
 module TokenAmount = Main_chain.TokenAmount
 
 type fraud_proof
@@ -64,6 +65,19 @@ and state =
     ; operations: confirmation AddressMap.t
     ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
 [@@deriving lens]
+
+module AccountState = struct
+  type t = account_state
+
+  let digest account_state =
+    let open Ethereum_rlp in
+    let balance_item = RlpItem (TokenAmount.to_string account_state.balance) in
+    let revision_item = RlpItem (Revision.to_string account_state.account_revision) in
+    let rlp_items = RlpItems [balance_item; revision_item] in
+    let encoded = encode rlp_items in
+    let hashed = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) (to_string encoded) in
+    Integer.Nat.of_bits hashed
+end
 
 type episteme =
   { request: request signed

@@ -765,7 +765,7 @@ module type TrieSynthMerkleS = sig
   val leaf_digest : Digest.t -> t
 end
 
-module TrieSynthMerkle (Key : UnsignedS) (Value : Digestible) =
+module TrieSynthMerkle (Key : UnsignedS) (Value : DigestibleS) =
 struct
   type key = Key.t
   type value = Value.t
@@ -776,7 +776,7 @@ struct
   let branch h x y = Digest.make (2, h, x, y)
   let skip height length bits child = Digest.make (3, height, length, bits, child)
 end
-module MerkleTrie (Key : UnsignedS) (Value : Digestible) = struct
+module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) = struct
   module Synth = TrieSynthMerkle (Key) (Value)
   include Trie (Key) (Value) (Synth)
 
