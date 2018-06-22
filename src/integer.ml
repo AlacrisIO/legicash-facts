@@ -9,6 +9,7 @@ module type UnsignedS = sig
   val extract : t -> int -> int -> t
   val numbits : t -> int
   val has_bit : t -> int -> bool
+  val of_bits : string -> t
 end
 
 module Nat = struct
@@ -44,6 +45,7 @@ module OurUInt (UInt: __UnsignedS_Zable) = struct
   let extract key position length = of_z (Z.extract (z_of key) position length)
   let numbits key = Z.numbits (z_of key)
   let has_bit key position = equal one (extract key position 1)
+  let of_bits bits = Z.of_bits bits |> of_z
 end
 
 module UInt64_Zable = struct

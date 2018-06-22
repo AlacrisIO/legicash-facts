@@ -7,11 +7,11 @@ module type UnsignedS = sig
   val extract : t -> int -> int -> t
   val numbits : t -> int
   val has_bit : t -> int -> bool
+  val of_bits : string -> t
 end
 
 module Nat : sig
   include UnsignedS
-  val of_bits : string -> t
 end
 
 module UInt64 : UnsignedS
