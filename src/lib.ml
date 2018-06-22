@@ -174,17 +174,16 @@ module type MapS = sig
   val compare: (value -> value -> int) -> t -> t -> int
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  (** Generic binary operation on maps, in CPS
-      argument: recursek, branchk, skipk, leafk, onlyak, onlybk, base_index, tables, continuation
-  *)
-  val co_match :
-    recursek:(key -> t * t -> ('c -> 'r) -> 'r) ->
-    branchk:(key -> int -> 'c -> 'c -> ('c -> 'r) -> 'r) ->
-    skipk:(key -> int -> int -> key -> 'c -> ('c -> 'r) -> 'r) ->
-    leafk:(key -> value -> value -> ('c -> 'r) -> 'r) ->
-    onlyak:(key -> t -> ('c -> 'r) -> 'r) ->
-    onlybk:(key -> t -> ('c -> 'r) -> 'r) ->
-    key -> t * t -> ('c -> 'r) -> 'r
+  val iterate_over_matching_tree_pair :
+    recursek:(i:key -> treea:t -> treeb:t -> k:('c -> 'r) -> 'r) ->
+    branchk:(
+      i:key -> height:int -> cleft:'c -> cright:'c -> k:('c -> 'r) -> 'r) ->
+    skipk:(i:key -> height:int -> depth:int -> childi:key -> childres:'c ->
+           k:('c -> 'r) -> 'r) ->
+    leafk:(i:key -> valuea:value -> valueb:value -> k:('c -> 'r) -> 'r) ->
+    onlyak:(i:key -> anode:t -> k:('c -> 'r) -> 'r) ->
+    onlybk:(i:key -> bnode:t -> k:('c -> 'r) -> 'r) ->
+    i:key -> treea:t -> treeb:t -> k:('c -> 'r) -> 'r
 
   (* Splitting a map *)
   val partition: (key -> value -> bool) -> t -> t * t

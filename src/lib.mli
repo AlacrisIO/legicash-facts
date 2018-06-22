@@ -324,26 +324,58 @@ module type MapS = sig
       the data associated with the keys. *)
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  (** Generic binary operation on maps, in CPS
-      arguments (that all take a continuation as final argument):
-   * recursek, handles the recursive case of another pair of maps
-   * branchk, combines at given height the results from recursing on left and right sides.
-   * skipk, given height, length and bits, handles the results from recursing on the child of a Skip
-   * leafk, given two leaves, return a result (to the continuation)
-   * onlyak, handle the case where only the first argument is non-empty
-   * onlybk, handle the case where only the second argument is non-empty
-   * base_index, index for the lowest binding covered by the table (initially, Key.zero)
-   * tables, a pair of tables
-   * continuation, a continuation
+  (** [iterate_over_matching_tree_pair recursek branchk skipk leafk onlyak onlybk i (a, b) k]
+      Describes a recursive computation over a pair of trees in great generality, using
+      continuation-passing style. This style allows the calculation to abort and
+      return the calculation result if it has been determined before the last
+      node of the tree is visited, or continue processing other nodes if
+      necessary.
+
+     The following are caller-specified types:
+
+     - ['c]: type for context needed for continuation of the computation.
+
+     - ['r]: return type of the computation (and for [co_match] itself.)
+
+     Inputs:
+
+     - [recursek i (a', b') k]: Result from recursing into the [i]th nodes of
+       [a] and [b], here denoted by [a'] and [b'].
+
+     - [branchk i h cleft cright k]: Result from recursing down both branches
+       from node [i] at height [h], given results [cleft] and [cright] from the
+       two children of that node.
+
+     - [skipk i height depth i' c k]: Result from recursing down [depth] skipped
+       children of node [i], given that the result from extant child of the
+       skipped nodes is [c].
+
+     - [leafk i va vb k]: Result from comparing two leaf nodes at index [i],
+       with values [va] and [vb].
+
+     - [onlyak i n k]: Result given that [i]th node [n] is only explicitly
+       present in the first tree argument, [a].
+
+     - [onlybk i n k]: Like [onlyak], mutatis mutandis.
+
+     - [i]: Prefix index of [treea], [treeb] nodes.
+
+     - [treea], [treeb]: The two input trees.
+
+     - [k]: Continuation called on the result of the above recursion, to
+       (eventually) produce the final result.
+
   *)
-  val co_match :
-    recursek:(key -> t * t -> ('c -> 'r) -> 'r) ->
-    branchk:(key -> int -> 'c -> 'c -> ('c -> 'r) -> 'r) ->
-    skipk:(key -> int -> int -> key -> 'c -> ('c -> 'r) -> 'r) ->
-    leafk:(key -> value -> value -> ('c -> 'r) -> 'r) ->
-    onlyak:(key -> t -> ('c -> 'r) -> 'r) ->
-    onlybk:(key -> t -> ('c -> 'r) -> 'r) ->
-    key -> t * t -> ('c -> 'r) -> 'r
+  val iterate_over_matching_tree_pair :
+    recursek:(i:key -> treea:t -> treeb:t -> k:('c -> 'r) -> 'r) ->
+    branchk:(
+      i:key -> height:int -> cleft:'c -> cright:'c -> k:('c -> 'r) -> 'r) ->
+    skipk:(i:key -> height:int -> depth:int -> childi:key -> childres:'c ->
+           k:('c -> 'r) -> 'r) ->
+    leafk:(i:key -> valuea:value -> valueb:value -> k:('c -> 'r) -> 'r) ->
+    onlyak:(i:key -> anode:t -> k:('c -> 'r) -> 'r) ->
+    onlybk:(i:key -> bnode:t -> k:('c -> 'r) -> 'r) ->
+    i:key -> treea:t -> treeb:t -> k:('c -> 'r) -> 'r
 
   (* Splitting a map *)
 
