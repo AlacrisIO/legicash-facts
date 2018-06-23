@@ -644,50 +644,42 @@ module Trie (Key : UnsignedS) (Value : T)
     else
       (make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child, Empty)
 
-  let iterate_over_matching_tree_pair (* See [iterate_over_matching_tree_pair] docstring in [lib.mli] *)
-      ~(recursek: i:Key.t -> treea:t -> treeb:t -> k:('c -> 'r) -> 'r)
-      ~(branchk: i:Key.t -> height:int -> cleft:'c -> cright:'c -> k:('c -> 'r)
-                -> 'r)
-      ~(skipk: i: Key.t -> height:int -> depth:int -> childi:Key.t ->
-              childres:'c -> k:('c -> 'r) -> 'r)
-      ~(leafk: i:Key.t -> valuea:Value.t -> valueb:Value.t -> k:('c -> 'r) -> 'r)
-      ~(onlyak: i:Key.t -> anode:t -> k:('c -> 'r) -> 'r)
-      ~(onlybk:i:Key.t -> bnode:t -> k:('c -> 'r) -> 'r)
-      ~(i:Key.t) ~(treea:t) ~(treeb:t)
-      ~(k: 'c -> 'r) = match (treea, treeb) with
+  let iterate_down_pair_of_trees_together (* See [iterate_down_pair_of_trees_together] docstring in [lib.mli] *)
+        ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k =
+    match (treea, treeb) with
     | (_, Empty) -> onlyak ~i ~anode:treea ~k
     | (Empty, _) -> onlybk ~i ~bnode:treeb ~k
     | (Leaf {value=va}, Leaf {value=vb}) -> leafk ~i ~valuea:va ~valueb:vb ~k
     | (Branch {left=aleft; right=aright; height}, Branch {left=bleft; right=bright}) ->
       recursek ~i ~treea:aleft ~treeb:bleft
         ~k:(fun left ->
-            recursek ~i:(right_index i height) ~treea:aright ~treeb:bright
-              ~k:(fun right ->
-                  branchk ~i ~height ~cleft:left ~cright:right ~k))
+          recursek ~i:(right_index i height) ~treea:aright ~treeb:bright
+            ~k:(fun right ->
+              branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Branch {left=left; right=right}, Skip {child; bits; length; height}) ->
       let l1 = length - 1 in
       let ri = right_index i height in
       if Key.has_bit bits l1 then
         onlyak ~i ~anode:left ~k:(fun left ->
-            recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child)
-              ~k:(fun right ->
-                 branchk ~i ~height ~cleft:left ~cright:right ~k))
+          recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child)
+            ~k:(fun right ->
+              branchk ~i ~height ~leftr:left ~rightr:right ~k))
       else
         recursek ~i ~treea:left ~treeb:(make_skip height l1 bits child)
           ~k:(fun left ->
-              onlyak ~i:ri ~anode:right ~k:(fun right ->
-                  branchk ~i ~height ~cleft:left ~cright:right ~k))
+            onlyak ~i:ri ~anode:right ~k:(fun right ->
+              branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Skip {child;bits;length;height}, Branch {left;right}) ->
       let l1 = length - 1 in
       let ri = right_index i height in
       if Key.has_bit bits l1 then
         onlybk ~i ~bnode:left ~k:(fun left ->
-            recursek ~i:ri ~treea:(make_skip height l1 bits child) ~treeb:right
-              ~k:(fun right -> branchk ~i ~height ~cleft:left ~cright:right ~k))
+          recursek ~i:ri ~treea:(make_skip height l1 bits child) ~treeb:right
+            ~k:(fun right -> branchk ~i ~height ~leftr:left ~rightr:right ~k))
       else
         recursek ~i ~treea:(make_skip height l1 bits child) ~treeb:left
           ~k:(fun left -> onlybk ~i:ri ~bnode:right ~k:(fun right ->
-            branchk ~i ~height ~cleft:left ~cright:right ~k))
+            branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Skip {child=achild;bits=abits;length=alength;height}, Skip {child=bchild;bits=bbits;length=blength}) ->
       let length = min alength blength in
       let ahighbits = Key.extract abits (alength - length) length in
@@ -702,7 +694,7 @@ module Trie (Key : UnsignedS) (Value : T)
           let samebits = Key.extract ahighbits (length - samelength) samelength in
           let isame = Key.logor i (Key.shift_left samebits sameheight) in
           let samek = fun child ->
-            skipk ~i:isame ~height ~depth:samelength ~childi:samebits ~childres:child ~k in
+            skipk ~i:isame ~height ~length:samelength ~bits:samebits ~childr:child ~k in
           (samebits, isame, samek) in
       let adifflength = alength - samelength in
       let bdifflength = blength - samelength in
@@ -714,20 +706,20 @@ module Trie (Key : UnsignedS) (Value : T)
         let (aleft, aright) = skip_choice height alength abits achild (adifflength - 1) in
         let (bleft, bright) = skip_choice height blength bbits bchild (bdifflength - 1) in
         recursek ~i:isame ~treea:aleft ~treeb:bleft ~k:(fun left ->
-            recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
-              ~k:(fun right ->
-                  branchk ~i:isame ~height:sameheight ~cleft:left ~cright:right ~k:samek))
+          recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
+            ~k:(fun right ->
+              branchk ~i:isame ~height:sameheight ~leftr:left ~rightr:right ~k:samek))
     | _ -> raise (Internal_error "co_match")
 
   let merge f a b =
     let (a, b) = ensure_same_height a b in
     let rec m ~i ~treea ~treeb ~k =
-      iterate_over_matching_tree_pair
+      iterate_down_pair_of_trees_together
         ~recursek:m
-        ~branchk:(fun ~i ~height ~cleft ~cright ~k -> k (make_branch height cleft cright))
-        ~skipk:(fun ~i ~height ~depth ~childi ~childres ~k -> k (make_skip height depth childi childres))
+        ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k (make_branch height leftr rightr))
+        ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k (make_skip height length bits childr))
         ~leafk:(fun ~i ~valuea ~valueb ~k ->
-            k (match (f i (Some valuea) (Some valueb)) with None -> Empty | Some v -> mk_leaf v))
+          k (match (f i (Some valuea) (Some valueb)) with None -> Empty | Some v -> mk_leaf v))
         ~onlyak:(fun ~i ~anode:ta ~k -> k (mapiopt (fun _ v -> f i (Some v) None) ta))
         ~onlybk:(fun ~i ~bnode:tb ~k -> k (mapiopt (fun _ v -> f i None (Some v)) tb))
         ~i ~treea:a ~treeb:b ~k in
@@ -736,26 +728,26 @@ module Trie (Key : UnsignedS) (Value : T)
   let compare cmp a b =
     let (a, b) = ensure_same_height a b in
     let rec m ~i ~treea ~treeb ~k =
-      iterate_over_matching_tree_pair
+      iterate_down_pair_of_trees_together
         ~recursek:m
-        ~branchk:(fun ~i ~height ~cleft ~cright ~k -> k ())
-        ~skipk:(fun ~i ~height ~depth ~childi ~childres ~k -> k ())
+        ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k ())
+        ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k ())
         ~leafk:(fun ~i ~valuea ~valueb ~k ->
-            let r = cmp valuea valueb in if r = 0 then k () else r)
+          let r = cmp valuea valueb in if r = 0 then k () else r)
         ~onlyak:(fun ~i ~anode ~k -> 1)
         ~onlybk:(fun ~i ~bnode ~k -> -1)
-        ~i ~treea:a ~treeb:b ~k:k in
+        ~i ~treea:a ~treeb:b ~k in
     m ~i:Key.zero ~treea:a ~treeb:b ~k:(konstant 0)
 
   let equal eq a b =
     let rec loop ~i ~treea:a ~treeb:b ~k =
       if a == b then k () else
-        iterate_over_matching_tree_pair
+        iterate_down_pair_of_trees_together
           ~recursek:loop
-          ~branchk:(fun ~i ~height ~cleft ~cright ~k -> k ())
-          ~skipk:(fun ~i ~height ~depth ~childi ~childres ~k -> k ())
+          ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k ())
+          ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k ())
           ~leafk:(fun ~i ~valuea ~valueb ~k ->
-              if eq valuea valueb then k () else false)
+            if eq valuea valueb then k () else false)
           ~onlyak:(fun ~i ~anode ~k -> false)
           ~onlybk:(fun ~i ~bnode ~k -> false)
           ~i ~treea:a ~treeb:b ~k in
