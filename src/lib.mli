@@ -43,7 +43,7 @@ val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 val defaulting : (unit -> 'a) -> 'a option -> 'a
 
 (** Unwrap an option, throwing Not_found if None *)
-val unwrap_option : 'a option -> 'a
+val option_get : 'a option -> 'a
 
 (** Return true if the option is Some _ *)
 val is_option_some : 'a option -> bool
@@ -401,8 +401,4 @@ module type MapS = sig
      val add_seq : (key * value) Seq.t -> t -> t
      val of_seq : (key * value) Seq.t -> t
   *)
-end
-
-module StringT : sig
-  type t = string
 end

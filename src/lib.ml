@@ -23,7 +23,7 @@ let zcompose x y z = x (y z)
 (** Options *)
 let defaulting default = function None -> default () | Some x -> x
 
-let unwrap_option = function None -> raise Not_found | Some x -> x
+let option_get = function None -> raise Not_found | Some x -> x
 
 let is_option_some = function None -> false | Some _ -> true
 
@@ -196,6 +196,3 @@ module type MapS = sig
   *)
 end
 
-module StringT = struct
-  type t = string
-end

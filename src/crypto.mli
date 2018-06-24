@@ -66,5 +66,10 @@ val sign : private_key -> 'a -> 'a signed
     Not for now: the server can use the global clock for the server.
 *)
 
+module StringT : sig
+  type t = string
+  val digest: t -> t digest
+end
+
 (** a pure mapping from PublicKey.t to 'a suitable for use in interactive merkle proofs *)
 module AddressMap : MapS with type key = Address.t

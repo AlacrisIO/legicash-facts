@@ -67,6 +67,12 @@ module type DigestibleS = sig
   val digest: t -> t digest
 end
 
+module StringT = struct
+  type t = string
+
+  let digest string = Digest.make string
+end
+
 module Address : sig
   type t [@@deriving show]
 

@@ -8,6 +8,8 @@
 open Lib
 open Integer
 open Crypto
+open Yojson
+open Yojson.Basic.Util
 
 module type TreeSynthS = sig
   type value
@@ -178,7 +180,7 @@ module Trie (Key : UnsignedS) (Value : T)
       in
       f height trie
 
-  let find key trie = unwrap_option (find_opt key trie)
+  let find key trie = option_get (find_opt key trie)
 
   let mem key trie = is_option_some (find_opt key trie)
 
@@ -403,12 +405,12 @@ module Trie (Key : UnsignedS) (Value : T)
   let min_binding_opt t =
     foldlk (fun i v acc k -> Some (i, v)) t None identity
 
-  let min_binding t = unwrap_option (min_binding_opt t)
+  let min_binding t = option_get (min_binding_opt t)
 
   let max_binding_opt t =
     foldrk (fun i v acc k -> Some (i, v)) t None identity
 
-  let max_binding t = unwrap_option (max_binding_opt t)
+  let max_binding t = option_get (max_binding_opt t)
 
   let choose_opt t = min_binding_opt t
 
@@ -453,7 +455,7 @@ module Trie (Key : UnsignedS) (Value : T)
     in
     divide Key.zero None [] [] trie
 
-  let find_first f t = unwrap_option (find_first_opt f t)
+  let find_first f t = option_get (find_first_opt f t)
 
   let find_last_opt f trie =
     let rec flo index default trie = match trie with
@@ -470,7 +472,7 @@ module Trie (Key : UnsignedS) (Value : T)
     in
     flo Key.zero None trie
 
-  let find_last f t = unwrap_option (find_last_opt f t)
+  let find_last f t = option_get (find_last_opt f t)
 
   let partition p t =
     let rec prec index = function
@@ -554,7 +556,7 @@ module Trie (Key : UnsignedS) (Value : T)
   exception Inconsistent_path
 
   let check_path_consistency {index;height;steps} =
-    Key.sign (Key.extract index 0 height) = 0 &&
+    Key.sign index >= 0 &&
     let rec c index height = function
       | [] -> true
       | step :: steps ->
@@ -806,11 +808,68 @@ module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) = struct
     && let (top_d, height) = path_apply Synth.branch Synth.skip path_d (Synth.leaf_digest value_d, 0) in
     trie_d = top_d
     && height >= Key.numbits key
+
+  let hex_string_of_digest n = Ethereum_util.hex_string_of_string (Digest.to_string n)
+
+  let skip_bit_string length bits =
+    String.concat "" (List.init length (fun i -> if Key.has_bit bits i then "1" else "0"))
+
+  let step_to_json = function
+    | LeftBranch {right} ->
+      `Assoc [ ("type", `String "Left")
+             ; ("digest", `String (Digest.to_string right)) ]
+    | RightBranch {left} ->
+      `Assoc [ ("type", `String "Right")
+             ; ("digest", `String (Digest.to_string left)) ]
+    | SkipChild {bits; length} ->
+      `Assoc [ ("type", `String "Skip")
+             ; ("bits", `String (skip_bit_string length bits)) ]
+
+  let proof_to_json (key, trie_d, value_d, steps_d) =
+    `Assoc
+      [ ("key", `String (Digest.to_string key))
+      ; ("trie", `String (Digest.to_string trie_d))
+      ; ("value", `String (Digest.to_string value_d))
+      ; ("steps", `List (List.map step_to_json steps_d)) ]
+
+  let proof_to_json_string = zcompose Yojson.to_string proof_to_json
+
+  let digest_of_hex_string s = Digest.of_string (Ethereum_util.string_of_hex_string s)
+
+  let bit_string_to_skip s =
+    let length = String.length s in
+    let rec f i bits =
+      if i < length then
+        Key.logor bits (Key.shift_left Key.one i)
+      else
+        bits
+    in
+    SkipChild {bits=f 0 Key.zero; length}
+
+  let step_of_json json =
+    let t = json |> member "type" |> to_string in
+    if t = "Left" then
+      LeftBranch {right=json |> member "digest" |> to_string |> Digest.of_string}
+    else if t = "Right" then
+      RightBranch {left=json |> member "digest" |> to_string |> Digest.of_string}
+    else if t = "Skip" then
+      json |> member "bits" |> to_string |> bit_string_to_skip
+    else raise (Internal_error "bad json")
+
+  let proof_of_json json =
+    (json |> member "key" |> to_string |> Digest.of_string,
+     json |> member "trie" |> to_string |> Digest.of_string,
+     json |> member "value" |> to_string |> Digest.of_string,
+     json |> member "steps" |> to_list |> List.map step_of_json)
+
+  let proof_of_json_string = zcompose proof_of_json Yojson.Basic.from_string
+
 end
 
 module Test = struct
   let generic_compare = compare
-  module MyTrie = Trie (Nat) (StringT) (TrieSynthCardinal (Nat) (StringT))
+  module SimpleTrie = Trie (Nat) (StringT) (TrieSynthCardinal (Nat) (StringT))
+  module MyTrie = MerkleTrie (Nat) (StringT)
   include MyTrie
 
   let rec print_trie out_channel = function
@@ -863,7 +922,10 @@ module Test = struct
   let trie_4 = of_bindings bindings_4
 
   let bindings_10 : (Nat.t * string) list = make_bindings 10 string_of_int
+  let trie_10 = verify (of_bindings bindings_10)
+
   let bindings_100 : (Nat.t * string) list = make_bindings 100 string_of_int
+  let trie_100 = verify (of_bindings bindings_100)
 
   let bindings_1 = shuffle_list bindings_100
   let trie_1 = verify (of_bindings bindings_1)
@@ -984,5 +1046,21 @@ module Test = struct
 
   let%test "unequal" =
     not (equal (=) trie_4 trie_1)
+
+  let proof_42_in_trie_100 =
+    proof_of_json_string "{\"key\":\"42\",\"trie\":\"63138649831639282342034393110674963827750981309080805313164785052888299712812\",\"value\":\"29151226714138427156680246036732121816237242212282194256143421276801751322039\",\"steps\":[{\"type\":\"Left\",\"digest\":\"109204317019696312664443490186877941125226438898475124409205910446799787392239\"},{\"type\":\"Right\",\"digest\":\"26259568597665755213648579539940187148305632034152602253183636373494011261303\"},{\"type\":\"Left\",\"digest\":\"51965449933202462124437608727173800695393191590374611337819976292331758807289\"},{\"type\":\"Right\",\"digest\":\"79878662564797683305894080534771644759582961888125786305835144507480734424851\"},{\"type\":\"Left\",\"digest\":\"66367388722579238440233140515489654971772555158209910084112461320956702642134\"},{\"type\":\"Right\",\"digest\":\"26645038729950854952597941441751558812278952078970826909918345019846516816457\"},{\"type\":\"Left\",\"digest\":\"53524361084498033517563554061091483487346644813146518589527910529177005106625\"}]}"
+
+  let bad_proof = match proof_42_in_trie_100 with
+    | (a, b, c, [d; e; f; g; h; i; j]) -> (a, b, c, [d; e; h; g; f; i; j])
+    | _ -> raise (Internal_error "bad bad proof")
+
+  let%test "proof" =
+    get_proof (n 42) trie_100 = Some proof_42_in_trie_100
+
+  let%test "proof_consistent" =
+    check_proof_consistency proof_42_in_trie_100
+
+  let%test "proof_inconsistent" =
+    not (check_proof_consistency bad_proof)
 
 end
