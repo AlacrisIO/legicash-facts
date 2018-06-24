@@ -42,6 +42,9 @@ toplevel : legicash_lib
 	$(SHOW) "Building custom OCaml toplevel"
 	$(HIDE) $(BUILDER) build --root=src legicaml.exe
 
+repl : toplevel
+	rlwrap ./bin/legicaml
+
 clean :
 	$(SHOW) "Cleaning via jbuilder"
 	$(HIDE) $(BUILDER) clean --root=src
