@@ -68,8 +68,7 @@ module type DigestibleS = sig
 end
 
 module StringT = struct
-  type t = string
-
+  include String
   let digest string = Digest.make string
 end
 

@@ -174,7 +174,7 @@ module type MapS = sig
   val compare: (value -> value -> int) -> t -> t -> int
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  val iterate_down_pair_of_trees_together:
+  val iterate_over_tree_pair:
     recursek:(i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o) ->
     branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> k:('r -> 'o) -> 'o) ->
     skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r ->

@@ -8,6 +8,7 @@
 open Lib
 open Integer
 open Crypto
+open Lazy
 open Yojson
 open Yojson.Basic.Util
 
@@ -646,7 +647,7 @@ module Trie (Key : UnsignedS) (Value : T)
     else
       (make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child, Empty)
 
-  let iterate_down_pair_of_trees_together (* See [iterate_down_pair_of_trees_together] docstring in [lib.mli] *)
+  let iterate_over_tree_pair (* See [iterate_over_tree_pair] docstring in [lib.mli] *)
         ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k =
     match (treea, treeb) with
     | (_, Empty) -> onlyak ~i ~anode:treea ~k
@@ -716,7 +717,7 @@ module Trie (Key : UnsignedS) (Value : T)
   let merge f a b =
     let (a, b) = ensure_same_height a b in
     let rec m ~i ~treea ~treeb ~k =
-      iterate_down_pair_of_trees_together
+      iterate_over_tree_pair
         ~recursek:m
         ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k (make_branch height leftr rightr))
         ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k (make_skip height length bits childr))
@@ -730,7 +731,7 @@ module Trie (Key : UnsignedS) (Value : T)
   let compare cmp a b =
     let (a, b) = ensure_same_height a b in
     let rec m ~i ~treea ~treeb ~k =
-      iterate_down_pair_of_trees_together
+      iterate_over_tree_pair
         ~recursek:m
         ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k ())
         ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k ())
@@ -744,7 +745,7 @@ module Trie (Key : UnsignedS) (Value : T)
   let equal eq a b =
     let rec loop ~i ~treea:a ~treeb:b ~k =
       if a == b then k () else
-        iterate_down_pair_of_trees_together
+        iterate_over_tree_pair
           ~recursek:loop
           ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k ())
           ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k ())
@@ -918,40 +919,42 @@ module Test = struct
 
   let is_even z = Nat.equal (Nat.extract z 0 1) Nat.zero
 
-  let bindings_4 : (Nat.t * string) list = make_bindings 4 string_of_int
-  let trie_4 = of_bindings bindings_4
+  let trie_of_bindings b = lazy (verify (of_bindings (force b)))
 
-  let bindings_10 : (Nat.t * string) list = make_bindings 10 string_of_int
-  let trie_10 = verify (of_bindings bindings_10)
+  let bindings_4 : (Nat.t * string) list lazy_t = lazy (make_bindings 4 string_of_int)
+  let trie_4 = trie_of_bindings bindings_4
 
-  let bindings_100 : (Nat.t * string) list = make_bindings 100 string_of_int
-  let trie_100 = verify (of_bindings bindings_100)
+  let bindings_10 : (Nat.t * string) list lazy_t = lazy (make_bindings 10 string_of_int)
+  let trie_10 = trie_of_bindings bindings_10
 
-  let bindings_1 = shuffle_list bindings_100
-  let trie_1 = verify (of_bindings bindings_1)
+  let bindings_100 : (Nat.t * string) list lazy_t = lazy (make_bindings 100 string_of_int)
+  let trie_100 = trie_of_bindings bindings_100
 
-  let bindings_2 = List.filter (zcompose is_even fst) bindings_100
-  let trie_2 = verify (of_bindings bindings_2)
+  let bindings_1 = lazy (shuffle_list (force bindings_100))
+  let trie_1 = trie_of_bindings bindings_1
 
-  let bindings_3 = List.filter (zcompose (fun s -> String.get s 0 = '6') snd) bindings_100
-  let trie_3 = verify (of_bindings bindings_3)
+  let bindings_2 = lazy (List.filter (zcompose is_even fst) (force bindings_100))
+  let trie_2 = trie_of_bindings bindings_2
 
-  let bindings_5 = List.filter (fun (i,s) -> is_even i && String.get s 0 = '6') bindings_100
-  let trie_5 = verify (of_bindings bindings_5)
+  let bindings_3 = lazy (List.filter (zcompose (fun s -> String.get s 0 = '6') snd) (force bindings_100))
+  let trie_3 = trie_of_bindings bindings_3
 
-  let bindings_10_12_57 = [(n 57, "57");(n 10, "10");(n 12, "12")]
-  let trie_10_12_57 = verify (of_bindings bindings_10_12_57)
+  let bindings_5 = lazy (List.filter (fun (i,s) -> is_even i && String.get s 0 = '6') (force bindings_100))
+  let trie_5 = trie_of_bindings bindings_5
 
-  let test_bindings = [[]; [(n 42, "x")]; bindings_10_12_57; bindings_4; bindings_10; bindings_1; bindings_2; bindings_3; bindings_5]
+  let bindings_10_12_57 = lazy [(n 57, "57");(n 10, "10");(n 12, "12")]
+  let trie_10_12_57 = trie_of_bindings bindings_10_12_57
+
+  let test_bindings = [lazy []; lazy [(n 42, "x")]; bindings_10_12_57; bindings_4; bindings_10; bindings_1; bindings_2; bindings_3; bindings_5]
 
   let%test "empty" =
     (bindings empty = []) && (of_bindings [] = Empty)
 
   let%test "find_opt_some" =
-    Some "12" = find_opt (n 12) trie_10_12_57
+    Some "12" = find_opt (n 12) (force trie_10_12_57)
 
   let%test "find_opt_none" =
-    None = find_opt (n 13) trie_10_12_57
+    None = find_opt (n 13) (force trie_10_12_57)
 
   let rec intersperse separator = function
       [] -> [] | [a] -> [a] | a :: l -> a :: separator :: intersperse separator l
@@ -964,10 +967,10 @@ module Test = struct
   let for_all_bindings name p =
     List.for_all
       (fun b ->
-         let trie = of_bindings b in
-         p (b, trie) ||
-         (Printf.printf "BAD %s b=%s trie=" name (string_of_bindings b) ;
-          showln trie ; raise (Internal_error (Printf.sprintf "bad %s" name))))
+         let trie = trie_of_bindings b in
+         p (force b, force trie) ||
+         (Printf.printf "BAD %s b=%s trie=" name (string_of_bindings (force b)) ;
+          showln (force trie) ; raise (Internal_error (Printf.sprintf "bad %s" name))))
       test_bindings
 
   let%test "find_opt_all" =
@@ -975,20 +978,20 @@ module Test = struct
       (fun (b, trie) -> List.for_all (fun (i, v) -> Some v = find_opt i trie) b)
 
   let%test "find_found" =
-    "12" = find (n 12) trie_10_12_57
+    "12" = find (n 12) (force trie_10_12_57)
 
   let%test "find_not_found" =
-    throws Not_found (fun _ -> find (n 13) trie_10_12_57)
+    throws Not_found (fun _ -> find (n 13) (force trie_10_12_57))
 
   let%test "find_all" =
     for_all_bindings "find_all"
       (fun (b, trie) -> List.for_all (fun (i, v) -> v = find i trie) b)
 
   let%test "mem_true" =
-    true = mem (n 12) trie_10_12_57
+    true = mem (n 12) (force trie_10_12_57)
 
   let%test "mem_false" =
-    false = mem (n 13) trie_10_12_57
+    false = mem (n 13) (force trie_10_12_57)
 
   let%test "mem_all" =
     for_all_bindings "mem_all"
@@ -1001,22 +1004,22 @@ module Test = struct
   let%test "min_binding" =
     throws Not_found (fun _ -> min_binding empty)
     && min_binding (singleton (n 42) "x") = ((n 42), "x")
-    && min_binding trie_1 = ((n 1), "1")
-    && min_binding trie_2 = ((n 2), "2")
-    && min_binding trie_3 = ((n 6), "6")
-    && min_binding trie_4 = ((n 1), "1")
-    && min_binding trie_5 = ((n 6), "6")
-    && min_binding trie_10_12_57 = ((n 10), "10")
+    && min_binding (force trie_1) = ((n 1), "1")
+    && min_binding (force trie_2) = ((n 2), "2")
+    && min_binding (force trie_3) = ((n 6), "6")
+    && min_binding (force trie_4) = ((n 1), "1")
+    && min_binding (force trie_5) = ((n 6), "6")
+    && min_binding (force trie_10_12_57) = ((n 10), "10")
 
   let%test "max_binding" =
     throws Not_found (fun _ -> max_binding empty)
     && max_binding (singleton (n 42) "x") = ((n 42), "x")
-    && max_binding trie_1 = ((n 100), "100")
-    && max_binding trie_2 = ((n 100), "100")
-    && max_binding trie_3 = ((n 69), "69")
-    && max_binding trie_4 = ((n 4), "4")
-    && max_binding trie_5 = ((n 68), "68")
-    && max_binding trie_10_12_57 = ((n 57), "57")
+    && max_binding (force trie_1) = ((n 100), "100")
+    && max_binding (force trie_2) = ((n 100), "100")
+    && max_binding (force trie_3) = ((n 69), "69")
+    && max_binding (force trie_4) = ((n 4), "4")
+    && max_binding (force trie_5) = ((n 68), "68")
+    && max_binding (force trie_10_12_57) = ((n 57), "57")
 
   let%test "cardinal" =
     for_all_bindings "cardinal"
@@ -1034,7 +1037,7 @@ module Test = struct
     bindings (add (n 2) "2" (of_bindings [((n 1), "1");((n 3), "3")])) = make_bindings 3 string_of_int
 
   let%test "remove" =
-    bindings (remove (n 12) trie_10_12_57) = [((n 10), "10");((n 57),"57")]
+    bindings (remove (n 12) (force trie_10_12_57)) = [((n 10), "10");((n 57),"57")]
 
   let%test "remove_all" =
     for_all_bindings "remove_all"
@@ -1045,22 +1048,22 @@ module Test = struct
       (fun (b, trie) -> equal (=) trie (of_bindings (shuffle_list b)))
 
   let%test "unequal" =
-    not (equal (=) trie_4 trie_1)
+    not (equal (=) (force trie_4) (force trie_1))
 
   let proof_42_in_trie_100 =
-    proof_of_json_string "{\"key\":\"42\",\"trie\":\"63138649831639282342034393110674963827750981309080805313164785052888299712812\",\"value\":\"29151226714138427156680246036732121816237242212282194256143421276801751322039\",\"steps\":[{\"type\":\"Left\",\"digest\":\"109204317019696312664443490186877941125226438898475124409205910446799787392239\"},{\"type\":\"Right\",\"digest\":\"26259568597665755213648579539940187148305632034152602253183636373494011261303\"},{\"type\":\"Left\",\"digest\":\"51965449933202462124437608727173800695393191590374611337819976292331758807289\"},{\"type\":\"Right\",\"digest\":\"79878662564797683305894080534771644759582961888125786305835144507480734424851\"},{\"type\":\"Left\",\"digest\":\"66367388722579238440233140515489654971772555158209910084112461320956702642134\"},{\"type\":\"Right\",\"digest\":\"26645038729950854952597941441751558812278952078970826909918345019846516816457\"},{\"type\":\"Left\",\"digest\":\"53524361084498033517563554061091483487346644813146518589527910529177005106625\"}]}"
+    lazy (proof_of_json_string "{\"key\":\"42\",\"trie\":\"63138649831639282342034393110674963827750981309080805313164785052888299712812\",\"value\":\"29151226714138427156680246036732121816237242212282194256143421276801751322039\",\"steps\":[{\"type\":\"Left\",\"digest\":\"109204317019696312664443490186877941125226438898475124409205910446799787392239\"},{\"type\":\"Right\",\"digest\":\"26259568597665755213648579539940187148305632034152602253183636373494011261303\"},{\"type\":\"Left\",\"digest\":\"51965449933202462124437608727173800695393191590374611337819976292331758807289\"},{\"type\":\"Right\",\"digest\":\"79878662564797683305894080534771644759582961888125786305835144507480734424851\"},{\"type\":\"Left\",\"digest\":\"66367388722579238440233140515489654971772555158209910084112461320956702642134\"},{\"type\":\"Right\",\"digest\":\"26645038729950854952597941441751558812278952078970826909918345019846516816457\"},{\"type\":\"Left\",\"digest\":\"53524361084498033517563554061091483487346644813146518589527910529177005106625\"}]}")
 
-  let bad_proof = match proof_42_in_trie_100 with
+  let bad_proof = lazy (match force proof_42_in_trie_100 with
     | (a, b, c, [d; e; f; g; h; i; j]) -> (a, b, c, [d; e; h; g; f; i; j])
-    | _ -> raise (Internal_error "bad bad proof")
+    | _ -> raise (Internal_error "bad proof"))
 
   let%test "proof" =
-    get_proof (n 42) trie_100 = Some proof_42_in_trie_100
+    get_proof (n 42) (force trie_100) = Some (force proof_42_in_trie_100)
 
   let%test "proof_consistent" =
-    check_proof_consistency proof_42_in_trie_100
+    check_proof_consistency (force proof_42_in_trie_100)
 
   let%test "proof_inconsistent" =
-    not (check_proof_consistency bad_proof)
+    not (check_proof_consistency (force bad_proof))
 
 end

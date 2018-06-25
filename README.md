@@ -53,8 +53,7 @@ Gitlab merge request, and note the following:
 
 You can play with our OCaml toplevel with, e.g.:
 
-    make toplevel
-    ./bin/legicaml
+    make repl
     open Lib;;
     bottom ();;
 

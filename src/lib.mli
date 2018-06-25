@@ -324,7 +324,7 @@ module type MapS = sig
       the data associated with the keys. *)
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  (** [iterate_over_matching_tree_pair ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k]
+  (** [iterate_over_tree_pair ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k]
       Describes a recursive computation over a pair of trees in great generality,
       using continuation-passing style. This style allows the calculation to
       abort and return the calculation result if it has been determined before
@@ -366,7 +366,7 @@ module type MapS = sig
       (eventually) produce the final result.
 
   *)
-  val iterate_down_pair_of_trees_together:
+  val iterate_over_tree_pair:
     recursek:(i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o) ->
     branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> k:('r -> 'o) -> 'o) ->
     skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r ->
