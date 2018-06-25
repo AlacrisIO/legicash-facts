@@ -187,10 +187,10 @@ module Trie (Key : UnsignedS) (Value : T)
 
   (* Lower-level trie constructors, synthesizing the synth attribute *)
   let mk_leaf value =
-    verify (Leaf {value; synth=Synth.leaf value})
+    Leaf {value; synth=Synth.leaf value}
 
   let mk_branch height left right =
-    verify (Branch {left; right; height; synth=Synth.branch height (get_synth left) (get_synth right)})
+    Branch {left; right; height; synth=Synth.branch height (get_synth left) (get_synth right)}
 
   let mk_skip height length bits child =
     Skip {child; height; length; bits; synth=Synth.skip height length bits (get_synth child)}
@@ -203,10 +203,10 @@ module Trie (Key : UnsignedS) (Value : T)
       mk_skip height height (Key.extract key 0 height) (mk_leaf value)
 
   let make_skip height length bits child =
-    if length = 0 then verify child else
+    if length = 0 then child else
       let bits = Key.extract bits 0 length in
       match child with
-      | Empty -> verify Empty
+      | Empty -> Empty
       | Skip {child=child'; bits=bits'; length=length'; synth=synth'} ->
         let length'' = length + length' in
         let bits'' = Key.logor (Key.shift_left bits length') bits' in
@@ -216,10 +216,10 @@ module Trie (Key : UnsignedS) (Value : T)
 
   let make_branch height left right =
     if is_empty right then
-      (make_skip height 1 Key.zero left)
+      make_skip height 1 Key.zero left
     else if is_empty left then
-      (make_skip height 1 Key.one right)
-    else verify (mk_branch height left right)
+      make_skip height 1 Key.one right
+    else mk_branch height left right
 
   (** Normalize the head of a trie, removing unneeded skipping of zeroes *)
   let make_head = function
@@ -253,9 +253,9 @@ module Trie (Key : UnsignedS) (Value : T)
           | Branch {left; right} ->
             let branch_height = height - 1 in
             if Key.has_bit key branch_height then
-              ins branch_height right (fun t -> k (verify (make_branch height left t)))
+              ins branch_height right (fun t -> k (make_branch height left t))
             else
-              ins branch_height left (fun t -> k (verify (make_branch height t right)))
+              ins branch_height left (fun t -> k (make_branch height t right))
           | Skip {child; bits; length} ->
             let child_height = height - length in
             let key_bits = Key.extract key child_height length in
@@ -292,13 +292,13 @@ module Trie (Key : UnsignedS) (Value : T)
       | Branch {left; right} ->
         let child_height = height - 1 in
         if Key.has_bit key child_height then
-          r child_height right (fun t -> k (verify (make_branch height left t)))
+          r child_height right (fun t -> k (make_branch height left t))
         else
-          r child_height left (fun t -> k (verify (make_branch height t right)))
+          r child_height left (fun t -> k (make_branch height t right))
       | Skip {child; bits; length} ->
-        r (height - length) child (fun t -> k (verify (make_skip height length bits (verify t))))
+        r (height - length) child (fun t -> k (make_skip height length bits t))
     in
-    r (trie_height trie) (verify trie) make_head
+    r (trie_height trie) trie make_head
 
   (** Given a Skip at given height, with given length and bits,
       and given the index for the lowest binding it covers,
@@ -946,6 +946,30 @@ module Test = struct
   let trie_10_12_57 = trie_of_bindings bindings_10_12_57
 
   let test_bindings = [lazy []; lazy [(n 42, "x")]; bindings_10_12_57; bindings_4; bindings_10; bindings_1; bindings_2; bindings_3; bindings_5]
+
+  let timeit s l =
+    let tm0 = Unix.gettimeofday () in
+    ignore (force l) ;
+    let tm1 = Unix.gettimeofday () in
+    let diff = tm1 -. tm0 in
+    Printf.printf "%s: %0.04f\n%!" s diff
+
+  let init_timing () =
+    timeit "bindings_4" bindings_4 ;
+    timeit "bindings_10" bindings_10 ;
+    timeit "bindings_100" bindings_100 ;
+    timeit "bindings_1" bindings_1 ;
+    timeit "bindings_2" bindings_2 ;
+    timeit "bindings_3" bindings_3 ;
+    timeit "bindings_5" bindings_5 ;
+    timeit "trie_4" trie_4 ;
+    timeit "trie_10" trie_10 ;
+    timeit "trie_100" trie_100 ;
+    timeit "trie_1" trie_1 ;
+    timeit "trie_2" trie_2 ;
+    timeit "trie_3" trie_3 ;
+    timeit "trie_5" trie_5 ;
+    true
 
   let%test "empty" =
     (bindings empty = []) && (of_bindings [] = Empty)
