@@ -1064,16 +1064,17 @@ module Test = struct
   let%test "add 0" =
     for_all_bindings "add"
       (fun (b, trie) ->
-         let trie0 = add (n 0) "0" trie in
+         let trie0 = verify (add (n 0) "0" trie) in
          None = find_opt (n 0) trie
          && "0" = find (n 0) trie0
          && cardinal trie0 = 1 + List.length b)
 
   let%test "add 2" =
-    bindings (add (n 2) "2" (of_bindings [((n 1), "1");((n 3), "3")])) = make_bindings 3 string_of_int
+    bindings (verify (add (n 2) "2" (of_bindings [((n 1), "1");((n 3), "3")])))
+    = make_bindings 3 string_of_int
 
   let%test "remove" =
-    bindings (remove (n 12) (force trie_10_12_57)) = [((n 10), "10");((n 57),"57")]
+    bindings (verify (remove (n 12) (force trie_10_12_57))) = [((n 10), "10");((n 57),"57")]
 
   let%test "remove_all" =
     for_all_bindings "remove_all"
