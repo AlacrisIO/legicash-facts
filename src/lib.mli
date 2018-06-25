@@ -43,7 +43,7 @@ val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 val defaulting : (unit -> 'a) -> 'a option -> 'a
 
 (** Unwrap an option, throwing Not_found if None *)
-val unwrap_option : 'a option -> 'a
+val option_get : 'a option -> 'a
 
 (** Return true if the option is Some _ *)
 val is_option_some : 'a option -> bool
@@ -324,58 +324,57 @@ module type MapS = sig
       the data associated with the keys. *)
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  (** [iterate_over_matching_tree_pair ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k]
+  (** [iterate_over_tree_pair ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k]
       Describes a recursive computation over a pair of trees in great generality,
       using continuation-passing style. This style allows the calculation to
       abort and return the calculation result if it has been determined before
       the last node of the tree is visited, or continue processing other nodes
       if necessary.
 
-     The following are caller-specified types:
+      The following are caller-specified types:
 
-     - ['c]: type for context needed for continuation of the computation.
+      - ['r]: type for (total or partial) synthesized result of the computation for the trie of a subtrie.
 
-     - ['r]: return type of the computation (and for [co_match] itself.)
+      - ['o]: return type of the outer continuation of iterate_over_matching_tree_pair itself.
 
-     Inputs:
+      Inputs:
 
-     - [recursek ~i ~treea ~treeb ~k]: Result from recursing into the [i]th nodes of
-       [treea] and [treeb].
+      - [recursek ~i ~treea ~treeb ~k]: Result from recursing into the [i]th nodes of
+      [treea] and [treeb].
 
-     - [branchk ~i ~height ~cleft ~cright ~k]: Result from recursing down both
-       branches from node [i] at specified [height], given results [cleft] and
-       [cright] from the two children of that node.
+      - [branchk ~i ~height ~leftr ~rightr ~k]: Result from recursing down both
+      branches from node [i] at specified [height], given results [leftr] and
+      [rightr] from the two children of that node.
 
-     - [skipk ~i ~height ~depth ~childi ~childres ~k]: Result from recursing
-       down [depth] skipped children of node [i], given that the result from
-       extant child of the skipped nodes, at index ~childi, is [childres].
+      - [skipk ~i ~height ~length ~bits ~childr ~k]: Result from recursing
+      down [length] skipped children of node [i], given that the result from
+      extant child of the skipped nodes, with further skipped bits [bits], is [childr].
 
-     - [leafk ~i ~valuea ~valueb ~k]: Result from comparing two leaf nodes at
-       index [i], with values [valuea] and [valueb].
+      - [leafk ~i ~valuea ~valueb ~k]: Result from comparing two leaf nodes at
+      index [i], with values [valuea] and [valueb].
 
-     - [onlyak ~i ~anode ~k]: Result given that [i]th node [anode] is only
-       explicitly present in the first tree argument, [treea].
+      - [onlyak ~i ~anode ~k]: Result given that [i]th node [anode] is only
+      explicitly present in the first tree argument, [treea].
 
-     - [onlybk ~i ~bnode ~k]: Like [onlyak], mutatis mutandis.
+      - [onlybk ~i ~bnode ~k]: Like [onlyak], mutatis mutandis.
 
-     - [i]: Prefix index of [treea], [treeb] nodes.
+      - [i]: Prefix index of [treea], [treeb] nodes.
 
-     - [treea], [treeb]: The two input trees.
+      - [treea], [treeb]: The two input trees.
 
-     - [k]: Continuation called on the result of the above recursion, to
-       (eventually) produce the final result.
+      - [k]: Continuation called on the result of the above recursion, to
+      (eventually) produce the final result.
 
   *)
-  val iterate_over_matching_tree_pair :
-    recursek:(i:key -> treea:t -> treeb:t -> k:('c -> 'r) -> 'r) ->
-    branchk:(
-      i:key -> height:int -> cleft:'c -> cright:'c -> k:('c -> 'r) -> 'r) ->
-    skipk:(i:key -> height:int -> depth:int -> childi:key -> childres:'c ->
-           k:('c -> 'r) -> 'r) ->
-    leafk:(i:key -> valuea:value -> valueb:value -> k:('c -> 'r) -> 'r) ->
-    onlyak:(i:key -> anode:t -> k:('c -> 'r) -> 'r) ->
-    onlybk:(i:key -> bnode:t -> k:('c -> 'r) -> 'r) ->
-    i:key -> treea:t -> treeb:t -> k:('c -> 'r) -> 'r
+  val iterate_over_tree_pair:
+    recursek:(i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o) ->
+    branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> k:('r -> 'o) -> 'o) ->
+    skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r ->
+           k:('r -> 'o) -> 'o) ->
+    leafk:(i:key -> valuea:value -> valueb:value -> k:('r -> 'o) -> 'o) ->
+    onlyak:(i:key -> anode:t -> k:('r -> 'o) -> 'o) ->
+    onlybk:(i:key -> bnode:t -> k:('r -> 'o) -> 'o) ->
+    i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o
 
   (* Splitting a map *)
 
@@ -402,8 +401,4 @@ module type MapS = sig
      val add_seq : (key * value) Seq.t -> t -> t
      val of_seq : (key * value) Seq.t -> t
   *)
-end
-
-module StringT : sig
-  type t = string
 end

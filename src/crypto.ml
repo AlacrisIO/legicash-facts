@@ -49,6 +49,7 @@ module Digest = struct
     let hashed = Cryptokit.hash_string hash data_string in
     let hashed_hex = "0x" ^ (unparse_hex ~with_colons:false hashed) in
     of_string hashed_hex
+  [@@deprecated "Use Digest.make only for demos and testing."]
 end
 
 type 'a digest = Digest.t
@@ -65,6 +66,11 @@ end
 module type DigestibleS = sig
   type t
   val digest: t -> t digest
+end
+
+module StringT = struct
+  include String
+  let digest string = Digest.make string
 end
 
 module Address : sig
