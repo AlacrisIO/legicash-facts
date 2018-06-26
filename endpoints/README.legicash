@@ -6,10 +6,11 @@ In addition, you'll need the OPAM package deriving-json. It doesn't build with
 recent OCaml versions (because of the change to immutable strings). You
 can get it to build by running
 
-  opam install -b deriving-json
+  opam install -b deriving-yojson
 
-which keeps the build directory. In <path-to>/.opam/<ocaml-version/build/deriving-yojson/,
-edit the file setup.ml. Around line 245, change the function "replace_chars" to read:
+which keeps the build directory. Go to directory
+<path-to>/.opam/<ocaml-version>/build/deriving-yojson/, edit the file setup.ml.
+Around line 245, change the function "replace_chars" to read:
 
   let replace_chars f s =
     let buf = Bytes.make (String.length s) 'X' in
@@ -21,7 +22,7 @@ edit the file setup.ml. Around line 245, change the function "replace_chars" to 
 Then follow the instructions in the INSTALL.txt file to configure, build, and install the
 package.
 
-On Mint, Paul Steckler had to install libgdbm-dev.
+On Ubuntu systems, it may be necessary to install libgdbm-dev and libpcre3-dev.
 
 This directory was created by running
 
