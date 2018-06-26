@@ -35,16 +35,26 @@ ifeq ($(DEBUG),yes)
   DEBUG_JS ?= -jsopt -pretty -jsopt -noinline -jsopt -debuginfo
 endif
 
+## Legicash directories
+LEGICASH_LIB_DIR=../_build/default
+LEGICASH_OBJS_DIR=$(LEGICASH_LIB_DIR)/.legicash_lib.objs
+
 ##----------------------------------------------------------------------
 ## General
 
-.PHONY: all byte opt
+.PHONY: all byte opt legicash-libs
 all: byte opt
 byte opt:: $(TEST_PREFIX)$(ELIOMSTATICDIR)/${PROJECT_NAME}.js
 byte opt:: $(TEST_PREFIX)$(ETCDIR)/$(PROJECT_NAME).conf
 byte opt:: $(TEST_PREFIX)$(ETCDIR)/$(PROJECT_NAME)-test.conf
 byte:: $(TEST_PREFIX)$(LIBDIR)/${PROJECT_NAME}.cma
 opt:: $(TEST_PREFIX)$(LIBDIR)/${PROJECT_NAME}.cmxs
+
+legicash-libs :
+	echo `pwd`
+	mkdir -p lib
+	cp $(LEGICASH_OBJS_DIR)/*.cmi lib/
+	cp $(LEGICASH_LIB_DIR)/legicash_lib.cmxa lib/
 
 DIST_DIRS = $(ETCDIR) $(DATADIR) $(LIBDIR) $(LOGDIR) $(STATICDIR) $(ELIOMSTATICDIR) $(shell dirname $(CMDPIPE))
 
@@ -152,10 +162,10 @@ $(TEST_PREFIX)${ETCDIR}/${PROJECT_NAME}-test.conf: ${PROJECT_NAME}.conf.in Makef
 ##----------------------------------------------------------------------
 ## Server side compilation
 
-SERVER_INC  := ${addprefix -package ,${SERVER_PACKAGES}}
+SERVER_INC := -I lib -open Legicash_lib ${addprefix -package ,${SERVER_PACKAGES}} legicash_lib.cmxa 
 
 ${ELIOM_TYPE_DIR}/%.type_mli: %.eliom
-	${ELIOMC} -infer ${SERVER_INC} $<
+	${ELIOMOPT} -infer ${SERVER_INC} $<
 
 $(TEST_PREFIX)$(LIBDIR)/$(PROJECT_NAME).cma: $(call objs,$(ELIOM_SERVER_DIR),cmo,$(SERVER_FILES)) | $(TEST_PREFIX)$(LIBDIR)
 	${ELIOMC} -a -o $@ $(GENERATE_DEBUG) \

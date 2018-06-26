@@ -132,3 +132,52 @@ Jun 26 15:43:43: ocsipersist:dbm: Initializing ...
 Jun 26 15:43:43: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
 Jun 26 15:43:44: ocsipersist:dbm: ...Initialization complete
 Jun 26 15:43:44: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 15:48:09: ocsipersist:dbm: Initializing ...
+Jun 26 15:48:10: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 15:48:10: ocsipersist:dbm: ...Initialization complete
+Jun 26 15:48:10: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 15:53:42: ocsipersist:dbm: Initializing ...
+Jun 26 15:53:43: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 15:53:43: ocsipersist:dbm: ...Initialization complete
+Jun 26 15:53:43: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 16:04:28: ocsipersist:dbm: Initializing ...
+Jun 26 16:04:28: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 16:04:29: ocsipersist:dbm: ...Initialization complete
+Jun 26 16:04:29: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 16:05:57: ocsipersist:dbm: Initializing ...
+Jun 26 16:05:57: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 16:05:58: ocsipersist:dbm: ...Initialization complete
+Jun 26 16:05:58: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 16:11:39: ocsipersist:dbm: Initializing ...
+Jun 26 16:11:40: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 16:11:40: ocsipersist:dbm: ...Initialization complete
+Jun 26 16:11:40: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 16:15:55: ocsipersist:dbm: Initializing ...
+Jun 26 16:15:55: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 16:15:57: ocsipersist:dbm: ...Initialization complete
+Jun 26 16:15:57: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 16:20:46: ocsipersist:dbm: Initializing ...
+Jun 26 16:20:47: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 16:20:47: ocsipersist:dbm: ...Initialization complete
+Jun 26 16:20:47: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 16:26:40: ocsipersist:dbm: Initializing ...
+Jun 26 16:26:40: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 16:26:41: ocsipersist:dbm: ...Initialization complete
+Jun 26 16:26:41: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 16:40:08: ocsipersist:dbm: Initializing ...
+Jun 26 16:40:08: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 16:40:09: ocsipersist:dbm: ...Initialization complete
+Jun 26 16:40:10: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 16:40:18: ocsigen:main: Exn during page generation (sending 500): Yojson.Json_error("Line 1, bytes 0-2:\nInvalid token '~\138'")
+Jun 26 16:44:30: ocsipersist:dbm: Initializing ...
+Jun 26 16:44:31: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 16:44:31: ocsipersist:dbm: ...Initialization complete
+Jun 26 16:44:31: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 18:38:39: ocsipersist:dbm: Initializing ...
+Jun 26 18:38:39: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 18:38:40: ocsipersist:dbm: ...Initialization complete
+Jun 26 18:38:40: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
+Jun 26 18:42:39: ocsipersist:dbm: Initializing ...
+Jun 26 18:42:41: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 18:42:41: ocsipersist:dbm: ...Initialization complete
+Jun 26 18:42:41: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"

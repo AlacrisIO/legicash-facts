@@ -101,3 +101,14 @@ Jun 26 15:36:03: access: connection for localhost from 127.0.0.1 (curl/7.47.0): 
 Jun 26 15:36:20: access: connection for localhost from 127.0.0.1 (curl/7.47.0): api/transfer
 Jun 26 15:36:28: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
 Jun 26 15:43:53: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/balances
+Jun 26 15:54:04: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:04:41: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:06:01: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:07:53: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:11:44: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:15:57: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:16:21: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:20:52: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:26:53: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:28:10: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer
+Jun 26 16:40:18: access: connection for localhost from 127.0.0.1 (Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0): api/transfer

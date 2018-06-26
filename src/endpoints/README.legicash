@@ -2,6 +2,12 @@ Using ocsigen and eliom requires some additional OPAM packages:
 
   ocsigenserver eliom ppx_deriving_yojson
 
+Our representation of signed requests uses Base64 encoding, so install
+
+  base64
+
+if needed.
+
 In addition, you'll need the OPAM package deriving-json. It doesn't build with
 recent OCaml versions (because of the change to immutable strings). You
 can get it to build by running
