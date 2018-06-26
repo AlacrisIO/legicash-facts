@@ -44,6 +44,9 @@ toplevel : legicash_lib
 repl : toplevel
 	rlwrap ./bin/legicaml
 
+endpoints : legicash_lib
+	make -C src/endpoints test.opt
+
 clean :
 	$(SHOW) "Cleaning via dune"
 	$(HIDE) $(BUILDER) clean --root=src

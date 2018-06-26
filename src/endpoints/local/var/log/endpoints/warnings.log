@@ -128,3 +128,7 @@ Jun 26 15:35:39: ocsigen:config: While parsing config file, tag <host>: No defau
 Jun 26 15:35:56: ocsigen:main: Exn during page generation (sending 500): (Failure Netencoding.Url.dest_url_encoded_parameters)
 Jun 26 15:36:03: ocsigen:main: Exn during page generation (sending 500): (Failure Netencoding.Url.dest_url_encoded_parameters)
 Jun 26 15:36:20: ocsigen:main: Exn during page generation (sending 500): (Failure Netencoding.Url.dest_url_encoded_parameters)
+Jun 26 15:43:43: ocsipersist:dbm: Initializing ...
+Jun 26 15:43:43: ocsipersist:dbm: Launching a new Ocsidbm process: /home/steck/.opam/4.06.1/lib/ocsigenserver/extensions/ocsidbm.opt on directory local/var/data/endpoints/ocsipersist.
+Jun 26 15:43:44: ocsipersist:dbm: ...Initialization complete
+Jun 26 15:43:44: ocsigen:config: While parsing config file, tag <host>: No defaulthostname, assuming it is "felafel"
