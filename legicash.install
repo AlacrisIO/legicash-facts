@@ -1,0 +1,10 @@
+lib: [
+  "META"
+  "legicash.opam" {"opam"}
+  "src/_build/default/legicash_lib.a"
+  "src/_build/default/legicash_lib.cmxa"
+]
+doc: [
+  "README.md"
+  "LICENSE"
+]

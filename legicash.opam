@@ -1,0 +1,32 @@
+opam-version: "1.2"
+maintainer: "Paul Steckler <steck@legi.cash>"
+authors: ["Paul Steckler <steck@legi.cash>"]
+homepage: "https://gitlab.com/legicash/legicash-facts"
+bug-reports: "https://gitlab.com/legicash/legicash-facts/issues"
+dev-repo: "https://gitlab.com/legicash/legicash-facts.git"
+license: "LGPL 2.1"
+build: [
+  [make]
+]
+build-test: [make "test" ]
+install: [make]
+# TODO : use a template, generate version from version.ml
+version: "0.1"
+depends: [
+  "jbuilder" {build & >= "1.0+beta20"}
+  # TODO: update needed versions
+  # include ocaml-lens?
+  "cohttp"
+  "cohttp-lwt-unix"
+  "cryptokit"
+  "integers" "jbuilder"
+  "secp256k1"
+  "yojson"
+  "ppx_deriving"
+  "ppx_tools_versioned"
+  "ppx_core"
+  "ppx_driver"
+  "ppx_inline_test"
+  "ppx_metaquot"
+]
+available: [ ocaml-version >= "4.06.1" ]
