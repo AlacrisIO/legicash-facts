@@ -793,9 +793,20 @@ module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) = struct
 
   let path_digest = path_map trie_digest
 
-  let get_proof (key: key) (trie: trie) : (key*Digest.t*Digest.t*(Digest.t step list)) option =
+  type proof =
+    { key : key
+    ; trie : Digest.t
+    ; value : Digest.t
+    ; steps : (Digest.t trie_step) list
+    }
+
+  let get_proof (key: key) (trie: trie) : proof option =
     match find_path key trie with
-    | Leaf {value}, up -> Some (key, trie_digest trie, Digest.make value, (path_digest up).steps)
+    | Leaf {value}, up -> Some { key
+                               ; trie = trie_digest trie
+                               ; value = Digest.make value
+                               ; steps = (path_digest up).steps
+                               }
     | _ -> None
 
   (** Check the consistency of a Proof.
@@ -803,12 +814,12 @@ module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) = struct
       we should arrive at the top trie's hash.
       2- starting from the key, the path should follow the key's bits.
   *)
-  let check_proof_consistency (key, trie_d, value_d, steps_d) =
-    let path_d = {index=key;height=0;steps=steps_d} in
+  let check_proof_consistency proof =
+    let path_d = {index=proof.key;height=0;steps=proof.steps} in
     check_path_consistency path_d
-    && let (top_d, height) = path_apply Synth.branch Synth.skip path_d (Synth.leaf_digest value_d, 0) in
-    trie_d = top_d
-    && height >= Key.numbits key
+    && let (top_d, height) = path_apply Synth.branch Synth.skip path_d (Synth.leaf_digest proof.value, 0) in
+    proof.trie = top_d
+    && height >= Key.numbits proof.key
 
   let hex_string_of_digest n = Ethereum_util.hex_string_of_string (Digest.to_string n)
 
@@ -858,10 +869,11 @@ module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) = struct
     else raise (Internal_error "bad json")
 
   let proof_of_json json =
-    (json |> member "key" |> to_string |> Digest.of_string,
-     json |> member "trie" |> to_string |> Digest.of_string,
-     json |> member "value" |> to_string |> Digest.of_string,
-     json |> member "steps" |> to_list |> List.map step_of_json)
+    { key = json |> member "key" |> to_string |> Key.of_string
+    ; trie = json |> member "trie" |> to_string |> Digest.of_string
+    ; value = json |> member "value" |> to_string |> Digest.of_string
+    ; steps = json |> member "steps" |> to_list |> List.map step_of_json
+    }
 
   let proof_of_json_string = zcompose proof_of_json Yojson.Basic.from_string
 
@@ -1074,11 +1086,40 @@ module Test = struct
   let%test "unequal" =
     not (equal (=) (force trie_4) (force trie_1))
 
+  let make_step direction digest =
+    `Assoc [ ("type",`String direction)
+           ; ("digest",`String digest)
+           ]
+  let make_left_step = make_step "Left"
+  let make_right_step = make_step "Right"
+
   let proof_42_in_trie_100 =
-    lazy (proof_of_json_string "{\"key\":\"42\",\"trie\":\"63138649831639282342034393110674963827750981309080805313164785052888299712812\",\"value\":\"29151226714138427156680246036732121816237242212282194256143421276801751322039\",\"steps\":[{\"type\":\"Left\",\"digest\":\"109204317019696312664443490186877941125226438898475124409205910446799787392239\"},{\"type\":\"Right\",\"digest\":\"26259568597665755213648579539940187148305632034152602253183636373494011261303\"},{\"type\":\"Left\",\"digest\":\"51965449933202462124437608727173800695393191590374611337819976292331758807289\"},{\"type\":\"Right\",\"digest\":\"79878662564797683305894080534771644759582961888125786305835144507480734424851\"},{\"type\":\"Left\",\"digest\":\"66367388722579238440233140515489654971772555158209910084112461320956702642134\"},{\"type\":\"Right\",\"digest\":\"26645038729950854952597941441751558812278952078970826909918345019846516816457\"},{\"type\":\"Left\",\"digest\":\"53524361084498033517563554061091483487346644813146518589527910529177005106625\"}]}")
+    lazy (proof_of_json
+            (`Assoc [ ("key",`String "42")
+                    ; ("trie",`String "63138649831639282342034393110674963827750981309080805313164785052888299712812")
+                    ; ("value", `String "29151226714138427156680246036732121816237242212282194256143421276801751322039")
+                    ; ("steps",
+                       `List [ make_left_step "109204317019696312664443490186877941125226438898475124409205910446799787392239"
+                             ; make_right_step "26259568597665755213648579539940187148305632034152602253183636373494011261303"
+                             ; make_left_step "51965449933202462124437608727173800695393191590374611337819976292331758807289"
+                             ; make_right_step "79878662564797683305894080534771644759582961888125786305835144507480734424851"
+                             ; make_left_step "66367388722579238440233140515489654971772555158209910084112461320956702642134"
+                             ; make_right_step "26645038729950854952597941441751558812278952078970826909918345019846516816457"
+                             ; make_left_step "53524361084498033517563554061091483487346644813146518589527910529177005106625"
+                             ])
+                    ]))
 
   let bad_proof = lazy (match force proof_42_in_trie_100 with
-    | (a, b, c, [d; e; f; g; h; i; j]) -> (a, b, c, [d; e; h; g; f; i; j])
+    | { key
+      ; trie
+      ; value
+      ; steps = [s1;s2;s3;s4;s5;s6;s7]
+      } ->
+      { key
+      ; trie
+      ; value
+      ; steps = [s1;s2;s5;s4;s3;s6;s7] (* steps 3 and 5 are swapped *)
+      }
     | _ -> raise (Internal_error "bad proof"))
 
   let%test "proof" =

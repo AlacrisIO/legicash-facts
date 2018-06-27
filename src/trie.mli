@@ -105,9 +105,14 @@ module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) : sig
     with type trie_key = Key.t
      and type trie_value = Value.t
      and type synth = Synth.t
-
+  type proof =
+    { key : key
+    ; trie : Digest.t
+    ; value : Digest.t
+    ; steps : (Digest.t trie_step) list
+    }
   val trie_digest : t -> Digest.t
   val path_digest : t path -> Digest.t path
-  val get_proof : key -> t -> (key*Digest.t*Digest.t*(Digest.t step list)) option
-  val check_proof_consistency : key*Digest.t*Digest.t*(Digest.t step list) -> bool
+  val get_proof : key -> t -> proof option
+  val check_proof_consistency : proof -> bool
 end
