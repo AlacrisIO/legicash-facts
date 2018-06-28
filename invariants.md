@@ -69,25 +69,25 @@ summarizing away all the ancillary data required to assert correctness
 
 ### Background
 
-All facilitators are mandated Court registrars. Others may participate as
-registrars, if they wish, by posting a suitable bond. They receive rewards for
-the gossip and Merkle proofs they provide, though the exact reward they should
-receive is yet to be determined. It may be that facilitators' rewards for
-performance of Court-registrar duties should be zero, for instance.
+The Court Registry solves the "Data Availability Issue" by ensuring that data
+submitted to it is well-formed and available for review by third-party
+verifiers. These well-formedness and availability ensure that any invalid entry
+in a registered side-chain can be detected and opposed to the side-chain manager
+in a timely fashion on their main-chain smart contract. As compared to other
+Oracles that sign data for use by smart contracts, the Court Registry only has
+its members sign something that they directly control, which makes implementing
+it a slightly more tractable problem than implementing an arbitrary Oracle.
 
-The primary purpose of registrars is to mitigate the so-called
-"Data-Availability Issue." That is, how can the system incentivize provision of
-data which may otherwise be harmful to the interests of a dishonest participant?
+The "Data Availability Issue" concerns liveness/performance guarantees: It's
+easy enough to mandate that a transaction request from Alice to Trent isn't
+valid until both have collaborated on a signature, but what if Alice's initial
+request goes unheeded by Trent? Alice reports to the network, "This request I
+gossiped about: I never heard back from Trent." Trent says "No, I did respond:
+Here's the response." Now we seemingly have to fall back on network observation
+consensus to resolve the question of whether Trent's response was generally
+available.
 
-This is mainly important for liveness/performance guarantees. It's easy enough
-to mandate that a transaction request from Alice to Trent isn't valid until both
-have collaborated on a signature, but what if Alice's initial request goes
-unheeded by Trent? Alice reports to the network, "This request I gossiped about:
-I never heard back from Trent." Trent says "No, I did respond: Here's the
-response." Now we seemingly have to fall back on network observation consensus to
-resolve the question of whether Trent's response was generally available.
-
-Thus it is the duty of a registrar to track and gossip about the duties of
+Thus, registrars are obliged to track and gossip about the duties of
 facilitators and other registrars, and report when an irregularity occurs.
 Registrars maintain two data structures: A set of duties for each facilitator /
 registrar for which no signature from the responsible agent has been observed
@@ -106,6 +106,12 @@ Since this is only for disputes, the process of information propagation does not
 have to be particularly fast. However, any dispute deadlines must take the
 expected saturation time for relevant documents into account. It may be sensible
 to allow deadline extensions until some cited document is provided by someone.
+
+All facilitators are mandated Court registrars. Others may participate as
+registrars, if they wish, by posting a suitable bond. They receive rewards for
+the gossip and Merkle proofs they provide, though the exact reward they should
+receive is yet to be determined. It may be that facilitators' rewards for
+performance of Court-registrar duties should be zero, for instance.
 
 ### Gossip hand-shake
 
@@ -133,7 +139,7 @@ Gossip between two registrars R and S occurs via some protocol like this:
    This list includes
    
    - Side-chain requests, and main-chain events requiring side-chain action.
-   - All reports of who has gossiped what to who, as mandated by registrar VRF
+   - All reports of who has gossiped what to whom, as mandated by registrar VRF
      outputs.
    - All registrar signatures on each of the first two items (which is used to
      construct the perception of what each registrar knows, in order to
@@ -144,7 +150,7 @@ Gossip between two registrars R and S occurs via some protocol like this:
    in the network, indicating some party participating in the transaction the
    duty pertains to; an index into the serialized event history for events that
    agent has; and some hash of the event data long enough to make the
-   probability of collision less than 1-e100.
+   probability of collision less than 1e-100.
    
    During the hash construction, they also check that it's complex enough to
    avoid false positives on the events they know about. That way, they can be
@@ -191,6 +197,7 @@ consistent. That sounds very complex to write, though.
 
 ### Gossip-Data-Structure Invariants
 
+  * All data is verified *before* it is signed.
   * All the [Side-chain Well-formedness](#side-chain-well-formedness)
     constraints, in line with the linearized acknowledged duties, for each
     facilitator, or a dispute launched by this registrar, or received as gossip
@@ -202,12 +209,9 @@ consistent. That sounds very complex to write, though.
   * Causal consistency of gossip: Having received a gossip, a path from its
     origin to this registrar should also be available in the current set of
     data.
-  * All VRF outputs and bloom filters match for all gossip. The bloom filters
-    have no false positives on known data.
   * The Merkle tree for the next update, based on the last set of data shared
     with another registrar. (This is what people will use to prove events during
     disputes.)
-  * All data is verified *before* it is signed.
   * These data structures exist for all live main-chain forks. There needs to be
     tracking of consistency between the gossip on each fork. If a duty is
     reported by a registrar on one fork, and it is consistent with the
