@@ -1,8 +1,9 @@
 lib: [
-  "META"
+  "META" {"META"}
   "legicash.opam" {"opam"}
-  "src/_build/default/legicash_lib.a"
-  "src/_build/default/legicash_lib.cmxa"
+  "src/_build/default/legicash_lib.a" {"legicash_lib.a"}
+  "src/_build/default/legicash_lib.cma" {"legicash_lib.cma"}
+  "src/_build/default/legicash_lib.cmxa" {"legicash_lib.cmxa"}
 ]
 doc: [
   "README.md"

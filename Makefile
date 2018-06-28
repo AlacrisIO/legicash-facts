@@ -51,7 +51,7 @@ toplevel : legicash_lib
 	$(HIDE) $(BUILDER) build --root=src legicaml.exe
 
 repl : toplevel
-	$(HIDE) ./bin/$(TOPLEVEL)
+	$(HIDE) rlwrap ./bin/$(TOPLEVEL)
 
 endpoints : legicash_lib
 	make -C src/endpoints test.opt
