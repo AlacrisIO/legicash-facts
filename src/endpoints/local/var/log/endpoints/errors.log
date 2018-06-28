@@ -1,7 +1,0 @@
-Jun 25 17:24:53: ocsigen:main: Fatal - The port 8080 is already in use.
-Jun 26 14:41:14: ocsigen:main: Eliom: in site / - One service or coservice has not been registered on URL /api/__(suffix service)__. 
-Jun 26 14:41:14: ocsigen:main: Please correct your modules and make sure you have linked in all the modules...
-Jun 26 14:52:54: ocsigen:main: Eliom: in site / - One service or coservice has not been registered on URL /api/__(suffix service)__. 
-Jun 26 14:52:54: ocsigen:main: Please correct your modules and make sure you have linked in all the modules...
-Jun 26 18:38:40: ocsigen:main: Fatal - Error in configuration file: Error while parsing configuration file: Eliom: while loading local/lib/endpoints/endpoints.cmxs: error loading shared library: /home/steck/legicash/legicash-facts/src/endpoints/local/lib/endpoints/endpoints.cmxs: undefined symbol: camlLegicash_lib__Crypto
-Jun 26 18:42:41: ocsigen:main: Fatal - Error in configuration file: Error while parsing configuration file: Eliom: while loading local/lib/endpoints/endpoints.cmxs: error loading shared library: /home/steck/legicash/legicash-facts/src/endpoints/local/lib/endpoints/endpoints.cmxs: undefined symbol: camlLegicash_lib__Crypto
