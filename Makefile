@@ -26,7 +26,7 @@ all : hello_legicash
 
 legicash_lib :
 	$(SHOW) "Building Legicash library"
-	$(HIDE) $(BUILDER) build --root=src legicash_lib.a legicash_lib.cmxa legicash_lib.cma
+	$(HIDE) $(BUILDER) build --root=src legicash_lib.a legicash_lib.cmxa legicash_lib.cmxs legicash_lib.cma
 
 hello_legicash : legicash_lib
 	$(SHOW) "Building main Legicash executable"
