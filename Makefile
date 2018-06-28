@@ -33,14 +33,22 @@ hello_legicash : legicash_lib
 	$(HIDE) $(BUILDER) build --root=src hello_legicash.exe
 
 install : legicash_lib
+ifeq ($(shell ocamlfind query -qe legicash),)
 	$(SHOW) "Installing Legicash library to OPAM"
 	@ opam pin -y add legicash . -n
 	@ opam install legicash
+else
+	$(SHOW) "Legicash library already installed in OPAM"
+endif
 
 uninstall :
+ifneq ($(shell ocamlfind query -qe legicash),)
 	$(SHOW) "Uninstalling Legicash library from OPAM"
 	@ opam uninstall legicash
 	@ opam pin remove legicash
+else
+	$(SHOW) "Legicash library not installed in OPAM"
+endif
 
 test :
 	$(SHOW) "Running Legicash tests"
@@ -53,12 +61,14 @@ toplevel : legicash_lib
 repl : toplevel
 	$(HIDE) rlwrap ./bin/$(TOPLEVEL)
 
-endpoints : legicash_lib
+endpoints : legicash_lib install
 	make -C src/endpoints test.opt
 
 clean :
 	$(SHOW) "Cleaning via dune"
 	$(HIDE) $(BUILDER) clean --root=src
+	$(SHOW) "Cleaning endpoints code"
+	$(HIDE) make -C src/endpoints clean
 
 contract:
 	(cd contracts/ && solc court.sol)
