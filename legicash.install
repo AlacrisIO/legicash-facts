@@ -5,6 +5,28 @@ lib: [
   "src/_build/default/legicash_lib.cma" {"legicash_lib.cma"}
   "src/_build/default/legicash_lib.cmxa" {"legicash_lib.cmxa"}
   "src/_build/default/legicash_lib.cmxs" {"legicash_lib.cmxs"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib.cmi" {"legicash_lib.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib.cmx" {"legicash_lib.cmx"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Action.cmi" {"legicash_lib__Action.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Court_registry.cmi" {"legicash_lib__Court_registry.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Crypto.cmi" {"legicash_lib__Crypto.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Data256.cmi" {"legicash_lib__Data256.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Ethereum_abi.cmi" {"legicash_lib__Ethereum_abi.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Ethereum_json_rpc.cmi" {"legicash_lib__Ethereum_json_rpc.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Ethereum_patricia_merkle.cmi" {"legicash_lib__Ethereum_patricia_merkle.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Ethereum_rlp.cmi" {"legicash_lib__Ethereum_rlp.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Ethereum_transaction.cmi" {"legicash_lib__Ethereum_transaction.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Ethereum_util.cmi" {"legicash_lib__Ethereum_util.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Integer.cmi" {"legicash_lib__Integer.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Keypair.cmi" {"legicash_lib__Keypair.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Legibase.cmi" {"legicash_lib__Legibase.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Lib.cmi" {"legicash_lib__Lib.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Main_chain_action.cmi" {"legicash_lib__Main_chain_action.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Main_chain.cmi" {"legicash_lib__Main_chain.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Side_chain_action.cmi" {"legicash_lib__Side_chain_action.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Side_chain.cmi" {"legicash_lib__Side_chain.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Trie.cmi" {"legicash_lib__Trie.cmi"}
+  "src/_build/default/.legicash_lib.objs/legicash_lib__Version.cmi" {"legicash_lib__Version.cmi"}
 ]
 doc: [
   "README.md"

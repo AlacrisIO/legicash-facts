@@ -4,9 +4,8 @@
     open Eliom_lib
 ]
 
-open Lwt
-open Legibase
-open Crypto
+open Yojson
+open Legicash_lib
 
 (**** Data types ****)
 
@@ -106,7 +105,7 @@ let deposit_handler () (content_type,raw_content_opt) =
       | Ok signed_deposit ->
         let request_json_string = B64.decode signed_deposit.payload in
         let request_json = Yojson.Safe.from_string request_json_string in
-        send_json ~code:200 (Yojson.Safe.to_string json)
+        send_json ~code:200 (Yojson.Safe.to_string request_json)
       | Error _ -> bad_signed_json ()
   else
     not_json_content_error ()
@@ -132,9 +131,9 @@ let number_of_accounts = 26 (* TODO : dummy value *)
 let address_to_account_tbl = Hashtbl.create number_of_accounts
 
 let dump_facilitator_accounts facilitator_state =
-  let open Yojson in
-  let open Side_chain in
+  let open Crypto in
   let open Main_chain in
+  let open Side_chain in
   let account_map = facilitator_state.current.accounts in
   let account_bindings = AddressMap.bindings account_map in
   let accounts =
@@ -156,9 +155,7 @@ let dump_facilitator_accounts facilitator_state =
   `Assoc [("account_balances",`List balances)]
 
 let balances_handler balances () =
-    
-
-send_json ~code:200 "balances"
+    send_json ~code:200 "balances"
 
 (* Register services *)
 
