@@ -11,7 +11,7 @@ SERVER_FILES := $(wildcard *.eliomi *.eliom)
 CLIENT_FILES := $(wildcard *.eliomi *.eliom)
 
 # OCamlfind packages for the server
-SERVER_PACKAGES := legicash lwt.ppx deriving-yojson ppx_deriving_yojson js_of_ocaml-ppx.deriving
+SERVER_PACKAGES := base64 integers lwt.ppx deriving-yojson ppx_deriving_yojson js_of_ocaml-ppx.deriving
 # OCamlfind packages for the client
 CLIENT_PACKAGES := lwt.ppx js_of_ocaml-ppx js_of_ocaml-ppx.deriving
 

@@ -11,9 +11,10 @@ include Makefile.options
 ##----------------------------------------------------------------------
 ##			      Internals
 
+INCLUDE=-I ../_build/default/.legicash_lib.objs
 ## Required binaries
-ELIOMC            := eliomc -ppx
-ELIOMOPT          := eliomopt -ppx
+ELIOMC            := eliomc -ppx $(INCLUDE)
+ELIOMOPT          := eliomopt -ppx $(INCLUDE)
 JS_OF_ELIOM       := js_of_eliom -ppx
 ELIOMDEP          := eliomdep
 OCSIGENSERVER     := ocsigenserver
