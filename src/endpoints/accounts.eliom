@@ -227,14 +227,22 @@ let deposit_to_trent address amount =
   (* get user account info on Trent *)
   let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
   let balance = TokenAmount.to_int (user_account_on_trent.balance) in
-  let user_account_on_trent =
+  let user_name =
     try
-      AddressMap.find trent_address user_state1.facilitators
-    with
-      Not_found -> raise (Internal_error "Can't find user on Trent")
+      Hashtbl.find address_to_account_tbl address_t
+    with Not_found -> raise (Internal_error "Can't find user name for address")
   in
-  let trent_account_state = user_account_on_trent.confirmed_state
+  let user_account_state = { address
+                           ; user_name
+                           ; balance
+                           }
   in
+  user_account_state_to_yojson user_account_state
+
+let get_balance_on_trent address =
+  let address_t = Address.of_string (Ethereum_util.string_of_hex_string address) in
+  let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
+  let balance = TokenAmount.to_int (user_account_on_trent.balance) in
   let user_name =
     try
       Hashtbl.find address_to_account_tbl address_t

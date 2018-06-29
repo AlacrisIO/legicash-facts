@@ -30,7 +30,11 @@ type deposit_json =
   ; amount: int
   } [@@deriving yojson]
 
-type error = {
+type balance_json =
+  { address: string
+  } [@@deriving yojson]
+
+type error_message = {
   error : string;
 } [@@deriving yojson]
 
@@ -56,6 +60,15 @@ let transfer_service =
     ~meth:(Eliom_service.Post (transfer_params,Eliom_parameter.raw_post_data))
     ()
 
+let balance_params =
+  Eliom_parameter.(suffix (suffix_const "balance"))
+
+let balance_service =
+  Eliom_service.create
+    ~path
+    ~meth:(Eliom_service.Post (balance_params,Eliom_parameter.raw_post_data))
+    ()
+
 let balances_params =
   Eliom_parameter.(suffix (suffix_const "balances"))
 
@@ -73,7 +86,7 @@ let send_json ~code json =
   Eliom_registration.String.send ~code (json, json_mime_type)
 
 let send_error ~code error =
-  let json = Yojson.Safe.to_string (error_to_yojson {error}) in
+  let json = Yojson.Safe.to_string (error_message_to_yojson {error}) in
   send_json ~code json
 
 let send_success () =
@@ -143,6 +156,29 @@ let transfer_handler () (content_type,raw_content_opt) =
   else
     not_json_content_error ()
 
+let balance_handler () (content_type,raw_content_opt) =
+  let open Yojson.Safe in
+  if is_json_content content_type then
+    try
+      match raw_content_opt with
+    | None -> missing_content_error "balance"
+    | Some raw_content ->
+      read_raw_content raw_content >>= fun json_string ->
+      let json = from_string json_string in
+      let maybe_balance = balance_json_of_yojson json in
+      match maybe_balance with
+      | Ok balance ->
+        let result_json = Accounts.get_balance_on_trent balance.address in
+        send_json ~code:200 (Yojson.Safe.to_string result_json)
+      | Error msg -> bad_response msg
+    with Internal_error msg -> bad_response ("Internal error: " ^ msg)
+       | exn -> bad_response ("Internal error: " ^ (Printexc.to_string exn))
+  else
+    not_json_content_error ()
+
+let balances_handler balances () =
+  send_json ~code:200 "\"balances\""
+
 let number_of_accounts = 26 (* TODO : dummy value *)
 let address_to_account_tbl = Hashtbl.create number_of_accounts
 
@@ -170,13 +206,11 @@ let dump_facilitator_accounts facilitator_state =
   let balances = List.map make_balance_json sorted_accounts in
   `Assoc [("account_balances",`List balances)]
 
-let balances_handler balances () =
-    send_json ~code:200 "balances"
-
 (* Register services *)
 
 let _ =
   let _ = Eliom_registration.Any.register deposit_service deposit_handler in
   let _ = Eliom_registration.Any.register transfer_service transfer_handler in
+  let _ = Eliom_registration.Any.register balance_service balance_handler in
   let _ = Eliom_registration.Any.register balances_service balances_handler in
   ()
