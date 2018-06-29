@@ -6,6 +6,11 @@
 
 open Yojson
 open Legicash_lib
+open Lib
+
+open Accounts
+
+module TokenAmount = Main_chain.TokenAmount
 
 (**** Data types ****)
 
@@ -16,8 +21,13 @@ type json_signature = {
 
 type signed_json =
   { payload : string
-  ; protected: string
+  ; protected : string
   ; header : json_signature
+  } [@@deriving yojson]
+
+type deposit_json =
+  { address: string
+  ; amount: int
   } [@@deriving yojson]
 
 type error = {
@@ -91,22 +101,28 @@ let missing_content_error operation =
 let bad_signed_json error =
   send_error ~code:400 "Invalid signed JSON"
 
+let bad_response msg =
+  send_error ~code:400 ("Error: " ^ msg)
+
 (**** Handlers ****)
 
 let deposit_handler () (content_type,raw_content_opt) =
+  let open Yojson.Safe in
   if is_json_content content_type then
-    match raw_content_opt with
+    try
+      match raw_content_opt with
     | None -> missing_content_error "deposit"
     | Some raw_content ->
       read_raw_content raw_content >>= fun json_string ->
-      let json = Yojson.Safe.from_string json_string in
-      let maybe_signed_deposit = signed_json_of_yojson json in
-      match maybe_signed_deposit with
-      | Ok signed_deposit ->
-        let request_json_string = B64.decode signed_deposit.payload in
-        let request_json = Yojson.Safe.from_string request_json_string in
-        send_json ~code:200 (Yojson.Safe.to_string request_json)
-      | Error _ -> bad_signed_json ()
+      let json = from_string json_string in
+      let maybe_deposit = deposit_json_of_yojson json in
+      match maybe_deposit with
+      | Ok deposit ->
+        let result_json = Accounts.deposit_to_trent deposit.address deposit.amount in
+        send_json ~code:200 (Yojson.Safe.to_string result_json)
+      | Error msg -> bad_response msg
+    with Internal_error msg -> bad_response ("Internal error: " ^ msg)
+       | exn -> bad_response ("Internal error: " ^ (Printexc.to_string exn))
   else
     not_json_content_error ()
 

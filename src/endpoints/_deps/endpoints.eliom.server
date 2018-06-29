@@ -1,4 +1,5 @@
-_server/endpoints.cmo :
-_server/endpoints.cmx :
+_server/endpoints.cmo : _server/accounts.cmo
+_server/endpoints.cmx : _server/accounts.cmx
+_server/endpoints.type_mli : _server/accounts.cmo
 _server/endpoints.cmo : _server/endpoints.type_mli
 _server/endpoints.cmx : _server/endpoints.type_mli
