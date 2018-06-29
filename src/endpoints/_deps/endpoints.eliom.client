@@ -1,4 +1,0 @@
-_client/endpoints.cmo :
-_client/endpoints.cmx :
-_client/endpoints.cmo : _server/endpoints.type_mli
-_client/endpoints.cmx : _server/endpoints.type_mli
