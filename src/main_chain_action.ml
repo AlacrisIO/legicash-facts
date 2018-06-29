@@ -22,7 +22,9 @@ let make_tx_header (user_state, (value, gas_limit)) =
   ; value }
 
 let add_pending_transaction (user_state, transaction) =
-  ( {user_state with pending_transactions= transaction :: user_state.pending_transactions}
+  ( {user_state with
+     pending_transactions= transaction :: user_state.pending_transactions ;
+     nonce= Nonce.add Nonce.one user_state.nonce }
   , Ok transaction )
 
 let issue_transaction =
