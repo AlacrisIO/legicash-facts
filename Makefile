@@ -35,6 +35,7 @@ hello_legicash : legicash_lib
 install : legicash_lib
 ifeq ($(shell ocamlfind query -qe legicash),)
 	$(SHOW) "Installing Legicash library to OPAM"
+	@ ./scripts/mk-opam-install.sh
 	@ opam pin -y add legicash . -n
 	@ opam install legicash
 else
@@ -67,6 +68,8 @@ endpoints : legicash_lib install
 clean :
 	$(SHOW) "Cleaning via dune"
 	$(HIDE) $(BUILDER) clean --root=src
+	$(SHOW) "Removing OPAM install file"
+	$(HIDE) rm -f legicash.install
 	$(SHOW) "Cleaning endpoints code"
 	$(HIDE) make -C src/endpoints clean
 
