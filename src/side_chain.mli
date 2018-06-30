@@ -3,6 +3,7 @@
 open Legibase
 open Action
 open Crypto
+open Trie
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -83,7 +84,7 @@ type operation =
      ; recipient_facilitator: public_key }
   *)
 
-(** headers for a request to a facilitator
+(** Headers for a request to a facilitator
     Every client request that initiates a transaction comes with a request window,
     that puts a cap on the validity of the request in terms of inclusion in the main chain.
     Thus, the other parties cannot hold the requestor's resource indefinitely on hold.
@@ -98,21 +99,25 @@ type operation =
     Alternatively, to save space, the root may not be stored in places where the validity
     requires the root to be the same as *the* known consensual root at the given date.
 *)
-type rx_header =
-  { facilitator: Address.t
-  ; requester: Address.t
-  ; requester_revision: Revision.t
-  ; confirmed_main_chain_state_digest: Main_chain.state digest
-  ; confirmed_main_chain_state_revision: Revision.t
-  ; confirmed_side_chain_state_digest: state digest
-  ; confirmed_side_chain_state_revision: Revision.t
-  ; validity_within: Duration.t }
-[@@deriving lens]
+module RxHeader : sig
+  type t =
+    { facilitator: Address.t
+    ; requester: Address.t
+    ; requester_revision: Revision.t
+    ; confirmed_main_chain_state_digest: Main_chain.state digest
+    ; confirmed_main_chain_state_revision: Revision.t
+    ; confirmed_side_chain_state_digest: Digest.t (* State.t digest *)
+    ; confirmed_side_chain_state_revision: Revision.t
+    ; validity_within: Duration.t }
+  [@@deriving lens]
+end
 
-(** request from user to facilitator for operation on the side chain
+(** Request from user to facilitator for operation on the side chain
     an operation, plus headers that provide a reference to the past and a timeout
 *)
-and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
+module Request : sig
+  type t = {rx_header: RxHeader.t; operation: operation} [@@deriving lens]
+end
 
 (** header for a confirmation from a facilitator:
 
@@ -125,56 +130,66 @@ and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
     Should we also provide log(n) digests to the previous confirmation
     whose revision is a multiple of 2**k for all k?
 *)
-and tx_header = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
+module TxHeader : sig
+  type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
+end
 
 (** A transaction confirmation from a facilitator:
     a request, plus headers that help validate against fraud.
 *)
-and confirmation = {tx_header: tx_header; signed_request: request signed} [@@deriving lens]
+module Confirmation : sig
+  type t = {tx_header: TxHeader.t; signed_request: Request.t signed} [@@deriving lens]
+  val digest: t -> t digest
+end
 
 (* TODO: actually maintain the user_revision;
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
 (** public state of the account of a user with a facilitator as visible in the public side-chain *)
-and account_state = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
+module AccountState : sig
+  type t = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
+  val digest : t -> t digest
+end
+
+module ConfirmationMap : (MerkleTrieS with type key = Revision.t and type value = Confirmation.t)
+
+module AccountMap : (MerkleTrieS with type key = Address.t and type value = AccountState.t)
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
 *)
-and state =
-    { previous_main_chain_state: Main_chain.state digest
-    ; previous_side_chain_state: state digest (* state previously posted on the above *)
-    ; facilitator_revision: Revision.t
-    ; spending_limit:
-        TokenAmount.t
-    (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
-    ; bond_posted: TokenAmount.t
-    ; accounts: account_state AddressMap.t
-    ; operations:
-        confirmation AddressMap.t
-    (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
-    ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
-[@@deriving lens]
-
-module AccountState : sig
-  type t = account_state
-  val digest : t -> t digest
+module State : sig
+  type t = { previous_main_chain_state: Main_chain.state digest
+           ; previous_side_chain_state: t digest (* state previously posted on the above *)
+           ; facilitator_revision: Revision.t
+           ; spending_limit: TokenAmount.t
+           (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
+           ; bond_posted: TokenAmount.t
+           ; accounts: AccountMap.t
+           ; operations: ConfirmationMap.t
+           (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
+           ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
+  [@@deriving lens]
 end
-(** wrapper module for account_state that conforms to DigestS signature *)
 
 (** side chain operation + knowledge about the operation *)
 type episteme =
-  { request: request signed
-  ; confirmation_option: confirmation signed option
+  { request: Request.t signed
+  ; confirmation_option: Confirmation.t signed option
   ; main_chain_confirmation_option: Main_chain.confirmation option }
 [@@deriving lens]
 
 (** private state a user keeps for his account with a facilitator *)
-type user_account_state_per_facilitator =
-  { facilitator_validity:
-      knowledge_stage
-  (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
-  ; confirmed_state: account_state
-  ; pending_operations: episteme list }
-[@@deriving lens]
+module UserAccountStatePerFacilitator : sig
+  type t =
+    { facilitator_validity:
+        knowledge_stage
+    (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
+    ; confirmed_state: AccountState.t
+    ; pending_operations: episteme list }
+  [@@deriving lens]
+  val digest : t -> t digest
+end
+
+module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type value = UserAccountStatePerFacilitator.t)
 
 (** User state (for Alice)
     For now, only one facilitator; but in the future, allow for many.
@@ -215,7 +230,7 @@ type user_account_state_per_facilitator =
 *)
 type user_state =
   { main_chain_user_state: Main_chain.user_state
-  ; facilitators: user_account_state_per_facilitator AddressMap.t }
+  ; facilitators: UserAccountStateMap.t }
 [@@deriving lens]
 
 (** function from 'input to 'output that acts on a user_state *)
@@ -245,19 +260,19 @@ type facilitator_fee_schedule =
 *)
 type facilitator_state =
   { keypair: Keypair.t
-  ; previous: state option
-  ; current: state
+  ; previous: State.t option
+  ; current: State.t
   ; fee_schedule: facilitator_fee_schedule }
 [@@deriving lens]
 
 (** function from 'a to 'b that acts on a facilitator_state *)
 type ('input, 'output) facilitator_action = ('input, 'output, facilitator_state) action
 
-type court_clerk_confirmation = {clerk: public_key; signature: state signature} [@@deriving lens]
+type court_clerk_confirmation = {clerk: public_key; signature: State.t signature} [@@deriving lens]
 
 (** Side chain update to be posted on the main chain, including signatures by court registry clerks.
     The update itself has to be signed by the facilitator *)
-type update = {current_state: state digest; availability_proof: court_clerk_confirmation list}
+type update = {current_state: State.t digest; availability_proof: court_clerk_confirmation list}
 (*[@@deriving lens { prefix = true }]*)
 
 (** message from user to user *)

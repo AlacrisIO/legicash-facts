@@ -1,13 +1,13 @@
 (* ethereum_patricial_merkle.ml -- Ethereum Patricia Merkle tries *)
 (* references:
 
-    https://github.com/ethereum/wiki/wiki/Patricia-Tree
-    https://easythereentropy.wordpress.com/2014/06/04/understanding-the-ethereum-trie/
-    https://github.com/ebuchman/understanding_ethereum_trie
-    https://github.com/ethereum/pyethereum
-    https://github.com/ethereum/go-ethereum/tree/master/trie
+   https://github.com/ethereum/wiki/wiki/Patricia-Tree
+   https://easythereentropy.wordpress.com/2014/06/04/understanding-the-ethereum-trie/
+   https://github.com/ebuchman/understanding_ethereum_trie
+   https://github.com/ethereum/pyethereum
+   https://github.com/ethereum/go-ethereum/tree/master/trie
 
- *)
+*)
 
 open Lib
 open Legibase
@@ -108,16 +108,16 @@ end = struct
       let _ =
         String.iteri
           (fun ndx c ->
-            let c_val = Char.code c in
-            if ndx = len - 1 then (
-              if c_val > nybble_terminator_val then
-                raise
-                  (Internal_error
-                     "Unpacked.of_string: final character must be less than or equal to nybble terminator") )
-            else if c_val > 0x0F then
-              raise
-                (Internal_error "Unpacked.of_string: character must be less than or equal to 0x0F")
-            )
+             let c_val = Char.code c in
+             if ndx = len - 1 then (
+               if c_val > nybble_terminator_val then
+                 raise
+                   (Internal_error
+                      "Unpacked.of_string: final character must be less than or equal to nybble terminator") )
+             else if c_val > 0x0F then
+               raise
+                 (Internal_error "Unpacked.of_string: character must be less than or equal to 0x0F")
+          )
           s
       in
       s
@@ -148,8 +148,8 @@ end = struct
     String.init
       (String.length nybbles / 2)
       (fun ndx ->
-        let nybbles_ndx = ndx * 2 in
-        Char.chr (Char.code nybbles.[nybbles_ndx] lsl 4 + Char.code nybbles.[nybbles_ndx + 1]) )
+         let nybbles_ndx = ndx * 2 in
+         Char.chr (Char.code nybbles.[nybbles_ndx] lsl 4 + Char.code nybbles.[nybbles_ndx + 1]) )
 
 
   let unpack packed =
@@ -157,9 +157,9 @@ end = struct
       String.init
         (2 * String.length packed)
         (fun ndx ->
-          let byte = Char.code packed.[ndx / 2] in
-          (* take high nybble if even ndx, low nybble if odd *)
-          if ndx mod 2 = 0 then Char.chr ((byte land 0xF0) lsr 4) else Char.chr (byte land 0x0F) )
+           let byte = Char.code packed.[ndx / 2] in
+           (* take high nybble if even ndx, low nybble if odd *)
+           if ndx mod 2 = 0 then Char.chr ((byte land 0xF0) lsr 4) else Char.chr (byte land 0x0F) )
     in
     let flags = Char.code unpacked0.[0] in
     let unpacked1 =
@@ -223,10 +223,10 @@ let decode_to_node (trie: 'a ethereum_patricia_merkle_trie) (node_or_hash: 'a no
   match node_or_hash with
   | Node node -> node
   | Hash hash ->
-      (* TODO: in Pythereum, there's an RLP-decode step
-        there will need to be a way to convert trie to RLPItem(s), and back, probably
-      *)
-      Hashtbl.find trie.db hash
+    (* TODO: in Pythereum, there's an RLP-decode step
+       there will need to be a way to convert trie to RLPItem(s), and back, probably
+    *)
+    Hashtbl.find trie.db hash
 
 
 (* lookup key in a node *)
@@ -236,23 +236,23 @@ let get (trie: 'a ethereum_patricia_merkle_trie) (node: 'a node) (key: Key.Unpac
     match node with
     | BlankNode -> None
     | BranchNode (subnodes, v) ->
-        if key = Unpacked.empty_key then (* at target node *)
-          Some v
-        else
-          (* get sub node given by first nybble in key *)
-          let nybble, subkey = Unpacked.split key in
-          let subnode = decode_to_node trie subnodes.(nybble) in
-          get_loop subnode subkey
+      if key = Unpacked.empty_key then (* at target node *)
+        Some v
+      else
+        (* get sub node given by first nybble in key *)
+        let nybble, subkey = Unpacked.split key in
+        let subnode = decode_to_node trie subnodes.(nybble) in
+        get_loop subnode subkey
     | LeafNode (k, v) ->
-        let curr_key = Unpacked.remove_terminator (unpack k) in
-        if key = curr_key then Some v else None
+      let curr_key = Unpacked.remove_terminator (unpack k) in
+      if key = curr_key then Some v else None
     | ExtensionNode (k, node_or_hash) ->
-        let curr_key = Unpacked.remove_terminator (unpack k) in
-        match Unpacked.suffix_if_prefix key curr_key with
-        | Some key_suffix ->
-            let subnode = decode_to_node trie node_or_hash in
-            get_loop subnode key_suffix
-        | None -> None
+      let curr_key = Unpacked.remove_terminator (unpack k) in
+      match Unpacked.suffix_if_prefix key curr_key with
+      | Some key_suffix ->
+        let subnode = decode_to_node trie node_or_hash in
+        get_loop subnode key_suffix
+      | None -> None
   in
   get_loop node key
 
@@ -260,23 +260,24 @@ let get (trie: 'a ethereum_patricia_merkle_trie) (node: 'a node) (key: Key.Unpac
 module Test = struct
   (* tests of hashing of RLP-encoded data *)
 
-  let make_hash_test s hex = Lib.unparse_hex (Data256.to_string (hash_encoded_string s)) = hex
+  let make_hash_test s hex =
+    Lib.unparse_coloned_hex_string (Data256.to_string (hash_encoded_string s)) = hex
 
   [%%test
-  let "hash_test_1" =
-    make_hash_test ""
-      "56:e8:1f:17:1b:cc:55:a6:ff:83:45:e6:92:c0:f8:6e:5b:48:e0:1b:99:6c:ad:c0:01:62:2f:b5:e3:63:b4:21"]
+    let "hash_test_1" =
+      make_hash_test ""
+        "56:e8:1f:17:1b:cc:55:a6:ff:83:45:e6:92:c0:f8:6e:5b:48:e0:1b:99:6c:ad:c0:01:62:2f:b5:e3:63:b4:21"]
 
   [%%test
-  let "hash_test_2" =
-    make_hash_test "this is a test of the hash kind"
-      "ef:8e:91:f7:12:bb:3e:d9:24:8b:21:70:11:70:5d:28:0d:aa:6b:8e:9b:93:ce:9b:10:ba:0a:8b:90:15:c7:70"]
+    let "hash_test_2" =
+      make_hash_test "this is a test of the hash kind"
+        "ef:8e:91:f7:12:bb:3e:d9:24:8b:21:70:11:70:5d:28:0d:aa:6b:8e:9b:93:ce:9b:10:ba:0a:8b:90:15:c7:70"]
 
   [%%test
-  let "hash_test_3" =
-    make_hash_test
-      "a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string"
-      "61:fd:7f:86:4e:2c:3c:0e:f4:2c:0c:1e:3e:fc:8e:77:9c:c7:97:97:1e:c1:35:f2:85:a0:f7:54:50:53:12:a7"]
+    let "hash_test_3" =
+      make_hash_test
+        "a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string"
+        "61:fd:7f:86:4e:2c:3c:0e:f4:2c:0c:1e:3e:fc:8e:77:9c:c7:97:97:1e:c1:35:f2:85:a0:f7:54:50:53:12:a7"]
 
   (* test that nybble packing and unpacking are inverses *)
 
@@ -289,25 +290,25 @@ module Test = struct
 
 
   [%%test
-  (* N.B.: each byte must between 0x00 and 0x0F, except final byte may have nybble terminator *)
+     (* N.B.: each byte must between 0x00 and 0x0F, except final byte may have nybble terminator *)
 
-  let "pack_unpack_1" = make_unpack_pack_test "\000\000\000\000\000\000\000\000\000\000"]
-
-  [%%test
-  let "pack_unpack_2" = make_unpack_pack_test "\005\005\005\005\005\005\005\005\005\005"]
+    let "pack_unpack_1" = make_unpack_pack_test "\000\000\000\000\000\000\000\000\000\000"]
 
   [%%test
-  let "pack_unpack_3" = make_unpack_pack_test "\n\011\012\002"]
+    let "pack_unpack_2" = make_unpack_pack_test "\005\005\005\005\005\005\005\005\005\005"]
 
   [%%test
-  let "pack_unpack_4" = make_unpack_pack_test "\n\015\r\000"]
+    let "pack_unpack_3" = make_unpack_pack_test "\n\011\012\002"]
 
   [%%test
-  let "pack_unpack_5" = make_unpack_pack_test "\n\015\014\015\003\002"]
+    let "pack_unpack_4" = make_unpack_pack_test "\n\015\r\000"]
 
   [%%test
-  let "pack_unpack_5" = make_unpack_pack_test ("\n\015\014\015\003" ^ Key.nybble_terminator_string)]
+    let "pack_unpack_5" = make_unpack_pack_test "\n\015\014\015\003\002"]
 
   [%%test
-  let "pack_unpack_6" = make_unpack_pack_test ""]
+    let "pack_unpack_5" = make_unpack_pack_test ("\n\015\014\015\003" ^ Key.nybble_terminator_string)]
+
+  [%%test
+    let "pack_unpack_6" = make_unpack_pack_test ""]
 end

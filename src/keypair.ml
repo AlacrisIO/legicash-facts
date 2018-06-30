@@ -20,41 +20,41 @@ let string_to_secp256k1_buffer s =
   for ndx = 0 to len - 1 do Bigarray.Array1.set buffer ndx s.[ndx] done ;
   buffer
 
-let make_keys private_key_string public_key_string =
-  let _ =
-    let len = String.length private_key_string in
-    if len <> private_key_length then
-      raise
-        (Internal_error
-           (Printf.sprintf "Bad private key length %d for %s" len (unparse_hex private_key_string)))
-  in
-  let _ =
-    let len = String.length public_key_string in
-    if len <> public_key_length then
-      raise
-        (Internal_error
-           (Printf.sprintf "Bad public key length %d for %s" len (unparse_hex public_key_string)))
-  in
-  let private_key_buffer = string_to_secp256k1_buffer private_key_string in
+let make_public_key public_key_string =
+  let len = String.length public_key_string in
+  if len <> public_key_length then
+    raise
+      (Internal_error
+         (Printf.sprintf "Bad public key length %d for %s" len
+            (unparse_coloned_hex_string public_key_string))) ;
   let public_key_buffer = string_to_secp256k1_buffer public_key_string in
-  let private_key =
-    match Secp256k1.Key.read_sk secp256k1_ctx private_key_buffer with
-    | Ok sk -> sk
-    | Error msg -> raise (Internal_error msg)
-  in
-  let public_key =
-    match Secp256k1.Key.read_pk secp256k1_ctx public_key_buffer with
-    | Ok pk -> pk
-    | Error msg -> raise (Internal_error msg)
-  in
+  match Secp256k1.Key.read_pk secp256k1_ctx public_key_buffer with
+  | Ok pk -> pk
+  | Error msg -> raise (Internal_error msg)
+
+let make_private_key private_key_string =
+  let len = String.length private_key_string in
+  if len <> private_key_length then
+    raise
+      (Internal_error
+         (Printf.sprintf "Bad private key length %d for %s" len
+            (unparse_coloned_hex_string private_key_string))) ;
+  let private_key_buffer = string_to_secp256k1_buffer private_key_string in
+  match Secp256k1.Key.read_sk secp256k1_ctx private_key_buffer with
+  | Ok sk -> sk
+  | Error msg -> raise (Internal_error msg)
+
+let make_keys private_key_string public_key_string =
+  let public_key = make_public_key public_key_string in
+  let private_key = make_private_key private_key_string in
   let address = Address.of_public_key public_key in
   {private_key; public_key; address}
 
 let make_keys_from_hex private_key_hex public_key_hex =
-  make_keys (parse_hex private_key_hex) (parse_hex public_key_hex)
+  make_keys (parse_coloned_hex_string private_key_hex) (parse_coloned_hex_string public_key_hex)
 
 module Test = struct
-  let invert_hex hex_str = unparse_hex (parse_hex hex_str)
+  let invert_hex hex_str = unparse_coloned_hex_string (parse_coloned_hex_string hex_str)
 
   (* test that hex parsing and unparsing are inverses *)
 
@@ -107,31 +107,30 @@ module Test = struct
      this is the hash and message found in function TestKeccak256Hash in
      https://github.com/ethereum/go-ethereum/blob/master/crypto/crypto_test.go
 
-     we put this test here because parse_hex is not exported
-
+     we put this test here because parse_coloned_hex_string is not exported
   *)
 
   let%test "ethereum_keccak256_hash" =
     let msg = "abc" in
     let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) msg in
     hash
-    = parse_hex
+    = parse_coloned_hex_string
         "4e:03:65:7a:ea:45:a9:4f:c7:d4:7b:a8:26:c8:d6:67:c0:d1:e6:e3:3a:64:a0:36:ec:44:f5:8f:a1:2d:6c:45"
 
   (* test that addresses are really last 20 bytes of public keys *)
 
   let%test "alice_address_from_public_key" =
     let alice_address = alice_keys.address in
-    unparse_hex (Address.to_string alice_address)
+    unparse_coloned_hex_string (Address.to_big_endian_bits alice_address)
     = "3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
 
   let%test "bob_address_from_public_key" =
     let bob_address = bob_keys.address in
-    unparse_hex (Address.to_string bob_address)
+    unparse_coloned_hex_string (Address.to_big_endian_bits bob_address)
     = "e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
 
   let%test "trent_address_from_public_key" =
     let trent_address = trent_keys.address in
-    unparse_hex (Address.to_string trent_address)
+    unparse_coloned_hex_string (Address.to_big_endian_bits trent_address)
     = "38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
 end

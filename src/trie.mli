@@ -25,7 +25,7 @@ module type TrieSynthS = sig
 end
 
 (** A module to synthesize the cardinal of a trie as an attribute of said trie *)
-module TrieSynthCardinal (Key : UnsignedS) (Value : T) : sig
+module TrieSynthCardinal (Key : IntS) (Value : T) : sig
   type key = Key.t
   type value = Value.t
   type t = Z.t
@@ -36,36 +36,36 @@ module TrieSynthCardinal (Key : UnsignedS) (Value : T) : sig
 end
 
 (** A module to synthesize attributes for Skip by reducing it to Branch and Leaf. *)
-module TrieSynthComputeSkip (Key : UnsignedS) (Synth: TrieSynthS) : sig
+module TrieSynthComputeSkip (Key : IntS) (Synth: TrieSynthS) : sig
   include TreeSynthS
   type key = Key.t
 end
 
 (** A module for Big-Endian Patricia Tree. *)
 module type TrieS = sig
-  type trie_key
-  type trie_value
+  type key
+  type value
   type synth
 
-  type trie =
+  type t =
     | Empty
-    | Leaf of {value: trie_value; synth: synth}
-    | Branch of {left: trie; right: trie; height: int; synth: synth}
-    | Skip of {child: trie; bits: trie_key; length: int; height: int; synth: synth}
+    | Leaf of {value: value; synth: synth}
+    | Branch of {left: t; right: t; height: int; synth: synth}
+    | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
 
-  type (+'a) trie_step =
+  type (+'a) step =
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
-    | SkipChild of {bits: trie_key; length: int}
+    | SkipChild of {bits: key; length: int}
 
-  type (+'a) trie_path = {index: trie_key; height: int; steps: 'a trie_step list}
+  type (+'a) path = {index: key; height: int; steps: 'a step list}
 
   include MapS
-    with type key = trie_key
-     and type value = trie_value
-     and type t = trie
-     and type (+'a) step = 'a trie_step
-     and type (+'a) path = 'a trie_path
+    with type key := key
+     and type value := value
+     and type t := t
+     and type (+'a) step := 'a step
+     and type (+'a) path := 'a path
 
   val trie_height : t -> int
   val ensure_height : int -> t -> t
@@ -78,10 +78,10 @@ module type TrieS = sig
 end
 
 (** A module for Big-Endian Patricia Tree, a.k.a. Trie. *)
-module Trie (Key : UnsignedS) (Value : T)
+module Trie (Key : IntS) (Value : T)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
-  : TrieS with type trie_key = Key.t
-           and type trie_value = Value.t
+  : TrieS with type key = Key.t
+           and type value = Value.t
            and type synth = Synth.t
 
 (** A signature for Merklizing a Trie . *)
@@ -91,7 +91,7 @@ module type TrieSynthMerkleS = sig
 end
 
 (** A module for Merklizing a Trie . *)
-module TrieSynthMerkle (Key : UnsignedS) (Value : DigestibleS) : sig
+module TrieSynthMerkle (Key : IntS) (Value : DigestibleS) : sig
   include TrieSynthMerkleS
     with type key = Key.t
      and type value = Value.t
@@ -99,20 +99,25 @@ module TrieSynthMerkle (Key : UnsignedS) (Value : DigestibleS) : sig
 end
 
 (** Merkle Trie . *)
-module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) : sig
-  module Synth : TrieSynthMerkleS with type key = Key.t and type value = Value.t and type t = Digest.t
+module type MerkleTrieS = sig
+  type key
+  type value
+  module Synth : TrieSynthMerkleS with type key = key and type value = value and type t = Digest.t
   include TrieS
-    with type trie_key = Key.t
-     and type trie_value = Value.t
+    with type key := key
+     and type value := value
      and type synth = Synth.t
   type proof =
     { key : key
     ; trie : Digest.t
     ; value : Digest.t
-    ; steps : (Digest.t trie_step) list
+    ; steps : (Digest.t step) list
     }
   val trie_digest : t -> Digest.t
   val path_digest : t path -> Digest.t path
   val get_proof : key -> t -> proof option
   val check_proof_consistency : proof -> bool
 end
+
+module MerkleTrie (Key : IntS) (Value : DigestibleS) :
+  MerkleTrieS with type key = Key.t and type value = Value.t

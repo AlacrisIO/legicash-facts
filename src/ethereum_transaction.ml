@@ -128,7 +128,7 @@ let transaction_executed transaction_hash =
 
 
 let transaction_execution_matches_transaction transaction_hash
-    (signed_transaction: Main_chain.transaction_signed) =
+      (signed_transaction: Main_chain.transaction_signed) =
   let open Yojson in
   transaction_executed transaction_hash
   &&
@@ -147,7 +147,7 @@ let transaction_execution_matches_transaction transaction_hash
   let actual_value = Ethereum_util.token_amount_of_hex_string (get_result_json "value") in
   let tx_header = transaction.tx_header in
   let expected_sender = Ethereum_util.hex_string_of_address tx_header.sender in
-  let expected_nonce = Printf.sprintf "0x%Lx" (Main_chain.Nonce.to_int64 tx_header.nonce) in
+  let expected_nonce = "0x" ^ (Main_chain.Nonce.to_hex_string tx_header.nonce) in
   let expected_gas_limit = tx_header.gas_limit in
   let expected_gas_price = tx_header.gas_price in
   let expected_value = tx_header.value in
@@ -182,10 +182,10 @@ let rlp_of_transaction transaction =
   let value = string_of_token_amount tx_header.value in
   let toaddr, data =
     match transaction.operation with
-    | TransferTokens to_address -> (Address.to_string to_address, "")
+    | TransferTokens to_address -> (Address.to_big_endian_bits to_address, "")
     | CreateContract bytes -> ("", Bytes.to_string bytes)
     | CallFunction (contract_address, call_encoding) ->
-      (Address.to_string contract_address, Bytes.to_string call_encoding)
+      (Address.to_big_endian_bits contract_address, Bytes.to_string call_encoding)
   in
   RlpItems
     [ RlpItem nonce
@@ -417,7 +417,7 @@ module Test = struct
     let operation =
       Main_chain.CallFunction
         ( Ethereum_util.address_of_hex_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
-        , Bytes.of_string (Digest.to_string hashed) )
+        , Bytes.of_string (Digest.to_big_endian_bits hashed) )
     in
     let transaction = {tx_header; operation} in
     let signed_transaction = sign alice_keys.private_key transaction in
@@ -433,18 +433,8 @@ module Test = struct
     (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
     let open Bigarray in
     let private_key_hex = "0xc0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0de" in
-    let private_key_string = Ethereum_util.string_of_hex_string private_key_hex in
-    let private_key_buffer = Array1.create Char c_layout (String.length private_key_string) in
-    let _ =
-      for ndx = 0 to Array1.dim private_key_buffer - 1 do
-        Array1.set private_key_buffer ndx private_key_string.[ndx]
-      done
-    in
-    let private_key =
-      match Secp256k1.Key.read_sk secp256k1_ctx private_key_buffer with
-      | Ok private_key -> private_key
-      | Error err -> raise (Internal_error err)
-    in
+    let private_key_string = parse_0x_string private_key_hex in
+    let private_key = Keypair.make_private_key private_key_string in
     let sender_account = get_first_account () in
     let sender_address = Ethereum_util.address_of_hex_string sender_account in
     let tx_header =
@@ -457,7 +447,7 @@ module Test = struct
     let operation =
       Main_chain.CallFunction
         ( Ethereum_util.address_of_hex_string "0x687422eea2cb73b5d3e242ba5456b782919afc85"
-        , Bytes.of_string (Ethereum_util.string_of_hex_string "0xc0de") )
+        , Ethereum_util.bytes_of_hex_string "0xc0de")
     in
     let transaction = {tx_header; operation} in
     let signed_transaction = sign private_key transaction in
@@ -471,8 +461,7 @@ module Test = struct
     let code =
       "0x608060405234801561001057600080fd5b506101a7806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806339a7aa4814610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60607fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd912260405180806020018281038252600d8152602001807f48656c6c6f2c20776f726c64210000000000000000000000000000000000000081525060200191505060405180910390a16040805190810160405280600881526020017f476f6f64627965210000000000000000000000000000000000000000000000008152509050905600a165627a7a7230582024923934849b0e74a5091ac4b5c65d9b3b93d74726aff49fd5763bc136dac5c60029"
     in
-    let code_string = Ethereum_util.string_of_hex_string code in
-    let code_bytes = Bytes.of_string code_string in
+    let code_bytes = Ethereum_util.bytes_of_hex_string code in
     (* create a contract using "hello, world" EVM code *)
     let sender_account = get_first_account () in
     let sender_address = Ethereum_util.address_of_hex_string sender_account in
@@ -557,7 +546,7 @@ module Test = struct
     let code =
       "0x608060405234801561001057600080fd5b50610108806100206000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000602082015190506c01000000000000000000000000810490509190505600a165627a7a7230582098fc57c39988f3dcf9f7168b876b9f491273775ea6b44db8cb9483966fa1adc10029"
     in
-    let code_string = Ethereum_util.string_of_hex_string code in
+    let code_string = parse_0x_string code in
     let code_bytes = Bytes.of_string code_string in
     (* create the contract *)
     let sender_account = get_first_account () in

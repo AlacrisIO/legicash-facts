@@ -4,11 +4,15 @@ open Lib
 open Legibase
 open Action
 open Crypto
-module TokenAmount = Unsigned.UInt64
-module Nonce = Unsigned.UInt64
+open Trie
+
+module TokenAmount = UInt64
+module Nonce = UInt64
 module ContractAddress = Address
 
-type state = {revision: Revision.t; accounts: TokenAmount.t AddressMap.t} [@@deriving lens]
+module AccountMap = MerkleTrie (Address) (TokenAmount)
+
+type state = {revision: Revision.t; accounts: AccountMap.t} [@@deriving lens]
 
 type confirmation =
   { transaction_hash: Digest.t
@@ -22,7 +26,7 @@ type confirmation =
 *)
 let is_confirmation_valid confirmation transaction = true
 
-let genesis_state = {revision= Revision.zero; accounts= AddressMap.empty}
+let genesis_state = {revision= Revision.zero; accounts= AccountMap.empty}
 
 type tx_header =
   { sender: Address.t

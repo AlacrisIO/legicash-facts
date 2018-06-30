@@ -6,7 +6,6 @@
 (* A big endian patricia tree maps non-negative integers to values.
 *)
 open Lib
-open Integer
 open Crypto
 open Lazy
 open Yojson
@@ -26,7 +25,7 @@ module type TrieSynthS = sig
   val skip : int -> int -> key -> t -> t
 end
 
-module TrieSynthCardinal (Key : UnsignedS) (Value : T) = struct
+module TrieSynthCardinal (Key : IntS) (Value : T) = struct
   type key = Key.t
   type value = Value.t
   type t = Z.t
@@ -36,7 +35,7 @@ module TrieSynthCardinal (Key : UnsignedS) (Value : T) = struct
   let skip _ _ _ child = child
 end
 
-module TrieSynthComputeSkip (Key : UnsignedS) (Synth: TreeSynthS) = struct
+module TrieSynthComputeSkip (Key : IntS) (Synth: TreeSynthS) = struct
   include Synth
   type key = Key.t
   let skip height length bits synth =
@@ -52,29 +51,29 @@ module TrieSynthComputeSkip (Key : UnsignedS) (Synth: TreeSynthS) = struct
 end
 
 module type TrieS = sig
-  type trie_key
-  type trie_value
+  type key
+  type value
   type synth
 
-  type trie =
+  type t =
     | Empty
-    | Leaf of {value: trie_value; synth: synth}
-    | Branch of {left: trie; right: trie; height: int; synth: synth}
-    | Skip of {child: trie; bits: trie_key; length: int; height: int; synth: synth}
+    | Leaf of {value: value; synth: synth}
+    | Branch of {left: t; right: t; height: int; synth: synth}
+    | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
 
-  type (+'a) trie_step =
+  type (+'a) step =
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
-    | SkipChild of {bits: trie_key; length: int}
+    | SkipChild of {bits: key; length: int}
 
-  type (+'a) trie_path = {index: trie_key; height: int; steps: 'a trie_step list}
+  type (+'a) path = {index: key; height: int; steps: 'a step list}
 
   include MapS
-    with type key = trie_key
-     and type value = trie_value
-     and type t = trie
-     and type (+ 'a) step = 'a trie_step
-     and type (+'a) path = 'a trie_path
+    with type key := key
+     and type value := value
+     and type t := t
+     and type (+ 'a) step := 'a step
+     and type (+'a) path := 'a path
 
   val trie_height : t -> int
   val ensure_height : int -> t -> t
@@ -87,23 +86,17 @@ module type TrieS = sig
 
 end
 
-module Trie (Key : UnsignedS) (Value : T)
+module Trie (Key : IntS) (Value : T)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
-
-  type trie_key = Key.t
-  type trie_value = Value.t
-
   type key = Key.t
   type value = Value.t
   type synth = Synth.t
 
-  type trie =
+  type t =
     | Empty
     | Leaf of {value: value; synth: synth}
-    | Branch of {left: trie; right: trie; height: int; synth: synth}
-    | Skip of {child: trie; bits: key; length: int; height: int; synth: synth}
-
-  type t = trie
+    | Branch of {left: t; right: t; height: int; synth: synth}
+    | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
 
   let get_synth = function
     | Empty -> Synth.empty
@@ -523,11 +516,10 @@ module Trie (Key : UnsignedS) (Value : T)
   let ensure_same_height ta tb =
     (ensure_height (trie_height tb) ta, ensure_height (trie_height ta) tb)
 
-  type 'a trie_step =
+  type 'a step =
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
-  type 'a step = 'a trie_step
 
   let step_apply make_branch make_skip step (trie, height) =
     match step with
@@ -545,8 +537,7 @@ module Trie (Key : UnsignedS) (Value : T)
     | RightBranch _ -> 1
     | SkipChild {length} -> length
 
-  type 'a trie_path = {index: key; height: int; steps: 'a step list}
-  type 'a path = 'a trie_path
+  type 'a path = {index: key; height: int; steps: 'a step list}
 
   let path_apply make_branch make_skip {height;steps} (t, h) =
     List.fold_left (fun th s -> step_apply make_branch make_skip s th) (t, h) steps
@@ -763,6 +754,10 @@ module Trie (Key : UnsignedS) (Value : T)
       | None, (Some v) -> Some v
       | (Some va), (Some vb) -> f i va vb in
     merge f' a b
+
+  let lens k = Lens.{get= find k; set= add k}
+
+  let find_defaulting default k m = defaulting default (find_opt k m)
 end
 
 module type TrieSynthMerkleS = sig
@@ -770,7 +765,7 @@ module type TrieSynthMerkleS = sig
   val leaf_digest : Digest.t -> t
 end
 
-module TrieSynthMerkle (Key : UnsignedS) (Value : DigestibleS) =
+module TrieSynthMerkle (Key : IntS) (Value : DigestibleS) =
 struct
   type key = Key.t
   type value = Value.t
@@ -785,7 +780,30 @@ struct
   let branch h x y = Digest.make (2, h, x, y)
   let skip height length bits child = Digest.make (3, height, length, bits, child)
 end
-module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) = struct
+
+module type MerkleTrieS = sig
+  type key
+  type value
+  module Synth : TrieSynthMerkleS with type key = key and type value = value and type t = Digest.t
+  include TrieS
+    with type key := key
+     and type value := value
+     and type synth = Synth.t
+
+  type proof =
+    { key : key
+    ; trie : Digest.t
+    ; value : Digest.t
+    ; steps : (Digest.t step) list
+    }
+
+  val trie_digest : t -> Digest.t
+  val path_digest : t path -> Digest.t path
+  val get_proof : key -> t -> proof option
+  val check_proof_consistency : proof -> bool
+end
+
+module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
   module Synth = TrieSynthMerkle (Key) (Value)
   include Trie (Key) (Value) (Synth)
 
@@ -797,10 +815,10 @@ module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) = struct
     { key : key
     ; trie : Digest.t
     ; value : Digest.t
-    ; steps : (Digest.t trie_step) list
+    ; steps : (Digest.t step) list
     }
 
-  let get_proof (key: key) (trie: trie) : proof option =
+  let get_proof (key: key) (trie: t) : proof option =
     match find_path key trie with
     | Leaf {value}, up -> Some { key
                                ; trie = trie_digest trie
@@ -821,32 +839,28 @@ module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) = struct
     proof.trie = top_d
     && height >= Key.numbits proof.key
 
-  let hex_string_of_digest n = Ethereum_util.hex_string_of_string (Digest.to_string n)
-
   let skip_bit_string length bits =
     String.concat "" (List.init length (fun i -> if Key.has_bit bits i then "1" else "0"))
 
   let step_to_json = function
     | LeftBranch {right} ->
       `Assoc [ ("type", `String "Left")
-             ; ("digest", `String (Digest.to_string right)) ]
+             ; ("digest", `String (Digest.to_hex_string right)) ]
     | RightBranch {left} ->
       `Assoc [ ("type", `String "Right")
-             ; ("digest", `String (Digest.to_string left)) ]
+             ; ("digest", `String (Digest.to_hex_string left)) ]
     | SkipChild {bits; length} ->
       `Assoc [ ("type", `String "Skip")
              ; ("bits", `String (skip_bit_string length bits)) ]
 
   let proof_to_json (key, trie_d, value_d, steps_d) =
     `Assoc
-      [ ("key", `String (Digest.to_string key))
-      ; ("trie", `String (Digest.to_string trie_d))
-      ; ("value", `String (Digest.to_string value_d))
+      [ ("key", `String (Key.to_hex_string key))
+      ; ("trie", `String (Digest.to_hex_string trie_d))
+      ; ("value", `String (Digest.to_hex_string value_d))
       ; ("steps", `List (List.map step_to_json steps_d)) ]
 
   let proof_to_json_string = zcompose Yojson.to_string proof_to_json
-
-  let digest_of_hex_string s = Digest.of_string (Ethereum_util.string_of_hex_string s)
 
   let bit_string_to_skip s =
     let length = String.length s in
@@ -861,29 +875,30 @@ module MerkleTrie (Key : UnsignedS) (Value : DigestibleS) = struct
   let step_of_json json =
     let t = json |> member "type" |> to_string in
     if t = "Left" then
-      LeftBranch {right=json |> member "digest" |> to_string |> Digest.of_string}
+      LeftBranch {right=json |> member "digest" |> to_string |> Digest.of_hex_string}
     else if t = "Right" then
-      RightBranch {left=json |> member "digest" |> to_string |> Digest.of_string}
+      RightBranch {left=json |> member "digest" |> to_string |> Digest.of_hex_string}
     else if t = "Skip" then
       json |> member "bits" |> to_string |> bit_string_to_skip
     else raise (Internal_error "bad json")
 
   let proof_of_json json =
-    { key = json |> member "key" |> to_string |> Key.of_string
-    ; trie = json |> member "trie" |> to_string |> Digest.of_string
-    ; value = json |> member "value" |> to_string |> Digest.of_string
+    { key = json |> member "key" |> to_string |> Key.of_hex_string
+    ; trie = json |> member "trie" |> to_string |> Digest.of_hex_string
+    ; value = json |> member "value" |> to_string |> Digest.of_hex_string
     ; steps = json |> member "steps" |> to_list |> List.map step_of_json
     }
 
   let proof_of_json_string = zcompose proof_of_json Yojson.Basic.from_string
-
 end
 
 module Test = struct
   let generic_compare = compare
   module SimpleTrie = Trie (Nat) (StringT) (TrieSynthCardinal (Nat) (StringT))
   module MyTrie = MerkleTrie (Nat) (StringT)
-  include MyTrie
+  open MyTrie
+  let nat_of_key : MyTrie.key -> Crypto.Nat.t = fun x -> x
+  let key_of_nat : Crypto.Nat.t -> MyTrie.key = fun x -> x
 
   let rec print_trie out_channel = function
     | Empty ->
@@ -1096,17 +1111,17 @@ module Test = struct
 
   let proof_42_in_trie_100 =
     lazy (proof_of_json
-            (`Assoc [ ("key",`String "42")
-                    ; ("trie",`String "63138649831639282342034393110674963827750981309080805313164785052888299712812")
-                    ; ("value", `String "29151226714138427156680246036732121816237242212282194256143421276801751322039")
+            (`Assoc [ ("key",`String "2a")
+                    ; ("trie",`String "8b97359b0422e5aac4595d2cceee4402f73100aa12d9e06d7645732abbafb12c")
+                    ; ("value", `String "40730276481ab01f677ed666da2284db453a0b9d4c36a44a3b2663aa9b5c0db7")
                     ; ("steps",
-                       `List [ make_left_step "109204317019696312664443490186877941125226438898475124409205910446799787392239"
-                             ; make_right_step "26259568597665755213648579539940187148305632034152602253183636373494011261303"
-                             ; make_left_step "51965449933202462124437608727173800695393191590374611337819976292331758807289"
-                             ; make_right_step "79878662564797683305894080534771644759582961888125786305835144507480734424851"
-                             ; make_left_step "66367388722579238440233140515489654971772555158209910084112461320956702642134"
-                             ; make_right_step "26645038729950854952597941441751558812278952078970826909918345019846516816457"
-                             ; make_left_step "53524361084498033517563554061091483487346644813146518589527910529177005106625"
+                       `List [ make_left_step "f16f73fbb5f4c58f4a17ed8ad270f84eae387cb4fb9fe0288ca1e11514ebfcef"
+                             ; make_right_step "3a0e639d918fd318b67081212eaa4cf15861c5f7399408462251261ebd9ff177"
+                             ; make_left_step "72e36701279cecc29eef37cb7031a8a791cda2a8b3941310673b167647f7e8f9"
+                             ; make_right_step "b099b888f0b93b58e38c95c2b493dc7b11e3d89e443a3839c4cbb1d0925bdf13"
+                             ; make_left_step "92ba9c608c6d10353e84c0295e7708060f53be7eb920aa4da0aa1beac5f44fd6"
+                             ; make_right_step "3ae88eb76ca4583261dce2ef5b6df780852648000ebb065306b98afab8d03a49"
+                             ; make_left_step "7655b6fd765c49037083f1e03af3bf4fff2078f1501c6197170dbc527c00a5c1"
                              ])
                     ]))
 

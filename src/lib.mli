@@ -54,13 +54,53 @@ val list_of_option : 'a option -> 'a list
 (** Map a function to the content of the option, if any *)
 val option_map : ('a -> 'b) -> 'a option -> 'b option
 
-(** Parse a hex string into a binary string,
-    where the string is of form "nn:nn:...:nn", where nn represents a char as a hex-digit pair *)
-val parse_hex : string -> string
+(** Parse one hex char into an integer *)
+val int_of_hex_char : char -> int
 
-(** Unparse a binary string into a hex string, reversing parse_hex *)
-val unparse_hex : ?with_colons:bool -> string -> string
+(** Parse one or two hex characters in a string as a char *)
+val parse_hex_char : string -> ?single_digit:bool -> int -> char
 
+(** Parse a substring of hex digits starting at position pos and of length len
+    as a string of 8-bit characters represented by those digits.
+    If the length is odd, then the first character is represented by a single digit.
+*)
+val parse_hex_substring : string -> int -> int -> string
+
+(** Parse a string of hex digits as a string of 8-bit characters represented by those digits.
+    If the length is odd, then the first character is represented by a single digit.
+*)
+val parse_hex_string : string -> string
+
+(** Parse a hex string of form "nn:nn:...:nn", where nn represents a char as a hex-digit pair *)
+val parse_coloned_hex_string : string -> string
+
+(** Parse a string "0xnnnn",
+    where nnnn is either "0" meaning the empty string,
+    or some number of hex-digits, to be parsed as per parse_hex_string *)
+val parse_0x_string : string -> string
+
+(** Unparse a 4-bit digit into a hex character *)
+val hex_char_of_int : ?upper_case:bool -> int -> char
+
+(** Unparse a substring of string starting at position pos and with length len as
+    a list of strings of two hex characters.
+*)
+val hex_char_string_list_of_string : string -> int -> int -> string list
+
+(** Unparse a substring of string starting at position pos and with length len as
+    a string of an even number of hex characters.
+*)
+val unparse_hex_substring : string -> int -> int -> string
+
+(** Unparse a string as a string of an even number of hex characters. *)
+val unparse_hex_string : string -> string
+
+(** Unparse a string as a string "nn:nn:...:nn", where nn represents a char as a hex-digit pair *)
+val unparse_coloned_hex_string : string -> string
+
+(** Unparse an Ethereum format hex string as a string "0xnnnn",
+    where nnnn is either "0" meaning the empty string, or an even number of hex-digits. *)
+val unparse_0x_string : string -> string
 
 (** Base interface for a type
     NB: same as JaneStreet's Core_kernel.T.T *)
@@ -401,4 +441,19 @@ module type MapS = sig
      val add_seq : (key * value) Seq.t -> t -> t
      val of_seq : (key * value) Seq.t -> t
   *)
+
+  val lens : key -> (t, value) Lens.t
+
+  val find_defaulting : (unit -> value) -> key -> t -> value
 end
+
+val defaulting_lens : (unit -> 'b) -> ('a, 'b) Lens.t -> ('a, 'b) Lens.t
+(** Assuming that the lens raises Not_found if the value is not found, and then using the provided default, modify the value found (or the default) and put it back in the object *)
+
+module type ShowableS = sig
+  type t
+  val pp : Format.formatter -> t -> unit
+  val show : t -> string
+end
+
+val string_reverse : string -> string
