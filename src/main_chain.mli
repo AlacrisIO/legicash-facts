@@ -64,6 +64,3 @@ type user_state =
 type ('input, 'output) user_action = ('input, 'output, user_state) action
 
 val genesis_state : state
-
-(** set of digests, used to guard against double deposits *)
-module TransactionDigestSet = DigestSet

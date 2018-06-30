@@ -892,6 +892,104 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
   let proof_of_json_string = zcompose proof_of_json Yojson.Basic.from_string
 end
 
+module type MerkleTrieSetS = sig
+  type elt
+  module T : MerkleTrieS with type key = elt and type value = unit
+  type t = T.t
+  include Set.S with type elt := elt and type t := t
+
+  type proof =
+    { elt : elt
+    ; trie : Digest.t
+    ; steps : (Digest.t T.step) list
+    }
+
+  val trie_digest : t -> Digest.t
+  val get_proof : elt -> t -> proof option
+  val check_proof_consistency : proof -> bool
+
+  val lens : elt -> (t, bool) Lens.t
+end
+
+module MerkleTrieSet (Elt : IntS) = struct
+  type elt = Elt.t
+  module T = MerkleTrie (Elt) (Unit)
+  type t = T.t
+
+  let wrap f elt _ = f elt
+
+  let trie_digest = T.trie_digest
+
+  let empty = T.empty
+  let is_empty = T.is_empty
+  let mem elt t = is_option_some (T.find_opt elt t)
+  let add elt t = T.add elt () t
+  let singleton elt = T.singleton elt ()
+  let remove = T.remove
+  let iter f = T.iter (wrap f)
+  let fold f = T.fold (wrap f)
+  let map f t = fold add t empty
+  let for_all f = T.for_all (wrap f)
+  let exists f = T.exists (wrap f)
+  let filter f = T.filter (wrap f)
+  let partition f = T.partition (wrap f)
+  let cardinal = T.cardinal
+  let elements t = List.map fst (T.bindings t)
+  let min_elt t = fst (T.min_binding t)
+  let min_elt_opt t = option_map fst (T.min_binding_opt t)
+  let max_elt t = fst (T.max_binding t)
+  let max_elt_opt t = option_map fst (T.max_binding_opt t)
+  let choose = min_elt
+  let choose_opt = min_elt_opt
+  let split elt t = match T.split elt t with (a, v, b) -> (a, is_option_some v, b)
+  let find_opt elt t = if (mem elt t) then Some elt else None
+  let find elt t = option_get (find_opt elt t)
+  let find_first_opt f t = option_map fst (T.find_first_opt f t)
+  let find_first f t = option_get (find_first_opt f t)
+  let find_last_opt f t = option_map fst (T.find_last_opt f t)
+  let find_last f t = option_get (find_last_opt f t)
+  let of_list l = List.fold_right add l empty
+
+  (* TODO: for union, inter, diff, compare, equal, subset, optimize for full subtries, by keeping cardinality as well as digest as synthetic data ? *)
+  let union a b = T.merge (fun _ _ _ -> Some ()) a b
+  let inter a b = T.merge (fun _ a b -> match (a, b) with Some _, Some _ -> Some () | _ -> None) a b
+  let diff a b = T.merge (fun _ a b -> match (a, b) with Some _, None -> Some () | _ -> None) a b
+
+  let compare_unit_options () () = 0
+
+  let compare a b = T.compare compare_unit_options a b
+  let equal a b = (trie_digest a) = (trie_digest b)
+
+  let subset a b =
+    let (a, b) = T.ensure_same_height a b in
+    let rec m ~i ~treea ~treeb ~k =
+      if (trie_digest treea) = (trie_digest treea) then k () else
+        T.iterate_over_tree_pair
+          ~recursek:m
+          ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k ())
+          ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k ())
+          ~leafk:(fun ~i ~valuea ~valueb ~k -> k ())
+          ~onlyak:(fun ~i ~anode ~k -> k ())
+          ~onlybk:(fun ~i ~bnode ~k -> false)
+          ~i ~treea:a ~treeb:b ~k in
+    m ~i:Elt.zero ~treea:a ~treeb:b ~k:(konstant true)
+
+  type proof =
+    { elt : elt
+    ; trie : Digest.t
+    ; steps : (Digest.t T.step) list
+    }
+  let get_proof elt t =
+    option_map (fun {T.key; T.trie; T.steps} -> {elt=key; trie; steps}) (T.get_proof elt t)
+
+  let check_proof_consistency {elt; trie; steps} =
+    T.check_proof_consistency {key=elt; value=Unit.digest (); trie; steps}
+
+  let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
+end
+
+module DigestSet = MerkleTrieSet (Digest)
+
 module Test = struct
   let generic_compare = compare
   module SimpleTrie = Trie (Nat) (StringT) (TrieSynthCardinal (Nat) (StringT))

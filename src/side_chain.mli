@@ -165,8 +165,7 @@ module State : sig
            ; bond_posted: TokenAmount.t
            ; accounts: AccountMap.t
            ; operations: ConfirmationMap.t
-           (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
-           ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
+           ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens]
 end
 

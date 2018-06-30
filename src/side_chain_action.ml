@@ -3,6 +3,7 @@ open Legibase
 open Action
 open Crypto
 open Keypair
+open Trie
 open Main_chain
 open Side_chain
 open Main_chain_action

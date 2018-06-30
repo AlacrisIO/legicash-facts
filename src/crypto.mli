@@ -48,13 +48,6 @@ module Timestamp : IntS
 (** duration in terms of nanoseconds, for use in timeouts. TODO: should the unit be consensus cycles instead? *)
 module Duration : IntS
 
-
-module DigestSet : sig
-  include Set.S with type elt = Digest.t
-
-  val lens : Digest.t -> (t, bool) Lens.t
-end
-
 module Address : sig
   include IntS
   include DigestibleS with type t := t
@@ -83,6 +76,10 @@ val sign : private_key -> 'a -> 'a signed
 *)
 
 module StringT : sig
-  type t = string
-  val digest: t -> t digest
+  include DigestibleS with type t = string
+end
+
+module Unit : sig
+  include DigestibleS with type t = unit
+  include ShowableS with type t := unit
 end

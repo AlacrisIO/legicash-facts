@@ -1,6 +1,7 @@
 open Legibase
 open Action
 open Crypto
+open Trie
 open Main_chain
 open Side_chain
 

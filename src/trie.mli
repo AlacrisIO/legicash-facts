@@ -121,3 +121,25 @@ end
 
 module MerkleTrie (Key : IntS) (Value : DigestibleS) :
   MerkleTrieS with type key = Key.t and type value = Value.t
+
+module type MerkleTrieSetS = sig
+  type elt
+  module T : MerkleTrieS with type key = elt and type value = unit
+  type t = T.t
+  include Set.S with type elt := elt and type t := t
+
+  type proof =
+    { elt : elt
+    ; trie : Digest.t
+    ; steps : (Digest.t T.step) list
+    }
+
+  val trie_digest : t -> Digest.t
+  val get_proof : elt -> t -> proof option
+  val check_proof_consistency : proof -> bool
+  val lens : elt -> (t, bool) Lens.t
+end
+
+module MerkleTrieSet (Elt : IntS) : (MerkleTrieSetS with type elt = Elt.t)
+
+module DigestSet : (MerkleTrieSetS with type elt = Digest.t)

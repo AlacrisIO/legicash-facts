@@ -58,5 +58,3 @@ type user_state =
 [@@deriving lens]
 
 type ('input, 'output) user_action = ('input, 'output, user_state) action
-
-module TransactionDigestSet = DigestSet

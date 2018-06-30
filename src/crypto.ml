@@ -67,12 +67,6 @@ type 'a digest = Digest.t
 (** Special magic digest for None. A bit ugly. *)
 let null_digest = Digest.zero
 
-module DigestSet = struct
-  include Set.Make (Digest)
-
-  let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
-end
-
 module type DigestibleS = sig
   type t
   val digest: t -> t digest
@@ -129,12 +123,15 @@ module Address = struct
 
   let equal address1 address2 = compare address1 address2 = 0
 
-  let digest address =
-    Digest.make address
+  let digest = Digest.make
+  let pp formatter x = Format.fprintf formatter "0x%s" (to_hex_string x)
+  let show x = Format.asprintf "%a" pp x
+end
 
-  let pp formatter x =
-    Format.fprintf formatter "0x%s" (to_hex_string x)
-
+module Unit = struct
+  type t = unit
+  let digest = konstant (Digest.make "")
+  let pp formatter x = Format.fprintf formatter "%s" "()"
   let show x = Format.asprintf "%a" pp x
 end
 
