@@ -436,9 +436,12 @@ module Test = struct
   let%test "deposit_valid" =
     let amount_to_deposit = TokenAmount.of_int 523 in
     (* deposit into open account *)
+    let alice_main_state_nonce = alice_state.main_chain_user_state.nonce in
     (alice_state, (trent_address, amount_to_deposit))
     |^>> deposit
     |> fun (alice_state1, signed_request1) ->
+    let alice_main_state_nonce1 = alice_state1.main_chain_user_state.nonce in
+    assert (alice_main_state_nonce1 = Nonce.add Nonce.one alice_main_state_nonce);
     (trent_state, signed_request1) |^>> confirm_request
     |> fun (trent_state1, signed_confirmation1) ->
     (* verify the deposit to Alice's account on Trent *)
