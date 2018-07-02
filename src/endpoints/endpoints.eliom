@@ -177,7 +177,10 @@ let balance_handler () (content_type,raw_content_opt) =
     not_json_content_error ()
 
 let balances_handler balances () =
-  send_json ~code:200 "\"balances\""
+  try
+    let result_json = Accounts.get_all_balances_on_trent () in
+    send_json ~code:200 (Yojson.Safe.to_string result_json)
+    with Internal_error msg -> bad_response ("Internal error: " ^ msg)
 
 let number_of_accounts = 26 (* TODO : dummy value *)
 let address_to_account_tbl = Hashtbl.create number_of_accounts

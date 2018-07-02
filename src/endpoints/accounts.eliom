@@ -254,3 +254,26 @@ let get_balance_on_trent address =
                            }
   in
   user_account_state_to_yojson user_account_state
+
+let get_all_balances_on_trent () =
+  let make_balance_json address_t (account : Side_chain.account_state) accum =
+    let user_name =
+      try
+        Hashtbl.find address_to_account_tbl address_t
+      with Not_found -> raise (Internal_error "Can't find user name for address")
+
+    in
+    let account_state = { address = Ethereum_util.hex_string_of_address address_t
+                        ; user_name
+                        ; balance = TokenAmount.to_int account.balance
+                        }
+    in account_state::accum
+  in
+  let user_account_states = AddressMap.fold make_balance_json !trent_state.current.accounts [] in
+  let sorted_user_account_states =
+    List.sort
+      (fun bal1 bal2 -> String.compare bal1.user_name bal2.user_name)
+      user_account_states
+  in
+  let sorted_balances_json = List.map user_account_state_to_yojson sorted_user_account_states in
+  `List sorted_balances_json
