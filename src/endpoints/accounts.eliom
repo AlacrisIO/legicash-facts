@@ -134,6 +134,11 @@ let _ =
     (fun (name, keys) -> Hashtbl.add address_to_account_tbl keys.address name)
     account_key_array
 
+let get_user_name address_t =
+  try
+    Hashtbl.find address_to_account_tbl address_t
+  with Not_found -> raise (Internal_error "Can't find user name for address")
+
 let address_to_keys_tbl = Hashtbl.create number_of_accounts
 
 let _ =
@@ -198,11 +203,18 @@ type user_account_state =
   }
   [@@deriving yojson]
 
+type payment_result =
+  { sender_account : user_account_state
+  ; recipient_account : user_account_state
+  ; amount_transferred : int
+  }
+  [@@deriving yojson]
+
 let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | state, Error y -> raise y
 
 (* assume deposit to Trent *)
 let deposit_to_trent address amount =
-  let address_t = Address.of_string (Ethereum_util.string_of_hex_string address) in
+  let address_t = Ethereum_util.address_of_hex_string address in
   let user_state =
     try
       Hashtbl.find address_to_user_state_tbl address_t
@@ -227,11 +239,7 @@ let deposit_to_trent address amount =
   (* get user account info on Trent *)
   let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
   let balance = TokenAmount.to_int (user_account_on_trent.balance) in
-  let user_name =
-    try
-      Hashtbl.find address_to_account_tbl address_t
-    with Not_found -> raise (Internal_error "Can't find user name for address")
-  in
+  let user_name = get_user_name address_t in
   let user_account_state = { address
                            ; user_name
                            ; balance
@@ -243,11 +251,7 @@ let get_balance_on_trent address =
   let address_t = Address.of_string (Ethereum_util.string_of_hex_string address) in
   let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
   let balance = TokenAmount.to_int (user_account_on_trent.balance) in
-  let user_name =
-    try
-      Hashtbl.find address_to_account_tbl address_t
-    with Not_found -> raise (Internal_error "Can't find user name for address")
-  in
+  let user_name = get_user_name address_t in
   let user_account_state = { address
                            ; user_name
                            ; balance
@@ -257,12 +261,7 @@ let get_balance_on_trent address =
 
 let get_all_balances_on_trent () =
   let make_balance_json address_t (account : Side_chain.account_state) accum =
-    let user_name =
-      try
-        Hashtbl.find address_to_account_tbl address_t
-      with Not_found -> raise (Internal_error "Can't find user name for address")
-
-    in
+    let user_name = get_user_name address_t in
     let account_state = { address = Ethereum_util.hex_string_of_address address_t
                         ; user_name
                         ; balance = TokenAmount.to_int account.balance
@@ -277,3 +276,42 @@ let get_all_balances_on_trent () =
   in
   let sorted_balances_json = List.map user_account_state_to_yojson sorted_user_account_states in
   `List sorted_balances_json
+
+let payment_on_trent sender recipient amount =
+  if sender = recipient then
+    raise (Internal_error "Sender and recipient are the same");
+  let sender_address_t = Ethereum_util.address_of_hex_string sender in
+  let recipient_address_t = Ethereum_util.address_of_hex_string recipient in
+  let sender_state = Hashtbl.find address_to_user_state_tbl sender_address_t in
+  let starting_accounts = !trent_state.current.accounts in
+  let sender_account = AddressMap.find sender_address_t starting_accounts in
+  if (TokenAmount.to_int sender_account.balance) < amount then
+    raise (Internal_error "Sender has insufficient balance to make this payment");
+  (sender_state, (trent_address, recipient_address_t, TokenAmount.of_int amount))
+  |^>> payment
+  |> fun (sender_state_after_payment, signed_request) ->
+  Hashtbl.replace address_to_user_state_tbl sender_address_t sender_state_after_payment ;
+  (!trent_state, signed_request)
+  |^>> confirm_request
+  |> fun (trent_state_after_confirmation, signed_confirmation) ->
+  (* let confirmation_digest = Digest.make signed_confirmation in *)
+  trent_state := trent_state_after_confirmation;
+  let sender_name = get_user_name sender_address_t in
+  let recipient_name = get_user_name recipient_address_t in
+  let accounts = !trent_state.current.accounts in
+  let sender_account = AddressMap.find sender_address_t accounts in
+  let recipient_account = AddressMap.find sender_address_t accounts in
+  let make_account_state address_t name (account : Side_chain.account_state) =
+    { address = Ethereum_util.hex_string_of_address address_t
+    ; user_name = name
+    ; balance = TokenAmount.to_int account.balance
+    }
+  in
+  let sender_account = make_account_state sender_address_t sender_name sender_account in
+  let recipient_account = make_account_state recipient_address_t recipient_name recipient_account in
+  let payment_result =
+    { sender_account
+    ; recipient_account
+    ; amount_transferred = amount
+    }
+  in payment_result_to_yojson payment_result
