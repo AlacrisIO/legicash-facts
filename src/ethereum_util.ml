@@ -34,6 +34,8 @@ let hex_string_of_address address =
 
 let address_of_hex_string hs =
   validate_0x_prefix hs ;
+  if String.length hs != 42 then
+    raise (Internal_error "Invalid length for hex address") ;
   parse_hex_substring hs 2 (String.length hs - 2)
   |> Address.of_big_endian_bits
 
@@ -121,6 +123,14 @@ module Test = struct
         && Nat.equal num (number_of_hex_string hex))
       [(0,"0x0");(1,"0x1");(10,"0xa");(291,"0x123");(61453,"0xf00d");(0xabcde,"0xabcde")]
 
+  let%test "number_of_hex_string error" =
+    List.for_all
+      (fun (hex, err) -> try ignore (number_of_hex_string hex) ; false with
+           Internal_error x -> x = err)
+      [("0x", "Hex string has no digits");
+       ("0x0400","Hex number starts with 0");
+       ("ff","Hex string does not strictly begin with 0x")]
+
   let%test "hex_string_of_string" =
     List.for_all
       (fun (bits, hex) -> hex_string_of_string bits = hex
@@ -129,6 +139,14 @@ module Test = struct
        ("abcd","0x61626364");("\r\n","0x0d0a");
        ("\236\202\132key1\132val1\202\132key2\132val2\202\132key3\132val3\202\132key4\132val4",
         "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34")]
+
+  let%test "string_of_hex_string error" =
+    List.for_all
+      (fun (hex, err) -> try ignore (string_of_hex_string hex) ; false with
+           Internal_error x -> x = err)
+      [("0x", "Hex string has no digits");
+       ("0xf0f0f","Odd number of digits in hex string");
+       ("004200","Hex string does not strictly begin with 0x")]
 
   let%test "hex_string_of_address" =
     List.for_all
@@ -144,5 +162,7 @@ module Test = struct
     List.for_all
       (fun (hex, err) -> try ignore (address_of_hex_string_with_checksum hex) ; false with (Internal_error x) -> x = err)
       [("0x9797809415e4b8efea0963e362ff68b9d98f9e00", "Invalid address checksum at index 12 for 0x9797809415e4b8efea0963e362ff68b9d98f9e00");
-       ("0x507877C2E26f1387432D067D2DaAfa7D0420d90a", "Invalid address checksum at index 33 for 0x507877C2E26f1387432D067D2DaAfa7D0420d90a")]
+       ("0x507877C2E26f1387432D067D2DaAfa7D0420d90a", "Invalid address checksum at index 33 for 0x507877C2E26f1387432D067D2DaAfa7D0420d90a");
+       ("0x507877", "Invalid length for hex address")]
+
 end
