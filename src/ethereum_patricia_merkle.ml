@@ -264,21 +264,18 @@ module Test = struct
   let make_hash_test s hex =
     Lib.unparse_coloned_hex_string (Digest.to_big_endian_bits (hash_encoded_string s)) = hex
 
-  [%%test
-    let "hash_test_1" =
-      make_hash_test ""
-        "56:e8:1f:17:1b:cc:55:a6:ff:83:45:e6:92:c0:f8:6e:5b:48:e0:1b:99:6c:ad:c0:01:62:2f:b5:e3:63:b4:21"]
+  let%test "hash_test_1" =
+    make_hash_test ""
+      "56:e8:1f:17:1b:cc:55:a6:ff:83:45:e6:92:c0:f8:6e:5b:48:e0:1b:99:6c:ad:c0:01:62:2f:b5:e3:63:b4:21"
 
-  [%%test
-    let "hash_test_2" =
-      make_hash_test "this is a test of the hash kind"
-        "ef:8e:91:f7:12:bb:3e:d9:24:8b:21:70:11:70:5d:28:0d:aa:6b:8e:9b:93:ce:9b:10:ba:0a:8b:90:15:c7:70"]
+  let%test "hash_test_2" =
+    make_hash_test "this is a test of the hash kind"
+      "ef:8e:91:f7:12:bb:3e:d9:24:8b:21:70:11:70:5d:28:0d:aa:6b:8e:9b:93:ce:9b:10:ba:0a:8b:90:15:c7:70"
 
-  [%%test
-    let "hash_test_3" =
-      make_hash_test
-        "a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string"
-        "61:fd:7f:86:4e:2c:3c:0e:f4:2c:0c:1e:3e:fc:8e:77:9c:c7:97:97:1e:c1:35:f2:85:a0:f7:54:50:53:12:a7"]
+  let%test "hash_test_3" =
+    make_hash_test
+      "a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string a long kind of string"
+      "61:fd:7f:86:4e:2c:3c:0e:f4:2c:0c:1e:3e:fc:8e:77:9c:c7:97:97:1e:c1:35:f2:85:a0:f7:54:50:53:12:a7"
 
   (* test that nybble packing and unpacking are inverses *)
 
@@ -290,26 +287,19 @@ module Test = struct
     reunpacked = unpacked
 
 
-  [%%test
-     (* N.B.: each byte must between 0x00 and 0x0F, except final byte may have nybble terminator *)
+  (* N%test.B.: each byte must between 0x00 and 0x0F, except final byte may have nybble terminator *)
 
-    let "pack_unpack_1" = make_unpack_pack_test "\000\000\000\000\000\000\000\000\000\000"]
+  let%test "pack_unpack_1" = make_unpack_pack_test "\000\000\000\000\000\000\000\000\000\000"
 
-  [%%test
-    let "pack_unpack_2" = make_unpack_pack_test "\005\005\005\005\005\005\005\005\005\005"]
+  let%test "pack_unpack_2" = make_unpack_pack_test "\005\005\005\005\005\005\005\005\005\005"
 
-  [%%test
-    let "pack_unpack_3" = make_unpack_pack_test "\n\011\012\002"]
+  let%test "pack_unpack_3" = make_unpack_pack_test "\n\011\012\002"
 
-  [%%test
-    let "pack_unpack_4" = make_unpack_pack_test "\n\015\r\000"]
+  let%test "pack_unpack_4" = make_unpack_pack_test "\n\015\r\000"
 
-  [%%test
-    let "pack_unpack_5" = make_unpack_pack_test "\n\015\014\015\003\002"]
+  let%test "pack_unpack_5" = make_unpack_pack_test "\n\015\014\015\003\002"
 
-  [%%test
-    let "pack_unpack_5" = make_unpack_pack_test ("\n\015\014\015\003" ^ Key.nybble_terminator_string)]
+  let%test "pack_unpack_5" = make_unpack_pack_test ("\n\015\014\015\003" ^ Key.nybble_terminator_string)
 
-  [%%test
-    let "pack_unpack_6" = make_unpack_pack_test ""]
+  let%test "pack_unpack_6" = make_unpack_pack_test ""
 end
