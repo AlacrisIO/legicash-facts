@@ -53,9 +53,9 @@ module Digest = struct
 
   let digest = make
 
-  let of_hex_string = nat_of_hex_string 256
+  let of_hex_string = sized_nat_of_hex_string 256
 
-  let to_hex_string = hex_string_of_nat 256
+  let to_hex_string = hex_string_of_sized_nat 256
 
   let of_big_endian_bits = nat_of_big_endian_bits 256
 
@@ -87,6 +87,11 @@ module UInt64 = struct
   let digest x = Digest.make x
 end
 
+module UInt256 = struct
+  include Integer.UInt256
+  let digest x = Digest.make x
+end
+
 module Revision = UInt64
 module Duration = UInt64
 module Timestamp = UInt64
@@ -105,9 +110,9 @@ module Address = struct
 
   let address_size = 20
 
-  let of_hex_string = nat_of_hex_string 160
+  let of_hex_string = sized_nat_of_hex_string 160
 
-  let to_hex_string = hex_string_of_nat 160
+  let to_hex_string = hex_string_of_sized_nat 160
 
   let of_big_endian_bits = nat_of_big_endian_bits 160
 

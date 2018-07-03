@@ -38,6 +38,7 @@ end
 
 module Nat : IntS with type t = Integer.Nat.t
 module UInt64 : IntS with type t = Integer.UInt64.t
+module UInt256 : IntS with type t = Z.t
 
 (** sequence number for changes in a side-chain *)
 module Revision : IntS
@@ -52,6 +53,7 @@ module Address : sig
   include IntS
   include DigestibleS with type t := t
   include ShowableS with type t := t
+  val address_size : int
   val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
 end
 

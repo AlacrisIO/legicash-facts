@@ -57,8 +57,16 @@ val option_map : ('a -> 'b) -> 'a option -> 'b option
 (** Parse one hex char into an integer *)
 val int_of_hex_char : char -> int
 
-(** Parse one or two hex characters in a string as a char *)
-val parse_hex_char : string -> ?single_digit:bool -> int -> char
+(** Given a string, a start position, and an index i, considering the substring
+    from the start position as a big endian number in base 256, return that
+    number's ith hexadecimal digit. *)
+val hex_digit_of_string : string -> int -> int -> int
+
+(** Parse one character in a string as a hex digit, returning its 4-bit nibble value *)
+val parse_hex_nibble : string -> int -> int
+
+(** Parse two character in a string as a two-hex-digit number, returning the 8-bit byte value *)
+val parse_hex_byte : string -> int -> int
 
 (** Parse a substring of hex digits starting at position pos and of length len
     as a string of 8-bit characters represented by those digits.
@@ -74,18 +82,8 @@ val parse_hex_string : string -> string
 (** Parse a hex string of form "nn:nn:...:nn", where nn represents a char as a hex-digit pair *)
 val parse_coloned_hex_string : string -> string
 
-(** Parse a string "0xnnnn",
-    where nnnn is either "0" meaning the empty string,
-    or some number of hex-digits, to be parsed as per parse_hex_string *)
-val parse_0x_string : string -> string
-
 (** Unparse a 4-bit digit into a hex character *)
 val hex_char_of_int : ?upper_case:bool -> int -> char
-
-(** Unparse a substring of string starting at position pos and with length len as
-    a list of strings of two hex characters.
-*)
-val hex_char_string_list_of_string : string -> int -> int -> string list
 
 (** Unparse a substring of string starting at position pos and with length len as
     a string of an even number of hex characters.
@@ -97,10 +95,6 @@ val unparse_hex_string : string -> string
 
 (** Unparse a string as a string "nn:nn:...:nn", where nn represents a char as a hex-digit pair *)
 val unparse_coloned_hex_string : string -> string
-
-(** Unparse an Ethereum format hex string as a string "0xnnnn",
-    where nnnn is either "0" meaning the empty string, or an even number of hex-digits. *)
-val unparse_0x_string : string -> string
 
 (** Base interface for a type
     NB: same as JaneStreet's Core_kernel.T.T *)

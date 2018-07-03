@@ -1,11 +1,17 @@
 open Lib
 
-let hex_string_of_nat bits nat =
+let hex_string_of_sized_nat bits nat =
   if (Z.sign nat < 0) || (Z.numbits nat > bits) then
     raise (Internal_error (Printf.sprintf "not a %d bit natural number: %s" bits (Z.to_string nat)))
   else
     let num_digits = (bits + 3) / 4 in
     String.init num_digits (fun i -> hex_char_of_int (Z.to_int (Z.extract nat ((num_digits - i - 1)*4) 4)))
+
+let hex_string_of_nat nat =
+  if Z.sign nat = 0 then
+    "0"
+  else
+    hex_string_of_sized_nat (Z.numbits nat) nat
 
 let nat_of_big_endian_bits bits string =
   let num_bytes = (bits + 7) / 8 in
@@ -21,7 +27,7 @@ let big_endian_bits_of_nat bits nat =
     let num_bytes = (bits + 7) / 8 in
     String.init num_bytes (fun i -> Char.chr (Z.to_int (Z.extract nat ((num_bytes - i - 1)*8) 8)))
 
-let nat_of_hex_string bits string =
+let sized_nat_of_hex_string bits string =
   let num_digits = (bits + 3) / 4 in
   let len = String.length string in
   let fail _ = raise (Internal_error (Printf.sprintf "not a %d bit hex string: %S" bits string)) in
@@ -33,6 +39,9 @@ let nat_of_hex_string bits string =
       fail ()
     else
       n
+
+let nat_of_hex_string string =
+  sized_nat_of_hex_string (4 * String.length string) string
 
 module type IntS = sig
   include Unsigned.S
@@ -50,16 +59,16 @@ module type IntS = sig
   val to_big_endian_bits : t -> string
 end
 
-module Nat = struct
-  let of_hex_string hs = nat_of_hex_string (4 * String.length hs) hs
-  let to_hex_string nat = hex_string_of_nat (Z.numbits nat) nat
-  let of_big_endian_bits bs = nat_of_big_endian_bits (8 * String.length bs) bs
-  let to_big_endian_bits nat = big_endian_bits_of_nat (Z.numbits nat) nat
+module Int = struct
   include Z
   let z_of = identity
   let of_z = identity
   let has_bit key position = equal one (extract key position 1)
   let max_int = Z.of_int (-1)
+  let of_hex_string = nat_of_hex_string
+  let to_hex_string = hex_string_of_nat
+  let of_big_endian_bits bs = nat_of_big_endian_bits (Pervasives.( * ) 8 (String.length bs)) bs
+  let to_big_endian_bits nat = big_endian_bits_of_nat (Z.numbits nat) nat
   module Infix = struct
     let (+) = Z.add
     let (-) = Z.sub
@@ -72,6 +81,11 @@ module Nat = struct
     let (lsl) = Z.shift_left
     let (lsr) = Z.shift_right
   end
+end
+
+(* TODO: check sign after every relevant operation, etc. *)
+module Nat = struct
+  include Int
 end
 
 module type __IntS_Zable = sig
@@ -112,18 +126,32 @@ module UInt64 = struct
   include OurUInt (UInt64_Zable)
 end
 
+(* TODO: check bounds, after every operation, etc. *)
+module UInt256 = struct
+  include Nat
+end
+
 module Test = struct
   let%test "hex_string_of_nat 18 2018" =
-    hex_string_of_nat 18 (Nat.of_z (Z.of_int 2018)) = "007e2"
+    hex_string_of_nat (Nat.of_z (Z.of_int 2018)) = "7e2"
+
+  let%test "hex_string_of_nat 18 2018" =
+    hex_string_of_sized_nat 18 (Nat.of_z (Z.of_int 2018)) = "007e2"
 
   let%test "hex_string_of_nat 9 2018" =
     throws (Internal_error "not a 9 bit natural number: 2018")
-      (fun _ -> hex_string_of_nat 9 (Nat.of_z (Z.of_int 2018)))
+      (fun _ -> hex_string_of_sized_nat 9 (Nat.of_z (Z.of_int 2018)))
 
-  let%test "nat_of_hex_string 18 007e2" =
-    nat_of_hex_string 18 "007e2" = Z.of_int 2018
+  let%test "nat_of_hex_string 7e2" =
+    nat_of_hex_string "7e2" = Z.of_int 2018
 
-  let%test "nat_of_hex_string 9 007e2" =
+  let%test "nat_of_hex_string 007e2" =
+    nat_of_hex_string "007e2" = Z.of_int 2018
+
+  let%test "sized_nat_of_hex_string 18 007e2" =
+    sized_nat_of_hex_string 18 "007e2" = Z.of_int 2018
+
+  let%test "sized_nat_of_hex_string 9 007e2" =
     throws (Internal_error "not a 9 bit hex string: \"007e2\"")
-      (fun _ -> nat_of_hex_string 9 "007e2")
+      (fun _ -> sized_nat_of_hex_string 9 "007e2")
 end

@@ -141,7 +141,7 @@ module Test = struct
   let%test "short_list_rlp" =
     let items = List.map (fun it -> RlpItem it) ["dog"; "god"; "cat"] in
     to_string (encode (RlpItems items))
-    = parse_0x_string "0xcc83646f6783676f6483636174"
+    = Ethereum_util.string_of_hex_string "0xcc83646f6783676f6483636174"
 
   (* from https://github.com/ethereum/tests/blob/develop/RLPTests/rlptest.json *)
   let%test "dict_rlp" =
@@ -152,11 +152,11 @@ module Test = struct
     let row4 = mk_row ["key4"; "val4"] in
     let items = RlpItems [row1; row2; row3; row4] in
     to_string (encode items)
-    = parse_0x_string
+    = Ethereum_util.string_of_hex_string
         "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"
 
   let%test "small_int_rlp" =
-    to_string (encode_int 1000) = parse_0x_string "0x8203e8"
+    to_string (encode_int 1000) = Ethereum_util.string_of_hex_string "0x8203e8"
 
   let%test "cat_dog_rlp" =
     let cat_item = RlpItem "cat" in
@@ -243,7 +243,7 @@ module Test = struct
       ; "0x668ed6500efd75df7cb9c9b9d8152292a75453ec2d11030b0eec42f6a7ace602"
       ; "0x3efcbbf4d53e0dfa4fde5c6d9a73221418652abc66dff7fddd78b81cc28b9fbf" ]
     in
-    let rlp_items = RlpItems (List.map (fun it -> RlpItem (parse_0x_string it)) items) in
+    let rlp_items = RlpItems (List.map (fun it -> RlpItem (Ethereum_util.string_of_hex_string it)) items) in
     let rlp = to_string (encode rlp_items) in
     let expected_rlp =
       "0xf869808504a817c800830186a094687422eea2cb73b5d3e242ba5456b782919afc858203e882c0de1ca0668ed6500efd75df7cb9c9b9d8152292a75453ec2d11030b0eec42f6a7ace602a03efcbbf4d53e0dfa4fde5c6d9a73221418652abc66dff7fddd78b81cc28b9fbf"

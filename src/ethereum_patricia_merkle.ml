@@ -11,6 +11,7 @@
 
 open Lib
 open Legibase
+open Crypto
 
 (* keys are sequences of nybbles, which can be packed into two-nybbles-per-byte form *)
 module Key : sig
@@ -173,7 +174,7 @@ end = struct
     unpacked
 end
 
-type hash = Data256.t
+type hash = UInt256.t
 
 (* produced with Keccak256 *)
 
@@ -210,7 +211,7 @@ let key_to_extension_key key = pad_key_for_leaf_or_extension 0b00 key
 let hash_encoded_string s =
   let open Ethereum_rlp in
   let encoded = to_string (encode_string s) in
-  Data256.of_string (Cryptokit.hash_string (Cryptokit.Hash.keccak 256) encoded)
+  UInt256.of_big_endian_bits (Cryptokit.hash_string (Cryptokit.Hash.keccak 256) encoded)
 
 
 (* hash of RLP-coding of empty string *)
@@ -261,7 +262,7 @@ module Test = struct
   (* tests of hashing of RLP-encoded data *)
 
   let make_hash_test s hex =
-    Lib.unparse_coloned_hex_string (Data256.to_string (hash_encoded_string s)) = hex
+    Lib.unparse_coloned_hex_string (UInt256.to_big_endian_bits (hash_encoded_string s)) = hex
 
   [%%test
     let "hash_test_1" =

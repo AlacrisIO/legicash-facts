@@ -176,10 +176,10 @@ let rlp_of_transaction transaction =
   let open Ethereum_rlp in
   let tx_header = transaction.tx_header in
   (* all items are strings, each character represents 2 digits in hex representation *)
-  let nonce = string_of_nonce tx_header.nonce in
-  let gas_price = string_of_token_amount tx_header.gas_price in
-  let gas_limit = string_of_token_amount tx_header.gas_limit in
-  let value = string_of_token_amount tx_header.value in
+  let nonce = bits_of_nonce tx_header.nonce in
+  let gas_price = bits_of_token_amount tx_header.gas_price in
+  let gas_limit = bits_of_token_amount tx_header.gas_limit in
+  let value = bits_of_token_amount tx_header.value in
   let toaddr, data =
     match transaction.operation with
     | TransferTokens to_address -> (Address.to_big_endian_bits to_address, "")
@@ -433,7 +433,7 @@ module Test = struct
     (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
     let open Bigarray in
     let private_key_hex = "0xc0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0de" in
-    let private_key_string = parse_0x_string private_key_hex in
+    let private_key_string = Ethereum_util.string_of_hex_string private_key_hex in
     let private_key = Keypair.make_private_key private_key_string in
     let sender_account = get_first_account () in
     let sender_address = Ethereum_util.address_of_hex_string sender_account in
@@ -546,7 +546,7 @@ module Test = struct
     let code =
       "0x608060405234801561001057600080fd5b50610108806100206000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000602082015190506c01000000000000000000000000810490509190505600a165627a7a7230582098fc57c39988f3dcf9f7168b876b9f491273775ea6b44db8cb9483966fa1adc10029"
     in
-    let code_string = parse_0x_string code in
+    let code_string = Ethereum_util.string_of_hex_string code in
     let code_bytes = Bytes.of_string code_string in
     (* create the contract *)
     let sender_account = get_first_account () in

@@ -55,12 +55,11 @@ let int_of_hex_char hex =
   | 'A'..'F' -> hex_code - big_a_code + 0xa
   | _ -> raise (Internal_error (Printf.sprintf "Invalid hex character %c" hex))
 
-let parse_hex_char string ?(single_digit = false) pos =
-  Char.chr
-    (if single_digit then
-       int_of_hex_char string.[pos]
-     else
-       (int_of_hex_char string.[pos] lsl 4) + int_of_hex_char string.[pos + 1])
+let parse_hex_nibble string pos =
+  int_of_hex_char string.[pos]
+
+let parse_hex_byte string pos =
+  (parse_hex_nibble string pos) lsl 4 + parse_hex_nibble string (pos + 1)
 
 let parse_hex_substring string pos len =
   let start_pos = pos - (len mod 2) in
@@ -68,8 +67,12 @@ let parse_hex_substring string pos len =
     ((len + 1) / 2)
     (fun i ->
        let p = start_pos + 2 * i in
-       let single = p < pos in
-       parse_hex_char string ~single_digit: single (if single then (p + 1) else p))
+       let single_digit = p < pos in
+       Char.chr
+         (if single_digit then
+            parse_hex_nibble string (p + 1)
+          else
+            parse_hex_byte string p))
 
 let parse_hex_string string = parse_hex_substring string 0 (String.length string)
 
@@ -81,18 +84,9 @@ let parse_coloned_hex_string hex_string =
   let parse_char i =
     let offset = i * 3 in
     if offset > 0 && hex_string.[offset - 1] != ':' then invalid () ;
-    parse_hex_char hex_string offset
+    Char.chr (parse_hex_byte hex_string offset)
   in
   String.init len parse_char
-
-let parse_0x_string hs =
-  if hs = "0x0" then "" else
-    let len = String.length hs in
-    if not (len >= 2 && hs.[0] = '0' && hs.[1] = 'x') then
-      raise (Internal_error "Hex string does not strictly begin with 0x") ;
-    if len = 2 then
-      raise (Internal_error "Hex string has no digits") ;
-    parse_hex_substring hs 2 (len - 2)
 
 let hex_char_of_int ?(upper_case = false) digit =
   if (digit < 0 || digit > 16) then
@@ -106,20 +100,18 @@ let hex_char_of_int ?(upper_case = false) digit =
        else
          a_code - 10 + digit)
 
-let hex_char_string_list_of_string string pos len =
-  List.init len (fun i -> Printf.sprintf "%02x" (Char.code string.[pos + i]))
+let hex_digit_of_string string start index =
+  let byte = Char.code string.[start+(index lsr 1)] in
+  if index mod 2 = 0 then byte lsr 4 else byte mod 16
 
 let unparse_hex_substring string pos len =
-  String.concat "" (hex_char_string_list_of_string string pos len)
+  String.init (len lsl 1) (fun i -> hex_char_of_int (hex_digit_of_string string pos i))
 
 let unparse_hex_string string =
   unparse_hex_substring string 0 (String.length string)
 
 let unparse_coloned_hex_string string =
-  String.concat ":" (hex_char_string_list_of_string string 0 (String.length string))
-
-let unparse_0x_string string =
-  if string = "" then "0x0" else "0x" ^ unparse_hex_substring string 0 (String.length string)
+  String.concat ":" (List.init (String.length string) (fun i -> unparse_hex_substring string i 1))
 
 
 module type T = sig
@@ -260,3 +252,11 @@ let string_reverse s =
   let len = String.length s in
   String.init len (fun i -> s.[len - i - 1])
 
+
+module Test = struct
+  let%test "hex_string" =
+    List.for_all
+      (fun (bits, hex) -> unparse_hex_string bits = hex && parse_hex_string hex = bits)
+      [("","");("\000","00");("\000\000","0000");
+       ("abcd","61626364");("\r\n","0d0a")]
+end
