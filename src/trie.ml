@@ -116,38 +116,38 @@ module Trie (Key : IntS) (Value : T)
               Otherwise, a Branch with an Empty child is normalized to a Skip *)
     | Leaf {value; synth} ->
       synth = Synth.leaf value ||
-      raise (Internal_error "bad leaf synth")
+      raise (Internal_error "Bad leaf synth")
     | Branch {left; right; height; synth} ->
       (synth = Synth.branch height (get_synth left) (get_synth right)
-       || raise (Internal_error "bad branch synth"))
-      && (height > 0 || raise (Internal_error "bad branch height"))
+       || raise (Internal_error "Bad branch synth"))
+      && (height > 0 || raise (Internal_error "Bad branch height"))
       && (height - 1 = trie_height left (* in particular, left isn't Empty *)
-          || raise (Internal_error "bad left height"))
+          || raise (Internal_error "Bad left height"))
       && check_invariant left
       && (height - 1 = trie_height right (* in particular, right isn't Empty *)
-          || raise (Internal_error "bad right height"))
+          || raise (Internal_error "Bad right height"))
       && check_invariant right
     | Skip {child; bits; length; height; synth} ->
       (synth = Synth.skip height length bits (get_synth child)
-       || raise (Internal_error "bad skip synth"))
+       || raise (Internal_error "Bad skip synth"))
       && (length > 0
-          || raise (Internal_error "skip length too small"))
+          || raise (Internal_error "Skip length too small"))
       && (height >= length
-          || raise (Internal_error "skip length too large"))
+          || raise (Internal_error "Skip length too large"))
       && (Key.sign bits >= 0
-          || raise (Internal_error "skip bits negative"))
+          || raise (Internal_error "Skip bits negative"))
       && (length >= Key.numbits bits
-          || raise (Internal_error "skip bits longer than length"))
+          || raise (Internal_error "Skip bits longer than length"))
       && (not (child = Empty)
-          || raise (Internal_error "skip child empty"))
+          || raise (Internal_error "Skip child empty"))
       && (height - length = trie_height child (* in particular, child isn't Empty *)
-          || raise (Internal_error "skip child height mismatch"))
+          || raise (Internal_error "Skip child height mismatch"))
       && check_invariant child
   let verify x =
     if check_invariant x then
       x
     else
-      raise (Internal_error "invariant failed")
+      raise (Internal_error "Invariant failed")
 
   let empty = Empty
 
@@ -703,7 +703,7 @@ module Trie (Key : IntS) (Value : T)
           recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
             ~k:(fun right ->
               branchk ~i:isame ~height:sameheight ~leftr:left ~rightr:right ~k:samek))
-    | _ -> raise (Internal_error "co_match")
+    | _ -> raise (Internal_error "iterate_over_tree_pair")
 
   let merge f a b =
     let (a, b) = ensure_same_height a b in
@@ -880,7 +880,7 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
       RightBranch {left=json |> member "digest" |> to_string |> Digest.of_hex_string}
     else if t = "Skip" then
       json |> member "bits" |> to_string |> bit_string_to_skip
-    else raise (Internal_error "bad json")
+    else raise (Internal_error "Bad json")
 
   let proof_of_json json =
     { key = json |> member "key" |> to_string |> Key.of_hex_string
@@ -1018,13 +1018,6 @@ module Test = struct
   let println s = Printf.printf "%s\n" s
   let showln x = print_trie stdout x ; Printf.printf "\n"
 
-  let verify x =
-    if check_invariant x then
-      x
-    else
-      (showln x ;
-       (raise (Internal_error "invariant failed")))
-
   let sort_bindings bindings = List.sort generic_compare bindings
   let make_bindings n f = List.init n (fun i -> let j = i + 1 in (Nat.of_int j, f j))
   let bindings_equal x y = (sort_bindings x) = (sort_bindings y)
@@ -1118,8 +1111,7 @@ module Test = struct
       (fun b ->
          let trie = trie_of_bindings b in
          p (force b, force trie) ||
-         (Printf.printf "BAD %s b=%s trie=" name (string_of_bindings (force b)) ;
-          showln (force trie) ; raise (Internal_error (Printf.sprintf "bad %s" name))))
+         raise (Internal_error (Printf.sprintf "Bad %s" name)))
       test_bindings
 
   let%test "find_opt_all" =
@@ -1234,7 +1226,7 @@ module Test = struct
       ; value
       ; steps = [s1;s2;s5;s4;s3;s6;s7] (* steps 3 and 5 are swapped *)
       }
-    | _ -> raise (Internal_error "bad proof"))
+    | _ -> raise (Internal_error "Bad proof"))
 
   let%test "proof" =
     get_proof (n 42) (force trie_100) = Some (force proof_42_in_trie_100)

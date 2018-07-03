@@ -1,11 +1,17 @@
 open Lib
 
+let validate_nat_non_negative nat =
+  if Z.sign nat < 0 then
+    raise (Internal_error (Printf.sprintf "Expected natural number is negative: %s" (Z.to_string nat)))
+let validate_sized_nat bits nat =
+  validate_nat_non_negative nat ;
+  if (Z.numbits nat > bits) then
+    raise (Internal_error (Printf.sprintf "Natural natural number %s won't fit in %d bits" (Z.to_string nat) bits))
+
 let hex_string_of_sized_nat bits nat =
-  if (Z.sign nat < 0) || (Z.numbits nat > bits) then
-    raise (Internal_error (Printf.sprintf "not a %d bit natural number: %s" bits (Z.to_string nat)))
-  else
-    let num_digits = (bits + 3) / 4 in
-    String.init num_digits (fun i -> hex_char_of_int (Z.to_int (Z.extract nat ((num_digits - i - 1)*4) 4)))
+  validate_sized_nat bits nat ;
+  let num_digits = (bits + 3) / 4 in
+  String.init num_digits (fun i -> hex_char_of_int (Z.to_int (Z.extract nat ((num_digits - i - 1)*4) 4)))
 
 let hex_string_of_nat nat =
   if Z.sign nat = 0 then
@@ -13,32 +19,26 @@ let hex_string_of_nat nat =
   else
     hex_string_of_sized_nat (Z.numbits nat) nat
 
+let validate_sized_string num_bytes string =
+  if String.length string > num_bytes then
+    raise (Internal_error (Printf.sprintf "String longer than the expected %d bytes: %S" num_bytes string))
+
 let nat_of_big_endian_bits bits string =
   let num_bytes = (bits + 7) / 8 in
-  if String.length string > num_bytes then
-    raise (Internal_error (Printf.sprintf "not a %d bit string: %S" bits string))
-  else
-    Z.of_bits (string_reverse string)
+  validate_sized_string num_bytes string ;
+  Z.of_bits (string_reverse string)
 
 let big_endian_bits_of_nat bits nat =
-  if (Z.sign nat < 0) || (Z.numbits nat > bits) then
-    raise (Internal_error (Printf.sprintf "not a %d bit natural number: %s" bits (Z.to_string nat)))
-  else
-    let num_bytes = (bits + 7) / 8 in
-    String.init num_bytes (fun i -> Char.chr (Z.to_int (Z.extract nat ((num_bytes - i - 1)*8) 8)))
+  validate_sized_nat bits nat ;
+  let num_bytes = (bits + 7) / 8 in
+  String.init num_bytes (fun i -> Char.chr (Z.to_int (Z.extract nat ((num_bytes - i - 1)*8) 8)))
 
 let sized_nat_of_hex_string bits string =
   let num_digits = (bits + 3) / 4 in
-  let len = String.length string in
-  let fail _ = raise (Internal_error (Printf.sprintf "not a %d bit hex string: %S" bits string)) in
-  if len > num_digits then
-    fail ()
-  else
-    let n = Z.of_bits (string_reverse (parse_hex_string string)) in
-    if Z.numbits n > bits then
-      fail ()
-    else
-      n
+  validate_sized_string num_digits string ;
+  let nat = Z.of_bits (string_reverse (parse_hex_string string)) in
+  validate_sized_nat bits nat ;
+  nat
 
 let nat_of_hex_string string =
   sized_nat_of_hex_string (4 * String.length string) string
@@ -139,7 +139,7 @@ module Test = struct
     hex_string_of_sized_nat 18 (Nat.of_z (Z.of_int 2018)) = "007e2"
 
   let%test "hex_string_of_nat 9 2018" =
-    throws (Internal_error "not a 9 bit natural number: 2018")
+    throws (Internal_error "Natural natural number 2018 won't fit in 9 bits")
       (fun _ -> hex_string_of_sized_nat 9 (Nat.of_z (Z.of_int 2018)))
 
   let%test "nat_of_hex_string 7e2" =
@@ -152,6 +152,6 @@ module Test = struct
     sized_nat_of_hex_string 18 "007e2" = Z.of_int 2018
 
   let%test "sized_nat_of_hex_string 9 007e2" =
-    throws (Internal_error "not a 9 bit hex string: \"007e2\"")
+    throws (Internal_error "String longer than the expected 3 bytes: \"007e2\"")
       (fun _ -> sized_nat_of_hex_string 9 "007e2")
 end
