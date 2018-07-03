@@ -174,7 +174,7 @@ end = struct
     unpacked
 end
 
-type hash = UInt256.t
+type hash = Digest.t
 
 (* produced with Keccak256 *)
 
@@ -211,7 +211,7 @@ let key_to_extension_key key = pad_key_for_leaf_or_extension 0b00 key
 let hash_encoded_string s =
   let open Ethereum_rlp in
   let encoded = to_string (encode_string s) in
-  UInt256.of_big_endian_bits (Cryptokit.hash_string (Cryptokit.Hash.keccak 256) encoded)
+  Digest.of_big_endian_bits (Cryptokit.hash_string (Cryptokit.Hash.keccak 256) encoded)
 
 
 (* hash of RLP-coding of empty string *)
@@ -262,7 +262,7 @@ module Test = struct
   (* tests of hashing of RLP-encoded data *)
 
   let make_hash_test s hex =
-    Lib.unparse_coloned_hex_string (UInt256.to_big_endian_bits (hash_encoded_string s)) = hex
+    Lib.unparse_coloned_hex_string (Digest.to_big_endian_bits (hash_encoded_string s)) = hex
 
   [%%test
     let "hash_test_1" =

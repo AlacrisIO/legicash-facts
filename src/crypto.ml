@@ -41,25 +41,30 @@ let data_to_secp256k1_hashed data =
 *)
 let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
-module Digest = struct
-  include Integer.Nat
+let make_digest v =
+  let data_string = Marshal.to_string v [Marshal.Compat_32] in
+  let hash = Cryptokit.Hash.keccak 256 in
+  let hashed = Cryptokit.hash_string hash data_string in
+  Nat.of_big_endian_bits hashed
+[@@deprecated "Use make_digest only for demos and testing."]
 
-  let make v =
-    let data_string = Marshal.to_string v [Marshal.Compat_32] in
-    let hash = Cryptokit.Hash.keccak 256 in
-    let hashed = Cryptokit.hash_string hash data_string in
-    of_bits (string_reverse hashed)
-  [@@deprecated "Use Digest.make only for demos and testing."]
+(* TODO: check bounds, after every operation, etc. *)
+module UInt256 = struct
+  include Integer.UInt256
+  let digest = make_digest
+end
 
-  let digest = make
-
+module Data256 = struct
+  include UInt256
   let of_hex_string = sized_nat_of_hex_string 256
-
   let to_hex_string = hex_string_of_sized_nat 256
-
   let of_big_endian_bits = nat_of_big_endian_bits 256
-
   let to_big_endian_bits = big_endian_bits_of_nat 256
+end
+
+module Digest = struct
+  include Data256
+  let make = make_digest
 end
 
 type 'a digest = Digest.t
@@ -87,11 +92,6 @@ module UInt64 = struct
   let digest x = Digest.make x
 end
 
-module UInt256 = struct
-  include Integer.UInt256
-  let digest x = Digest.make x
-end
-
 module Revision = UInt64
 module Duration = UInt64
 module Timestamp = UInt64
@@ -99,7 +99,7 @@ module Timestamp = UInt64
 
 module StringT = struct
   include String
-  let digest string = Digest.make string
+  let digest = make_digest
 end
 
 module Address = struct
@@ -111,11 +111,8 @@ module Address = struct
   let address_size = 20
 
   let of_hex_string = sized_nat_of_hex_string 160
-
   let to_hex_string = hex_string_of_sized_nat 160
-
   let of_big_endian_bits = nat_of_big_endian_bits 160
-
   let to_big_endian_bits = big_endian_bits_of_nat 160
 
   let of_public_key public_key =
@@ -128,7 +125,7 @@ module Address = struct
 
   let equal address1 address2 = compare address1 address2 = 0
 
-  let digest = Digest.make
+  let digest = make_digest
   let pp formatter x = Format.fprintf formatter "0x%s" (to_hex_string x)
   let show x = Format.asprintf "%a" pp x
 end
