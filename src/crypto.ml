@@ -1,5 +1,6 @@
 open Lib
 open Legibase
+open Integer
 
 (* create context just once, because expensive operation; assumes
    single instantiation of this module
@@ -40,16 +41,30 @@ let data_to_secp256k1_hashed data =
 *)
 let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
-module Digest = struct
-  include Integer.Nat
+let make_digest v =
+  let data_string = Marshal.to_string v [Marshal.Compat_32] in
+  let hash = Cryptokit.Hash.keccak 256 in
+  let hashed = Cryptokit.hash_string hash data_string in
+  Nat.of_big_endian_bits hashed
+[@@deprecated "Use make_digest only for demos and testing."]
 
-  let make v =
-    let data_string = Marshal.to_string v [Marshal.Compat_32] in
-    let hash = Cryptokit.Hash.keccak 256 in
-    let hashed = Cryptokit.hash_string hash data_string in
-    let hashed_hex = "0x" ^ (unparse_hex ~with_colons:false hashed) in
-    of_string hashed_hex
-  [@@deprecated "Use Digest.make only for demos and testing."]
+(* TODO: check bounds, after every operation, etc. *)
+module UInt256 = struct
+  include Integer.UInt256
+  let digest = make_digest
+end
+
+module Data256 = struct
+  include UInt256
+  let of_hex_string = sized_nat_of_hex_string 256
+  let to_hex_string = hex_string_of_sized_nat 256
+  let of_big_endian_bits = nat_of_big_endian_bits 256
+  let to_big_endian_bits = big_endian_bits_of_nat 256
+end
+
+module Digest = struct
+  include Data256
+  let make = make_digest
 end
 
 type 'a digest = Digest.t
@@ -57,69 +72,70 @@ type 'a digest = Digest.t
 (** Special magic digest for None. A bit ugly. *)
 let null_digest = Digest.zero
 
-module DigestSet = struct
-  include Set.Make (Digest)
-
-  let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
-end
-
 module type DigestibleS = sig
   type t
   val digest: t -> t digest
 end
 
-module StringT = struct
-  include String
-  let digest string = Digest.make string
+module type IntS = sig
+  include Integer.IntS
+  include DigestibleS with type t := t
 end
 
-module Address : sig
-  type t [@@deriving show]
+module Nat = struct
+  include Integer.Nat
+  let digest x = Digest.make x
+end
 
-  val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
+module UInt64 = struct
+  include Integer.UInt64
+  let digest x = Digest.make x
+end
 
-  val compare : t -> t -> int
+module Revision = UInt64
+module Duration = UInt64
+module Timestamp = UInt64
 
-  val of_string : string -> t
 
-  val to_string : t -> string
+module StringT = struct
+  include String
+  let digest = make_digest
+end
 
-  val equal : t -> t -> bool
-
-  val digest : t -> t digest
-end = struct
+module Address = struct
   (* an address identifies a party (user, facilitator)
      this is per Ethereum: use the last 20 bytes of the party's public key *)
 
-  type t = char array [@@deriving show]
+  include Nat
 
   let address_size = 20
+
+  let of_hex_string = sized_nat_of_hex_string 160
+  let to_hex_string = hex_string_of_sized_nat 160
+  let of_big_endian_bits = nat_of_big_endian_bits 160
+  let to_big_endian_bits = big_endian_bits_of_nat 160
 
   let of_public_key public_key =
     let open Bigarray in
     let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
-    let buffer_len = Array1.dim buffer in
-    let offset = buffer_len - address_size in
-    Array.init address_size (fun ndx -> Array1.get buffer (offset + ndx))
+    let buffer_max = Array1.dim buffer - 1 in
+    Nat.of_bits (String.init address_size (fun ndx -> Array1.get buffer (buffer_max - ndx)))
 
   let compare address1 address2 = Pervasives.compare address1 address2
 
   let equal address1 address2 = compare address1 address2 = 0
 
-  let of_string s =
-    let len = String.length s in
-    if len != address_size then
-      raise (Internal_error (Printf.sprintf "String length is %d, expected %d" len address_size)) ;
-    Array.init address_size (fun ndx -> s.[ndx])
-
-  let to_string address = String.init address_size (Array.get address)
-
-  let digest address =
-    let s = to_string address in
-    Integer.Nat.of_bits s
+  let digest = make_digest
+  let pp formatter x = Format.fprintf formatter "0x%s" (to_hex_string x)
+  let show x = Format.asprintf "%a" pp x
 end
 
-module AddressMap = MapMake (Address)
+module Unit = struct
+  type t = unit
+  let digest = konstant (Digest.make "")
+  let pp formatter x = Format.fprintf formatter "%s" "()"
+  let show x = Format.asprintf "%a" pp x
+end
 
 type 'a signature = Secp256k1.Sign.recoverable Secp256k1.Sign.t
 
@@ -147,21 +163,21 @@ module Test = struct
   (* test digests *)
   let mk_digest_test data expected =
     let digest = Digest.make data in
-    expected = Digest.to_string digest
+    expected = Digest.to_hex_string digest
 
   let%test "digest_1" =
     mk_digest_test "this is a test"
-      "96346563888126697166588750846833720374728628752847738452105337420790724784872"
+      "d5023901b6e1b3fd03543aa1ee403b7736a9085ab04e71a047d45b2a577f72e8"
 
   let%test "digest_2" =
     mk_digest_test (Some "nonsense")
-      "102501601160338844936142598555848829880685647109855746236499212080808421918928"
+      "e29dd9aecad9443bf6ea173d7057d3221c97cb941ac9aa9386abedace71688d0"
 
   let%test "digest_3" =
     mk_digest_test Int64.one
-      "89908665089203403328549695563738178150748540732630798379661072574227034620291"
+      "c6c680477d5c20cd351eab565405853a9f0900f493d03ec4e572c6f598534183"
 
   let%test "digest_4" =
     mk_digest_test [99.9; 100.4; 22.0; 1033.7]
-      "110745855421557965285881006516000194355535263091999206059295831136738250614090"
+      "f4d7eed0ed8614cfaa4cf1af0ff5dc2345a4a662d5aa57ed7a9bf4759450654a"
 end

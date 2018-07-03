@@ -1,26 +1,27 @@
 open Legibase
 open Action
 open Crypto
+open Trie
 open Main_chain
 open Side_chain
 
 val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
 (** constantly watch the main chain and search for prosecutable issues relating to facilitators *)
 
-val issue_user_request : (operation, request signed) user_action
+val issue_user_request : (operation, Request.t signed) user_action
 
-val confirm_request : (request signed, confirmation signed) facilitator_action
+val confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
-val deposit : (Address.t * TokenAmount.t, request signed) user_action
+val deposit : (Address.t * TokenAmount.t, Request.t signed) user_action
 (** Flow 1 Step 3: user sends money on the main chain *)
 
-val request_deposit : (TokenAmount.t * Main_chain.confirmation, request signed) user_action
+val request_deposit : (TokenAmount.t * Main_chain.confirmation, Request.t signed) user_action
 (** deposit request *)
 
 (* Flow 1 Step 4: user pays entry fee on the side chain *)
 
-val confirm_request : (request signed, confirmation signed) facilitator_action
+val confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action
 (** Flow 1 Step 5: facilitator acknowledges deposit, stores it and sends it to user *)
 
 (* Flow 2: Payment
@@ -50,7 +51,7 @@ val confirm_request : (request signed, confirmation signed) facilitator_action
    Step 4: Bob accepts the payment, notifies Alice and delivers the service
 *)
 
-val payment : (Address.t * Address.t * TokenAmount.t, request signed) user_action
+val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) user_action
 
 (** message-sending operations *)
 
@@ -60,10 +61,10 @@ val send_message : 'a -> conversation -> unit legi_result
     TODO: To be implemented but not exposed
 *)
 
-val send_user_request : user_state -> request signed -> conversation -> unit legi_result
+val send_user_request : user_state -> Request.t signed -> conversation -> unit legi_result
 
 val send_facilitator_confirmation :
-  facilitator_state -> confirmation signed -> conversation -> unit legi_result
+  facilitator_state -> Confirmation.t signed -> conversation -> unit legi_result
 
 val commit_facilitator_state : (unit, unit) facilitator_action
 (** For a facilitator, commit the state of the side-chain to the main-chain *)
@@ -77,7 +78,7 @@ val initiate_individual_exit : (unit, Main_chain.transaction_signed) user_action
 
 (* val embed_request: (user_request, Main_chain.transaction) user_action *)
 
-val check_main_chain_for_exits : (unit, request list) facilitator_action
+val check_main_chain_for_exits : (unit, Request.t list) facilitator_action
 (** Flow 3 Step 2: Trent, who follows the main chain, checks for such exit requests.
     When one is found, Trent is on notice to post an update of his side-chain within
     an allowed deadline, that features a confirmation for these requests.

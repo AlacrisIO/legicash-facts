@@ -3,6 +3,7 @@
 open Legibase
 open Action
 open Crypto
+open Trie
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -30,45 +31,39 @@ type withdrawal_details =
   {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
 [@@deriving lens]
 
-(** an operation on a facilitator side-chain *)
 type operation =
   | Deposit of deposit_details
   | Payment of payment_details
   | Withdrawal of withdrawal_details
 
-type rx_header =
-  { facilitator: Address.t
-  ; requester: Address.t
-  ; requester_revision: Revision.t
-  ; confirmed_main_chain_state_digest: Main_chain.state digest
-  ; confirmed_main_chain_state_revision: Revision.t
-  ; confirmed_side_chain_state_digest: state digest
-  ; confirmed_side_chain_state_revision: Revision.t
-  ; validity_within: Duration.t }
-[@@deriving lens]
+module RxHeader = struct
+  type t =
+    { facilitator: Address.t
+    ; requester: Address.t
+    ; requester_revision: Revision.t
+    ; confirmed_main_chain_state_digest: Main_chain.state digest
+    ; confirmed_main_chain_state_revision: Revision.t
+    ; confirmed_side_chain_state_digest: Digest.t
+    ; confirmed_side_chain_state_revision: Revision.t
+    ; validity_within: Duration.t }
+  [@@deriving lens]
+end
 
-and request = {rx_header: rx_header; operation: operation} [@@deriving lens]
+module Request = struct
+  type t = {rx_header: RxHeader.t; operation: operation} [@@deriving lens]
+end
 
-and tx_header = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
+module TxHeader = struct
+  type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
+end
 
-and confirmation = {tx_header: tx_header; signed_request: request signed} [@@deriving lens]
-
-and account_state = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
-
-and state =
-    { previous_main_chain_state: Main_chain.state digest
-    ; previous_side_chain_state: state digest
-    ; facilitator_revision: Revision.t
-    ; spending_limit: TokenAmount.t
-    ; bond_posted: TokenAmount.t
-    ; accounts: account_state AddressMap.t
-    ; operations: confirmation AddressMap.t
-    ; main_chain_transactions_posted: Main_chain.TransactionDigestSet.t }
-[@@deriving lens]
+module Confirmation = struct
+  type t = {tx_header: TxHeader.t; signed_request: Request.t signed} [@@deriving lens]
+  let digest = Digest.make
+end
 
 module AccountState = struct
-  type t = account_state
-
+  type t = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
   let digest account_state =
     let open Ethereum_rlp in
     let balance_item = RlpItem (TokenAmount.to_string account_state.balance) in
@@ -76,25 +71,49 @@ module AccountState = struct
     let rlp_items = RlpItems [balance_item; revision_item] in
     let encoded = encode rlp_items in
     let hashed = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) (to_string encoded) in
-    Integer.Nat.of_bits hashed
+    Digest.of_bits hashed
+end
+
+module ConfirmationMap = MerkleTrie (Revision) (Confirmation)
+
+module AccountMap = MerkleTrie (Address) (AccountState)
+
+module State = struct
+  type t = { previous_main_chain_state: Main_chain.state digest
+           ; previous_side_chain_state: t digest (* state previously posted on the above *)
+           ; facilitator_revision: Revision.t
+           ; spending_limit: TokenAmount.t
+           (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
+           ; bond_posted: TokenAmount.t
+           ; accounts: AccountMap.t
+           ; operations: ConfirmationMap.t
+           (* TODO: it's not an AddressMap, it's a RevisionMap --- a verifiable vector of operations *)
+           ; main_chain_transactions_posted: DigestSet.t }
+  [@@deriving lens]
 end
 
 type episteme =
-  { request: request signed
-  ; confirmation_option: confirmation signed option
+  { request: Request.t signed
+  ; confirmation_option: Confirmation.t signed option
   ; main_chain_confirmation_option: Main_chain.confirmation option }
 [@@deriving lens]
 
-type user_account_state_per_facilitator =
-  { facilitator_validity:
-      knowledge_stage (* do we know the facilitator to be a liar? If so, Rejected *)
-  ; confirmed_state: account_state
-  ; pending_operations: episteme list }
-[@@deriving lens]
+module UserAccountStatePerFacilitator = struct
+  type t =
+    { facilitator_validity:
+        knowledge_stage
+    (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
+    ; confirmed_state: AccountState.t
+    ; pending_operations: episteme list }
+  [@@deriving lens]
+  let digest = Digest.make
+end
+
+module UserAccountStateMap = MerkleTrie (Address) (UserAccountStatePerFacilitator)
 
 type user_state =
   { main_chain_user_state: Main_chain.user_state
-  ; facilitators: user_account_state_per_facilitator AddressMap.t }
+  ; facilitators: UserAccountStateMap.t }
 [@@deriving lens]
 
 type ('input, 'action) user_action = ('input, 'action, user_state) action
@@ -112,16 +131,16 @@ type facilitator_fee_schedule =
 
 type facilitator_state =
   { keypair: Keypair.t
-  ; previous: state option
-  ; current: state
+  ; previous: State.t option
+  ; current: State.t
   ; fee_schedule: facilitator_fee_schedule }
 [@@deriving lens]
 
 type ('input, 'output) facilitator_action = ('input, 'output, facilitator_state) action
 
-type court_clerk_confirmation = {clerk: public_key; signature: state signature} [@@deriving lens]
+type court_clerk_confirmation = {clerk: public_key; signature: State.t signature} [@@deriving lens]
 
-type update = {current_state: state digest; availability_proof: court_clerk_confirmation list}
+type update = {current_state: State.t digest; availability_proof: court_clerk_confirmation list}
 
 type user_to_user_message
 

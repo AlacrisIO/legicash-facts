@@ -3,30 +3,32 @@ open Legibase
 open Action
 open Crypto
 open Keypair
+open Trie
 open Main_chain
 open Side_chain
 open Main_chain_action
 open Lens.Infix
 
 (** Default (empty) state for a new facilitator *)
-let new_account_state = {balance= TokenAmount.zero; account_revision= Revision.zero}
+let new_account_state = AccountState.{balance= TokenAmount.zero; account_revision= Revision.zero}
 
 (** User's view of the default (empty) state for a new facilitator *)
 let new_user_account_state_per_facilitator =
-  {facilitator_validity= Confirmed; confirmed_state= new_account_state; pending_operations= []}
+  UserAccountStatePerFacilitator.{
+    facilitator_validity= Confirmed; confirmed_state= new_account_state; pending_operations= []}
 
-type account_lens = (facilitator_state, account_state) Lens.t
+type account_lens = (facilitator_state, AccountState.t) Lens.t
 
 let facilitator_account_lens address =
-  facilitator_state_current |-- state_accounts
-  |-- defaulting_lens (konstant new_account_state) (AddressMap.lens address)
+  facilitator_state_current |-- State.accounts
+  |-- defaulting_lens (konstant new_account_state) (AccountMap.lens address)
 
 (** Given a signed request, handle the special case of opening an account, and return
     the request, the account state (new or old), the lens to set the account back at the end, and
     the user's public key *)
 
 let ensure_user_account :
-  (request signed, request signed * account_state * account_lens * Address.t) facilitator_action =
+  (Request.t signed, Request.t signed * AccountState.t * account_lens * Address.t) facilitator_action =
   function
   | ({current= {accounts}} as state), ({payload= {rx_header= {requester}; operation}} as rx) ->
     let account_lens = facilitator_account_lens requester in
@@ -39,7 +41,7 @@ let ensure_user_account :
     Thus, we can later parallelize this check.
 *)
 let is_side_chain_request_well_formed :
-  facilitator_state * (request signed * account_state * account_lens * Address.t) -> bool =
+  facilitator_state * (Request.t signed * AccountState.t * account_lens * Address.t) -> bool =
   function
   | ( ({current= {accounts}} as state)
     , ( { payload=
@@ -98,24 +100,25 @@ let is_side_chain_request_well_formed :
 let check_side_chain_request_well_formed = action_assert __LOC__ is_side_chain_request_well_formed
 
 let make_request_confirmation :
-  (request signed * account_state * account_lens, confirmation signed) facilitator_action =
+  (Request.t signed * AccountState.t * account_lens, Confirmation.t signed) facilitator_action =
   fun (facilitator_state, (signed_request, account_state, account_lens)) ->
     let revision = Revision.add facilitator_state.current.facilitator_revision Revision.one in
     ( account_lens.set
         {account_state with account_revision= signed_request.payload.rx_header.requester_revision}
-        ((facilitator_state_current |-- state_facilitator_revision).set revision facilitator_state)
+        ((facilitator_state_current |-- State.facilitator_revision).set revision facilitator_state)
     , Ok
         (sign facilitator_state.keypair.private_key
-           { tx_header=
-               {tx_revision= revision; updated_limit= facilitator_state.current.spending_limit}
-           ; signed_request }) )
+           { tx_header=TxHeader.{
+               tx_revision= revision;
+               updated_limit= facilitator_state.current.spending_limit}
+           ; Confirmation.signed_request }) )
 
 exception Spending_limit_exceeded
 
 (** Facilitator actions to use up some of the limit *)
 let spend_spending_limit amount (state, x) =
   if TokenAmount.compare amount state.current.spending_limit <= 0 then
-    ( (facilitator_state_current |-- state_spending_limit).set
+    ( (facilitator_state_current |-- State.spending_limit).set
         (TokenAmount.sub state.current.spending_limit amount)
         state
     , Ok x )
@@ -134,14 +137,14 @@ exception Already_posted
 let check_against_double_accounting main_chain_transaction_signed (state, x) =
   let witness = Digest.make main_chain_transaction_signed in
   let lens =
-    facilitator_state_current |-- state_main_chain_transactions_posted |-- DigestSet.lens witness
+    facilitator_state_current |-- State.main_chain_transactions_posted |-- DigestSet.lens witness
   in
   if lens.get state then (state, Error Already_posted) else (lens.set true state, Ok x)
 
 (** compute the effects of a request on the account state *)
 let effect_request :
-  ( request signed * account_state * account_lens * Address.t
-  , request signed * account_state * account_lens )
+  ( Request.t signed * AccountState.t * account_lens * Address.t
+  , Request.t signed * AccountState.t * account_lens )
     facilitator_action = function
   | state, (({payload= {rx_header; operation}} as rx), account_state, account_lens, user_key) ->
     match operation with
@@ -153,13 +156,13 @@ let effect_request :
         ; deposit_expedited } ->
       ( state
       , ( rx
-        , Lens.modify account_state_balance (TokenAmount.add deposit_amount) account_state
+        , Lens.modify AccountState.balance (TokenAmount.add deposit_amount) account_state
         , account_lens ) )
       ^|> check_against_double_accounting main_chain_deposit_signed
       ^>> maybe_spend_spending_limit deposit_expedited deposit_amount
     | Payment {payment_invoice; payment_fee; payment_expedited} ->
       ( Lens.modify
-          (facilitator_account_lens payment_invoice.recipient |-- account_state_balance)
+          (facilitator_account_lens payment_invoice.recipient |-- AccountState.balance)
           (TokenAmount.add payment_invoice.amount)
           state
       , ( rx
@@ -173,7 +176,7 @@ let effect_request :
       ( state
       , Ok
           ( rx
-          , Lens.modify account_state_balance
+          , Lens.modify AccountState.balance
               (TokenAmount.sub (TokenAmount.add withdrawal_amount withdrawal_fee))
               account_state
           , account_lens ) )
@@ -184,7 +187,7 @@ let effect_request :
  * commit the confirmation to disk and remote replicas before to return it
  * parallelize, batch, etc., to have decent performance
 *)
-let confirm_request : (request signed, confirmation signed) facilitator_action =
+let confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action =
   ensure_user_account ^>> check_side_chain_request_well_formed ^>> effect_request
   ^>> make_request_confirmation
 
@@ -193,13 +196,14 @@ let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
 let stub_confirmed_main_chain_state_digest = ref (Digest.make Main_chain.genesis_state)
 
 let genesis_side_chain_state =
-  { previous_main_chain_state= null_digest
+  State.{
+    previous_main_chain_state= null_digest
   ; previous_side_chain_state= null_digest
   ; facilitator_revision= Revision.zero
   ; spending_limit= TokenAmount.zero
   ; bond_posted= TokenAmount.zero
-  ; accounts= AddressMap.empty
-  ; operations= AddressMap.empty
+  ; accounts= AccountMap.empty
+  ; operations= ConfirmationMap.empty
   ; main_chain_transactions_posted= DigestSet.empty }
 
 let stub_confirmed_side_chain_state = ref genesis_side_chain_state
@@ -207,8 +211,8 @@ let stub_confirmed_side_chain_state = ref genesis_side_chain_state
 let stub_confirmed_side_chain_state_digest = ref (Digest.make genesis_side_chain_state)
 
 let get_first_facilitator_state_option (user_state, _) :
-  (Address.t * user_account_state_per_facilitator) option =
-  AddressMap.find_first_opt (konstant true) user_state.facilitators
+  (Address.t * UserAccountStatePerFacilitator.t) option =
+  UserAccountStateMap.find_first_opt (konstant true) user_state.facilitators
 
 let get_first_facilitator =
   action_of_pure_action get_first_facilitator_state_option
@@ -220,28 +224,28 @@ let get_first_facilitator =
 let default_validity_window = Duration.of_int 256
 
 let make_rx_header (user_state, facilitator_address) =
-  match AddressMap.find_opt facilitator_address user_state.facilitators with
+  match UserAccountStateMap.find_opt facilitator_address user_state.facilitators with
   | None -> (user_state, Error Not_found)
   | Some facilitator ->
     ( user_state
     , Ok
-        { facilitator= facilitator_address
-        ; requester= user_state.main_chain_user_state.keypair.address
-        ; requester_revision=
+        { RxHeader.facilitator= facilitator_address
+        ; RxHeader.requester= user_state.main_chain_user_state.keypair.address
+        ; RxHeader.requester_revision=
             Revision.add facilitator.confirmed_state.account_revision
               (Revision.of_int (1 + List.length facilitator.pending_operations))
-        ; confirmed_main_chain_state_digest= !stub_confirmed_main_chain_state_digest
-        ; confirmed_main_chain_state_revision= !stub_confirmed_main_chain_state.revision
-        ; confirmed_side_chain_state_digest= !stub_confirmed_side_chain_state_digest
-        ; confirmed_side_chain_state_revision=
+        ; RxHeader.confirmed_main_chain_state_digest= !stub_confirmed_main_chain_state_digest
+        ; RxHeader.confirmed_main_chain_state_revision= !stub_confirmed_main_chain_state.revision
+        ; RxHeader.confirmed_side_chain_state_digest= !stub_confirmed_side_chain_state_digest
+        ; RxHeader.confirmed_side_chain_state_revision=
             !stub_confirmed_side_chain_state.facilitator_revision
-        ; validity_within= default_validity_window } )
+        ; RxHeader.validity_within= default_validity_window } )
 
 let mk_rx_episteme rx =
   {request= rx; confirmation_option= None; main_chain_confirmation_option= None}
 
 let mk_tx_episteme tx =
-  { request= tx.payload.signed_request
+  { request= tx.payload.Confirmation.signed_request
   ; confirmation_option= Some tx
   ; main_chain_confirmation_option= None }
 
@@ -249,19 +253,20 @@ let mk_tx_episteme tx =
 let add_user_episteme user_state episteme =
   let facilitator = episteme.request.payload.rx_header.facilitator in
   let account_state =
-    AddressMap.find_defaulting
+    UserAccountStateMap.find_defaulting
       (konstant new_user_account_state_per_facilitator)
       facilitator user_state.facilitators
   in
-  ( user_state_facilitators |-- AddressMap.lens facilitator
-    |-- user_account_state_per_facilitator_pending_operations )
+  ( user_state_facilitators |-- UserAccountStateMap.lens facilitator
+    |-- UserAccountStatePerFacilitator.pending_operations )
   .set (episteme :: account_state.pending_operations) user_state
 
 let issue_user_request =
   (fun (user_state, operation) ->
      (user_state, ()) ^|> get_first_facilitator ^>> make_rx_header
      ^>> action_of_pure_action (fun (user_state, rx_header) ->
-       sign user_state.main_chain_user_state.keypair.private_key {rx_header; operation} ) )
+       sign user_state.main_chain_user_state.keypair.private_key
+         {Request.rx_header; Request.operation} ) )
   ^>> fun (user_state, request) ->
     (add_user_episteme user_state (mk_rx_episteme request), Ok request)
 
@@ -270,7 +275,8 @@ let issue_user_request =
     deposits confirmation will check out,
     active revision will only increase, etc.
 *)
-let update_account_state_with_trusted_operation trusted_operation ({balance} as account_state) =
+let update_account_state_with_trusted_operation
+      trusted_operation ({AccountState.balance} as account_state) =
   let f =
     {account_state with account_revision= Revision.add account_state.account_revision Revision.one}
   in
@@ -295,7 +301,7 @@ let update_account_state_with_trusted_operations trusted_operations account_stat
   List.fold_right update_account_state_with_trusted_operation trusted_operations account_state
 
 let optimistic_facilitator_account_state (user_state, facilitator_address) =
-  match AddressMap.find_opt facilitator_address user_state.facilitators with
+  match UserAccountStateMap.find_opt facilitator_address user_state.facilitators with
   | None -> new_account_state
   | Some {facilitator_validity; confirmed_state; pending_operations} ->
     match facilitator_validity with
@@ -400,7 +406,7 @@ module Test = struct
       ; nonce= Nonce.zero }
     in
     let user_account_state = new_user_account_state_per_facilitator in
-    let facilitators = AddressMap.singleton trent_address user_account_state in
+    let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
     {main_chain_user_state; facilitators}
 
   let alice_state = create_side_chain_user_state_for_testing alice_keys 4500
@@ -414,14 +420,14 @@ module Test = struct
     ; fee_per_billion= TokenAmount.of_int 42 }
 
   let confirmed_trent_state =
-    { previous_main_chain_state= Digest.zero
-    ; previous_side_chain_state= Digest.one
-    ; facilitator_revision= Revision.of_int 17
-    ; spending_limit= TokenAmount.of_int 1000000
-    ; bond_posted= TokenAmount.of_int 5000000
-    ; accounts= AddressMap.empty
-    ; operations= AddressMap.empty
-    ; main_chain_transactions_posted= DigestSet.empty }
+    State.{ previous_main_chain_state= Digest.zero
+          ; previous_side_chain_state= Digest.one
+          ; facilitator_revision= Revision.of_int 17
+          ; spending_limit= TokenAmount.of_int 1000000
+          ; bond_posted= TokenAmount.of_int 5000000
+          ; accounts= AccountMap.empty
+          ; operations= ConfirmationMap.empty
+          ; main_chain_transactions_posted= DigestSet.empty }
 
   let trent_state =
     { keypair= trent_keys
@@ -446,7 +452,7 @@ module Test = struct
     |> fun (trent_state1, signed_confirmation1) ->
     (* verify the deposit to Alice's account on Trent *)
     let trent_accounts = trent_state1.current.accounts in
-    let alice_account = AddressMap.find alice_address trent_accounts in
+    let alice_account = AccountMap.find alice_address trent_accounts in
     let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
     assert (alice_account.balance = alice_expected_deposit) ;
     (* open Bob's account *)
@@ -459,7 +465,7 @@ module Test = struct
     (* verify the payment to Bob's account on Trent *)
     let trent_accounts_after_payment = trent_state2.current.accounts in
     let get_trent_account name address =
-      try AddressMap.find address trent_accounts_after_payment with Not_found ->
+      try AccountMap.find address trent_accounts_after_payment with Not_found ->
         raise (Internal_error (name ^ " has no account on Trent after payment"))
     in
     let alice_account = get_trent_account "Alice" alice_address in

@@ -2,10 +2,13 @@ open Legibase
 open Action
 open Crypto
 open Keypair
+open Trie
 
-module TokenAmount : Unsigned.S
+module TokenAmount : IntS
 
-module Nonce : Unsigned.S
+module Nonce : IntS
+
+module AccountMap : (MerkleTrieS with type key = Address.t and type value = TokenAmount.t)
 
 (** State of a main chain block.
     TODO:
@@ -13,7 +16,7 @@ module Nonce : Unsigned.S
     2- Make it work for tezos, where it's a Block_header.t (?)
     3- Abstract into a module signature that can be provided by one or the other.
 *)
-type state = {revision: Revision.t; accounts: TokenAmount.t AddressMap.t} [@@deriving lens]
+type state = {revision: Revision.t; accounts: AccountMap.t} [@@deriving lens]
 
 (** TODO: make sure it matches Ethereum transfer data *)
 type tx_header =
@@ -61,6 +64,3 @@ type user_state =
 type ('input, 'output) user_action = ('input, 'output, user_state) action
 
 val genesis_state : state
-
-(** set of digests, used to guard against double deposits *)
-module TransactionDigestSet = DigestSet
