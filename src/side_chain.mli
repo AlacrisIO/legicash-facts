@@ -244,6 +244,9 @@ type user_state =
 (** function from 'input to 'output that acts on a user_state *)
 type ('input, 'action) user_action = ('input, 'action, user_state) action
 
+(** asynchronous function from 'input to 'output that acts on a user_state *)
+type ('input, 'action) user_async_action = ('input, 'action, user_state) async_action
+
 (** state stored by a verifier *)
 type verifier_state
 

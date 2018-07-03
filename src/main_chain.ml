@@ -83,3 +83,9 @@ type user_state =
 [@@deriving lens]
 
 type ('input, 'output) user_action = ('input, 'output, user_state) action
+(** type of synchronous actions on the main chain user state *)
+
+type ('input, 'output) user_async_action = ('input, 'output, user_state) async_action
+(** type of asynchronous actions on the main chain user state *)
+
+module TransactionDigestSet = DigestSet

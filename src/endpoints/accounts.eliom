@@ -1,10 +1,13 @@
 (* account for endpoints demo  *)
 
+open Lwt
+
 open Legicash_lib
 
 open Legibase
 open Lib
 open Crypto
+open Action
 open Main_chain
 open Side_chain
 open Side_chain_action
@@ -195,7 +198,7 @@ let trent_initial_state =
 
 let trent_state = ref trent_initial_state
 
-(* types have to be JSON-friendly *)
+(* types have to be JSON-friendly, so don't use, for example, TokenAmount.t *)
 type user_account_state =
   { address : string
   ; user_name : string
@@ -211,9 +214,42 @@ type payment_result =
   [@@deriving yojson]
 
 let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | state, Error y -> raise y
+let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | state, Error y -> raise y
 
-(* assume deposit to Trent *)
+(* table of id's to Lwt threads *)
+let id_to_thread_tbl = Hashtbl.create 1031
+
+(* add Lwt.t thread to table, return its id *)
+let add_main_chain_thread thread =
+  let thread_find_limit = 100000 in
+  let rec find_thread_id n =
+    if n > thread_find_limit then
+      raise (Internal_error "Can't find id for main chain thread")
+    else
+      let id = Random.int 100000000 in
+      if Hashtbl.mem id_to_thread_tbl id then
+        find_thread_id (n + 1)
+      else (
+        Hashtbl.add id_to_thread_tbl id thread;
+        let uri = Format.sprintf "api/thread?id=%d" id in
+        `Assoc [("result",`String uri);])
+  in
+  find_thread_id 0
+
+(* lookup id in thread table; if completed, return result, else return boilerplate *)
+let apply_main_chain_thread id : Yojson.Safe.json =
+  try
+    let thread = Hashtbl.find id_to_thread_tbl id in
+    match state thread with
+    | Return json -> json
+    | Fail exn -> raise exn
+    | Sleep ->
+      `Assoc [("result",`String "The operation is pending")]
+  with Not_found ->
+    `Assoc [("error",`String (Format.sprintf "Thread %d not found" id))]
+
 let deposit_to_trent address amount =
+  let open Side_chain_action in
   let address_t = Ethereum_util.address_of_hex_string address in
   let user_state =
     try
@@ -228,24 +264,26 @@ let deposit_to_trent address amount =
       Hashtbl.add address_to_user_state_tbl address_t new_user_state;
       new_user_state
   in
-  (user_state, (trent_address,TokenAmount.of_int amount))
-  |^>> Side_chain_action.deposit
-  |> fun (user_state1, signed_request) ->
-  (!trent_state,signed_request)
-  |^>> confirm_request
-  |> fun (trent_state1,signed_confirmation) ->
-  Hashtbl.replace address_to_user_state_tbl address_t user_state1;
-  trent_state := trent_state1;
-  (* get user account info on Trent *)
-  let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
-  let balance = TokenAmount.to_int (user_account_on_trent.balance) in
-  let user_name = get_user_name address_t in
-  let user_account_state = { address
-                           ; user_name
-                           ; balance
-                           }
+  let thread =
+    (user_state, (trent_address,TokenAmount.of_int amount))
+    |^>>+ deposit
+    >>= fun (user_state1, signed_request) -> (!trent_state,signed_request)
+    |^>> confirm_request
+    |> fun (trent_state1,signed_confirmation) ->
+    Hashtbl.replace address_to_user_state_tbl address_t user_state1;
+    trent_state := trent_state1;
+    (* get user account info on Trent *)
+    let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
+    let balance = TokenAmount.to_int (user_account_on_trent.balance) in
+    let user_name = get_user_name address_t in
+    let user_account_state = { address
+                             ; user_name
+                             ; balance
+                             }
+    in
+    return (user_account_state_to_yojson user_account_state)
   in
-  user_account_state_to_yojson user_account_state
+  add_main_chain_thread thread
 
 let get_balance_on_trent address =
   let address_t = Address.of_string (Ethereum_util.string_of_hex_string address) in

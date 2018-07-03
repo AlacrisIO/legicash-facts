@@ -11,7 +11,8 @@ val issue_user_request : (Operation.t, Request.t signed) user_action
 val [@warning "-32"] confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
-val deposit : (Address.t * TokenAmount.t, Request.t signed) user_action
+val deposit : (Address.t * TokenAmount.t, Request.t signed) user_async_action
+
 (** Flow 1 Step 3: user sends money on the main chain *)
 
 val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) user_action

@@ -199,6 +199,8 @@ type user_state =
 
 type ('input, 'action) user_action = ('input, 'action, user_state) action
 
+type ('input, 'action) user_async_action = ('input, 'action, user_state) async_action
+
 type verifier_state
 
 type ('input, 'output) verifier_action = ('input, 'output, verifier_state) action

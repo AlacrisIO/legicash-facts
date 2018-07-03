@@ -78,4 +78,6 @@ type user_state =
 
 type ('input, 'output) user_action = ('input, 'output, user_state) action
 
+type ('input, 'output) user_async_action = ('input, 'output, user_state) async_action
+
 val genesis_state : State.t

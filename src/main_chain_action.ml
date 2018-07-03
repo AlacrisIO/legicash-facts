@@ -34,12 +34,25 @@ let issue_transaction =
               Ethereum_transaction.sign_transaction user_state.keypair {tx_header; operation} )) )
   ^>> add_pending_transaction
 
+let issue_async_transaction (user_state, (operation,value,gas_limit)) =
+  let open Lwt in
+  (user_state, (value, gas_limit))
+  |>
+  (async_action_of_pure_action
+     (pure_action_seq
+        make_tx_header
+        (fun (user_state, tx_header) ->
+           sign user_state.keypair.private_key {tx_header; operation})))
+  (* TODO: perform action on main chain, not just queueing it *)
+  ^>>+ fun (user_state,transaction_signed) -> return (add_pending_transaction (user_state,transaction_signed))
+
 let transfer_gas_limit = TokenAmount.of_int 21000
 
 let transfer_tokens (user_state, (recipient, amount)) =
-  issue_transaction (user_state, (TransferTokens recipient, amount, transfer_gas_limit))
+  issue_async_transaction (user_state, (TransferTokens recipient, amount, transfer_gas_limit))
 
 let wait_for_confirmation ((user_state: user_state), (_signed_transaction: TransactionSigned.t)) =
+  let open Lwt in
   (* TODO: make this work
      for Ethereum, we can request a receipt to populate the confirmation
   *)
@@ -49,4 +62,4 @@ let wait_for_confirmation ((user_state: user_state), (_signed_transaction: Trans
                  ; block_number= Revision.zero
                  ; block_hash= Digest.one }
   in
-  (user_state, Ok confirmation)
+  return (user_state, Ok confirmation)

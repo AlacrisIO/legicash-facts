@@ -306,24 +306,31 @@ let lift_main_chain_user_action_to_side_chain action (user_state, input) =
   let new_state, result = action (user_state.main_chain_user_state, input) in
   ({user_state with main_chain_user_state= new_state}, result)
 
+let lift_main_chain_user_async_action_to_side_chain async_action (user_state, input) =
+  let open Lwt in
+  async_action (user_state.main_chain_user_state, input) >>=
+  fun (new_state, result) ->
+  return ({user_state with main_chain_user_state= new_state}, result)
+
 (* TODO: make config item *)
 let deposit_fee = TokenAmount.of_int 5
 
-let deposit ((_user_state, (_facilitator_address, deposit_amount)) as input) =
+let deposit ((user_state, (_facilitator_address, deposit_amount)) as input) =
+  let open Lwt in
   input
-  |> lift_main_chain_user_action_to_side_chain transfer_tokens
-     ^>> fun ((_user_state1, main_chain_deposit_signed) as transaction) ->
-       transaction
-       |> lift_main_chain_user_action_to_side_chain Main_chain_action.wait_for_confirmation
-          ^>> fun (user_state2, main_chain_deposit_confirmation) ->
-            issue_user_request
-              ( user_state2
-              , Deposit
-                  { deposit_amount= TokenAmount.sub deposit_amount deposit_fee
-                  ; deposit_fee
-                  ; main_chain_deposit_signed
-                  ; main_chain_deposit_confirmation
-                  ; deposit_expedited= false } )
+  |> lift_main_chain_user_async_action_to_side_chain transfer_tokens
+  ^>>+ fun ((_user_state1, main_chain_deposit_signed) as transaction) ->
+  transaction
+  |> lift_main_chain_user_async_action_to_side_chain Main_chain_action.wait_for_confirmation
+  ^>>+ fun (user_state2, main_chain_deposit_confirmation) ->
+  return (issue_user_request
+            ( user_state2
+            , Deposit
+                { deposit_amount= TokenAmount.sub deposit_amount deposit_fee
+                ; deposit_fee
+                ; main_chain_deposit_signed
+                ; main_chain_deposit_confirmation
+                ; deposit_expedited= false } ))
 
 (* TODO: take into account not just the facilitator name, but the fee schedule, too. *)
 
@@ -365,6 +372,8 @@ let initiate_individual_exit = bottom
 let request_deposit = bottom
 
 module Test = struct
+  open Lwt
+
   (* open account tests *)
 
   let trent_keys =
@@ -425,44 +434,43 @@ module Test = struct
     ; fee_schedule= trent_fee_schedule }
 
   let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | _state, Error y -> raise y
+  let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | state, Error y -> raise y
 
   (* deposit and payment test *)
-
   let%test "deposit_valid" =
-    let amount_to_deposit = TokenAmount.of_int 523 in
-    (* deposit into open account *)
-    let alice_main_state_nonce = alice_state.main_chain_user_state.nonce in
-    (alice_state, (trent_address, amount_to_deposit))
-    |^>> deposit
-    |> fun (alice_state1, signed_request1) ->
-    let alice_main_state_nonce1 = alice_state1.main_chain_user_state.nonce in
-    assert (alice_main_state_nonce1 = Nonce.add Nonce.one alice_main_state_nonce);
-    (trent_state, signed_request1) |^>> confirm_request
-    |> fun (trent_state1, _signed_confirmation1) ->
-    (* verify the deposit to Alice's account on Trent *)
-    let trent_accounts = trent_state1.current.accounts in
-    let alice_account = AccountMap.find alice_address trent_accounts in
-    let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
-    assert (alice_account.balance = alice_expected_deposit) ;
-    (* open Bob's account *)
-    let payment_amount = TokenAmount.of_int 17 in
-    (alice_state1, (trent_address, bob_address, payment_amount))
-    |^>> payment
-    |> fun (_alice_state2, signed_request2) ->
-    (trent_state1, signed_request2) |^>> confirm_request
-    |> fun (trent_state2, _signed_confirmation2) ->
-    (* verify the payment to Bob's account on Trent *)
-    let trent_accounts_after_payment = trent_state2.current.accounts in
-    let get_trent_account name address =
-      try AccountMap.find address trent_accounts_after_payment with Not_found ->
-        raise (Internal_error (name ^ " has no account on Trent after payment"))
-    in
-    let alice_account = get_trent_account "Alice" alice_address in
-    let bob_account = get_trent_account "Bob" bob_address in
-    (* Alice has payment debited from her earlier deposit; Bob has just the payment in his account *)
-    let alice_expected_balance = TokenAmount.sub alice_expected_deposit payment_amount in
-    let bob_expected_balance = payment_amount in
-    assert (alice_account.balance = alice_expected_balance) ;
-    assert (bob_account.balance = bob_expected_balance) ;
-    true
+    Lwt_main.run (
+      let amount_to_deposit = TokenAmount.of_int 523 in
+      (* deposit into open account *)
+      (alice_state, (trent_address, amount_to_deposit))
+      |^>>+ deposit
+      >>= fun (alice_state1, signed_request1) ->
+      (trent_state, signed_request1) |^>> confirm_request
+      |> fun (trent_state1, _signed_confirmation1) ->
+      (* verify the deposit to Alice's account on Trent *)
+      let trent_accounts = trent_state1.current.accounts in
+      let alice_account = AddressMap.find alice_address trent_accounts in
+      let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
+      assert (alice_account.balance = alice_expected_deposit) ;
+      (* open Bob's account *)
+      let payment_amount = TokenAmount.of_int 17 in
+      (alice_state1, (trent_address, bob_address, payment_amount))
+      |^>> payment
+      |> fun (_alice_state2, signed_request2) ->
+      (trent_state1, signed_request2) |^>> confirm_request
+      |> fun (trent_state2, _signed_confirmation2) ->
+      (* verify the payment to Bob's account on Trent *)
+      let trent_accounts_after_payment = trent_state2.current.accounts in
+      let get_trent_account name address =
+        try AddressMap.find address trent_accounts_after_payment with Not_found ->
+          raise (Internal_error (name ^ " has no account on Trent after payment"))
+      in
+      let alice_account = get_trent_account "Alice" alice_address in
+      let bob_account = get_trent_account "Bob" bob_address in
+      (* Alice has payment debited from her earlier deposit; Bob has just the payment in his account *)
+      let alice_expected_balance = TokenAmount.sub alice_expected_deposit payment_amount in
+      let bob_expected_balance = payment_amount in
+      assert (alice_account.balance = alice_expected_balance) ;
+      assert (bob_account.balance = bob_expected_balance) ;
+      return true
+    )
 end

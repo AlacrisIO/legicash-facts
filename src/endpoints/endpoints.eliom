@@ -52,7 +52,7 @@ let make_post_service name =
     ()
 
 let make_get_service name =
-Eliom_service.create
+    Eliom_service.create
     ~path
     ~meth:(Eliom_service.Get (make_params name))
     ()
@@ -64,6 +64,15 @@ let payment_service = make_post_service "payment"
 let balance_service = make_post_service "balance"
 
 let balances_service = make_get_service "balances"
+
+(* a thread's address is api/thread?id=nnn *)
+let thread_params = Eliom_parameter.(suffix_prod (suffix_const "thread") (int "id"))
+
+let thread_service =
+  Eliom_service.create
+    ~path
+    ~meth:(Eliom_service.Get thread_params)
+    ()
 
 (**** Handler helpers ****)
 
@@ -170,7 +179,13 @@ let balances_handler balances () =
   try
     let result_json = Accounts.get_all_balances_on_trent () in
     send_json ~code:200 (Yojson.Safe.to_string result_json)
-    with Internal_error msg -> bad_response ("Internal error: " ^ msg)
+    with Internal_error msg -> bad_response msg
+
+let thread_handler (thread,id) () =
+  try
+    let result_json = Accounts.apply_main_chain_thread id in
+    send_json ~code:200 (Yojson.Safe.to_string result_json)
+  with Internal_error msg -> bad_response msg
 
 (* Register services *)
 
@@ -179,4 +194,5 @@ let _ =
   let _ = Eliom_registration.Any.register payment_service payment_handler in
   let _ = Eliom_registration.Any.register balance_service balance_handler in
   let _ = Eliom_registration.Any.register balances_service balances_handler in
+  let _ = Eliom_registration.Any.register thread_service thread_handler in
   ()

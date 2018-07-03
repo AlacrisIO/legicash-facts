@@ -32,7 +32,7 @@ let send_rpc_call_to_net json =
     ethereum_net
   >>= fun (resp, body) ->
   let _ = resp |> Response.status |> Code.code_of_status in
-  body |> Cohttp_lwt.Body.to_string >|= fun s -> Yojson.Basic.from_string s
+  body |> Cohttp_lwt.Body.to_string >|= Yojson.Basic.from_string
 
 
 (* given constructor, build JSON RPC call name *)
