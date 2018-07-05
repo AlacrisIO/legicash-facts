@@ -214,6 +214,7 @@ type payment_result =
   [@@deriving yojson]
 
 let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | state, Error y -> raise y
+(* Lwt-monadic version of |^>> *)
 let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | state, Error y -> raise y
 
 (* table of id's to Lwt threads *)
