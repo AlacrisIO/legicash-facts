@@ -161,9 +161,7 @@ let is_signature_valid (address: Address.t) (signature: Secp256k1.Sign.recoverab
 
 (* check validity of signature for payload within signed value *)
 let is_signed_value_valid address signed_value =
-  let signature = signed_value.signature in
-  let data = signed_value.payload in
-  is_signature_valid address signature data
+  is_signature_valid address signed_value.signature signed_value.payload
 
 let sign private_key data = {payload= data; signature= make_signature private_key data}
 module Test = struct

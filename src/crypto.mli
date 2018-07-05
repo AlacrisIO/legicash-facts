@@ -63,7 +63,7 @@ type 'a signature
 (** an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: 'a signature}
 
-val is_signature_valid : Address.t -> (signature: Secp256k1.Sign.recoverable signature) -> 'a -> bool
+val is_signature_valid : Address.t -> 'a signature -> 'a -> bool
 (** check signature for given value *)
 
 val is_signed_value_valid : Address.t -> 'a signed -> bool
