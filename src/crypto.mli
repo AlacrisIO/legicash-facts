@@ -60,12 +60,16 @@ end
 (** a signature for an object of type 'a *)
 type 'a signature
 
-val is_signature_valid : Address.t -> 'a signature -> 'a -> bool
-
-val make_signature : private_key -> 'a -> 'a signature
-
 (** an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: 'a signature}
+
+val is_signature_valid : Address.t -> 'a signature -> 'a -> bool
+(** check signature for given value *)
+
+val is_signed_value_valid : Address.t -> 'a signed -> bool
+(** check signature for payload within a signed value *)
+
+val make_signature : private_key -> 'a -> 'a signature
 
 val sign : private_key -> 'a -> 'a signed
 
