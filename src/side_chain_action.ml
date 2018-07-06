@@ -159,8 +159,7 @@ let effect_request :
           state
       , ( rx
         , { account_state with
-            balance=
-              TokenAmount.sub account_state.balance
+            balance= TokenAmount.sub account_state.balance
                 (TokenAmount.add payment_invoice.amount payment_fee) }
         , account_lens ) )
       ^|> maybe_spend_spending_limit payment_expedited payment_invoice.amount
@@ -168,9 +167,9 @@ let effect_request :
       ( state
       , Ok
           ( rx
-          , Lens.modify AccountState.balance
-              (TokenAmount.sub (TokenAmount.add withdrawal_amount withdrawal_fee))
-              account_state
+          , { account_state with
+              balance= TokenAmount.sub account_state.balance
+                  (TokenAmount.add withdrawal_amount withdrawal_fee) }
           , account_lens ) )
 
 (** TODO:
@@ -302,20 +301,17 @@ let [@warning "-32"] optimistic_facilitator_account_state (user_state, facilitat
         (List.map (fun x -> x.request.payload.operation) pending_operations)
         confirmed_state
 
-let lift_main_chain_user_action_to_side_chain action (user_state, input) =
-  let new_state, result = action (user_state.main_chain_user_state, input) in
-  ({user_state with main_chain_user_state= new_state}, result)
-
 let lift_main_chain_user_async_action_to_side_chain async_action (user_state, input) =
   let open Lwt in
-  async_action (user_state.main_chain_user_state, input) >>=
-  fun (new_state, result) ->
+  async_action (user_state.main_chain_user_state, input)
+  >>= fun (new_state, result) ->
   return ({user_state with main_chain_user_state= new_state}, result)
 
 (* TODO: make config item *)
 let deposit_fee = TokenAmount.of_int 5
 
 let deposit ((user_state, (_facilitator_address, deposit_amount)) as input) =
+(* in Lwt monad, because there's a transfer of tokens in the main chain *)
   let open Lwt in
   input
   |> lift_main_chain_user_async_action_to_side_chain transfer_tokens
@@ -334,6 +330,17 @@ let deposit ((user_state, (_facilitator_address, deposit_amount)) as input) =
 
 (* TODO: take into account not just the facilitator name, but the fee schedule, too. *)
 
+let withdrawal_fee = TokenAmount.of_int 5
+
+(* in Lwt monad, because we'll push the request to the main chain *)
+let withdrawal (user_state, (facilitator_address, withdrawal_amount)) =
+  Lwt.return (issue_user_request
+                ( user_state
+                , Withdrawal
+                    { withdrawal_amount= TokenAmount.sub withdrawal_amount withdrawal_fee
+                    ; withdrawal_fee
+                    } ))
+
 let payment (user_state, (_facilitator_address, recipient_address, payment_amount)) =
   let invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= None} in
   issue_user_request
@@ -342,6 +349,25 @@ let payment (user_state, (_facilitator_address, recipient_address, payment_amoun
         { payment_invoice= invoice
         ; payment_fee= TokenAmount.of_int 0 (* TODO: configuration item *)
         ; payment_expedited= false } )
+
+(* an action made on the side chain may need a corresponding action on the main chain *)
+let push_side_chain_action_to_main_chain facilitator_state (user_state : Side_chain.user_state) signed_confirmation =
+  let confirmation = signed_confirmation.payload in
+  let facilitator_address = facilitator_state.keypair.address in
+  if not (is_signature_valid facilitator_address signed_confirmation.signature confirmation) then
+    raise (Internal_error "Invalid facilitator signature on signed confirmation");
+  let signed_request = confirmation.signed_request in
+  let request = signed_request.payload in
+  let user_keys = user_state.main_chain_user_state.keypair in
+  let user_address = user_keys.address in
+  if not (is_signature_valid user_address signed_request.signature request) then
+    raise (Internal_error "Invalid user signature on signed request");
+  match request.operation with
+  | Withdrawal details ->
+    withdraw_tokens facilitator_state user_address details.withdrawal_amount
+  | Payment _
+  | Deposit _ ->
+    raise (Internal_error "Side chain confirmation does not need subsequent interaction with main chain")
 
 let detect_main_chain_facilitator_issues = bottom
 
@@ -434,13 +460,14 @@ module Test = struct
     ; fee_schedule= trent_fee_schedule }
 
   let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | _state, Error y -> raise y
+  (* Lwt-monadic version of |^>> *)
   let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | state, Error y -> raise y
 
   (* deposit and payment test *)
   let%test "deposit_valid" =
     Lwt_main.run (
       let amount_to_deposit = TokenAmount.of_int 523 in
-      (* deposit into open account *)
+      (* deposit *)
       (alice_state, (trent_address, amount_to_deposit))
       |^>>+ deposit
       >>= fun (alice_state1, signed_request1) ->
@@ -472,5 +499,39 @@ module Test = struct
       assert (alice_account.balance = alice_expected_balance) ;
       assert (bob_account.balance = bob_expected_balance) ;
       return true
+    )
+
+  (* deposit and withdrawal test *)
+  let%test "withdrawal_valid" =
+    Lwt_main.run (
+      (* deposit some funds first *)
+      let amount_to_deposit = TokenAmount.of_int 1023 in
+      (* deposit *)
+      (alice_state, (trent_address, amount_to_deposit))
+      |^>>+ deposit
+      >>= fun (alice_state1, signed_request1) ->
+      (trent_state, signed_request1) |^>> confirm_request
+      |> fun (trent_state1, signed_confirmation1) ->
+      (* verify the deposit to Alice's account on Trent *)
+      let trent_accounts = trent_state1.current.accounts in
+      let alice_account = AddressMap.find alice_address trent_accounts in
+      let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
+      assert (alice_account.balance = alice_expected_deposit) ;
+      (* withdrawal back to main chain *)
+      let amount_to_withdraw = TokenAmount.of_int 42 in
+      (alice_state1, (trent_address, amount_to_withdraw))
+      |^>>+ withdrawal
+      >>= fun (alice_state2, signed_request2) ->
+      (trent_state1, signed_request2) |^>> confirm_request
+      |> fun (trent_state2, signed_confirmation2) ->
+      let trent_accounts = trent_state2.current.accounts in
+      let alice_account = AddressMap.find alice_address trent_accounts in
+      let alice_expected_withdrawal = TokenAmount.sub alice_expected_deposit amount_to_withdraw in
+      assert (alice_account.balance = alice_expected_withdrawal);
+      push_side_chain_action_to_main_chain trent_state2 alice_state2 signed_confirmation2
+      (* TODO: get actual transaction receipt from main chain, check receipt
+         maybe this test belongs in Ethereum_transactions
+      *)
+      >>= fun json -> return true
     )
 end

@@ -3,6 +3,8 @@ open Action
 open Crypto
 open Side_chain
 
+(* the "flows" mentioned here are those mentioned in the file "demo.md" *)
+
 val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
 (** constantly watch the main chain and search for prosecutable issues relating to facilitators *)
 
@@ -12,11 +14,12 @@ val [@warning "-32"] confirm_request : (Request.t signed, Confirmation.t signed)
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
 val deposit : (Address.t * TokenAmount.t, Request.t signed) user_async_action
-
-(** Flow 1 Step 3: user sends money on the main chain *)
+(** Flow 1 Step 3: user sends money on the main chain to the side chain *)
 
 val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) user_action
 (** deposit request *)
+
+val push_side_chain_action_to_main_chain : Side_chain.facilitator_state -> Side_chain.user_state -> Side_chain.confirmation signed -> Digest.t Lwt.t
 
 (* Flow 1 Step 4: user pays entry fee on the side chain *)
 
@@ -49,6 +52,11 @@ val confirm_request : (Request.t signed, Confirmation.t signed) facilitator_acti
 
    Step 4: Bob accepts the payment, notifies Alice and delivers the service
 *)
+
+(* Flow 3: Withdrawal *)
+
+val withdrawal : (Address.t * TokenAmount.t, Request.t signed) user_async_action
+(** Flow 3 Step 3: user sends money from the side chain to the main chain *)
 
 val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) user_action
 

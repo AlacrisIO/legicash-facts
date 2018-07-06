@@ -310,7 +310,6 @@ module Test = struct
     let result = Basic.Util.to_string (Basic.Util.member "result" contract_count_json) in
     Nonce.of_int64 (Int64.of_string result)
 
-
   let wait_for_contract_execution transaction_hash =
     let counter = ref 0 in
     let max_counter = 20 in

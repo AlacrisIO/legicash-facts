@@ -199,10 +199,26 @@ let trent_initial_state =
 let trent_state = ref trent_initial_state
 
 (* types have to be JSON-friendly, so don't use, for example, TokenAmount.t *)
+
+(* user account balance on Trent *)
 type user_account_state =
   { address : string
   ; user_name : string
   ; balance : int
+  }
+  [@@deriving yojson]
+
+(* user account after a deposit, with transaction hash on the net *)
+type deposit_result =
+  { user_account_state : user_account_state
+  ; deposit_transaction_hash : string
+  }
+  [@@deriving yojson]
+
+(* user account after a withdrawal, with transaction hash on the net *)
+type withdrawal_result =
+  { user_account_state : user_account_state
+  ; withdrawal_transaction_hash : string
   }
   [@@deriving yojson]
 
@@ -249,22 +265,23 @@ let apply_main_chain_thread id : Yojson.Safe.json =
   with Not_found ->
     `Assoc [("error",`String (Format.sprintf "Thread %d not found" id))]
 
+let user_state_from_address address_t =
+  try
+    Hashtbl.find address_to_user_state_tbl address_t
+  with Not_found ->
+    let keys =
+      try
+        Hashtbl.find address_to_keys_tbl address_t
+      with Not_found -> raise (Internal_error "Can't find address for deposit")
+    in
+    let new_user_state = create_side_chain_user_state keys in
+    Hashtbl.add address_to_user_state_tbl address_t new_user_state;
+    new_user_state
+
 let deposit_to_trent address amount =
   let open Side_chain_action in
   let address_t = Ethereum_util.address_of_hex_string address in
-  let user_state =
-    try
-      Hashtbl.find address_to_user_state_tbl address_t
-    with Not_found ->
-      let keys =
-        try
-          Hashtbl.find address_to_keys_tbl address_t
-        with Not_found -> raise (Internal_error "Can't find address for deposit")
-      in
-      let new_user_state = create_side_chain_user_state keys in
-      Hashtbl.add address_to_user_state_tbl address_t new_user_state;
-      new_user_state
-  in
+  let user_state = user_state_from_address address_t in
   let thread =
     (user_state, (trent_address,TokenAmount.of_int amount))
     |^>>+ deposit
@@ -273,6 +290,15 @@ let deposit_to_trent address amount =
     |> fun (trent_state1,signed_confirmation) ->
     Hashtbl.replace address_to_user_state_tbl address_t user_state1;
     trent_state := trent_state1;
+    (* get transaction hash for main chain *)
+    let operation = signed_request.payload.operation in
+    let main_chain_confirmation =
+      match operation with
+        Deposit details -> details.main_chain_deposit_confirmation
+      | _ -> raise (Internal_error "Expected deposit request")
+    in
+    let transaction_hash_string = Digest.to_string main_chain_confirmation.transaction_hash in
+    let deposit_transaction_hash = Ethereum_util.hex_string_of_string transaction_hash_string in
     (* get user account info on Trent *)
     let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
     let balance = TokenAmount.to_int (user_account_on_trent.balance) in
@@ -282,7 +308,43 @@ let deposit_to_trent address amount =
                              ; balance
                              }
     in
-    return (user_account_state_to_yojson user_account_state)
+    let deposit_result = { user_account_state
+                         ; deposit_transaction_hash
+                         }
+    in
+    return (deposit_result_to_yojson deposit_result)
+  in
+  add_main_chain_thread thread
+
+let withdrawal_from_trent address amount =
+  let open Side_chain_action in
+  let address_t = Ethereum_util.address_of_hex_string address in
+  let user_state = user_state_from_address address_t in
+  let thread =
+    (user_state, (trent_address,TokenAmount.of_int amount))
+    |^>>+ withdrawal
+    >>= fun (user_state1, signed_request1) ->
+    (!trent_state,signed_request1)
+    |^>> confirm_request
+    |> fun (trent_state2, signed_confirmation2) ->
+    trent_state := trent_state2;
+    push_side_chain_action_to_main_chain trent_state2 user_state1 signed_confirmation2
+    >>= fun transaction_hash_as_digest ->
+    let withdrawal_transaction_hash = Ethereum_util.hex_string_of_string (Digest.to_string transaction_hash_as_digest) in
+    (* get user account info on Trent *)
+    let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
+    let balance = TokenAmount.to_int (user_account_on_trent.balance) in
+    let user_name = get_user_name address_t in
+    let user_account_state = { address
+                             ; user_name
+                             ; balance
+                             }
+    in
+    let withdrawal_result = { user_account_state
+                            ; withdrawal_transaction_hash
+                            }
+    in
+    return (withdrawal_result_to_yojson withdrawal_result)
   in
   add_main_chain_thread thread
 

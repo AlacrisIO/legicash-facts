@@ -24,6 +24,11 @@ type deposit_json =
   ; amount: int
   } [@@deriving yojson]
 
+type withdrawal_json =
+  { address: string
+  ; amount: int
+  } [@@deriving yojson]
+
 type balance_json =
   { address: string
   } [@@deriving yojson]
@@ -58,6 +63,8 @@ let make_get_service name =
     ()
 
 let deposit_service = make_post_service "deposit"
+
+let withdrawal_service = make_post_service "withdrawal"
 
 let payment_service = make_post_service "payment"
 
@@ -135,6 +142,26 @@ let deposit_handler () (content_type,raw_content_opt) =
   else
     not_json_content_error ()
 
+let withdrawal_handler () (content_type,raw_content_opt) =
+  let open Yojson.Safe in
+  if is_json_content content_type then
+    try
+      match raw_content_opt with
+      | None -> missing_content_error "withdrawal"
+      | Some raw_content ->
+        read_raw_content raw_content >>= fun json_string ->
+        let json = from_string json_string in
+        let maybe_withdrawal = withdrawal_json_of_yojson json in
+        match maybe_withdrawal with
+        | Ok withdrawal ->
+          let result_json = Accounts.withdrawal_from_trent withdrawal.address withdrawal.amount in
+          send_json ~code:200 (Yojson.Safe.to_string result_json)
+        | Error msg -> bad_response msg
+    with Internal_error msg -> bad_response msg
+       | exn -> bad_response (Printexc.to_string exn)
+  else
+    not_json_content_error ()
+
 let payment_handler () (content_type,raw_content_opt) =
   let open Yojson.Safe in
   if is_json_content content_type then
@@ -189,10 +216,21 @@ let thread_handler (thread,id) () =
 
 (* Register services *)
 
+(* the types of POST and GET endpoint differ, keep in separate lists *)
+
+let post_endpoints =
+  [ (deposit_service, deposit_handler)
+  ; (withdrawal_service, withdrawal_handler)
+  ; (payment_service, payment_handler)
+  ; (balance_service, balance_handler)
+  ]
+
+let get_endpoints =
+  [ (balances_service, balances_handler) ]
+
 let _ =
-  let _ = Eliom_registration.Any.register deposit_service deposit_handler in
-  let _ = Eliom_registration.Any.register payment_service payment_handler in
-  let _ = Eliom_registration.Any.register balance_service balance_handler in
-  let _ = Eliom_registration.Any.register balances_service balances_handler in
+  let _ = List.iter (fun (service,handler) -> Eliom_registration.Any.register service handler) post_endpoints in
+  let _ = List.iter (fun (service,handler) -> Eliom_registration.Any.register service handler) get_endpoints in
+  (* GET endpoint with a query parameter, so has its own type *)
   let _ = Eliom_registration.Any.register thread_service thread_handler in
   ()
