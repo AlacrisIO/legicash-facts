@@ -351,7 +351,7 @@ let payment (user_state, (_facilitator_address, recipient_address, payment_amoun
         ; payment_expedited= false } )
 
 (* an action made on the side chain may need a corresponding action on the main chain *)
-let push_side_chain_action_to_main_chain facilitator_state (user_state : Side_chain.user_state) signed_confirmation =
+let push_side_chain_action_to_main_chain facilitator_state (user_state : Side_chain.user_state) (signed_confirmation : Confirmation.t signed) =
   let confirmation = signed_confirmation.payload in
   let facilitator_address = facilitator_state.keypair.address in
   if not (is_signature_valid facilitator_address signed_confirmation.signature confirmation) then
@@ -475,7 +475,7 @@ module Test = struct
       |> fun (trent_state1, _signed_confirmation1) ->
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
-      let alice_account = AddressMap.find alice_address trent_accounts in
+      let alice_account = AccountMap.find alice_address trent_accounts in
       let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
       assert (alice_account.balance = alice_expected_deposit) ;
       (* open Bob's account *)
@@ -488,7 +488,7 @@ module Test = struct
       (* verify the payment to Bob's account on Trent *)
       let trent_accounts_after_payment = trent_state2.current.accounts in
       let get_trent_account name address =
-        try AddressMap.find address trent_accounts_after_payment with Not_found ->
+        try AccountMap.find address trent_accounts_after_payment with Not_found ->
           raise (Internal_error (name ^ " has no account on Trent after payment"))
       in
       let alice_account = get_trent_account "Alice" alice_address in
@@ -514,7 +514,7 @@ module Test = struct
       |> fun (trent_state1, signed_confirmation1) ->
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
-      let alice_account = AddressMap.find alice_address trent_accounts in
+      let alice_account = AccountMap.find alice_address trent_accounts in
       let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
       assert (alice_account.balance = alice_expected_deposit) ;
       (* withdrawal back to main chain *)
@@ -524,10 +524,10 @@ module Test = struct
       >>= fun (alice_state2, signed_request2) ->
       (trent_state1, signed_request2) |^>> confirm_request
       |> fun (trent_state2, signed_confirmation2) ->
-      let trent_accounts = trent_state2.current.accounts in
-      let alice_account = AddressMap.find alice_address trent_accounts in
+      let trent_accounts_after_withdrawal = trent_state2.current.accounts in
+      let alice_account_after_withdrawal = AccountMap.find alice_address trent_accounts_after_withdrawal in
       let alice_expected_withdrawal = TokenAmount.sub alice_expected_deposit amount_to_withdraw in
-      assert (alice_account.balance = alice_expected_withdrawal);
+      assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
       push_side_chain_action_to_main_chain trent_state2 alice_state2 signed_confirmation2
       (* TODO: get actual transaction receipt from main chain, check receipt
          maybe this test belongs in Ethereum_transactions

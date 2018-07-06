@@ -167,11 +167,11 @@ let create_side_chain_user_state user_keys =
     ; pending_transactions= []
     ; nonce= Nonce.zero }
   in
-  let new_account_state = {balance= TokenAmount.zero; account_revision= Revision.zero} in
-  let user_account_state =
+  let (new_account_state : AccountState.t) = {balance= TokenAmount.zero; account_revision= Revision.zero} in
+  let (user_account_state : UserAccountStatePerFacilitator.t) =
     {facilitator_validity= Confirmed; confirmed_state= new_account_state; pending_operations= []}
   in
-  let facilitators = AddressMap.singleton trent_address user_account_state in
+  let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
   {main_chain_user_state; facilitators}
 
 let trent_fee_schedule =
@@ -180,15 +180,15 @@ let trent_fee_schedule =
   ; per_account_limit= TokenAmount.of_int 20000
   ; fee_per_billion= TokenAmount.of_int 42 }
 
-let confirmed_trent_state =
+let (confirmed_trent_state : Side_chain.State.t) =
   { previous_main_chain_state= Digest.zero
   ; previous_side_chain_state= Digest.one
   ; facilitator_revision= Revision.of_int 17
   ; spending_limit= TokenAmount.of_int 1000000
   ; bond_posted= TokenAmount.of_int 5000000
-  ; accounts= AddressMap.empty
-  ; operations= AddressMap.empty
-  ; main_chain_transactions_posted= DigestSet.empty }
+  ; accounts= AccountMap.empty
+  ; operations= ConfirmationMap.empty
+  ; main_chain_transactions_posted= Trie.DigestSet.empty }
 
 let trent_initial_state =
   { keypair= trent_keys
@@ -297,10 +297,9 @@ let deposit_to_trent address amount =
         Deposit details -> details.main_chain_deposit_confirmation
       | _ -> raise (Internal_error "Expected deposit request")
     in
-    let transaction_hash_string = Digest.to_string main_chain_confirmation.transaction_hash in
-    let deposit_transaction_hash = Ethereum_util.hex_string_of_string transaction_hash_string in
+    let deposit_transaction_hash = "0x" ^ (Digest.to_hex_string main_chain_confirmation.transaction_hash) in
     (* get user account info on Trent *)
-    let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
+    let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
     let balance = TokenAmount.to_int (user_account_on_trent.balance) in
     let user_name = get_user_name address_t in
     let user_account_state = { address
@@ -330,9 +329,9 @@ let withdrawal_from_trent address amount =
     trent_state := trent_state2;
     push_side_chain_action_to_main_chain trent_state2 user_state1 signed_confirmation2
     >>= fun transaction_hash_as_digest ->
-    let withdrawal_transaction_hash = Ethereum_util.hex_string_of_string (Digest.to_string transaction_hash_as_digest) in
+    let withdrawal_transaction_hash = "0x" ^ (Digest.to_hex_string transaction_hash_as_digest) in
     (* get user account info on Trent *)
-    let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
+    let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
     let balance = TokenAmount.to_int (user_account_on_trent.balance) in
     let user_name = get_user_name address_t in
     let user_account_state = { address
@@ -350,7 +349,7 @@ let withdrawal_from_trent address amount =
 
 let get_balance_on_trent address =
   let address_t = Address.of_string (Ethereum_util.string_of_hex_string address) in
-  let user_account_on_trent = AddressMap.find address_t !trent_state.current.accounts in
+  let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
   let balance = TokenAmount.to_int (user_account_on_trent.balance) in
   let user_name = get_user_name address_t in
   let user_account_state = { address
@@ -361,7 +360,7 @@ let get_balance_on_trent address =
   user_account_state_to_yojson user_account_state
 
 let get_all_balances_on_trent () =
-  let make_balance_json address_t (account : Side_chain.account_state) accum =
+  let make_balance_json address_t (account : Side_chain.AccountState.t) accum =
     let user_name = get_user_name address_t in
     let account_state = { address = Ethereum_util.hex_string_of_address address_t
                         ; user_name
@@ -369,7 +368,7 @@ let get_all_balances_on_trent () =
                         }
     in account_state::accum
   in
-  let user_account_states = AddressMap.fold make_balance_json !trent_state.current.accounts [] in
+  let user_account_states = AccountMap.fold make_balance_json !trent_state.current.accounts [] in
   let sorted_user_account_states =
     List.sort
       (fun bal1 bal2 -> String.compare bal1.user_name bal2.user_name)
@@ -385,7 +384,7 @@ let payment_on_trent sender recipient amount =
   let recipient_address_t = Ethereum_util.address_of_hex_string recipient in
   let sender_state = Hashtbl.find address_to_user_state_tbl sender_address_t in
   let starting_accounts = !trent_state.current.accounts in
-  let sender_account = AddressMap.find sender_address_t starting_accounts in
+  let sender_account = AccountMap.find sender_address_t starting_accounts in
   if (TokenAmount.to_int sender_account.balance) < amount then
     raise (Internal_error "Sender has insufficient balance to make this payment");
   (sender_state, (trent_address, recipient_address_t, TokenAmount.of_int amount))
@@ -400,9 +399,9 @@ let payment_on_trent sender recipient amount =
   let sender_name = get_user_name sender_address_t in
   let recipient_name = get_user_name recipient_address_t in
   let accounts = !trent_state.current.accounts in
-  let sender_account = AddressMap.find sender_address_t accounts in
-  let recipient_account = AddressMap.find sender_address_t accounts in
-  let make_account_state address_t name (account : Side_chain.account_state) =
+  let sender_account = AccountMap.find sender_address_t accounts in
+  let recipient_account = AccountMap.find sender_address_t accounts in
+  let make_account_state address_t name (account : AccountState.t) =
     { address = Ethereum_util.hex_string_of_address address_t
     ; user_name = name
     ; balance = TokenAmount.to_int account.balance
