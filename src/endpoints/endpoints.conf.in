@@ -18,8 +18,8 @@
     <extension findlib-package="eliom.server"/>
     %%% This will include the packages defined as SERVER_PACKAGES in your Makefile:
     %%PACKAGES%%
-    <findlib path="/home/ubuntu/legicash/legicash-facts/src/_build/default/.legicash_lib.objs"/>
-    <extension module="/home/ubuntu/legicash/legicash-facts/src/_build/default/legicash_lib.cma"/>
+    <findlib path="../_build/default/.legicash_lib.objs"/>
+    <extension module="../_build/default/legicash_lib.cma"/>
     <host hostfilter="*">
       <static dir="%%STATICDIR%%" />
       <static dir="%%ELIOMSTATICDIR%%" />
