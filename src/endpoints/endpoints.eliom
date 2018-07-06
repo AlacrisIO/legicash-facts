@@ -8,8 +8,6 @@ open Yojson
 open Legicash_lib
 open Lib
 
-open Accounts
-
 module TokenAmount = Main_chain.TokenAmount
 
 (**** Data types ****)
@@ -134,7 +132,7 @@ let deposit_handler () (content_type,raw_content_opt) =
         let maybe_deposit = deposit_json_of_yojson json in
         match maybe_deposit with
         | Ok deposit ->
-          let result_json = Accounts.deposit_to_trent deposit.address deposit.amount in
+          let result_json = Actions.deposit_to_trent deposit.address deposit.amount in
           send_json ~code:200 (Yojson.Safe.to_string result_json)
         | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
@@ -154,7 +152,7 @@ let withdrawal_handler () (content_type,raw_content_opt) =
         let maybe_withdrawal = withdrawal_json_of_yojson json in
         match maybe_withdrawal with
         | Ok withdrawal ->
-          let result_json = Accounts.withdrawal_from_trent withdrawal.address withdrawal.amount in
+          let result_json = Actions.withdrawal_from_trent withdrawal.address withdrawal.amount in
           send_json ~code:200 (Yojson.Safe.to_string result_json)
         | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
@@ -174,7 +172,7 @@ let payment_handler () (content_type,raw_content_opt) =
         let maybe_payment = payment_json_of_yojson json in
         match maybe_payment with
         | Ok payment ->
-          let result_json = Accounts.payment_on_trent payment.sender payment.recipient payment.amount in
+          let result_json = Actions.payment_on_trent payment.sender payment.recipient payment.amount in
           send_json ~code:200 (Yojson.Safe.to_string result_json)
         | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
@@ -194,7 +192,7 @@ let balance_handler () (content_type,raw_content_opt) =
       let maybe_balance = balance_json_of_yojson json in
       match maybe_balance with
       | Ok balance ->
-        let result_json = Accounts.get_balance_on_trent balance.address in
+        let result_json = Actions.get_balance_on_trent balance.address in
         send_json ~code:200 (Yojson.Safe.to_string result_json)
       | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
@@ -204,13 +202,13 @@ let balance_handler () (content_type,raw_content_opt) =
 
 let balances_handler balances () =
   try
-    let result_json = Accounts.get_all_balances_on_trent () in
+    let result_json = Actions.get_all_balances_on_trent () in
     send_json ~code:200 (Yojson.Safe.to_string result_json)
     with Internal_error msg -> bad_response msg
 
 let thread_handler (thread,id) () =
   try
-    let result_json = Accounts.apply_main_chain_thread id in
+    let result_json = Actions.apply_main_chain_thread id in
     send_json ~code:200 (Yojson.Safe.to_string result_json)
   with Internal_error msg -> bad_response msg
 
@@ -229,8 +227,9 @@ let get_endpoints =
   [ (balances_service, balances_handler) ]
 
 let _ =
-  let _ = List.iter (fun (service,handler) -> Eliom_registration.Any.register service handler) post_endpoints in
-  let _ = List.iter (fun (service,handler) -> Eliom_registration.Any.register service handler) get_endpoints in
+  let open Eliom_registration.Any in
+  let _ = List.iter (fun (service,handler) -> register service handler) post_endpoints in
+  let _ = List.iter (fun (service,handler) -> register service handler) get_endpoints in
   (* GET endpoint with a query parameter, so has its own type *)
-  let _ = Eliom_registration.Any.register thread_service thread_handler in
+  let _ = register thread_service thread_handler in
   ()
