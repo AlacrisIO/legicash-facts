@@ -62,7 +62,7 @@ toplevel : legicash_lib
 repl : toplevel
 	$(HIDE) rlwrap ./bin/$(TOPLEVEL)
 
-endpoints : legicash_lib install
+endpoints : legicash_lib
 	make -C src/endpoints test.opt
 
 clean :
