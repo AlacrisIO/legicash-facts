@@ -319,6 +319,10 @@ let withdrawal_from_trent address amount =
   let open Side_chain_action in
   let address_t = Ethereum_util.address_of_hex_string address in
   let user_state = user_state_from_address address_t in
+  let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
+  let balance = user_account_on_trent.balance in
+  if TokenAmount.compare (TokenAmount.of_int amount) balance > 0 then
+    raise (Internal_error "Insufficient balance to withdraw specified amount");
   let thread =
     (user_state, (trent_address,TokenAmount.of_int amount))
     |^>>+ withdrawal
