@@ -350,8 +350,38 @@ let payment (user_state, (_facilitator_address, recipient_address, payment_amoun
         ; payment_fee= TokenAmount.of_int 0 (* TODO: configuration item *)
         ; payment_expedited= false } )
 
+let make_main_chain_withdrawal_transaction { withdrawal_amount; withdrawal_fee } user_address facilitator_state =
+    let open Ethereum_abi in
+    let open Ethereum_transaction in
+    let contract_address = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" in (* TODO : use actual contract address *)
+    let contract_hex_address = Ethereum_util.address_of_hex_string contract_address in
+    let facilitator_keys = facilitator_state.keypair in
+    let facilitator_address = facilitator_keys.address in
+    let amount = withdrawal_amount |> TokenAmount.to_int in
+    let withdrawal_call =
+      { function_name = "withdrawTokens"
+      ; parameters =
+          [ abi_address_of_address facilitator_address
+          ; abi_address_of_address user_address
+          ; abi_uint_of_int amount
+          ]
+      }
+    in
+    let encoded_call = encode_function_call withdrawal_call in
+    let operation = Main_chain.CallFunction (contract_hex_address, encoded_call) in
+    let tx_header =
+      { sender= facilitator_address
+      ; nonce= Nonce.zero (* TODO: get_nonce facilitator_address *)
+      ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
+      ; gas_limit= TokenAmount.of_int 1000000
+      ; value= TokenAmount.zero
+      }
+    in
+    let transaction = { tx_header; operation } in
+    sign facilitator_keys.private_key transaction
+
 (* an action made on the side chain may need a corresponding action on the main chain *)
-let push_side_chain_action_to_main_chain facilitator_state (user_state : Side_chain.user_state) (signed_confirmation : Confirmation.t signed) =
+let push_side_chain_action_to_main_chain facilitator_state ((user_state : Side_chain.user_state), (signed_confirmation : Confirmation.t signed)) =
   let confirmation = signed_confirmation.payload in
   let facilitator_address = facilitator_state.keypair.address in
   if not (is_signature_valid facilitator_address signed_confirmation.signature confirmation) then
@@ -364,7 +394,11 @@ let push_side_chain_action_to_main_chain facilitator_state (user_state : Side_ch
     raise (Internal_error "Invalid user signature on signed request");
   match request.operation with
   | Withdrawal details ->
-    withdraw_tokens facilitator_state user_address details.withdrawal_amount
+    let open Lwt in
+    let signed_transaction = make_main_chain_withdrawal_transaction details user_address facilitator_state in
+    wait_for_confirmation (user_state.main_chain_user_state,signed_transaction)
+    >>= fun (main_chain_user_state,main_chain_confirmation) ->
+    return ({ user_state with main_chain_user_state },main_chain_confirmation)
   | Payment _
   | Deposit _ ->
     raise (Internal_error "Side chain confirmation does not need subsequent interaction with main chain")
@@ -528,7 +562,7 @@ module Test = struct
       let alice_account_after_withdrawal = AccountMap.find alice_address trent_accounts_after_withdrawal in
       let alice_expected_withdrawal = TokenAmount.sub alice_expected_deposit amount_to_withdraw in
       assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
-      push_side_chain_action_to_main_chain trent_state2 alice_state2 signed_confirmation2
+      push_side_chain_action_to_main_chain trent_state2 (alice_state2,signed_confirmation2)
       (* TODO: get actual transaction receipt from main chain, check receipt
          maybe this test belongs in Ethereum_transactions
       *)

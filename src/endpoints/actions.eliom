@@ -22,17 +22,19 @@ type user_account_state =
   }
   [@@deriving yojson]
 
+(* confirmed transaction on main chain *)
+type main_chain_confirmation =
+  { transaction_hash : string
+  ; transaction_index : int
+  ; block_number : int
+  ; block_hash : string
+  }
+[@@deriving yojson]
+
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
   { user_account_state : user_account_state
-  ; transaction_hash : string
-  }
-  [@@deriving yojson]
-
-(* user account after a withdrawal, with transaction hash on the net *)
-type withdrawal_result =
-  { user_account_state : user_account_state
-  ; withdrawal_transaction_hash : string
+  ; main_chain_confirmation : main_chain_confirmation
   }
   [@@deriving yojson]
 
@@ -92,6 +94,14 @@ let user_state_from_address address_t =
     Hashtbl.add address_to_user_state_tbl address_t new_user_state;
     new_user_state
 
+(* convert main chain confirmation to JSON-friendly types *)
+let jsonable_confirmation_of_confirmation (confirmation : Main_chain.confirmation) =
+        { transaction_hash = "0x" ^ (confirmation.transaction_hash |> Digest.to_hex_string)
+        ; transaction_index = confirmation.transaction_index |> Unsigned.UInt64.to_int
+        ; block_number = confirmation.block_number |> Revision.to_int
+        ; block_hash = "0x" ^ (confirmation.block_hash |> Digest.to_hex_string)
+        }
+
 let deposit_to_trent address amount =
   let open Side_chain_action in
   let address_t = Ethereum_util.address_of_hex_string address in
@@ -108,10 +118,9 @@ let deposit_to_trent address amount =
     let operation = signed_request.payload.operation in
     let main_chain_confirmation =
       match operation with
-        Deposit details -> details.main_chain_deposit_confirmation
+        Deposit details -> jsonable_confirmation_of_confirmation details.main_chain_deposit_confirmation
       | _ -> raise (Internal_error "Expected deposit request")
     in
-    let transaction_hash = "0x" ^ (Digest.to_hex_string main_chain_confirmation.transaction_hash) in
     (* get user account info on Trent *)
     let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
     let balance = TokenAmount.to_int (user_account_on_trent.balance) in
@@ -122,7 +131,7 @@ let deposit_to_trent address amount =
                              }
     in
     let deposit_result = { user_account_state
-                         ; transaction_hash
+                         ; main_chain_confirmation
                          }
     in
     return (transaction_result_to_yojson deposit_result)
@@ -139,16 +148,24 @@ let withdrawal_from_trent address amount =
     raise (Internal_error "Insufficient balance to withdraw specified amount");
   let thread =
     (user_state, (trent_address,TokenAmount.of_int amount))
-    |^>>+ withdrawal
+    |^>>+
+    withdrawal
     >>= fun (user_state1, signed_request1) ->
     (!trent_state,signed_request1)
-    |^>> confirm_request
+    |^>>
+    confirm_request
     |> fun (trent_state2, signed_confirmation2) ->
+    (* update trent state *)
     trent_state := trent_state2;
-    push_side_chain_action_to_main_chain trent_state2 user_state1 signed_confirmation2
-    >>= fun transaction_hash_as_digest ->
-    let transaction_hash = "0x" ^ (Digest.to_hex_string transaction_hash_as_digest) in
-    (* get user account info on Trent *)
+    push_side_chain_action_to_main_chain trent_state2 (user_state1,signed_confirmation2)
+    >>= fun (user_state2,maybe_main_chain_confirmation) ->
+    (* update user state, which refers to main chain state *)
+    Hashtbl.replace address_to_user_state_tbl address_t user_state2;
+    let main_chain_confirmation =
+      match maybe_main_chain_confirmation with
+      | Error exn -> raise exn
+      | Ok confirmation -> jsonable_confirmation_of_confirmation confirmation
+    in
     let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
     let balance = TokenAmount.to_int (user_account_on_trent.balance) in
     let user_name = get_user_name address_t in
@@ -158,7 +175,7 @@ let withdrawal_from_trent address amount =
                              }
     in
     let withdrawal_result = { user_account_state
-                            ; transaction_hash
+                            ; main_chain_confirmation
                             }
     in
     return (transaction_result_to_yojson withdrawal_result)

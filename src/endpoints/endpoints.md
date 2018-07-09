@@ -5,15 +5,22 @@ Types
 
 The type "address" is a JSON string, beginning with "0x", followed by 20 hex-digit pairs.
 
-   The type "account" is a JSON record of the form:
+The type "account" is a JSON record of the form:
 
      { "address" : address,
        "user_name" : string,
        "balance" : integer
      }
 
-   The type "transaction_hash" is a JSON string, beginning with "0x", followed by 32 hex-digit
-   pairs.
+The type "hash" is a JSON string, beginning with "0x", followed by 32 hex-digit pairs.
+
+The type "main\_chain\_confirmation" is a JSON record of the form:
+
+     { "transaction_hash" : hash,
+       "transaction_index" : int,
+	   "block_number" : int,
+	   "block_hash" : hash
+     }
 
 Deposit
 -------
@@ -55,7 +62,7 @@ Withdrawal
 
   Error message:
 
-    {"error":"Insufficient balance to withdraw specified amount"}
+    { "error":"Insufficient balance to withdraw specified amount" }
 
 Payment
 -------
@@ -116,7 +123,7 @@ Deposit/withdrawal threads
   If the thread has completed for a deposit or withdrawal, the result is a JSON record:
 
     { "user_account_state" : account_state,
-      "transaction_hash" : transaction_hash
+      "main_chain_confirmation" : main_chain_confirmation
     }
 
-  where the hash identifies the transaction on the main chain.
+  where the transaction hash identifies the transaction on the main chain.
