@@ -2,12 +2,6 @@ Using ocsigen and eliom requires some additional OPAM packages:
 
   ocsigenserver eliom ppx_deriving_yojson
 
-Our representation of signed requests uses Base64 encoding, so install
-
-  base64
-
-if needed.
-
 On Ubuntu systems, it may be necessary to install libgdbm-dev and libpcre3-dev.
 
 This directory was created by running
@@ -22,4 +16,4 @@ To run the ocsigen server locally, run:
 
   make endpoints
 
-from the legicash-fact git root.
+from the legicash-fact git root. That command starts a local server on port 8081.

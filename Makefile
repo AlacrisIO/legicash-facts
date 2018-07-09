@@ -71,7 +71,7 @@ clean :
 	$(SHOW) "Removing OPAM install file"
 	$(HIDE) rm -f legicash.install
 	$(SHOW) "Cleaning endpoints code"
-	$(HIDE) make -C src/endpoints clean
+	$(HIDE) make -C src/endpoints distclean
 
 contract:
 	(cd contracts/ && solc court.sol)

@@ -22,10 +22,10 @@ type user_account_state =
   }
   [@@deriving yojson]
 
-(* user account after a deposit, with transaction hash on the net *)
-type deposit_result =
+(* user account after a deposit or withdrawal, with transaction hash on the net *)
+type transaction_result =
   { user_account_state : user_account_state
-  ; deposit_transaction_hash : string
+  ; transaction_hash : string
   }
   [@@deriving yojson]
 
@@ -111,7 +111,7 @@ let deposit_to_trent address amount =
         Deposit details -> details.main_chain_deposit_confirmation
       | _ -> raise (Internal_error "Expected deposit request")
     in
-    let deposit_transaction_hash = "0x" ^ (Digest.to_hex_string main_chain_confirmation.transaction_hash) in
+    let transaction_hash = "0x" ^ (Digest.to_hex_string main_chain_confirmation.transaction_hash) in
     (* get user account info on Trent *)
     let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
     let balance = TokenAmount.to_int (user_account_on_trent.balance) in
@@ -122,10 +122,10 @@ let deposit_to_trent address amount =
                              }
     in
     let deposit_result = { user_account_state
-                         ; deposit_transaction_hash
+                         ; transaction_hash
                          }
     in
-    return (deposit_result_to_yojson deposit_result)
+    return (transaction_result_to_yojson deposit_result)
   in
   add_main_chain_thread thread
 
@@ -147,7 +147,7 @@ let withdrawal_from_trent address amount =
     trent_state := trent_state2;
     push_side_chain_action_to_main_chain trent_state2 user_state1 signed_confirmation2
     >>= fun transaction_hash_as_digest ->
-    let withdrawal_transaction_hash = "0x" ^ (Digest.to_hex_string transaction_hash_as_digest) in
+    let transaction_hash = "0x" ^ (Digest.to_hex_string transaction_hash_as_digest) in
     (* get user account info on Trent *)
     let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
     let balance = TokenAmount.to_int (user_account_on_trent.balance) in
@@ -158,15 +158,15 @@ let withdrawal_from_trent address amount =
                              }
     in
     let withdrawal_result = { user_account_state
-                            ; withdrawal_transaction_hash
+                            ; transaction_hash
                             }
     in
-    return (withdrawal_result_to_yojson withdrawal_result)
+    return (transaction_result_to_yojson withdrawal_result)
   in
   add_main_chain_thread thread
 
 let get_balance_on_trent address =
-  let address_t = Address.of_string (Ethereum_util.string_of_hex_string address) in
+  let address_t = Ethereum_util.address_of_hex_string address in
   let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
   let balance = TokenAmount.to_int (user_account_on_trent.balance) in
   let user_name = get_user_name address_t in
