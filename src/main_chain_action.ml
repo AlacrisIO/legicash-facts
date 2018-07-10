@@ -53,7 +53,7 @@ let transfer_tokens (user_state, (recipient, amount)) =
 let wait_for_confirmation ((user_state: user_state), (_signed_transaction: TransactionSigned.t)) =
   let open Lwt in
   let open Yojson in
-  if true then (* TODO: remove this dummy confirmation *)
+  if false then (* TODO: remove this dummy confirmation *)
       let confirmation = { transaction_hash = Digest.make (Random.int 100000)
                          ; transaction_index = Unsigned.UInt64.zero
                          ; block_number = Revision.zero
@@ -64,6 +64,7 @@ let wait_for_confirmation ((user_state: user_state), (_signed_transaction: Trans
   else (* TODO: run this code *)
   Ethereum_transaction.send_transaction_to_net signed_transaction
   >>= fun transaction_json ->
+  Printf.eprintf "TRANS JSON: %s\n%!" (Basic.to_string transaction_json);
   let keys = Basic.Util.keys transaction_json in
   if (List.mem "error" keys) then
     let error = Basic.to_string (Basic.Util.member "error" transaction_json) in
@@ -73,6 +74,7 @@ let wait_for_confirmation ((user_state: user_state), (_signed_transaction: Trans
     Ethereum_transaction.get_transaction_receipt transaction_hash_string
     >>=
     fun receipt_json ->
+    Printf.eprintf "RECEIPT JSON: %s\n%!" (Basic.to_string receipt_json);
     let keys = Basic.Util.keys receipt_json in
     if (List.mem "error" keys) then
       let error = Basic.to_string (Basic.Util.member "error" receipt_json) in

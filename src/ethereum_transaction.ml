@@ -29,7 +29,6 @@ let build_transfer_tokens_parameters transaction : Yojson.json =
     ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
     ; ("value", `String (Ethereum_util.hex_string_of_token_amount value)) ]
 
-
 let build_create_contract_parameters transaction : Yojson.json =
   let tx_header = transaction.Transaction.tx_header in
   if TokenAmount.compare tx_header.value TokenAmount.zero != 0 then
@@ -82,6 +81,7 @@ let build_transaction_json transaction =
 
 
 let send_transaction_to_net signed_transaction =
+  let open Main_chain in
   let transaction = signed_transaction.payload in
   let json = build_transaction_json transaction in
   Ethereum_json_rpc.send_rpc_call_to_net json

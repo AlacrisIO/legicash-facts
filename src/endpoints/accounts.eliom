@@ -133,38 +133,6 @@ let _ =
     (fun (name, keys) -> Hashtbl.add address_to_account_tbl keys.address name)
     account_key_array
 
-(* store keys on Ethereum test net. TODO: don't do this on real net!  *)
-let _ =
-  let open Secp256k1 in
-  let open Keypair in
-  let open Ethereum_json_rpc in
-  Array.iter
-    (fun (name, keys) ->
-       (* get hex string version of private key *)
-(*       let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
-       let len = Bigarray.Array1.dim buffer in
-       let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
-       let pk_string_raw = Ethereum_util.hex_string_of_string s in
-       let pk_string_len = String.length pk_string_raw in
-       let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in
-       let password = "" in
-       let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
-         let result_json = Lwt_main.run (send_rpc_call_to_net json) in *)
-       (* TEMP *)
-       let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.public_key in
-       let len = Bigarray.Array1.dim buffer in
-       let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
-       let s1 = String.sub s 1 (len - 1) in
-       let hex0 = Ethereum_util.hex_string_of_string s in
-       Printf.eprintf "LEN PUB KEY: %d\n%!" (String.length s1);
-       let pub_hash = Ethereum_util.hash s1 in
-       let address = String.sub pub_hash 12 20 in
-       let hex = Ethereum_util.hex_string_of_string address in
-       (* END TEMP *)
-       Printf.eprintf "ADDR: %s\n%!" hex;
-       ())
-    account_key_array
-
 let get_user_name address_t =
   try
     Hashtbl.find address_to_account_tbl address_t
@@ -186,6 +154,100 @@ let trent_keys =
     "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
 
 let trent_address = trent_keys.address
+
+(* store keys on Ethereum test net. TODO: don't do this on real net!  *)
+let store_keys_on_testnet (name,keys) =
+  let open Secp256k1 in
+  let open Yojson in
+  let open Keypair in
+  let open Ethereum_json_rpc in
+  (* get hex string version of private key *)
+  let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
+  let len = Bigarray.Array1.dim buffer in
+  let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
+  let pk_string_raw = Ethereum_util.hex_string_of_string s in
+  let pk_string_len = String.length pk_string_raw in
+  let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in
+  let password = "" in
+  let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
+  let result_json = Lwt_main.run (send_rpc_call_to_net json) in
+  let result_keys = Basic.Util.keys result_json in
+  Printf.eprintf "Adding user %s to test net with address %s\n%!"
+    name (Ethereum_util.hex_string_of_address keys.address);
+  if List.mem "error" result_keys then
+    let error = Basic.Util.member "error" result_json in
+    Printf.eprintf "Error (OK if account exists): %s\n%!" (Basic.to_string error)
+  else
+    let result = Basic.Util.member "result" result_json in
+    Printf.eprintf "Succesfully added account for %s on test net with address: %s\n%!"
+      name (Basic.to_string result);
+    ()
+
+let _ =
+  Array.iter store_keys_on_testnet account_key_array;
+  store_keys_on_testnet ("Trent",trent_keys)
+
+(* make sure all accounts have a decent balance *)
+let min_testnet_balance = 10000000
+
+(* dup of code in Ethereum_transactions tests; should expose *)
+let list_accounts () =
+  let open Ethereum_json_rpc in
+  let params = [] in
+  let json = build_json_rpc_call Personal_listAccounts params in
+  send_rpc_call_to_net json
+
+(* dev mode provides prefunded address with a very large balance *)
+let prefunded_address =
+  let open Yojson in
+  let accounts_json = Lwt_main.run (list_accounts ()) in
+  let accounts = Basic.Util.to_list (Basic.Util.member "result" accounts_json) in
+  let address = Basic.Util.to_string (List.hd accounts) in
+  Ethereum_util.address_of_hex_string address
+
+let fund_account name (keys : Keypair.t) =
+  let open Lwt in
+  let open Yojson in
+  let open Ethereum_transaction in
+  send_balance_request_to_net keys.address
+  >>= fun json ->
+  let json_keys = Basic.Util.keys json in
+  if List.mem "error" json_keys then (
+    let error = Basic.Util.member "error" json |> Basic.to_string in
+    raise (Internal_error error)
+  );
+  let balance = Basic.Util.member "result" json |> Basic.Util.to_string |> int_of_string in
+  let deficit = min_testnet_balance - balance in
+  if deficit > 0 then (
+    let tx_header =
+      { sender= prefunded_address
+      ; nonce= Nonce.zero
+      ; gas_price= TokenAmount.of_int 1
+      ; gas_limit= TokenAmount.of_int 1000000
+      ; value= TokenAmount.of_int deficit}
+    in
+    let operation = Main_chain.TransferTokens keys.address in
+    let transaction = {tx_header; operation} in
+    let signed_transaction = sign trent_keys.private_key transaction in
+    send_transaction_to_net signed_transaction
+    >>= fun json ->
+    let json_keys = Yojson.Basic.Util.keys json in
+    if List.mem "error" json_keys then (
+      let error = Basic.Util.member "error" json |> Basic.to_string in
+      raise (Internal_error error))
+    else (
+      Printf.eprintf "Funded deficit for %s, amount: %d\n%!" name deficit;
+      return (`String "deficit"))
+  )
+  else
+    return (`String "no deficit")
+
+let _ =
+  ignore (fund_account "Trent" trent_keys);
+  Array.iter
+    (fun (name,keys) ->
+       ignore (fund_account name keys))
+    account_key_array
 
 let create_side_chain_user_state user_keys =
   let main_chain_user_state =
