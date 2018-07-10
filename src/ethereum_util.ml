@@ -5,7 +5,6 @@ open Crypto
 
 let hash s = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
 
-
 (* Hexadecimal support. See https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding *)
 
 let hex_string_of_number nat = "0x" ^ UInt256.to_hex_string nat

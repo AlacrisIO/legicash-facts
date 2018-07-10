@@ -11,6 +11,7 @@ type ethereum_rpc_call =
   | Eth_getTransactionCount
   | Eth_getTransactionReceipt
   (* Geth-specific methods, should only be used in tests *)
+  | Personal_importRawKey
   | Personal_listAccounts
   | Personal_newAccount
   | Personal_unlockAccount

@@ -133,6 +133,38 @@ let _ =
     (fun (name, keys) -> Hashtbl.add address_to_account_tbl keys.address name)
     account_key_array
 
+(* store keys on Ethereum test net. TODO: don't do this on real net!  *)
+let _ =
+  let open Secp256k1 in
+  let open Keypair in
+  let open Ethereum_json_rpc in
+  Array.iter
+    (fun (name, keys) ->
+       (* get hex string version of private key *)
+(*       let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
+       let len = Bigarray.Array1.dim buffer in
+       let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
+       let pk_string_raw = Ethereum_util.hex_string_of_string s in
+       let pk_string_len = String.length pk_string_raw in
+       let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in
+       let password = "" in
+       let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
+         let result_json = Lwt_main.run (send_rpc_call_to_net json) in *)
+       (* TEMP *)
+       let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.public_key in
+       let len = Bigarray.Array1.dim buffer in
+       let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
+       let s1 = String.sub s 1 (len - 1) in
+       let hex0 = Ethereum_util.hex_string_of_string s in
+       Printf.eprintf "LEN PUB KEY: %d\n%!" (String.length s1);
+       let pub_hash = Ethereum_util.hash s1 in
+       let address = String.sub pub_hash 12 20 in
+       let hex = Ethereum_util.hex_string_of_string address in
+       (* END TEMP *)
+       Printf.eprintf "ADDR: %s\n%!" hex;
+       ())
+    account_key_array
+
 let get_user_name address_t =
   try
     Hashtbl.find address_to_account_tbl address_t

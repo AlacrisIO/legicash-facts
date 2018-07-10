@@ -270,7 +270,6 @@ module Test = struct
     let json = build_json_rpc_call Personal_newAccount params in
     send_rpc_call_to_net json
 
-
   let unlock_account address =
     let params =
       [`String (Ethereum_util.hex_string_of_address address); `String ""; `Int 5]
