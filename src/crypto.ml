@@ -104,7 +104,7 @@ end
 
 module Address = struct
   (* an address identifies a party (user, facilitator)
-     this is per Ethereum: use the last 20 bytes of the party's public key *)
+     per Ethereum, use the last 20 bytes of the Keccak256 hash of the party's public key *)
 
   include Nat
 
@@ -117,9 +117,15 @@ module Address = struct
 
   let of_public_key public_key =
     let open Bigarray in
+    let public_keylen = 64 in
     let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
-    let buffer_max = Array1.dim buffer - 1 in
-    Nat.of_bits (String.init address_size (fun ndx -> Array1.get buffer (buffer_max - ndx)))
+    (* uncompressed public key has an extra byte at the beginning, which we remove:
+       https://bitcoin.stackexchange.com/questions/57855/c-secp256k1-what-do-prefixes-0x06-and-0x07-in-an-uncompressed-public-key-signif
+    *)
+    let pubkey_string = String.init public_keylen (fun ndx -> Array1.get buffer (ndx + 1)) in
+    let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) pubkey_string in
+    let hash_len = String.length hash in
+    Nat.of_bits (String.init address_size (fun ndx -> hash.[hash_len - ndx - 1]))
 
   let compare address1 address2 = Pervasives.compare address1 address2
 
