@@ -351,34 +351,34 @@ let payment (user_state, (_facilitator_address, recipient_address, payment_amoun
         ; payment_expedited= false } )
 
 let make_main_chain_withdrawal_transaction { withdrawal_amount; withdrawal_fee } user_address facilitator_state =
-    let open Ethereum_abi in
-    let open Ethereum_transaction in
-    let contract_address = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" in (* TODO : use actual contract address *)
-    let contract_hex_address = Ethereum_util.address_of_hex_string contract_address in
-    let facilitator_keys = facilitator_state.keypair in
-    let facilitator_address = facilitator_keys.address in
-    let amount = withdrawal_amount |> TokenAmount.to_int in
-    let withdrawal_call =
-      { function_name = "withdrawTokens"
-      ; parameters =
-          [ abi_address_of_address facilitator_address
-          ; abi_address_of_address user_address
-          ; abi_uint_of_int amount
-          ]
-      }
-    in
-    let encoded_call = encode_function_call withdrawal_call in
-    let operation = Main_chain.CallFunction (contract_hex_address, encoded_call) in
-    let tx_header =
-      { sender= facilitator_address
-      ; nonce= Nonce.zero (* TODO: get_nonce facilitator_address *)
-      ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.zero
-      }
-    in
-    let transaction = { tx_header; operation } in
-    sign facilitator_keys.private_key transaction
+  let open Ethereum_abi in
+  let open Ethereum_transaction in
+  let contract_address = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" in (* TODO : use actual contract address *)
+  let contract_hex_address = Ethereum_util.address_of_hex_string contract_address in
+  let facilitator_keys = facilitator_state.keypair in
+  let facilitator_address = facilitator_keys.address in
+  let amount = withdrawal_amount |> TokenAmount.to_int in
+  let withdrawal_call =
+    { function_name = "withdrawTokens"
+    ; parameters =
+        [ abi_address_of_address facilitator_address
+        ; abi_address_of_address user_address
+        ; abi_uint_of_int amount
+        ]
+    }
+  in
+  let encoded_call = encode_function_call withdrawal_call in
+  let operation = Main_chain.CallFunction (contract_hex_address, encoded_call) in
+  let tx_header =
+    { sender= facilitator_address
+    ; nonce= Nonce.zero (* TODO: get_nonce facilitator_address *)
+    ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
+    ; gas_limit= TokenAmount.of_int 1000000
+    ; value= TokenAmount.zero
+    }
+  in
+  let transaction = { tx_header; operation } in
+  sign facilitator_keys.private_key transaction
 
 (* an action made on the side chain may need a corresponding action on the main chain *)
 let push_side_chain_action_to_main_chain facilitator_state ((user_state : Side_chain.user_state), (signed_confirmation : Confirmation.t signed)) =
@@ -433,29 +433,10 @@ let request_deposit = bottom
 
 module Test = struct
   open Lwt
+  open Keypair.Test
+  open Ethereum_transaction.Test
 
   (* open account tests *)
-
-  let trent_keys =
-    Keypair.make_keys_from_hex
-      "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
-      "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
-
-  let trent_address = trent_keys.address
-
-  let alice_keys =
-    Keypair.make_keys_from_hex
-      "d5:69:84:dc:08:3d:76:97:01:71:4e:eb:1d:4c:47:a4:54:25:5a:3b:bc:3e:9f:44:84:20:8c:52:bd:a3:b6:4e"
-      "04:23:a7:cd:9a:03:fa:9c:58:57:e5:14:ae:5a:cb:18:ca:91:e0:7d:69:45:3e:d8:51:36:ea:6a:00:36:10:67:b8:60:a5:b2:0f:11:53:33:3a:ef:2d:1b:a1:3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
-
-  let alice_address = alice_keys.address
-
-  let bob_keys =
-    Keypair.make_keys_from_hex
-      "f1:d3:cd:20:22:e1:d6:64:98:32:76:04:83:4d:f0:73:06:64:f7:1a:8d:d1:1e:46:a3:3b:4a:0e:bb:40:ca:8e"
-      "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
-
-  let bob_address = bob_keys.address
 
   let create_side_chain_user_state_for_testing user_keys =
     let main_chain_user_state =
@@ -497,6 +478,86 @@ module Test = struct
   (* Lwt-monadic version of |^>> *)
   let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | state, Error y -> raise y
 
+  (* create accounts, fund them *)
+  let create_account_on_testnet keys =
+    let open Secp256k1 in
+    let open Yojson in
+    let open Keypair in
+    let open Ethereum_json_rpc in
+    (* get hex string version of private key *)
+    Lwt_main.run (
+      let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
+      let len = Bigarray.Array1.dim buffer in
+      let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
+      let pk_string_raw = Ethereum_util.hex_string_of_string s in
+      let pk_string_len = String.length pk_string_raw in
+      let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in
+      let password = "" in
+      let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
+      send_rpc_call_to_net json
+      >>= fun result_json ->
+      let json_keys = Basic.Util.keys result_json in
+      let _ =
+        (* OK if we successfully added account, or it existed already *)
+        List.mem "result" json_keys ||
+        let error_json = Basic.Util.member "error" result_json in
+        let error_message = Basic.Util.member "message" error_json |> Basic.Util.to_string in
+        error_message = "account already exists" ||
+        raise (Internal_error error_message)
+      in
+      return ())
+
+  let get_prefunded_address () =
+    get_first_account ()
+    |> Yojson.Basic.Util.to_string
+    |> Ethereum_util.address_of_hex_string
+
+  let fund_account ?(min_balance=10000000) funding_account (keys : Keypair.t) =
+    let open Lwt in
+    let open Yojson in
+    let open Ethereum_transaction in
+    send_balance_request_to_net keys.address
+    >>= fun json ->
+    let json_keys = Basic.Util.keys json in
+    if List.mem "error" json_keys then (
+      let error = Basic.Util.member "error" json |> Basic.to_string in
+      raise (Internal_error error)
+    );
+    let balance = Basic.Util.member "result" json |> Basic.Util.to_string |> int_of_string in
+    let deficit = min_balance - balance in
+    if deficit > 0 then (
+      let tx_header =
+        { sender= funding_account
+        ; nonce= Nonce.zero
+        ; gas_price= TokenAmount.of_int 1
+        ; gas_limit= TokenAmount.of_int 1000000
+        ; value= TokenAmount.of_int deficit}
+      in
+      let operation = Main_chain.TransferTokens keys.address in
+      let transaction = {tx_header; operation} in
+      let signed_transaction = sign trent_keys.private_key transaction in
+      send_transaction_to_net signed_transaction
+      >>= fun json ->
+      let json_keys = Yojson.Basic.Util.keys json in
+      if List.mem "error" json_keys then (
+        let error = Basic.Util.member "error" json |> Basic.to_string in
+        raise (Internal_error error))
+      else (
+        return (`String "funded"))
+    )
+    else
+      return (`String "no funding needed")
+
+  let _ =
+    let prefunded_address = get_prefunded_address () in
+    ignore (Lwt_main.run (unlock_account prefunded_address));
+    List.iter
+      (fun keys ->
+         create_account_on_testnet keys;
+         ignore (Lwt_main.run (unlock_account keys.address));
+         ignore (Lwt_main.run (fund_account prefunded_address keys)))
+      [alice_keys; bob_keys; trent_keys]
+
   (* deposit and payment test *)
   let%test "deposit_valid" =
     Lwt_main.run (
@@ -535,9 +596,10 @@ module Test = struct
       return true
     )
 
-  (* deposit and withdrawal test *)
-  let%test "withdrawal_valid" =
-    Lwt_main.run (
+  (* TODO: uncomment when we have working withdrawal on main chain
+     (* deposit and withdrawal test *)
+     let%test "withdrawal_valid" =
+     Lwt_main.run (
       (* deposit some funds first *)
       let amount_to_deposit = TokenAmount.of_int 1023 in
       (* deposit *)
@@ -567,5 +629,5 @@ module Test = struct
          maybe this test belongs in Ethereum_transactions
       *)
       >>= fun json -> return true
-    )
+     ) *)
 end

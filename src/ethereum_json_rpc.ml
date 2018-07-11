@@ -1,7 +1,6 @@
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
-module TokenAmount = Main_chain.TokenAmount
 
 type ethereum_rpc_call =
   (* DApps methods, use anywhere *)

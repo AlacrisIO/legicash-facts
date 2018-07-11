@@ -7,6 +7,7 @@ open Lib
 open Crypto
 open Main_chain
 open Side_chain
+open Side_chain_action.Test
 
 (* users *)
 let account_names =
@@ -193,55 +194,15 @@ let list_accounts () =
   send_rpc_call_to_net json
 
 (* dev mode provides prefunded address with a very large balance *)
-let prefunded_address =
-  let open Yojson in
-  let accounts_json = Lwt_main.run (list_accounts ()) in
-  let accounts = Basic.Util.to_list (Basic.Util.member "result" accounts_json) in
-  let address = Basic.Util.to_string (List.hd accounts) in
-  Ethereum_util.address_of_hex_string address
-
-let fund_account name (keys : Keypair.t) =
-  let open Lwt in
-  let open Yojson in
-  let open Ethereum_transaction in
-  send_balance_request_to_net keys.address
-  >>= fun json ->
-  let json_keys = Basic.Util.keys json in
-  if List.mem "error" json_keys then (
-    let error = Basic.Util.member "error" json |> Basic.to_string in
-    raise (Internal_error error)
-  );
-  let balance = Basic.Util.member "result" json |> Basic.Util.to_string |> int_of_string in
-  let deficit = min_testnet_balance - balance in
-  if deficit > 0 then (
-    let tx_header =
-      { sender= prefunded_address
-      ; nonce= Nonce.zero
-      ; gas_price= TokenAmount.of_int 1
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.of_int deficit}
-    in
-    let operation = Main_chain.TransferTokens keys.address in
-    let transaction = {tx_header; operation} in
-    let signed_transaction = sign trent_keys.private_key transaction in
-    send_transaction_to_net signed_transaction
-    >>= fun json ->
-    let json_keys = Yojson.Basic.Util.keys json in
-    if List.mem "error" json_keys then (
-      let error = Basic.Util.member "error" json |> Basic.to_string in
-      raise (Internal_error error))
-    else (
-      Printf.eprintf "Funded %s, amount: %d\n%!" name deficit;
-      return (`String "deficit"))
-  )
-  else
-    return (`String "no deficit")
+let prefunded_address = get_prefunded_address ()
 
 let _ =
-  ignore (fund_account "Trent" trent_keys);
+  Printf.eprintf "Funding account: Trent\n%!";
+  ignore (fund_account prefunded_address trent_keys);
   Array.iter
     (fun (name,keys) ->
-       ignore (fund_account name keys))
+       Printf.eprintf "Funding account: %s\n%!" name;
+       ignore (fund_account prefunded_address keys))
     account_key_array
 
 let create_side_chain_user_state user_keys =

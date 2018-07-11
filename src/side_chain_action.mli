@@ -108,3 +108,13 @@ val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) u
    Alice invokes the contract on the main chain that actually pays the recipient
    specified in her invoice.
 *)
+
+(* useful functions for other test code *)
+module Test : sig
+  val create_account_on_testnet : Keypair.t -> unit
+  (** creates an account on network with address created for side chain *)
+  val get_prefunded_address : unit -> Address.t
+  (** gets the prefunded address on the test network *)
+  val fund_account : ?min_balance:int -> Address.t -> Keypair.t -> Yojson.Basic.json Lwt.t
+  (** transfers funds from funding account to account with given keys, if balance less than min_balance *)
+end
