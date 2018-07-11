@@ -87,24 +87,15 @@ let rec get_confirmation transaction_hash =
 let wait_for_confirmation ((user_state: user_state), (_signed_transaction: TransactionSigned.t)) =
   let open Lwt in
   let open Yojson in
-  if false then (* TODO: remove this dummy confirmation *)
-    let confirmation = { transaction_hash = Digest.make (Random.int 100000)
-                       ; transaction_index = Unsigned.UInt64.zero
-                       ; block_number = Revision.zero
-                       ; block_hash = Digest.make (Random.int 100000)
-                       }
-    in
-    return (user_state, Ok confirmation)
-  else (* TODO: run this code *)
-    Ethereum_transaction.send_transaction_to_net signed_transaction
-    >>= fun transaction_json ->
-    let keys = Basic.Util.keys transaction_json in
-    if (List.mem "error" keys) then
-      let error = Basic.to_string (Basic.Util.member "error" transaction_json) in
-      return (user_state, Error (Internal_error error))
-    else
-      let transaction_hash_string = Basic.Util.member "result" transaction_json |> Basic.Util.to_string in
-      get_confirmation transaction_hash_string
-      >>= fun confirmation ->
-      (* TODO: update user state, e.g., with confirmed balance *)
-      return (user_state, confirmation)
+  Ethereum_transaction.send_transaction_to_net signed_transaction
+  >>= fun transaction_json ->
+  let keys = Basic.Util.keys transaction_json in
+  if (List.mem "error" keys) then
+    let error = Basic.to_string (Basic.Util.member "error" transaction_json) in
+    return (user_state, Error (Internal_error error))
+  else
+    let transaction_hash_string = Basic.Util.member "result" transaction_json |> Basic.Util.to_string in
+    get_confirmation transaction_hash_string
+    >>= fun confirmation ->
+    (* TODO: update user state, e.g., with confirmed balance *)
+    return (user_state, confirmation)
