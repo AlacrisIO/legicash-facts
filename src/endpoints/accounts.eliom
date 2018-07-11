@@ -172,14 +172,9 @@ let store_keys_on_testnet (name,keys) =
   let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
   let result_json = Lwt_main.run (send_rpc_call_to_net json) in
   let result_keys = Basic.Util.keys result_json in
-  Printf.eprintf "Adding user %s to test net with address %s\n%!"
-    name (Ethereum_util.hex_string_of_address keys.address);
-  if List.mem "error" result_keys then
-    let error = Basic.Util.member "error" result_json in
-    Printf.eprintf "Error (OK if account exists): %s\n%!" (Basic.to_string error)
-  else
+  if List.mem "result" result_keys then
     let result = Basic.Util.member "result" result_json in
-    Printf.eprintf "Succesfully added account for %s on test net with address: %s\n%!"
+    Printf.eprintf "Succesfully created account for %s on test net with address: %s\n%!"
       name (Basic.to_string result);
     ()
 
@@ -236,7 +231,7 @@ let fund_account name (keys : Keypair.t) =
       let error = Basic.Util.member "error" json |> Basic.to_string in
       raise (Internal_error error))
     else (
-      Printf.eprintf "Funded deficit for %s, amount: %d\n%!" name deficit;
+      Printf.eprintf "Funded %s, amount: %d\n%!" name deficit;
       return (`String "deficit"))
   )
   else

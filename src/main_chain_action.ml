@@ -50,45 +50,61 @@ let transfer_gas_limit = TokenAmount.of_int 21000
 let transfer_tokens (user_state, (recipient, amount)) =
   issue_async_transaction (user_state, (TransferTokens recipient, amount, transfer_gas_limit))
 
-let wait_for_confirmation ((user_state: user_state), (_signed_transaction: TransactionSigned.t)) =
+let rec get_confirmation transaction_hash =
   let open Lwt in
   let open Yojson in
-  if false then (* TODO: remove this dummy confirmation *)
-      let confirmation = { transaction_hash = Digest.make (Random.int 100000)
-                         ; transaction_index = Unsigned.UInt64.zero
-                         ; block_number = Revision.zero
-                         ; block_hash = Digest.make (Random.int 100000)
-                         }
-      in
-      return (user_state, Ok confirmation)
-  else (* TODO: run this code *)
-  Ethereum_transaction.send_transaction_to_net signed_transaction
-  >>= fun transaction_json ->
-  Printf.eprintf "TRANS JSON: %s\n%!" (Basic.to_string transaction_json);
-  let keys = Basic.Util.keys transaction_json in
+  (* receipt may be null, retry at intervals *)
+  (* TODO: make the interval reasonable *)
+  let retry_interval_seconds = 10.0 in
+  Ethereum_transaction.get_transaction_receipt transaction_hash
+  >>=
+  fun receipt_json ->
+  let keys = Basic.Util.keys receipt_json in
   if (List.mem "error" keys) then
-    let error = Basic.to_string (Basic.Util.member "error" transaction_json) in
-    return (user_state, Error (Internal_error error))
+    let error = Basic.to_string (Basic.Util.member "error" receipt_json) in
+    return (Error (Internal_error error))
   else
-    let transaction_hash_string = Basic.Util.member "result" transaction_json |> Basic.Util.to_string in
-    Ethereum_transaction.get_transaction_receipt transaction_hash_string
-    >>=
-    fun receipt_json ->
-    Printf.eprintf "RECEIPT JSON: %s\n%!" (Basic.to_string receipt_json);
-    let keys = Basic.Util.keys receipt_json in
-    if (List.mem "error" keys) then
-      let error = Basic.to_string (Basic.Util.member "error" receipt_json) in
-      return (user_state, Error (Internal_error error))
+    let result_json = Basic.Util.member "result" receipt_json in
+    if result_json == `Null then
+      Lwt_unix.sleep retry_interval_seconds
+      >>= fun () ->
+      get_confirmation transaction_hash
     else
-      let transaction_hash = Basic.Util.member "transactionHash" receipt_json |> Basic.Util.to_string |> Digest.of_hex_string in
-      let transaction_index = Basic.Util.member "transactionIndex" receipt_json |> Basic.Util.to_string |> Unsigned.UInt64.of_string in
-      let block_number = Basic.Util.member "blockNumber" receipt_json |> Basic.Util.to_string |> Revision.of_string in
-      let block_hash = Basic.Util.member "blockHash" receipt_json |> Basic.Util.to_string |> Digest.of_hex_string in
+      (* remove leading 0x; shouldn't need to validate that the prefix exists, should always be well-formed *)
+      let remove_0x hex_string = String.sub hex_string 2 (String.length hex_string - 2) in
+      let transaction_hash = Basic.Util.member "transactionHash" result_json |> Basic.Util.to_string |> remove_0x |> Digest.of_hex_string in
+      let transaction_index = Basic.Util.member "transactionIndex" result_json |> Basic.Util.to_string |> Unsigned.UInt64.of_string in
+      let block_number = Basic.Util.member "blockNumber" result_json |> Basic.Util.to_string |> Revision.of_string in
+      let block_hash = Basic.Util.member "blockHash" result_json |> Basic.Util.to_string |> remove_0x |> Digest.of_hex_string in
       let confirmation = { transaction_hash
                          ; transaction_index
                          ; block_number
                          ; block_hash
                          }
       in
-      (* TODO: update user state, like confirmed_balance *)
-      return (user_state, Ok confirmation)
+      return (Ok confirmation)
+
+let wait_for_confirmation ((user_state: user_state), (_signed_transaction: TransactionSigned.t)) =
+  let open Lwt in
+  let open Yojson in
+  if false then (* TODO: remove this dummy confirmation *)
+    let confirmation = { transaction_hash = Digest.make (Random.int 100000)
+                       ; transaction_index = Unsigned.UInt64.zero
+                       ; block_number = Revision.zero
+                       ; block_hash = Digest.make (Random.int 100000)
+                       }
+    in
+    return (user_state, Ok confirmation)
+  else (* TODO: run this code *)
+    Ethereum_transaction.send_transaction_to_net signed_transaction
+    >>= fun transaction_json ->
+    let keys = Basic.Util.keys transaction_json in
+    if (List.mem "error" keys) then
+      let error = Basic.to_string (Basic.Util.member "error" transaction_json) in
+      return (user_state, Error (Internal_error error))
+    else
+      let transaction_hash_string = Basic.Util.member "result" transaction_json |> Basic.Util.to_string in
+      get_confirmation transaction_hash_string
+      >>= fun confirmation ->
+      (* TODO: update user state, e.g., with confirmed balance *)
+      return (user_state, confirmation)
