@@ -117,20 +117,20 @@ module Test = struct
     = parse_coloned_hex_string
         "4e:03:65:7a:ea:45:a9:4f:c7:d4:7b:a8:26:c8:d6:67:c0:d1:e6:e3:3a:64:a0:36:ec:44:f5:8f:a1:2d:6c:45"
 
-  (* test that addresses are really last 20 bytes of public keys *)
+  (* test that addresses are really last 20 bytes of Keccak256 hash of public keys *)
 
   let%test "alice_address_from_public_key" =
     let alice_address = alice_keys.address in
     unparse_coloned_hex_string (Address.to_big_endian_bits alice_address)
-    = "3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
+    = "bb:d1:7b:e6:f6:83:f7:20:23:87:3a:fe:aa:57:c8:8d:24:b5:88:84"
 
   let%test "bob_address_from_public_key" =
     let bob_address = bob_keys.address in
     unparse_coloned_hex_string (Address.to_big_endian_bits bob_address)
-    = "e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
+    = "8a:6b:38:3d:f4:79:7f:28:67:2b:77:17:9e:be:3d:b9:03:cc:ad:34"
 
   let%test "trent_address_from_public_key" =
     let trent_address = trent_keys.address in
     unparse_coloned_hex_string (Address.to_big_endian_bits trent_address)
-    = "38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
+    = "f4:74:08:14:3d:32:7e:4b:c6:a8:7e:f4:a7:0a:4e:0a:f0:9b:9a:1c"
 end
