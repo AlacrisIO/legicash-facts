@@ -21,12 +21,9 @@ OCSIGENSERVER     := ocsigenserver
 OCSIGENSERVER.OPT := ocsigenserver.opt
 
 ## Where to put intermediate object files.
-## - ELIOM_{SERVER,CLIENT}_DIR must be distinct
-## - ELIOM_CLIENT_DIR must not be the local dir.
 ## - ELIOM_SERVER_DIR could be ".", but you need to
 ##   remove it from the "clean" rules...
 export ELIOM_SERVER_DIR := _server
-export ELIOM_CLIENT_DIR := _client
 export ELIOM_TYPE_DIR   := _server
 DEPSDIR := _deps
 
@@ -191,14 +188,11 @@ ${ELIOM_SERVER_DIR}/%.cmx: %.eliom
 
 include .depend
 
-.depend: $(patsubst %,$(DEPSDIR)/%.server,$(SERVER_FILES)) $(patsubst %,$(DEPSDIR)/%.client,$(CLIENT_FILES))
+.depend: $(patsubst %,$(DEPSDIR)/%.server,$(SERVER_FILES))
 	cat $^ > $@
 
 $(DEPSDIR)/%.server: % | $(DEPSDIR)
 	$(ELIOMDEP) -server -ppx $(SERVER_INC) $< > $@
-
-$(DEPSDIR)/%.client: % | $(DEPSDIR)
-	$(ELIOMDEP) -client -ppx $(CLIENT_INC) $< > $@
 
 $(DEPSDIR):
 	mkdir $@
