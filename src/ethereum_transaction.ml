@@ -2,15 +2,21 @@
 
 open Lib
 open Crypto
+
 module TokenAmount = Main_chain.TokenAmount
+module Operation = Main_chain.Operation
+module Transaction = Main_chain.Transaction
+module TransactionSigned = Main_chain.TransactionSigned
+
+let sign_transaction keypair transaction = sign Transaction.digest keypair.Keypair.private_key transaction
 
 (* params contain hex strings, but we unhex those strings when running RLP *)
 let build_transfer_tokens_parameters transaction : Yojson.json =
-  let tx_header = transaction.Main_chain.tx_header in
+  let tx_header = transaction.Transaction.tx_header in
   let sender = tx_header.sender in
   let recipient =
     match transaction.operation with
-    | Main_chain.TransferTokens recipient -> recipient
+    | Operation.TransferTokens recipient -> recipient
     | _ -> raise (Internal_error "Expected TransferTokens operation")
   in
   let gas = tx_header.gas_limit in
@@ -25,13 +31,13 @@ let build_transfer_tokens_parameters transaction : Yojson.json =
 
 
 let build_create_contract_parameters transaction : Yojson.json =
-  let tx_header = transaction.Main_chain.tx_header in
+  let tx_header = transaction.Transaction.tx_header in
   if TokenAmount.compare tx_header.value TokenAmount.zero != 0 then
     raise (Internal_error "New contract must have zero value") ;
   let sender = tx_header.sender in
   let code =
     match transaction.operation with
-    | Main_chain.CreateContract code -> code
+    | Operation.CreateContract code -> code
     | _ -> raise (Internal_error "Expected CreateContract operation")
   in
   let gas = tx_header.gas_limit in
@@ -44,11 +50,11 @@ let build_create_contract_parameters transaction : Yojson.json =
 
 
 let build_call_function_parameters transaction : Yojson.json =
-  let tx_header = transaction.Main_chain.tx_header in
+  let tx_header = transaction.Transaction.tx_header in
   let sender = tx_header.sender in
   let contract_address, call_hash =
     match transaction.operation with
-    | Main_chain.CallFunction (contract_address, call_hash) -> (contract_address, call_hash)
+    | Operation.CallFunction (contract_address, call_hash) -> (contract_address, call_hash)
     | _ -> raise (Internal_error "Expected CallFunction operation")
   in
   let gas = tx_header.gas_limit in
@@ -67,7 +73,7 @@ let build_call_function_parameters transaction : Yojson.json =
 let build_transaction_json transaction =
   let open Main_chain in
   let params =
-    match transaction.operation with
+    match transaction.Transaction.operation with
     | TransferTokens _ -> build_transfer_tokens_parameters transaction
     | CreateContract _ -> build_create_contract_parameters transaction
     | CallFunction _ -> build_call_function_parameters transaction
@@ -127,7 +133,7 @@ let transaction_executed transaction_hash =
 
 
 let transaction_execution_matches_transaction transaction_hash
-    (signed_transaction: Main_chain.transaction_signed) =
+      (signed_transaction: TransactionSigned.t) =
   let open Yojson in
   transaction_executed transaction_hash
   &&
@@ -173,7 +179,7 @@ let rlp_of_transaction transaction =
   let open Main_chain in
   let open Ethereum_util in
   let open Ethereum_rlp in
-  let tx_header = transaction.tx_header in
+  let tx_header = transaction.Transaction.tx_header in
   (* all items are strings, each character represents 2 digits in hex representation *)
   let nonce = bits_of_nonce tx_header.nonce in
   let gas_price = bits_of_token_amount tx_header.gas_price in
@@ -335,15 +341,15 @@ module Test = struct
     (* we don't check opening balance, which may be too large to parse *)
     let transfer_amount = 22 in
     let tx_header =
-      { sender= sender_address
-      ; nonce= get_nonce sender_address
-      ; gas_price= TokenAmount.of_int 2
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.of_int transfer_amount }
+      TxHeader.{ sender= sender_address
+               ; nonce= get_nonce sender_address
+               ; gas_price= TokenAmount.of_int 2
+               ; gas_limit= TokenAmount.of_int 1000000
+               ; value= TokenAmount.of_int transfer_amount }
     in
-    let operation = Main_chain.TransferTokens recipient_address in
-    let transaction = {tx_header; operation} in
-    let signed_transaction = sign alice_keys.private_key transaction in
+    let operation = Operation.TransferTokens recipient_address in
+    let transaction = {Transaction.tx_header; Transaction.operation} in
+    let signed_transaction = sign_transaction alice_keys transaction in
     (* send tokens *)
     let output = Lwt_main.run (send_transaction_to_net signed_transaction) in
     assert (not (json_contains_error output)) ;
@@ -358,25 +364,25 @@ module Test = struct
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
     let tx_header =
-      { sender= sender_address
-      ; nonce= get_nonce sender_address
-      ; gas_price= TokenAmount.of_int 2
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.zero }
+      TxHeader.{ sender= sender_address
+               ; nonce= get_nonce sender_address
+               ; gas_price= TokenAmount.of_int 2
+               ; gas_limit= TokenAmount.of_int 1000000
+               ; value= TokenAmount.zero }
     in
     (* a valid contract contains compiled EVM code
        for testing, we just use a buffer with arbitrary contents
     *)
-    let operation = CreateContract (Bytes.create 128) in
-    let transaction = {tx_header; operation} in
-    let signed_transaction = sign alice_keys.private_key transaction in
+    let operation = Operation.CreateContract (Bytes.create 128) in
+    let transaction = {Transaction.tx_header; Transaction.operation} in
+    let signed_transaction = sign_transaction alice_keys transaction in
     (* create contract *)
     let output = Lwt_main.run (send_transaction_to_net signed_transaction) in
     assert (not (json_contains_error output)) ;
     let result_json = Basic.Util.member "result" output in
     let transaction_hash = Basic.Util.to_string result_json in
     let _ = wait_for_contract_execution transaction_hash in
-    let signed_transaction = sign alice_keys.private_key transaction in
+    let signed_transaction = sign_transaction alice_keys transaction in
     transaction_execution_matches_transaction transaction_hash signed_transaction
 
   let%test "call-contract-on-Ethereum-testnet" =
@@ -386,11 +392,11 @@ module Test = struct
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
     let tx_header =
-      { sender= sender_address
-      ; nonce= get_nonce sender_address
-      ; gas_price= TokenAmount.of_int 2
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.zero }
+      TxHeader.{ sender= sender_address
+               ; nonce= get_nonce sender_address
+               ; gas_price= TokenAmount.of_int 2
+               ; gas_limit= TokenAmount.of_int 1000000
+               ; value= TokenAmount.zero }
     in
     (* for CallFunction:
 
@@ -406,20 +412,20 @@ module Test = struct
 
        in this test, we just use a dummy hash to represent all of that
     *)
-    let hashed = Digest.make "some arbitrary string" in
+    let hashed = digest_of_string "some arbitrary string" in
     let operation =
-      Main_chain.CallFunction
+      Operation.CallFunction
         ( Ethereum_util.address_of_hex_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
         , Bytes.of_string (Digest.to_big_endian_bits hashed) )
     in
-    let transaction = {tx_header; operation} in
-    let signed_transaction = sign alice_keys.private_key transaction in
+    let transaction = {Transaction.tx_header; Transaction.operation} in
+    let signed_transaction = sign_transaction alice_keys transaction in
     let output = Lwt_main.run (send_transaction_to_net signed_transaction) in
     assert (not (json_contains_error output)) ;
     let result_json = Basic.Util.member "result" output in
     let transaction_hash = Basic.Util.to_string result_json in
     let _ = wait_for_contract_execution transaction_hash in
-    let signed_transaction = sign alice_keys.private_key transaction in
+    let signed_transaction = sign_transaction alice_keys transaction in
     transaction_execution_matches_transaction transaction_hash signed_transaction
 
   let%test "compute-transaction-hash" =
@@ -430,22 +436,22 @@ module Test = struct
     let sender_account = get_first_account () in
     let sender_address = Ethereum_util.address_of_hex_string sender_account in
     let tx_header =
-      { sender= sender_address (* doesn't matter for transaction hash *)
-      ; nonce= Nonce.zero
-      ; gas_price= TokenAmount.of_int 20000000000
-      ; gas_limit= TokenAmount.of_int 100000
-      ; value= TokenAmount.of_int 1000 }
+      TxHeader.{ sender= sender_address (* doesn't matter for transaction hash *)
+               ; nonce= Nonce.zero
+               ; gas_price= TokenAmount.of_int 20000000000
+               ; gas_limit= TokenAmount.of_int 100000
+               ; value= TokenAmount.of_int 1000 }
     in
     let operation =
-      Main_chain.CallFunction
+      Operation.CallFunction
         ( Ethereum_util.address_of_hex_string "0x687422eea2cb73b5d3e242ba5456b782919afc85"
         , Ethereum_util.bytes_of_hex_string "0xc0de")
     in
-    let transaction = {tx_header; operation} in
-    let signed_transaction = sign private_key transaction in
+    let transaction = {Transaction.tx_header; Transaction.operation} in
+    let signed_transaction = sign Transaction.digest private_key transaction in
     let transaction_hash = get_transaction_hash signed_transaction private_key in
     Ethereum_util.hex_string_of_string transaction_hash
-    = "0x8b69a0ca303305a92d8d028704d65e4942b7ccc9a99917c8c9e940c9d57a9662"
+    = "0x2b1cb46f0aa4ba7da55ef4928e925b2dd3e9af6908319306cf2593d0f911f9c9"
 
   let%test "hello-solidity" =
     let open Ethereum_abi in
@@ -460,18 +466,18 @@ module Test = struct
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
     let tx_header =
-      { sender= sender_address
-      ; nonce= get_nonce sender_address
-      ; gas_price= TokenAmount.of_int 2
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.zero }
+      TxHeader.{ sender= sender_address
+               ; nonce= get_nonce sender_address
+               ; gas_price= TokenAmount.of_int 2
+               ; gas_limit= TokenAmount.of_int 1000000
+               ; value= TokenAmount.zero }
     in
     (* a valid contract contains compiled EVM code
        for testing, we just use a buffer with arbitrary contents
     *)
-    let operation = CreateContract code_bytes in
-    let transaction = {tx_header; operation} in
-    let signed_transaction = sign alice_keys.private_key transaction in
+    let operation = Operation.CreateContract code_bytes in
+    let transaction = {Transaction.tx_header; Transaction.operation} in
+    let signed_transaction = sign_transaction alice_keys transaction in
     (* create contract *)
     let output = Lwt_main.run (send_transaction_to_net signed_transaction) in
     assert (not (json_contains_error output)) ;
@@ -485,23 +491,23 @@ module Test = struct
     let contract_address =
       Basic.Util.to_string (Basic.Util.member "contractAddress" receipt_result_json)
     in
-    let signed_transaction = sign alice_keys.private_key transaction in
+    let signed_transaction = sign_transaction alice_keys transaction in
     assert (transaction_execution_matches_transaction transaction_hash signed_transaction) ;
     (* call the contract we've created *)
     let tx_header1 =
-      { sender= sender_address
-      ; nonce= get_nonce sender_address
-      ; gas_price= TokenAmount.of_int 2
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.zero }
+      TxHeader.{ sender= sender_address
+               ; nonce= get_nonce sender_address
+               ; gas_price= TokenAmount.of_int 2
+               ; gas_limit= TokenAmount.of_int 1000000
+               ; value= TokenAmount.zero }
     in
     let call = {function_name= "printHelloWorld"; parameters= []} in
     let call_bytes = encode_function_call call in
     let operation1 =
-      Main_chain.CallFunction (Ethereum_util.address_of_hex_string contract_address, call_bytes)
+      Operation.CallFunction (Ethereum_util.address_of_hex_string contract_address, call_bytes)
     in
-    let transaction1 = {tx_header= tx_header1; operation= operation1} in
-    let signed_transaction1 = sign alice_keys.private_key transaction1 in
+    let transaction1 = {Transaction.tx_header= tx_header1; Transaction.operation= operation1} in
+    let signed_transaction1 = sign_transaction alice_keys transaction1 in
     let output1 = Lwt_main.run (send_transaction_to_net signed_transaction1) in
     assert (not (json_contains_error output1)) ;
     let result_json1 = Basic.Util.member "result" output1 in
@@ -546,15 +552,15 @@ module Test = struct
     let unlock_sender_json = Lwt_main.run (unlock_account sender_address) in
     assert (not (json_contains_error unlock_sender_json)) ;
     let tx_header =
-      { sender= sender_address
-      ; nonce= get_nonce sender_address
-      ; gas_price= TokenAmount.of_int 42
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.zero }
+      TxHeader.{ sender= sender_address
+               ; nonce= get_nonce sender_address
+               ; gas_price= TokenAmount.of_int 42
+               ; gas_limit= TokenAmount.of_int 1000000
+               ; value= TokenAmount.zero }
     in
-    let operation = CreateContract code_bytes in
-    let transaction = {tx_header; operation} in
-    let signed_transaction = sign alice_keys.private_key transaction in
+    let operation = Operation.CreateContract code_bytes in
+    let transaction = {Transaction.tx_header; Transaction.operation} in
+    let signed_transaction = sign_transaction alice_keys transaction in
     let output = Lwt_main.run (send_transaction_to_net signed_transaction) in
     assert (not (json_contains_error output)) ;
     let result_json = Basic.Util.member "result" output in
@@ -577,16 +583,16 @@ module Test = struct
       int_of_string (Basic.Util.to_string (Basic.Util.member "result" starting_balance_json))
     in
     assert (starting_balance = 0) ;
-    let signed_transaction = sign alice_keys.private_key transaction in
+    let signed_transaction = sign_transaction alice_keys transaction in
     assert (transaction_execution_matches_transaction transaction_hash signed_transaction) ;
     (* call the fallback in the contract we've created *)
     let amount_to_transfer = 93490 in
     let tx_header1 =
-      { sender= sender_address
-      ; nonce= get_nonce sender_address
-      ; gas_price= TokenAmount.of_int 2
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.of_int amount_to_transfer }
+      TxHeader.{ sender= sender_address
+               ; nonce= get_nonce sender_address
+               ; gas_price= TokenAmount.of_int 2
+               ; gas_limit= TokenAmount.of_int 1000000
+               ; value= TokenAmount.of_int amount_to_transfer }
     in
     (* use (dummy) facilitator address as code to trigger fallback *)
     let facilitator_address =
@@ -594,10 +600,10 @@ module Test = struct
     in
     let address_bytes = Ethereum_util.bytes_of_address facilitator_address in
     let operation1 =
-      Main_chain.CallFunction (Ethereum_util.address_of_hex_string contract_address, address_bytes)
+      Operation.CallFunction (Ethereum_util.address_of_hex_string contract_address, address_bytes)
     in
-    let transaction1 = {tx_header= tx_header1; operation= operation1} in
-    let signed_transaction1 = sign alice_keys.private_key transaction1 in
+    let transaction1 = {Transaction.tx_header= tx_header1; Transaction.operation= operation1} in
+    let signed_transaction1 = sign_transaction alice_keys transaction1 in
     let output1 = Lwt_main.run (send_transaction_to_net signed_transaction1) in
     assert (not (json_contains_error output1)) ;
     let result_json1 = Basic.Util.member "result" output1 in
@@ -647,12 +653,12 @@ module Test = struct
     (* now try invalid address, make sure it's not logged *)
     let bogus_address_bytes = Ethereum_util.bytes_of_hex_string "0xFF" in
     let operation2 =
-      Main_chain.CallFunction
+      Operation.CallFunction
         (Ethereum_util.address_of_hex_string contract_address, bogus_address_bytes)
     in
     let tx_header2 = tx_header1 in
-    let transaction2 = {tx_header= tx_header2; operation= operation2} in
-    let signed_transaction2 = sign alice_keys.private_key transaction2 in
+    let transaction2 = {Transaction.tx_header= tx_header2; Transaction.operation= operation2} in
+    let signed_transaction2 = sign_transaction alice_keys transaction2 in
     let output2 = Lwt_main.run (send_transaction_to_net signed_transaction2) in
     assert (not (json_contains_error output2)) ;
     let result_json2 = Basic.Util.member "result" output2 in

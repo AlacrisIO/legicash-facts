@@ -1,5 +1,4 @@
 (* Types for LegiCash Facilitator side-chains *)
-
 open Action
 open Crypto
 open Trie
@@ -28,17 +27,20 @@ type fraud_proof
     confirmation/rejection: either we move that to a functor so we have the proper kind,
     or we leave that aside.
 *)
-type knowledge_stage =
-  | Unknown
-  (* 0. that actor never heard of it *)
-  | Pending
-  (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
-  | Confirmed
-  (* of operation_confirmation *)
-  (* 2. that actor confirmed it *)
-  | Rejected
-  (* of operation_rejection *)
-(* 3. that actor rejected it, timed out, or lied, etc. *)
+module KnowledgeStage : sig
+  type t =
+    | Unknown
+    (* 0. that actor never heard of it *)
+    | Pending
+    (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
+    | Confirmed
+    (* of operation_confirmation *)
+    (* 2. that actor confirmed it *)
+    | Rejected
+    (* of operation_rejection *)
+  (* 3. that actor rejected it, timed out, or lied, etc. *)
+  include DigestibleS with type t := t
+end
 
 (** memo identifying the invoice
     The merchant chooses this memo to match payments to invoices on his side;
@@ -48,19 +50,21 @@ type memo = string option
 (** invoice sent from payee to payer
     TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
 *)
-type invoice = {recipient: Address.t; amount: TokenAmount.t; memo: memo} [@@deriving lens]
+module Invoice : sig
+  type t = {recipient: Address.t; amount: TokenAmount.t; memo: memo} [@@deriving lens]
+  include DigestibleS with type t := t
+end
 
 type payment_details =
-  {payment_invoice: invoice; payment_fee: TokenAmount.t; payment_expedited: bool}
+  {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
 [@@deriving lens]
 
 type deposit_details =
   { deposit_amount: TokenAmount.t
   ; deposit_fee: TokenAmount.t
-  ; main_chain_deposit_signed:
-      Main_chain.transaction_signed
+  ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
   (* TODO: not a transaction, but an ethereum Log event created by the contract's deposit method *)
-  ; main_chain_deposit_confirmation: Main_chain.confirmation
+  ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
   ; deposit_expedited: bool }
 [@@deriving lens]
 
@@ -103,7 +107,7 @@ module RxHeader : sig
     { facilitator: Address.t
     ; requester: Address.t
     ; requester_revision: Revision.t
-    ; confirmed_main_chain_state_digest: Main_chain.state digest
+    ; confirmed_main_chain_state_digest: Main_chain.State.t digest
     ; confirmed_main_chain_state_revision: Revision.t
     ; confirmed_side_chain_state_digest: Digest.t (* State.t digest *)
     ; confirmed_side_chain_state_revision: Revision.t
@@ -116,6 +120,7 @@ end
 *)
 module Request : sig
   type t = {rx_header: RxHeader.t; operation: operation} [@@deriving lens]
+  include DigestibleS with type t := t
 end
 
 (** header for a confirmation from a facilitator:
@@ -156,7 +161,7 @@ module AccountMap : (MerkleTrieS with type key = Address.t and type value = Acco
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
 *)
 module State : sig
-  type t = { previous_main_chain_state: Main_chain.state digest
+  type t = { previous_main_chain_state: Main_chain.State.t digest
            ; previous_side_chain_state: t digest (* state previously posted on the above *)
            ; facilitator_revision: Revision.t
            ; spending_limit: TokenAmount.t
@@ -166,20 +171,20 @@ module State : sig
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens]
+  include DigestibleS with type t := t
 end
 
 (** side chain operation + knowledge about the operation *)
 type episteme =
   { request: Request.t signed
   ; confirmation_option: Confirmation.t signed option
-  ; main_chain_confirmation_option: Main_chain.confirmation option }
+  ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
 [@@deriving lens]
 
 (** private state a user keeps for his account with a facilitator *)
 module UserAccountStatePerFacilitator : sig
   type t =
-    { facilitator_validity:
-        knowledge_stage
+    { facilitator_validity: KnowledgeStage.t
     (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
     ; confirmed_state: AccountState.t
     ; pending_operations: episteme list }
@@ -231,6 +236,7 @@ type user_state =
   ; facilitators: UserAccountStateMap.t }
 [@@deriving lens]
 
+
 (** function from 'input to 'output that acts on a user_state *)
 type ('input, 'action) user_action = ('input, 'action, user_state) action
 
@@ -266,7 +272,7 @@ type facilitator_state =
 (** function from 'a to 'b that acts on a facilitator_state *)
 type ('input, 'output) facilitator_action = ('input, 'output, facilitator_state) action
 
-type court_clerk_confirmation = {clerk: public_key; signature: State.t signature} [@@deriving lens]
+type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 
 (** Side chain update to be posted on the main chain, including signatures by court registry clerks.
     The update itself has to be signed by the facilitator *)

@@ -54,7 +54,7 @@ let is_side_chain_request_well_formed :
       , _signing_address ) ) ->
     requester_revision = Revision.add account_revision Revision.one
     (* TODO: check confirmed main & side chain state + validity window *)
-    && is_signature_valid requester signature payload
+    && is_signature_valid Request.digest requester signature payload
     (* Check that the numbers add up: *)
     &&
     match operation with
@@ -69,12 +69,12 @@ let is_side_chain_request_well_formed :
         ; deposit_expedited=_deposit_expedited } ->
       TokenAmount.compare value (TokenAmount.add deposit_amount deposit_fee) >= 0
       && ( match main_chain_operation with
-          | Main_chain.TransferTokens recipient -> recipient = state.keypair.address
-          | _ -> false )
+        | Main_chain.Operation.TransferTokens recipient -> recipient = state.keypair.address
+        | _ -> false )
       (* TODO: delegate the same signature checking protocol to the main chain *)
-      && is_signature_valid requester signature payload
+      && is_signature_valid Transaction.digest requester signature payload
       && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
-        main_chain_deposit_signed
+           main_chain_deposit_signed
       && TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee >= 0
     | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
       TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee) >= 0
@@ -82,8 +82,8 @@ let is_side_chain_request_well_formed :
       && TokenAmount.compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
       (* TODO: make sure the fee multiplication cannot overflow! *)
       && TokenAmount.compare payment_fee
-        (TokenAmount.mul state.fee_schedule.fee_per_billion
-           (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
+           (TokenAmount.mul state.fee_schedule.fee_per_billion
+              (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
          >= 0
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
       TokenAmount.compare balance (TokenAmount.add withdrawal_amount withdrawal_fee) >= 0
@@ -100,10 +100,9 @@ let make_request_confirmation :
         {account_state with account_revision= signed_request.payload.rx_header.requester_revision}
         ((facilitator_state_current |-- State.facilitator_revision).set revision facilitator_state)
     , Ok
-        (sign facilitator_state.keypair.private_key
-           { tx_header=TxHeader.{
-                 tx_revision= revision;
-                 updated_limit= facilitator_state.current.spending_limit}
+        (sign Confirmation.digest facilitator_state.keypair.private_key
+           { tx_header=TxHeader.{ tx_revision= revision
+                                ; updated_limit= facilitator_state.current.spending_limit}
            ; Confirmation.signed_request }) )
 
 exception Spending_limit_exceeded
@@ -128,7 +127,7 @@ exception Already_posted
    Have more expensive process to account for old deposits?)
 *)
 let check_against_double_accounting main_chain_transaction_signed (state, x) =
-  let witness = Digest.make main_chain_transaction_signed in
+  let witness = Main_chain.TransactionSigned.digest main_chain_transaction_signed in
   let lens =
     facilitator_state_current |-- State.main_chain_transactions_posted |-- DigestSet.lens witness
   in
@@ -186,7 +185,7 @@ let confirm_request : (Request.t signed, Confirmation.t signed) facilitator_acti
 
 let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
 
-let stub_confirmed_main_chain_state_digest = ref (Digest.make Main_chain.genesis_state)
+let stub_confirmed_main_chain_state_digest = ref (Main_chain.State.digest Main_chain.genesis_state)
 
 let genesis_side_chain_state =
   State.{
@@ -201,7 +200,7 @@ let genesis_side_chain_state =
 
 let stub_confirmed_side_chain_state = ref genesis_side_chain_state
 
-let stub_confirmed_side_chain_state_digest = ref (Digest.make genesis_side_chain_state)
+let stub_confirmed_side_chain_state_digest = ref (State.digest genesis_side_chain_state)
 
 let get_first_facilitator_state_option (user_state, _) :
   (Address.t * UserAccountStatePerFacilitator.t) option =
@@ -258,8 +257,8 @@ let issue_user_request =
   (fun (user_state, operation) ->
      (user_state, ()) ^|> get_first_facilitator ^>> make_rx_header
      ^>> action_of_pure_action (fun (user_state, rx_header) ->
-         sign user_state.main_chain_user_state.keypair.private_key
-           {Request.rx_header; Request.operation} ) )
+       sign Request.digest user_state.main_chain_user_state.keypair.private_key
+         {Request.rx_header; Request.operation} ) )
   ^>> fun (user_state, request) ->
     (add_user_episteme user_state (mk_rx_episteme request), Ok request)
 
@@ -269,7 +268,7 @@ let issue_user_request =
     active revision will only increase, etc.
 *)
 let update_account_state_with_trusted_operation
-    trusted_operation ({AccountState.balance} as account_state) =
+      trusted_operation ({AccountState.balance} as account_state) =
   let f =
     {account_state with account_revision= Revision.add account_state.account_revision Revision.one}
   in
@@ -330,7 +329,7 @@ let deposit ((_user_state, (_facilitator_address, deposit_amount)) as input) =
 (* TODO: take into account not just the facilitator name, but the fee schedule, too. *)
 
 let payment (user_state, (_facilitator_address, recipient_address, payment_amount)) =
-  let invoice = {recipient= recipient_address; amount= payment_amount; memo= None} in
+  let invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= None} in
   issue_user_request
     ( user_state
     , Payment

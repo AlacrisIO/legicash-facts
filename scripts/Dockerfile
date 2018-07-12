@@ -32,7 +32,7 @@ RUN cd secp256k1 && ./autogen.sh && ./configure --prefix=/usr --enable-module-re
 # Install OPAM packages
 ENV OCAML_VERSION 4.06.1
 RUN opam init -a && opam switch ${OCAML_VERSION}
-RUN opam install -y cohttp cohttp-lwt-unix cryptokit dune integers lens secp256k1 yojson \
+RUN opam install -y cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens secp256k1 yojson \
     ppx_deriving ppx_tools_versioned ppx_core ppx_driver ppx_inline_test ppx_metaquot
 
 # Install geth (Ethereum node)

@@ -8,6 +8,7 @@
 open Lib
 open Crypto
 open Lazy
+open Integer
 open Yojson.Basic.Util
 
 module type TreeSynthS = sig
@@ -409,29 +410,9 @@ module Trie (Key : IntS) (Value : T)
 
   let choose t = min_binding t
 
-  (*  let find_first_opt_k f i v acc k = if f i then Some (i, v) else k acc *)
-
-  (* dichotomy on increasing function f.
-     TODO: use zippers to avoid computing f twice on the same node *)
-  (* let find_first_opt__ f trie =
-     let rec ffo index default trie = match trie with
-      | Empty -> default
-      | Leaf {value} -> if f index then Some (index, value) else default
-               | Branch {left;right;height} ->
-               let (i, v) = min_binding right in
-               if f i then
-               ffo index (Some (i, v)) left
-               else
-               ffo (right_index index height) default right
-               | Skip {child;height;length;bits} ->
-               ffo (skip_index index bits length height) default child
-               in
-               ffo Key.zero None trie
-             *)
-
   let find_first_opt f trie =
     let rec divide (index: key) (default: (key*value) option)
-        (leftward: (key*t) list) (rightward: (key*t) list) : t -> (key*value) option = function
+              (leftward: (key*t) list) (rightward: (key*t) list) : t -> (key*value) option = function
       | Empty -> default
       | Leaf {value} -> conquer index value default leftward rightward
       | Branch {left; right; height} ->
@@ -639,7 +620,7 @@ module Trie (Key : IntS) (Value : T)
       (make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child, Empty)
 
   let iterate_over_tree_pair (* See [iterate_over_tree_pair] docstring in [lib.mli] *)
-      ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k =
+        ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k =
     match (treea, treeb) with
     | (_, Empty) -> onlyak ~i ~anode:treea ~k
     | (Empty, _) -> onlybk ~i ~bnode:treeb ~k
@@ -647,33 +628,33 @@ module Trie (Key : IntS) (Value : T)
     | (Branch {left=aleft; right=aright; height}, Branch {left=bleft; right=bright}) ->
       recursek ~i ~treea:aleft ~treeb:bleft
         ~k:(fun left ->
-            recursek ~i:(right_index i height) ~treea:aright ~treeb:bright
-              ~k:(fun right ->
-                  branchk ~i ~height ~leftr:left ~rightr:right ~k))
+          recursek ~i:(right_index i height) ~treea:aright ~treeb:bright
+            ~k:(fun right ->
+              branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Branch {left=left; right=right}, Skip {child; bits; length; height}) ->
       let l1 = length - 1 in
       let ri = right_index i height in
       if Key.has_bit bits l1 then
         onlyak ~i ~anode:left ~k:(fun left ->
-            recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child)
-              ~k:(fun right ->
-                  branchk ~i ~height ~leftr:left ~rightr:right ~k))
+          recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child)
+            ~k:(fun right ->
+              branchk ~i ~height ~leftr:left ~rightr:right ~k))
       else
         recursek ~i ~treea:left ~treeb:(make_skip height l1 bits child)
           ~k:(fun left ->
-              onlyak ~i:ri ~anode:right ~k:(fun right ->
-                  branchk ~i ~height ~leftr:left ~rightr:right ~k))
+            onlyak ~i:ri ~anode:right ~k:(fun right ->
+              branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Skip {child;bits;length;height}, Branch {left;right}) ->
       let l1 = length - 1 in
       let ri = right_index i height in
       if Key.has_bit bits l1 then
         onlybk ~i ~bnode:left ~k:(fun left ->
-            recursek ~i:ri ~treea:(make_skip height l1 bits child) ~treeb:right
-              ~k:(fun right -> branchk ~i ~height ~leftr:left ~rightr:right ~k))
+          recursek ~i:ri ~treea:(make_skip height l1 bits child) ~treeb:right
+            ~k:(fun right -> branchk ~i ~height ~leftr:left ~rightr:right ~k))
       else
         recursek ~i ~treea:(make_skip height l1 bits child) ~treeb:left
           ~k:(fun left -> onlybk ~i:ri ~bnode:right ~k:(fun right ->
-              branchk ~i ~height ~leftr:left ~rightr:right ~k))
+            branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Skip {child=achild;bits=abits;length=alength;height}, Skip {child=bchild;bits=bbits;length=blength}) ->
       let length = min alength blength in
       let ahighbits = Key.extract abits (alength - length) length in
@@ -700,9 +681,9 @@ module Trie (Key : IntS) (Value : T)
         let (aleft, aright) = skip_choice height alength abits achild (adifflength - 1) in
         let (bleft, bright) = skip_choice height blength bbits bchild (bdifflength - 1) in
         recursek ~i:isame ~treea:aleft ~treeb:bleft ~k:(fun left ->
-            recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
-              ~k:(fun right ->
-                  branchk ~i:isame ~height:sameheight ~leftr:left ~rightr:right ~k:samek))
+          recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
+            ~k:(fun right ->
+              branchk ~i:isame ~height:sameheight ~leftr:left ~rightr:right ~k:samek))
     | _ -> raise (Internal_error "iterate_over_tree_pair")
 
   let merge f a b =
@@ -713,7 +694,7 @@ module Trie (Key : IntS) (Value : T)
         ~branchk:(fun ~i:_ ~height ~leftr ~rightr ~k -> k (make_branch height leftr rightr))
         ~skipk:(fun ~i:_ ~height ~length ~bits ~childr ~k -> k (make_skip height length bits childr))
         ~leafk:(fun ~i ~valuea ~valueb ~k ->
-            k (match (f i (Some valuea) (Some valueb)) with None -> Empty | Some v -> mk_leaf v))
+          k (match (f i (Some valuea) (Some valueb)) with None -> Empty | Some v -> mk_leaf v))
         ~onlyak:(fun ~i ~anode:ta ~k -> k (mapiopt (fun _ v -> f i (Some v) None) ta))
         ~onlybk:(fun ~i ~bnode:tb ~k -> k (mapiopt (fun _ v -> f i None (Some v)) tb))
         ~i ~treea:a ~treeb:b ~k in
@@ -727,7 +708,7 @@ module Trie (Key : IntS) (Value : T)
         ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~k -> k ())
         ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~k -> k ())
         ~leafk:(fun ~i:_ ~valuea ~valueb ~k ->
-            let r = cmp valuea valueb in if r = 0 then k () else r)
+          let r = cmp valuea valueb in if r = 0 then k () else r)
         ~onlyak:(fun ~i:_ ~anode:_ ~k:_ -> 1)
         ~onlybk:(fun ~i:_ ~bnode:_ ~k:_ -> -1)
         ~i ~treea:a ~treeb:b ~k in
@@ -741,7 +722,7 @@ module Trie (Key : IntS) (Value : T)
           ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~k -> k ())
           ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~k -> k ())
           ~leafk:(fun ~i:_ ~valuea ~valueb ~k ->
-              if eq valuea valueb then k () else false)
+            if eq valuea valueb then k () else false)
           ~onlyak:(fun ~i:_ ~anode:_ ~k:_ -> false)
           ~onlybk:(fun ~i:_ ~bnode:_ ~k:_ -> false)
           ~i ~treea:a ~treeb:b ~k in
@@ -761,8 +742,8 @@ module Trie (Key : IntS) (Value : T)
 end
 
 module type TrieSynthMerkleS = sig
-  include TrieSynthS
-  val leaf_digest : Digest.t -> t
+  include TrieSynthS with type t = Digest.t
+  val leaf_digest : t -> t
 end
 
 module TrieSynthMerkle (Key : IntS) (Value : DigestibleS) =
@@ -775,10 +756,17 @@ struct
      Or better: make sure these constants are actually themselves the digests of a descriptor
      for the type of data being digested.
   *)
-  let leaf_digest digest = Digest.make (1, digest)
-  let leaf v = leaf_digest (Digest.make v)
-  let branch h x y = Digest.make (2, h, x, y)
-  let skip height length bits child = Digest.make (3, height, length, bits, child)
+  let leaf_digest digest = digest_of_string ("\001" ^ Digest.to_big_endian_bits digest)
+  let leaf v = leaf_digest (Value.digest v)
+  let branch h x y =
+    digest_of_string ("\002" ^ big_endian_bits_of_nat 16 (Nat.of_int h)
+                      ^ Digest.to_big_endian_bits x
+                      ^ Digest.to_big_endian_bits y)
+  let skip height length bits child =
+    digest_of_string ("\002" ^ big_endian_bits_of_nat 16 (Nat.of_int height)
+                      ^ big_endian_bits_of_nat 16 (Nat.of_int length)
+                      ^ Key.to_big_endian_bits bits
+                      ^ Digest.to_big_endian_bits child)
 end
 
 module type MerkleTrieS = sig
@@ -822,7 +810,7 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
     match find_path key trie with
     | Leaf {value}, up -> Some { key
                                ; trie = trie_digest trie
-                               ; value = Digest.make value
+                               ; value = Value.digest value
                                ; steps = (path_digest up).steps
                                }
     | _ -> None
@@ -853,12 +841,12 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
       `Assoc [ ("type", `String "Skip")
              ; ("bits", `String (skip_bit_string length bits)) ]
 
-  let [@warning "-32"] proof_to_json (key, trie_d, value_d, steps_d) =
+  let [@warning "-32"] proof_to_json {key; trie; value; steps} =
     `Assoc
       [ ("key", `String (Key.to_hex_string key))
-      ; ("trie", `String (Digest.to_hex_string trie_d))
-      ; ("value", `String (Digest.to_hex_string value_d))
-      ; ("steps", `List (List.map step_to_json steps_d)) ]
+      ; ("trie", `String (Digest.to_hex_string trie))
+      ; ("value", `String (Digest.to_hex_string value))
+      ; ("steps", `List (List.map step_to_json steps)) ]
 
   let [@warning "-32"] proof_to_json_string = zcompose Yojson.to_string proof_to_json
 
@@ -992,11 +980,11 @@ module DigestSet = MerkleTrieSet (Digest)
 
 module Test = struct
   let generic_compare = compare
-  module SimpleTrie = Trie (Nat) (StringT) (TrieSynthCardinal (Nat) (StringT))
-  module MyTrie = MerkleTrie (Nat) (StringT)
+  module SimpleTrie = Trie (UInt256) (StringT) (TrieSynthCardinal (UInt256) (StringT))
+  module MyTrie = MerkleTrie (UInt256) (StringT)
   open MyTrie
-  let [@warning "-32"] nat_of_key : MyTrie.key -> Crypto.Nat.t = fun x -> x
-  let [@warning "-32"] key_of_nat : Crypto.Nat.t -> MyTrie.key = fun x -> x
+  let [@warning "-32"] nat_of_key : MyTrie.key -> Crypto.UInt256.t = fun x -> x
+  let [@warning "-32"] key_of_nat : Crypto.UInt256.t -> MyTrie.key = fun x -> x
 
   let [@warning "-32"] rec print_trie out_channel = function
     | Empty ->
@@ -1010,16 +998,16 @@ module Test = struct
     | Skip {height; length; bits; child} ->
       Printf.fprintf
         out_channel "Skip{height=%d;length=%d;bits=%s;child="
-        height length (Nat.to_string bits) ;
+        height length (UInt256.to_string bits) ;
       print_trie out_channel child ; Printf.fprintf out_channel "}"
 
-  let n = Nat.of_int
-  let s = Nat.to_string
+  let n = UInt256.of_int
+  let s = UInt256.to_string
   (* let println s = Printf.printf "%s\n" s *)
   (* let showln x = print_trie stdout x ; Printf.printf "\n" *)
 
   let sort_bindings bindings = List.sort generic_compare bindings
-  let make_bindings n f = List.init n (fun i -> let j = i + 1 in (Nat.of_int j, f j))
+  let make_bindings n f = List.init n (fun i -> let j = i + 1 in (UInt256.of_int j, f j))
   (* let bindings_equal x y = (sort_bindings x) = (sort_bindings y) *)
 
   let knuth_shuffle array =
@@ -1035,17 +1023,17 @@ module Test = struct
 
   let shuffle_list l = Array.to_list (knuth_shuffle (Array.of_list l))
 
-  let is_even z = Nat.equal (Nat.extract z 0 1) Nat.zero
+  let is_even z = UInt256.equal (UInt256.extract z 0 1) UInt256.zero
 
   let trie_of_bindings b = lazy (verify (of_bindings (force b)))
 
-  let bindings_4 : (Nat.t * string) list lazy_t = lazy (make_bindings 4 string_of_int)
+  let bindings_4 : (UInt256.t * string) list lazy_t = lazy (make_bindings 4 string_of_int)
   let trie_4 = trie_of_bindings bindings_4
 
-  let bindings_10 : (Nat.t * string) list lazy_t = lazy (make_bindings 10 string_of_int)
+  let bindings_10 : (UInt256.t * string) list lazy_t = lazy (make_bindings 10 string_of_int)
   let trie_10 = trie_of_bindings bindings_10
 
-  let bindings_100 : (Nat.t * string) list lazy_t = lazy (make_bindings 100 string_of_int)
+  let bindings_100 : (UInt256.t * string) list lazy_t = lazy (make_bindings 100 string_of_int)
   let trie_100 = trie_of_bindings bindings_100
 
   let bindings_1 = lazy (shuffle_list (force bindings_100))
@@ -1099,7 +1087,7 @@ module Test = struct
     None = find_opt (n 13) (force trie_10_12_57)
 
   (* let rec intersperse separator = function
-      [] -> [] | [a] -> [a] | a :: l -> a :: separator :: intersperse separator l
+     [] -> [] | [a] -> [a] | a :: l -> a :: separator :: intersperse separator l
   *)
 
   let [@warning "-32"] string_of_value_option = function None -> "None" | Some v -> Printf.sprintf "Some %S" v
@@ -1203,31 +1191,31 @@ module Test = struct
   let proof_42_in_trie_100 =
     lazy (proof_of_json
             (`Assoc [ ("key",`String "2a")
-                    ; ("trie",`String "8b97359b0422e5aac4595d2cceee4402f73100aa12d9e06d7645732abbafb12c")
-                    ; ("value", `String "40730276481ab01f677ed666da2284db453a0b9d4c36a44a3b2663aa9b5c0db7")
+                    ; ("trie",`String "1fac8e232b535a615c42d929507b86e5c5869e3ead1cdd25441c56deb2dd5c51")
+                    ; ("value", `String "ccb1f717aa77602faf03a594761a36956b1c4cf44c6b336d1db57da799b331b8")
                     ; ("steps",
-                       `List [ make_left_step "f16f73fbb5f4c58f4a17ed8ad270f84eae387cb4fb9fe0288ca1e11514ebfcef"
-                             ; make_right_step "3a0e639d918fd318b67081212eaa4cf15861c5f7399408462251261ebd9ff177"
-                             ; make_left_step "72e36701279cecc29eef37cb7031a8a791cda2a8b3941310673b167647f7e8f9"
-                             ; make_right_step "b099b888f0b93b58e38c95c2b493dc7b11e3d89e443a3839c4cbb1d0925bdf13"
-                             ; make_left_step "92ba9c608c6d10353e84c0295e7708060f53be7eb920aa4da0aa1beac5f44fd6"
-                             ; make_right_step "3ae88eb76ca4583261dce2ef5b6df780852648000ebb065306b98afab8d03a49"
-                             ; make_left_step "7655b6fd765c49037083f1e03af3bf4fff2078f1501c6197170dbc527c00a5c1"
+                       `List [ make_left_step "f2d009d08b6ccf098f0144bd6c60deb2e2f90c1d535081fe8583e84f0a57648c"
+                             ; make_right_step "040bce26cfff0c2a04a53d601105c74340136630178b6ba3068646dadd04b463"
+                             ; make_left_step "0ebcfde2bc1f1dbd006b1c61c0db408331d0a9c7f2e64624f42d0f9d573438ba"
+                             ; make_right_step "7e82d31d9aa3e780051bef9c72851e03293c13d2dea72f8180e543f7d1c0a864"
+                             ; make_left_step "7e4f446333427a39e10841f29f88aeab908225a90b1d12e396124ca94992774f"
+                             ; make_right_step "5afc63f18942c3d103b1517efd60cd053cd744031c9bf56756038af6ad728a2c"
+                             ; make_left_step "22c05957bb11ec9ac4b41662a658e560c2a32a3b70ea47a2bc182f4a2522ca05"
                              ])
                     ]))
 
   let bad_proof = lazy (match force proof_42_in_trie_100 with
-      | { key
-        ; trie
-        ; value
-        ; steps = [s1;s2;s3;s4;s5;s6;s7]
-        } ->
-        { key
-        ; trie
-        ; value
-        ; steps = [s1;s2;s5;s4;s3;s6;s7] (* steps 3 and 5 are swapped *)
-        }
-      | _ -> raise (Internal_error "Bad proof"))
+    | { key
+      ; trie
+      ; value
+      ; steps = [s1;s2;s3;s4;s5;s6;s7]
+      } ->
+      { key
+      ; trie
+      ; value
+      ; steps = [s1;s2;s5;s4;s3;s6;s7] (* steps 3 and 5 are swapped *)
+      }
+    | _ -> raise (Internal_error "Bad proof"))
 
   let%test "proof" =
     get_proof (n 42) (force trie_100) = Some (force proof_42_in_trie_100)

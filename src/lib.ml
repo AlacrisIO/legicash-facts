@@ -252,6 +252,16 @@ let string_reverse s =
   let len = String.length s in
   String.init len (fun i -> s.[len - i - 1])
 
+type 'a marshaller = Buffer.t -> 'a -> unit
+type 'a unmarshaller = Bytes.t -> int -> 'a*int
+
+let marshall_bool b bool = Buffer.add_char b (if bool then '\001' else '\000')
+
+module type MarshallableS = sig
+  type t
+  val marshall : t marshaller
+  val unmarshall : t unmarshaller
+end
 
 module Test = struct
   let%test "hex_string" =

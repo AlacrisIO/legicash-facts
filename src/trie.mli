@@ -36,8 +36,7 @@ end
 
 (** A module to synthesize attributes for Skip by reducing it to Branch and Leaf. *)
 module TrieSynthComputeSkip (Key : IntS) (Synth: TrieSynthS) : sig
-  include TreeSynthS
-  type key = Key.t
+  include TrieSynthS with type key := Key.t
 end
 
 (** A module for Big-Endian Patricia Tree. *)
@@ -85,8 +84,8 @@ module Trie (Key : IntS) (Value : T)
 
 (** A signature for Merklizing a Trie . *)
 module type TrieSynthMerkleS = sig
-  include TrieSynthS
-  val leaf_digest : Digest.t -> t
+  include TrieSynthS with type t = Digest.t
+  val leaf_digest : t -> t
 end
 
 (** A module for Merklizing a Trie . *)

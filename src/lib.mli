@@ -452,3 +452,13 @@ end
 
 val string_reverse : string -> string
 
+type 'a marshaller = Buffer.t -> 'a -> unit
+type 'a unmarshaller = Bytes.t -> int -> 'a*int
+
+val marshall_bool : bool marshaller
+
+module type MarshallableS = sig
+  type t
+  val marshall : t marshaller
+  val unmarshall : t unmarshaller
+end

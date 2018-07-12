@@ -1,5 +1,6 @@
 (* See documentation in main_chain.mli *)
 
+open Lib
 open Action
 open Crypto
 open Trie
@@ -10,13 +11,32 @@ module ContractAddress = Address
 
 module AccountMap = MerkleTrie (Address) (TokenAmount)
 
-type state = {revision: Revision.t; accounts: AccountMap.t} [@@deriving lens]
+module State = struct
+  (* TODO: have an actual model of the Ethereum main chain *)
+  type t = {revision: Revision.t; accounts: AccountMap.t} [@@deriving lens]
+  module Marshallable = struct
+    type tt = t
+    type t = tt
+    let marshall b {revision; accounts=_} =
+      Revision.marshall b revision
+    let unmarshall = bottom
+  end
+  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+end
 
-type confirmation =
-  { transaction_hash: Digest.t
-  ; transaction_index: Unsigned.UInt64.t
-  ; block_number: Revision.t
-  ; block_hash: Digest.t }
+module Confirmation = struct
+  type t = { transaction_hash: Digest.t
+           ; transaction_index: Unsigned.UInt64.t
+           ; block_number: Revision.t
+           ; block_hash: Digest.t }
+  module Marshallable : (MarshallableS with type t = t) = struct
+    type tt = t
+    type t = tt
+    let marshall = marshall_any
+    let unmarshall = bottom
+  end
+  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+end
 
 (** TODO: have an actual confirmation
     For Ethereum, we might check the transaction hashes match, or
@@ -24,34 +44,67 @@ type confirmation =
 *)
 let is_confirmation_valid _confirmation _transaction = true
 
-let genesis_state = {revision= Revision.zero; accounts= AccountMap.empty}
+let genesis_state = State.{revision= Revision.zero; accounts= AccountMap.empty}
 
-type tx_header =
-  { sender: Address.t
-  ; nonce: Nonce.t
-  ; gas_price: TokenAmount.t
-  ; gas_limit: TokenAmount.t
-  ; value: TokenAmount.t }
-[@@deriving lens]
+module TxHeader = struct
+  type t = { sender: Address.t
+           ; nonce: Nonce.t
+           ; gas_price: TokenAmount.t
+           ; gas_limit: TokenAmount.t
+           ; value: TokenAmount.t }
+  [@@deriving lens]
+  module Marshallable : (MarshallableS with type t = t) = struct
+    type tt = t
+    type t = tt
+    let marshall = marshall_any
+    let unmarshall = bottom
+  end
+  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+end
 
-type operation =
-  | TransferTokens of Address.t
-  | CreateContract of Bytes.t
-  | CallFunction of Address.t * Bytes.t
+module Operation = struct
+  type t =
+    | TransferTokens of Address.t
+    | CreateContract of Bytes.t
+    | CallFunction of Address.t * Bytes.t
+  module Marshallable : (MarshallableS with type t = t) = struct
+    type tt = t
+    type t = tt
+    let marshall = marshall_any
+    let unmarshall = bottom
+  end
+  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+end
 
 (* contract, data *)
-
 (** Transaction (to be) posted to the main chain (i.e. Ethereum) *)
-type transaction = {tx_header: tx_header; operation: operation} [@@deriving lens]
+module Transaction = struct
+  type t = {tx_header: TxHeader.t; operation: Operation.t} [@@deriving lens]
+  module Marshallable : (MarshallableS with type t = t) = struct
+    type tt = t
+    type t = tt
+    let marshall = marshall_any
+    let unmarshall = bottom
+  end
+  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+end
 
-type transaction_signed = transaction signed
+module TransactionSigned = struct
+  type t = Transaction.t signed
+  module Marshallable : (MarshallableS with type t = t) = struct
+    type tt = t
+    type t = tt
+    let marshall = marshall_any
+    let unmarshall = bottom
+  end
+  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+end
 
 type user_state =
   { keypair: Keypair.t
-  ; confirmed_state: state digest
-  ; confirmed_balance:
-      TokenAmount.t (* Only store the confirmed state, and have any updates in pending *)
-  ; pending_transactions: transaction_signed list
+  ; confirmed_state: State.t digest
+  ; confirmed_balance: TokenAmount.t
+  ; pending_transactions: TransactionSigned.t list
   ; nonce: Nonce.t }
 [@@deriving lens]
 

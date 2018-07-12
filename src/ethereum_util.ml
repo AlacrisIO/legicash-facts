@@ -8,7 +8,7 @@ let hash s = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
 
 (* Hexadecimal support. See https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding *)
 
-let hex_string_of_number nat = "0x" ^ Nat.to_hex_string nat
+let hex_string_of_number nat = "0x" ^ UInt256.to_hex_string nat
 
 let validate_0x_prefix hs =
   let len = String.length hs in
@@ -22,9 +22,9 @@ let number_of_hex_string hs =
   validate_0x_prefix hs ;
   let len = String.length hs in
   if hs.[2] != '0' then
-    Nat.of_hex_string (String.sub hs 2 (len - 2))
+    UInt256.of_hex_string (String.sub hs 2 (len - 2))
   else if len = 3 then
-    Nat.zero
+    UInt256.zero
   else
     raise (Internal_error "Hex number starts with 0")
 
@@ -114,9 +114,9 @@ module Test = struct
 
   let%test "hex_string_of_number" =
     List.for_all
-      (fun (n, hex) -> let num = Nat.of_int n in
+      (fun (n, hex) -> let num = UInt256.of_int n in
         hex_string_of_number num = hex
-        && Nat.equal num (number_of_hex_string hex))
+        && UInt256.equal num (number_of_hex_string hex))
       [(0,"0x0");(1,"0x1");(10,"0xa");(291,"0x123");(61453,"0xf00d");(0xabcde,"0xabcde")]
 
   let%test "number_of_hex_string error" =

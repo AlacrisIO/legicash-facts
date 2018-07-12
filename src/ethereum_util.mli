@@ -9,10 +9,10 @@ val hash : string -> string
 
 (** Convert numeric quantity to Ethereum format hexadecimal: 0x followed by hex-digits,
     the first of which isn't 0 unless it's the only hex-digit. *)
-val hex_string_of_number : Nat.t -> string
+val hex_string_of_number : UInt256.t -> string
 
 (** Validate and convert Ethereum format hexadecimal back into a number. *)
-val number_of_hex_string : string -> Nat.t
+val number_of_hex_string : string -> UInt256.t
 
 (** Convert string to Ethereum format hexadecimal, 0x followed by hex-digit pairs
     (or single 0 for the empty string) *)
