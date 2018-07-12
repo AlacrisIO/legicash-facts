@@ -73,8 +73,9 @@ let rec get_confirmation transaction_hash =
       (* remove leading 0x; shouldn't need to validate that the prefix exists, should always be well-formed *)
       let remove_0x hex_string = String.sub hex_string 2 (String.length hex_string - 2) in
       let transaction_hash = Basic.Util.member "transactionHash" result_json |> Basic.Util.to_string |> remove_0x |> Digest.of_hex_string in
-      let transaction_index = Basic.Util.member "transactionIndex" result_json |> Basic.Util.to_string |> Unsigned.UInt64.of_string in
-      let block_number = Basic.Util.member "blockNumber" result_json |> Basic.Util.to_string |> Revision.of_string in
+      (* Revision, Unsigned.UInt64 "of_string" reads hex numbers as 0, so convert to OCaml int *)
+      let transaction_index = Basic.Util.member "transactionIndex" result_json |> Basic.Util.to_string |> int_of_string |> Unsigned.UInt64.of_int in
+      let block_number = Basic.Util.member "blockNumber" result_json |> Basic.Util.to_string |> int_of_string |> Revision.of_int in
       let block_hash = Basic.Util.member "blockHash" result_json |> Basic.Util.to_string |> remove_0x |> Digest.of_hex_string in
       let confirmation = { transaction_hash
                          ; transaction_index
