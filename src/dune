@@ -8,7 +8,7 @@
   ethereum_util ethereum_rlp ethereum_json_rpc
   main_chain side_chain main_chain_action side_chain_action court_registry
   version)
- (preprocess (pps ppx_deriving.std ppx_inline_test ppx_deriving_lens))
+ (preprocess (pps ppx_deriving.std ppx_inline_test lens.ppx_deriving))
  ;; -9 : all fields mentioned in a pattern
  ;; -27 : unused variable
  ;; -32 : unused value
@@ -20,7 +20,7 @@
 ;; main executable
 (executable
  (name hello_legicash)
- (preprocess (pps ppx_deriving.std ppx_deriving_lens ppx_inline_test))
+ (preprocess (pps ppx_deriving.std lens.ppx_deriving ppx_inline_test))
  (modules hello_legicash)
  (libraries legicash_lib))
 

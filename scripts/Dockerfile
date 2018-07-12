@@ -30,17 +30,16 @@ RUN git clone https://github.com/bitcoin-core/secp256k1.git
 RUN cd secp256k1 && ./autogen.sh && ./configure --prefix=/usr --enable-module-recovery && make && make install
 
 # Install OPAM packages
-RUN opam init -a && opam switch 4.06.1
-RUN opam install -y cohttp cohttp-lwt-unix cryptokit integers jbuilder secp256k1 yojson \
+ENV OCAML_VERSION 4.06.1
+RUN opam init -a && opam switch ${OCAML_VERSION}
+RUN opam install -y cohttp cohttp-lwt-unix cryptokit dune integers lens secp256k1 yojson \
     ppx_deriving ppx_tools_versioned ppx_core ppx_driver ppx_inline_test ppx_metaquot
 
-# Install ocaml-lens library
-RUN git clone https://github.com/legicash-patches/ocaml-lens.git
-ENV PATH /root/.opam/4.06.1/bin:${PATH}
-RUN jbuilder build @install --root=ocaml-lens && jbuilder install --root=ocaml-lens
-
 # Install geth (Ethereum node)
-ENV GETH_VERSION geth-linux-amd64-1.8.11-dea1ce05
+ENV GETH_VERSION geth-linux-amd64-1.8.12-37685930
 RUN cd && curl https://gethstore.blob.core.windows.net/builds/${GETH_VERSION}.tar.gz > ${GETH_VERSION}.tar.gz
 RUN cd && tar -xzvf ${GETH_VERSION}.tar.gz
 RUN cd && mv ${GETH_VERSION}/geth /usr/local/bin/geth
+
+# Allow CI script to find OPAM files
+ENV PATH /root/.opam/${OCAML_VERSION}/bin:${PATH}
