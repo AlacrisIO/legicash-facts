@@ -1,12 +1,9 @@
 (* endpoints.eliom -- Legicash REST API endpoints *)
 
-[%%shared
-    open Eliom_lib
-]
-
 open Yojson
 open Legicash_lib
 open Lib
+open Lwt
 
 module TokenAmount = Main_chain.TokenAmount
 

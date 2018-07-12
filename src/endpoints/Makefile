@@ -186,32 +186,6 @@ ${ELIOM_SERVER_DIR}/%.cmx: %.ml
 ${ELIOM_SERVER_DIR}/%.cmx: %.eliom
 	${ELIOMOPT} -c ${SERVER_INC} $(GENERATE_DEBUG) $<
 
-
-##----------------------------------------------------------------------
-## Client side compilation
-
-CLIENT_LIBS := ${addprefix -package ,${CLIENT_PACKAGES}}
-CLIENT_INC  := ${addprefix -package ,${CLIENT_PACKAGES}}
-
-CLIENT_OBJS := $(filter %.eliom %.ml, $(CLIENT_FILES))
-CLIENT_OBJS := $(patsubst %.eliom,${ELIOM_CLIENT_DIR}/%.cmo, ${CLIENT_OBJS})
-CLIENT_OBJS := $(patsubst %.ml,${ELIOM_CLIENT_DIR}/%.cmo, ${CLIENT_OBJS})
-
-$(TEST_PREFIX)$(ELIOMSTATICDIR)/$(PROJECT_NAME).js: $(call objs,$(ELIOM_CLIENT_DIR),cmo,$(CLIENT_FILES)) | $(TEST_PREFIX)$(ELIOMSTATICDIR)
-	${JS_OF_ELIOM} -o $@ $(GENERATE_DEBUG) $(CLIENT_INC) $(DEBUG_JS) \
-	$(call depsort,$(ELIOM_CLIENT_DIR),cmo,-client,$(CLIENT_INC),$(CLIENT_FILES))
-
-${ELIOM_CLIENT_DIR}/%.cmi: %.mli
-	${JS_OF_ELIOM} -c ${CLIENT_INC} $(GENERATE_DEBUG) $<
-
-${ELIOM_CLIENT_DIR}/%.cmo: %.eliom
-	${JS_OF_ELIOM} -c ${CLIENT_INC} $(GENERATE_DEBUG) $<
-${ELIOM_CLIENT_DIR}/%.cmo: %.ml
-	${JS_OF_ELIOM} -c ${CLIENT_INC} $(GENERATE_DEBUG) $<
-
-${ELIOM_CLIENT_DIR}/%.cmi: %.eliomi
-	${JS_OF_ELIOM} -c ${CLIENT_INC} $(GENERATE_DEBUG) $<
-
 ##----------------------------------------------------------------------
 ## Dependencies
 
