@@ -10,7 +10,6 @@
 *)
 
 open Lib
-open Legibase
 open Crypto
 
 (* keys are sequences of nybbles, which can be packed into two-nybbles-per-byte form *)

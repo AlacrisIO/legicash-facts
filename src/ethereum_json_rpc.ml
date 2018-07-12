@@ -1,6 +1,3 @@
-open Legibase
-open Lib
-open Yojson
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
@@ -17,7 +14,7 @@ type ethereum_rpc_call =
   | Personal_listAccounts
   | Personal_newAccount
   | Personal_unlockAccount
-  [@@deriving show]
+[@@deriving show]
 
 (* network parameters for geth or other node *)
 let ethereum_net = Uri.make ~scheme:"http" ~host:"localhost" ~port:8080 ()

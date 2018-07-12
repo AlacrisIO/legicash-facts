@@ -1,7 +1,6 @@
 (* ethereum-abi -- support for Ethereum contract ABI *)
 (* see https://solidity.readthedocs.io/en/develop/abi-spec.html *)
 
-open Legibase
 open Lib
 open Crypto
 
@@ -397,8 +396,8 @@ let rec encode_abi_value v ty =
     let pad_byte = if is_negative then Char.chr 0xff else '\000' in
     let padding = Bytes.make (32 - bytes_len) pad_byte in
     Bytes.cat padding bytes
-  | Uint_value bytes, UintDefault -> encode_abi_value v (Uint 256)
-  | Int_value bytes, IntDefault -> encode_abi_value v (Int 256)
+  | Uint_value _bytes, UintDefault -> encode_abi_value v (Uint 256)
+  | Int_value _bytes, IntDefault -> encode_abi_value v (Int 256)
   | String_value s, String ->
     (* assume that s is already UTF-8, so just convert it to bytes *)
     let bytes = Bytes.of_string s in
@@ -407,12 +406,12 @@ let rec encode_abi_value v ty =
     let num = if b then 1 else 0 in
     let uint8_val, uint8_ty = abi_uint8_of_int num in
     encode_abi_value uint8_val uint8_ty
-  | Ufixed_value bys, Ufixed (m, n) when Bytes.length bys = m / 8 ->
+  | Ufixed_value bys, Ufixed (m, _n) when Bytes.length bys = m / 8 ->
     encode_abi_value (Uint_value bys) (Uint 256)
-  | Ufixed_value bys, UfixedDefault -> encode_abi_value v (Ufixed (128, 18))
-  | Fixed_value bys, Fixed (m, n) when Bytes.length bys = m / 8 ->
+  | Ufixed_value _bys, UfixedDefault -> encode_abi_value v (Ufixed (128, 18))
+  | Fixed_value bys, Fixed (m, _n) when Bytes.length bys = m / 8 ->
     encode_abi_value (Int_value bys) (Int 256)
-  | Fixed_value bys, FixedDefault -> encode_abi_value v (Fixed (128, 18))
+  | Fixed_value _bys, FixedDefault -> encode_abi_value v (Fixed (128, 18))
   | Bytes_value bys, Bytes n when Bytes.length bys = n ->
     let padding = Bytes.make (32 - Bytes.length bys) '\000' in
     (* right-pad to 32 bytes *)
@@ -433,8 +432,8 @@ let rec encode_abi_value v ty =
     in
     let extra_padding = Bytes.make extra_padding_len '\000' in
     Bytes.concat Bytes.empty [len_encoding; bys; extra_padding]
-  | Fixed_value _, Fixed (m, n) -> bottom () (* TODO *)
-  | Ufixed_value _, Ufixed (m, n) -> bottom () (* TODO *)
+  | Fixed_value _, Fixed (_m, _n) -> bottom () (* TODO *)
+  | Ufixed_value _, Ufixed (_m, _n) -> bottom () (* TODO *)
   | Address_value address, Address ->
     let bytes = Ethereum_util.bytes_of_address address in
     encode_abi_value (Uint_value bytes) (Uint 160)
@@ -443,7 +442,7 @@ let rec encode_abi_value v ty =
     let signature_bytes = encode_signature function_call in
     let bytes = Bytes.cat address_bytes signature_bytes in
     encode_abi_value (Bytes_value bytes) (Bytes 24)
-  | Array_value elts, Array (m, ty) ->
+  | Array_value elts, Array (_m, ty) ->
     let element_encodings = List.map (fun elt -> encode_abi_value elt ty) elts in
     Bytes.concat Bytes.empty element_encodings
   | Array_value elts, ArrayDynamic ty ->

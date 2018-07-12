@@ -1,7 +1,6 @@
 (* base.mli -- base types for Legicash platform
    This code is for basic infrastructure somewhat specific to Legicash
 *)
-open Integer
 
 exception Timeout of string
 

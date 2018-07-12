@@ -1,7 +1,6 @@
 (* ethereum_transaction.ml -- code for running transactions on Ethereum net via JSON RPC *)
 
 open Lib
-open Legibase
 open Crypto
 module TokenAmount = Main_chain.TokenAmount
 
@@ -128,7 +127,7 @@ let transaction_executed transaction_hash =
 
 
 let transaction_execution_matches_transaction transaction_hash
-      (signed_transaction: Main_chain.transaction_signed) =
+    (signed_transaction: Main_chain.transaction_signed) =
   let open Yojson in
   transaction_executed transaction_hash
   &&
@@ -198,7 +197,6 @@ let rlp_of_transaction transaction =
 
 let rlp_of_signed_transaction transaction_rlp ~v ~r ~s =
   let open Ethereum_rlp in
-  let open Ethereum_util in
   let signature_items = [RlpItem v; RlpItem r; RlpItem s] in
   match transaction_rlp with
   | RlpItems items -> RlpItems (items @ signature_items)
@@ -230,7 +228,7 @@ let get_transaction_hash signed_transaction private_key =
   let signature_buffer, recid =
     match Secp256k1.Sign.sign_recoverable ~sk:private_key secp256k1_ctx msg with
     | Ok signature -> Secp256k1.Sign.to_bytes_recid secp256k1_ctx signature
-    | Error err -> raise (Internal_error "Could not sign transaction hash")
+    | Error err -> raise (Internal_error ("Could not sign transaction hash: " ^ err))
   in
   let v = String.make 1 (Char.chr (recid + 27)) in
   let string_of_subarray subarray =
@@ -277,11 +275,6 @@ module Test = struct
 
   let json_contains_error json =
     match Basic.Util.member "error" json with `Null -> false | _ -> true
-
-
-  let json_result_to_int json =
-    int_of_string (Basic.Util.to_string (Basic.Util.member "result" json))
-
 
   let get_first_account () =
     let accounts_json = Lwt_main.run (list_accounts ()) in
@@ -431,7 +424,6 @@ module Test = struct
 
   let%test "compute-transaction-hash" =
     (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
-    let open Bigarray in
     let private_key_hex = "0xc0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0de" in
     let private_key_string = Ethereum_util.string_of_hex_string private_key_hex in
     let private_key = Keypair.make_private_key private_key_string in

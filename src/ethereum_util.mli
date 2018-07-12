@@ -1,6 +1,5 @@
 (* ethereum_util.mli *)
 
-open Legibase
 open Crypto
 
 (** Keccak256 hash *)

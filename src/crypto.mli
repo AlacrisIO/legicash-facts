@@ -1,5 +1,4 @@
 open Lib
-open Legibase
 open Integer
 
 val secp256k1_ctx : Secp256k1.Context.t

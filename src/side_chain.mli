@@ -1,6 +1,5 @@
 (* Types for LegiCash Facilitator side-chains *)
 
-open Legibase
 open Action
 open Crypto
 open Trie

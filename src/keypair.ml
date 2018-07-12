@@ -2,7 +2,6 @@
 
 open Bigarray
 open Lib
-open Legibase
 open Crypto
 
 type t =
@@ -115,7 +114,7 @@ module Test = struct
     let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) msg in
     hash
     = parse_coloned_hex_string
-        "4e:03:65:7a:ea:45:a9:4f:c7:d4:7b:a8:26:c8:d6:67:c0:d1:e6:e3:3a:64:a0:36:ec:44:f5:8f:a1:2d:6c:45"
+      "4e:03:65:7a:ea:45:a9:4f:c7:d4:7b:a8:26:c8:d6:67:c0:d1:e6:e3:3a:64:a0:36:ec:44:f5:8f:a1:2d:6c:45"
 
   (* test that addresses are really last 20 bytes of Keccak256 hash of public keys *)
 
