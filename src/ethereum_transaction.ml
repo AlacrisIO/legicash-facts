@@ -79,13 +79,10 @@ let build_transaction_json transaction =
   in
   Ethereum_json_rpc.build_json_rpc_call_with_tagged_parameters Eth_sendTransaction [params]
 
-
 let send_transaction_to_net signed_transaction =
-  let open Main_chain in
   let transaction = signed_transaction.payload in
   let json = build_transaction_json transaction in
   Ethereum_json_rpc.send_rpc_call_to_net json
-
 
 let send_balance_request_to_net address =
   let params = [Ethereum_util.hex_string_of_address address; "latest"] in

@@ -1,3 +1,4 @@
+open Lib
 open Action
 open Crypto
 open Main_chain
@@ -26,14 +27,6 @@ let add_pending_transaction (user_state, transaction) =
      nonce= Nonce.add Nonce.one user_state.nonce }
   , Ok transaction )
 
-let issue_transaction =
-  (fun (user_state, (operation, value, gas_limit)) ->
-     (user_state, (value, gas_limit))
-     ^|> action_of_pure_action
-           (pure_action_seq make_tx_header (fun (user_state, tx_header) ->
-              Ethereum_transaction.sign_transaction user_state.keypair {tx_header; operation} )) )
-  ^>> add_pending_transaction
-
 let issue_async_transaction (user_state, (operation,value,gas_limit)) =
   let open Lwt in
   (user_state, (value, gas_limit))
@@ -43,7 +36,8 @@ let issue_async_transaction (user_state, (operation,value,gas_limit)) =
         make_tx_header
         (fun (user_state, tx_header) ->
            sign user_state.keypair.private_key {tx_header; operation})))
-  ^>>+ fun (user_state,transaction_signed) -> return (add_pending_transaction (user_state,transaction_signed))
+  ^>>+ fun (user_state,transaction_signed) ->
+  return (add_pending_transaction (user_state,transaction_signed))
 
 let transfer_gas_limit = TokenAmount.of_int 21000
 
@@ -85,7 +79,11 @@ let rec get_confirmation transaction_hash =
       in
       return (Ok confirmation)
 
+<<<<<<< 5b44e1df5e7510f9eb9552152be3b508d32f4004
 let wait_for_confirmation ((user_state: user_state), (_signed_transaction: TransactionSigned.t)) =
+=======
+let wait_for_confirmation ((user_state: user_state), (signed_transaction: transaction_signed)) =
+>>>>>>> cleanup rebase on master
   let open Lwt in
   let open Yojson in
   Ethereum_transaction.send_transaction_to_net signed_transaction

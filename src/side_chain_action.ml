@@ -310,8 +310,8 @@ let lift_main_chain_user_async_action_to_side_chain async_action (user_state, in
 (* TODO: make config item *)
 let deposit_fee = TokenAmount.of_int 5
 
-let deposit ((user_state, (_facilitator_address, deposit_amount)) as input) =
-(* in Lwt monad, because there's a transfer of tokens in the main chain *)
+let deposit ((_user_state, (_facilitator_address, deposit_amount)) as input) =
+  (* in Lwt monad, because there's a transfer of tokens in the main chain *)
   let open Lwt in
   input
   |> lift_main_chain_user_async_action_to_side_chain transfer_tokens
@@ -333,7 +333,7 @@ let deposit ((user_state, (_facilitator_address, deposit_amount)) as input) =
 let withdrawal_fee = TokenAmount.of_int 5
 
 (* in Lwt monad, because we'll push the request to the main chain *)
-let withdrawal (user_state, (facilitator_address, withdrawal_amount)) =
+let withdrawal (user_state, (_facilitator_address, withdrawal_amount)) =
   Lwt.return (issue_user_request
                 ( user_state
                 , Withdrawal
@@ -350,9 +350,8 @@ let payment (user_state, (_facilitator_address, recipient_address, payment_amoun
         ; payment_fee= TokenAmount.of_int 0 (* TODO: configuration item *)
         ; payment_expedited= false } )
 
-let make_main_chain_withdrawal_transaction { withdrawal_amount; withdrawal_fee } user_address facilitator_state =
+let make_main_chain_withdrawal_transaction { withdrawal_amount; withdrawal_fee=_ } user_address facilitator_state =
   let open Ethereum_abi in
-  let open Ethereum_transaction in
   let contract_address = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" in (* TODO : use actual contract address *)
   let contract_hex_address = Ethereum_util.address_of_hex_string contract_address in
   let facilitator_keys = facilitator_state.keypair in
@@ -476,7 +475,7 @@ module Test = struct
 
   let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | _state, Error y -> raise y
   (* Lwt-monadic version of |^>> *)
-  let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | state, Error y -> raise y
+  let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | _state, Error y -> raise y
 
   (* create accounts, fund them *)
   let create_account_on_testnet keys =
