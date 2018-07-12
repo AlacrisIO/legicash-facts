@@ -1,11 +1,11 @@
 open Lib
-open Legibase
 open Integer
 
 (* create context just once, because expensive operation; assumes
    single instantiation of this module
+   suppress unused variable warning
 *)
-let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
+let [@warning "-32"] secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
 (** unique identifier for all parties, that is, customers and facilitators *)
 type public_key = Secp256k1.Key.public Secp256k1.Key.t
@@ -139,7 +139,7 @@ end
 module Unit = struct
   type t = unit
   let digest = konstant (Digest.make "")
-  let pp formatter x = Format.fprintf formatter "%s" "()"
+  let pp formatter _ = Format.fprintf formatter "%s" "()"
   let show x = Format.asprintf "%a" pp x
 end
 
@@ -151,7 +151,7 @@ type 'a signed = {payload: 'a; signature: 'a signature}
 let make_signature private_key data =
   (* change representation of data to use Secp256k1 signing *)
   let secp256k1_hashed = data_to_secp256k1_hashed data in
-  match Secp256k1.Sign.sign_recoverable secp256k1_ctx private_key secp256k1_hashed with
+  match Secp256k1.Sign.sign_recoverable secp256k1_ctx ~sk:private_key secp256k1_hashed with
   | Ok signature -> signature
   | Error s -> raise (Internal_error s)
 

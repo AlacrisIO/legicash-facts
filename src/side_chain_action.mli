@@ -1,8 +1,6 @@
 open Legibase
 open Action
 open Crypto
-open Trie
-open Main_chain
 open Side_chain
 
 val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
@@ -10,7 +8,7 @@ val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
 
 val issue_user_request : (operation, Request.t signed) user_action
 
-val confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action
+val [@warning "-32"] confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
 val deposit : (Address.t * TokenAmount.t, Request.t signed) user_action

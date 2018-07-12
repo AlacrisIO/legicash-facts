@@ -1,6 +1,5 @@
 (* ethereum_util.ml -- utility code for Ethereum main chain *)
 
-open Legibase
 open Lib
 open Crypto
 
@@ -45,15 +44,15 @@ let hex_string_of_address_with_checksum address =
   let uppercase_difference = 32 in
   let hashed_digits = hash hex_digits in
   "0x" ^ String.init (2 * Address.address_size)
-           (fun i ->
-              let ch = hex_digits.[i] in
-              match ch with
-              | '0'..'9' -> ch
-              | 'a'..'f' -> if hex_digit_of_string hashed_digits 0 i < 8 then
-                  ch
-                else
-                  Char.chr (Char.code ch - uppercase_difference)
-              | _ -> raise (Internal_error "Unexpected digit in hex string"))
+    (fun i ->
+       let ch = hex_digits.[i] in
+       match ch with
+       | '0'..'9' -> ch
+       | 'a'..'f' -> if hex_digit_of_string hashed_digits 0 i < 8 then
+           ch
+         else
+           Char.chr (Char.code ch - uppercase_difference)
+       | _ -> raise (Internal_error "Unexpected digit in hex string"))
 
 let validate_address_checksum hs =
   (* see https://www.quora.com/How-can-we-do-Ethereum-address-validation *)
@@ -97,9 +96,6 @@ let hex_string_of_bytes bs = hex_string_of_string (Bytes.to_string bs)
 let bytes_of_hex_string hs = Bytes.of_string (string_of_hex_string hs)
 
 let bytes_of_address address = Bytes.of_string (Address.to_big_endian_bits address)
-
-let hex_string_of_token_amount token_amount =
-  hex_string_of_number (Main_chain.TokenAmount.z_of token_amount)
 
 let bits_of_token_amount token_amount =
   Main_chain.TokenAmount.to_big_endian_bits token_amount

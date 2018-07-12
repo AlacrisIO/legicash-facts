@@ -1,6 +1,5 @@
 (* Types for LegiCash Facilitator side-chains *)
 (* NB: Comments are in the .mli file *)
-open Legibase
 open Action
 open Crypto
 open Trie

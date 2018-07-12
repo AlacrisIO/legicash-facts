@@ -11,7 +11,7 @@ let throws exn thunk =
 (** SKI TZ combinators *)
 let identity x = x
 
-let konstant x y = x
+let konstant x _y = x
 
 let schoenfinkel x y z = x z (y z)
 

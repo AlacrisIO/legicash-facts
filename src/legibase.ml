@@ -1,8 +1,5 @@
 (* legibase.ml -- base module for Legicash *)
 
-open Lib
-open Integer
-
 exception Timeout of string
 
 exception Double_spend of string

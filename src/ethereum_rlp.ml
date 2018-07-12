@@ -5,7 +5,6 @@
 *)
 
 open Lib
-open Legibase
 
 type rlp_item = RlpItem of string | RlpItems of rlp_item list
 
@@ -153,7 +152,7 @@ module Test = struct
     let items = RlpItems [row1; row2; row3; row4] in
     to_string (encode items)
     = Ethereum_util.string_of_hex_string
-        "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"
+      "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"
 
   let%test "small_int_rlp" =
     to_string (encode_int 1000) = Ethereum_util.string_of_hex_string "0x8203e8"

@@ -28,7 +28,7 @@ let compose_action_list action_list (s, a) =
     match action_list with
     | [] -> (s, Ok a)
     | action :: more_actions ->
-      match action (s, a) with t, Ok b -> loop more_actions (t, b) | (t, Error e) as x -> x
+      match action (s, a) with t, Ok b -> loop more_actions (t, b) | (_, Error _) as x -> x
   in
   loop action_list (s, a)
 

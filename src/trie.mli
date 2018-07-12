@@ -5,7 +5,6 @@
 
 (* A big endian patricia tree maps non-negative integers to values. *)
 open Lib
-open Integer
 open Crypto
 
 (** A signature for the computation of a synthesized attribute from a binary tree *)

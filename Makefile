@@ -15,8 +15,7 @@ SHOW=@echo
 # use HIDE to run commands invisibly, unless VERBOSE defined
 HIDE := $(if $(VERBOSE),,@)
 
-# will change to dune when released
-BUILDER=jbuilder
+BUILDER=dune
 
 # name of custom toplevel
 TOPLEVEL=legicaml
@@ -46,7 +45,7 @@ repl : toplevel
 	rlwrap ./bin/legicaml
 
 clean :
-	$(SHOW) "Cleaning via jbuilder"
+	$(SHOW) "Cleaning via dune"
 	$(HIDE) $(BUILDER) clean --root=src
 
 contract:

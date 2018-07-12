@@ -1,7 +1,5 @@
 (* See documentation in main_chain.mli *)
 
-open Lib
-open Legibase
 open Action
 open Crypto
 open Trie
@@ -24,7 +22,7 @@ type confirmation =
     For Ethereum, we might check the transaction hashes match, or
     perform a Merkle proof using the transactionsRoot in the given block
 *)
-let is_confirmation_valid confirmation transaction = true
+let is_confirmation_valid _confirmation _transaction = true
 
 let genesis_state = {revision= Revision.zero; accounts= AccountMap.empty}
 

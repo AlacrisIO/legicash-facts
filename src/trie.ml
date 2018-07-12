@@ -8,7 +8,6 @@
 open Lib
 open Crypto
 open Lazy
-open Yojson
 open Yojson.Basic.Util
 
 module type TreeSynthS = sig
@@ -38,7 +37,7 @@ end
 module TrieSynthComputeSkip (Key : IntS) (Synth: TreeSynthS) = struct
   include Synth
   type key = Key.t
-  let skip height length bits synth =
+  let [@warning "-32"] skip height length bits synth =
     let rec c len synth =
       if len = length then synth else
         let s = if Key.has_bit bits len then
@@ -200,7 +199,7 @@ module Trie (Key : IntS) (Value : T)
       let bits = Key.extract bits 0 length in
       match child with
       | Empty -> Empty
-      | Skip {child=child'; bits=bits'; length=length'; synth=synth'} ->
+      | Skip {child=child'; bits=bits'; length=length'} ->
         let length'' = length + length' in
         let bits'' = Key.logor (Key.shift_left bits length') bits' in
         mk_skip height length'' bits'' child'
@@ -363,7 +362,7 @@ module Trie (Key : IntS) (Value : T)
   let iter f t =
     foldlk (fun i v () k -> f i v; k ()) t () identity
 
-  let rec fold_right f t acc =
+  let fold_right f t acc =
     foldrk (fun i v acc k -> k (f i v acc)) t acc identity
 
   let for_all p t =
@@ -389,7 +388,7 @@ module Trie (Key : IntS) (Value : T)
   let rec cardinal = function
     | Empty -> 0
     | Leaf _ -> 1
-    | Branch {left; right; height} -> (cardinal left) + (cardinal right)
+    | Branch {left; right} -> (cardinal left) + (cardinal right)
     | Skip {child} -> cardinal child
 
   let bindings t = fold_right (fun i v acc -> (i, v) :: acc) t []
@@ -397,12 +396,12 @@ module Trie (Key : IntS) (Value : T)
   let of_bindings bindings = List.fold_right (fun (k, v) m -> add k v m) bindings empty
 
   let min_binding_opt t =
-    foldlk (fun i v acc k -> Some (i, v)) t None identity
+    foldlk (fun i v _acc _k -> Some (i, v)) t None identity
 
   let min_binding t = option_get (min_binding_opt t)
 
   let max_binding_opt t =
-    foldrk (fun i v acc k -> Some (i, v)) t None identity
+    foldrk (fun i v _acc _k -> Some (i, v)) t None identity
 
   let max_binding t = option_get (max_binding_opt t)
 
@@ -410,28 +409,29 @@ module Trie (Key : IntS) (Value : T)
 
   let choose t = min_binding t
 
-  let find_first_opt_k f i v acc k = if f i then Some (i, v) else k acc
+  (*  let find_first_opt_k f i v acc k = if f i then Some (i, v) else k acc *)
 
   (* dichotomy on increasing function f.
      TODO: use zippers to avoid computing f twice on the same node *)
-  let find_first_opt__ f trie =
-    let rec ffo index default trie = match trie with
+  (* let find_first_opt__ f trie =
+     let rec ffo index default trie = match trie with
       | Empty -> default
       | Leaf {value} -> if f index then Some (index, value) else default
-      | Branch {left;right;height} ->
-        let (i, v) = min_binding right in
-        if f i then
-          ffo index (Some (i, v)) left
-        else
-          ffo (right_index index height) default right
-      | Skip {child;height;length;bits} ->
-        ffo (skip_index index bits length height) default child
-    in
-    ffo Key.zero None trie
+               | Branch {left;right;height} ->
+               let (i, v) = min_binding right in
+               if f i then
+               ffo index (Some (i, v)) left
+               else
+               ffo (right_index index height) default right
+               | Skip {child;height;length;bits} ->
+               ffo (skip_index index bits length height) default child
+               in
+               ffo Key.zero None trie
+             *)
 
   let find_first_opt f trie =
     let rec divide (index: key) (default: (key*value) option)
-              (leftward: (key*t) list) (rightward: (key*t) list) : t -> (key*value) option = function
+        (leftward: (key*t) list) (rightward: (key*t) list) : t -> (key*value) option = function
       | Empty -> default
       | Leaf {value} -> conquer index value default leftward rightward
       | Branch {left; right; height} ->
@@ -497,7 +497,7 @@ module Trie (Key : IntS) (Value : T)
             let (l, x, r) = srec (right_index index height) right in
             (make_branch height left l, x, make_skip height 1 Key.one r)
           else
-            let (l, x, r) = srec index left in
+            let (_l, x, r) = srec index left in
             (make_skip height 1 Key.zero left, x, make_branch height r right)
         | Skip {child; bits; length; height} ->
           let (l, x, r) = srec (skip_index index bits length height) child in
@@ -539,7 +539,7 @@ module Trie (Key : IntS) (Value : T)
 
   type 'a path = {index: key; height: int; steps: 'a step list}
 
-  let path_apply make_branch make_skip {height;steps} (t, h) =
+  let path_apply make_branch make_skip {steps} (t, h) =
     List.fold_left (fun th s -> step_apply make_branch make_skip s th) (t, h) steps
 
   let path_map f {index;height;steps} =
@@ -564,13 +564,13 @@ module Trie (Key : IntS) (Value : T)
   let zip t = (t, {index=Key.zero; height=trie_height t; steps=[]})
 
   let unzip (t, path) = match path with
-    | {height;steps} ->
+    | {height} ->
       if not (t = Empty || trie_height t = height) then raise Inconsistent_path else
         fst (path_apply make_branch make_skip path (t, trie_height t))
 
   let next = function
-    | (Empty, up) -> []
-    | (Leaf _, up) -> []
+    | (Empty, _up) -> []
+    | (Leaf _, _up) -> []
     | (Branch {left; right}, {index; height; steps}) ->
       let height = height - 1 in
       let rindex = right_index index height in
@@ -639,7 +639,7 @@ module Trie (Key : IntS) (Value : T)
       (make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child, Empty)
 
   let iterate_over_tree_pair (* See [iterate_over_tree_pair] docstring in [lib.mli] *)
-        ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k =
+      ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k =
     match (treea, treeb) with
     | (_, Empty) -> onlyak ~i ~anode:treea ~k
     | (Empty, _) -> onlybk ~i ~bnode:treeb ~k
@@ -647,33 +647,33 @@ module Trie (Key : IntS) (Value : T)
     | (Branch {left=aleft; right=aright; height}, Branch {left=bleft; right=bright}) ->
       recursek ~i ~treea:aleft ~treeb:bleft
         ~k:(fun left ->
-          recursek ~i:(right_index i height) ~treea:aright ~treeb:bright
-            ~k:(fun right ->
-              branchk ~i ~height ~leftr:left ~rightr:right ~k))
+            recursek ~i:(right_index i height) ~treea:aright ~treeb:bright
+              ~k:(fun right ->
+                  branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Branch {left=left; right=right}, Skip {child; bits; length; height}) ->
       let l1 = length - 1 in
       let ri = right_index i height in
       if Key.has_bit bits l1 then
         onlyak ~i ~anode:left ~k:(fun left ->
-          recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child)
-            ~k:(fun right ->
-              branchk ~i ~height ~leftr:left ~rightr:right ~k))
+            recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child)
+              ~k:(fun right ->
+                  branchk ~i ~height ~leftr:left ~rightr:right ~k))
       else
         recursek ~i ~treea:left ~treeb:(make_skip height l1 bits child)
           ~k:(fun left ->
-            onlyak ~i:ri ~anode:right ~k:(fun right ->
-              branchk ~i ~height ~leftr:left ~rightr:right ~k))
+              onlyak ~i:ri ~anode:right ~k:(fun right ->
+                  branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Skip {child;bits;length;height}, Branch {left;right}) ->
       let l1 = length - 1 in
       let ri = right_index i height in
       if Key.has_bit bits l1 then
         onlybk ~i ~bnode:left ~k:(fun left ->
-          recursek ~i:ri ~treea:(make_skip height l1 bits child) ~treeb:right
-            ~k:(fun right -> branchk ~i ~height ~leftr:left ~rightr:right ~k))
+            recursek ~i:ri ~treea:(make_skip height l1 bits child) ~treeb:right
+              ~k:(fun right -> branchk ~i ~height ~leftr:left ~rightr:right ~k))
       else
         recursek ~i ~treea:(make_skip height l1 bits child) ~treeb:left
           ~k:(fun left -> onlybk ~i:ri ~bnode:right ~k:(fun right ->
-            branchk ~i ~height ~leftr:left ~rightr:right ~k))
+              branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Skip {child=achild;bits=abits;length=alength;height}, Skip {child=bchild;bits=bbits;length=blength}) ->
       let length = min alength blength in
       let ahighbits = Key.extract abits (alength - length) length in
@@ -681,7 +681,7 @@ module Trie (Key : IntS) (Value : T)
       let difflength = Key.numbits (Key.logxor ahighbits bhighbits) in
       let samelength = length - difflength in
       let sameheight = height - samelength in
-      let (samebits, isame, samek) =
+      let (_samebits, isame, samek) =
         if samelength = 0 then
           (Key.zero, i, k)
         else
@@ -700,20 +700,20 @@ module Trie (Key : IntS) (Value : T)
         let (aleft, aright) = skip_choice height alength abits achild (adifflength - 1) in
         let (bleft, bright) = skip_choice height blength bbits bchild (bdifflength - 1) in
         recursek ~i:isame ~treea:aleft ~treeb:bleft ~k:(fun left ->
-          recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
-            ~k:(fun right ->
-              branchk ~i:isame ~height:sameheight ~leftr:left ~rightr:right ~k:samek))
+            recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
+              ~k:(fun right ->
+                  branchk ~i:isame ~height:sameheight ~leftr:left ~rightr:right ~k:samek))
     | _ -> raise (Internal_error "iterate_over_tree_pair")
 
   let merge f a b =
     let (a, b) = ensure_same_height a b in
-    let rec m ~i ~treea ~treeb ~k =
+    let rec m ~i ~treea:_ ~treeb:_ ~k =
       iterate_over_tree_pair
         ~recursek:m
-        ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k (make_branch height leftr rightr))
-        ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k (make_skip height length bits childr))
+        ~branchk:(fun ~i:_ ~height ~leftr ~rightr ~k -> k (make_branch height leftr rightr))
+        ~skipk:(fun ~i:_ ~height ~length ~bits ~childr ~k -> k (make_skip height length bits childr))
         ~leafk:(fun ~i ~valuea ~valueb ~k ->
-          k (match (f i (Some valuea) (Some valueb)) with None -> Empty | Some v -> mk_leaf v))
+            k (match (f i (Some valuea) (Some valueb)) with None -> Empty | Some v -> mk_leaf v))
         ~onlyak:(fun ~i ~anode:ta ~k -> k (mapiopt (fun _ v -> f i (Some v) None) ta))
         ~onlybk:(fun ~i ~bnode:tb ~k -> k (mapiopt (fun _ v -> f i None (Some v)) tb))
         ~i ~treea:a ~treeb:b ~k in
@@ -721,15 +721,15 @@ module Trie (Key : IntS) (Value : T)
 
   let compare cmp a b =
     let (a, b) = ensure_same_height a b in
-    let rec m ~i ~treea ~treeb ~k =
+    let rec m ~i ~treea:_ ~treeb:_ ~k =
       iterate_over_tree_pair
         ~recursek:m
-        ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k ())
-        ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k ())
-        ~leafk:(fun ~i ~valuea ~valueb ~k ->
-          let r = cmp valuea valueb in if r = 0 then k () else r)
-        ~onlyak:(fun ~i ~anode ~k -> 1)
-        ~onlybk:(fun ~i ~bnode ~k -> -1)
+        ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~k -> k ())
+        ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~k -> k ())
+        ~leafk:(fun ~i:_ ~valuea ~valueb ~k ->
+            let r = cmp valuea valueb in if r = 0 then k () else r)
+        ~onlyak:(fun ~i:_ ~anode:_ ~k:_ -> 1)
+        ~onlybk:(fun ~i:_ ~bnode:_ ~k:_ -> -1)
         ~i ~treea:a ~treeb:b ~k in
     m ~i:Key.zero ~treea:a ~treeb:b ~k:(konstant 0)
 
@@ -738,12 +738,12 @@ module Trie (Key : IntS) (Value : T)
       if a == b then k () else
         iterate_over_tree_pair
           ~recursek:loop
-          ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k ())
-          ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k ())
-          ~leafk:(fun ~i ~valuea ~valueb ~k ->
-            if eq valuea valueb then k () else false)
-          ~onlyak:(fun ~i ~anode ~k -> false)
-          ~onlybk:(fun ~i ~bnode ~k -> false)
+          ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~k -> k ())
+          ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~k -> k ())
+          ~leafk:(fun ~i:_ ~valuea ~valueb ~k ->
+              if eq valuea valueb then k () else false)
+          ~onlyak:(fun ~i:_ ~anode:_ ~k:_ -> false)
+          ~onlybk:(fun ~i:_ ~bnode:_ ~k:_ -> false)
           ~i ~treea:a ~treeb:b ~k in
     loop ~i:Key.zero ~treea:a ~treeb:b ~k:(konstant true)
 
@@ -853,18 +853,18 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
       `Assoc [ ("type", `String "Skip")
              ; ("bits", `String (skip_bit_string length bits)) ]
 
-  let proof_to_json (key, trie_d, value_d, steps_d) =
+  let [@warning "-32"] proof_to_json (key, trie_d, value_d, steps_d) =
     `Assoc
       [ ("key", `String (Key.to_hex_string key))
       ; ("trie", `String (Digest.to_hex_string trie_d))
       ; ("value", `String (Digest.to_hex_string value_d))
       ; ("steps", `List (List.map step_to_json steps_d)) ]
 
-  let proof_to_json_string = zcompose Yojson.to_string proof_to_json
+  let [@warning "-32"] proof_to_json_string = zcompose Yojson.to_string proof_to_json
 
   let bit_string_to_skip s =
     let length = String.length s in
-    let rec f i bits =
+    let f i bits =
       if i < length then
         Key.logor bits (Key.shift_left Key.one i)
       else
@@ -889,7 +889,7 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
     ; steps = json |> member "steps" |> to_list |> List.map step_of_json
     }
 
-  let proof_of_json_string = zcompose proof_of_json Yojson.Basic.from_string
+  (* let proof_of_json_string = zcompose proof_of_json Yojson.Basic.from_string *)
 end
 
 module type MerkleTrieSetS = sig
@@ -928,7 +928,7 @@ module MerkleTrieSet (Elt : IntS) = struct
   let remove = T.remove
   let iter f = T.iter (wrap f)
   let fold f = T.fold (wrap f)
-  let map f t = fold add t empty
+  let map _f t = fold add t empty
   let for_all f = T.for_all (wrap f)
   let exists f = T.exists (wrap f)
   let filter f = T.filter (wrap f)
@@ -962,15 +962,15 @@ module MerkleTrieSet (Elt : IntS) = struct
 
   let subset a b =
     let (a, b) = T.ensure_same_height a b in
-    let rec m ~i ~treea ~treeb ~k =
+    let rec m ~i ~treea ~treeb:_ ~k =
       if (trie_digest treea) = (trie_digest treea) then k () else
         T.iterate_over_tree_pair
           ~recursek:m
-          ~branchk:(fun ~i ~height ~leftr ~rightr ~k -> k ())
-          ~skipk:(fun ~i ~height ~length ~bits ~childr ~k -> k ())
-          ~leafk:(fun ~i ~valuea ~valueb ~k -> k ())
-          ~onlyak:(fun ~i ~anode ~k -> k ())
-          ~onlybk:(fun ~i ~bnode ~k -> false)
+          ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~k -> k ())
+          ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~k -> k ())
+          ~leafk:(fun ~i:_ ~valuea:_ ~valueb:_ ~k -> k ())
+          ~onlyak:(fun ~i:_ ~anode:_ ~k:_ -> k ())
+          ~onlybk:(fun ~i:_ ~bnode:_ ~k:_ -> false)
           ~i ~treea:a ~treeb:b ~k in
     m ~i:Elt.zero ~treea:a ~treeb:b ~k:(konstant true)
 
@@ -995,10 +995,10 @@ module Test = struct
   module SimpleTrie = Trie (Nat) (StringT) (TrieSynthCardinal (Nat) (StringT))
   module MyTrie = MerkleTrie (Nat) (StringT)
   open MyTrie
-  let nat_of_key : MyTrie.key -> Crypto.Nat.t = fun x -> x
-  let key_of_nat : Crypto.Nat.t -> MyTrie.key = fun x -> x
+  let [@warning "-32"] nat_of_key : MyTrie.key -> Crypto.Nat.t = fun x -> x
+  let [@warning "-32"] key_of_nat : Crypto.Nat.t -> MyTrie.key = fun x -> x
 
-  let rec print_trie out_channel = function
+  let [@warning "-32"] rec print_trie out_channel = function
     | Empty ->
       Printf.fprintf out_channel "Empty"
     | Leaf {value} ->
@@ -1015,12 +1015,12 @@ module Test = struct
 
   let n = Nat.of_int
   let s = Nat.to_string
-  let println s = Printf.printf "%s\n" s
-  let showln x = print_trie stdout x ; Printf.printf "\n"
+  (* let println s = Printf.printf "%s\n" s *)
+  (* let showln x = print_trie stdout x ; Printf.printf "\n" *)
 
   let sort_bindings bindings = List.sort generic_compare bindings
   let make_bindings n f = List.init n (fun i -> let j = i + 1 in (Nat.of_int j, f j))
-  let bindings_equal x y = (sort_bindings x) = (sort_bindings y)
+  (* let bindings_equal x y = (sort_bindings x) = (sort_bindings y) *)
 
   let knuth_shuffle array =
     let n = Array.length array in
@@ -1072,7 +1072,7 @@ module Test = struct
     let diff = tm1 -. tm0 in
     Printf.printf "%s: %0.04f\n%!" s diff
 
-  let init_timing () =
+  let [@warning "-32"] init_timing () =
     timeit "bindings_4" bindings_4 ;
     timeit "bindings_10" bindings_10 ;
     timeit "bindings_100" bindings_100 ;
@@ -1098,12 +1098,13 @@ module Test = struct
   let%test "find_opt_none" =
     None = find_opt (n 13) (force trie_10_12_57)
 
-  let rec intersperse separator = function
+  (* let rec intersperse separator = function
       [] -> [] | [a] -> [a] | a :: l -> a :: separator :: intersperse separator l
+  *)
 
-  let string_of_value_option = function None -> "None" | Some v -> Printf.sprintf "Some %S" v
-  let string_of_binding (i, v) = Printf.sprintf "(%s,%S)" (s i) v
-  let string_of_bindings (l : (key*value) list) =
+  let [@warning "-32"] string_of_value_option = function None -> "None" | Some v -> Printf.sprintf "Some %S" v
+  let [@warning "-32"] string_of_binding (i, v) = Printf.sprintf "(%s,%S)" (s i) v
+  let [@warning "-32"] string_of_bindings (l : (key*value) list) =
     Printf.sprintf "[%s]" (String.concat ";" (List.map string_of_binding l))
 
   let for_all_bindings name p =
@@ -1216,17 +1217,17 @@ module Test = struct
                     ]))
 
   let bad_proof = lazy (match force proof_42_in_trie_100 with
-    | { key
-      ; trie
-      ; value
-      ; steps = [s1;s2;s3;s4;s5;s6;s7]
-      } ->
-      { key
-      ; trie
-      ; value
-      ; steps = [s1;s2;s5;s4;s3;s6;s7] (* steps 3 and 5 are swapped *)
-      }
-    | _ -> raise (Internal_error "Bad proof"))
+      | { key
+        ; trie
+        ; value
+        ; steps = [s1;s2;s3;s4;s5;s6;s7]
+        } ->
+        { key
+        ; trie
+        ; value
+        ; steps = [s1;s2;s5;s4;s3;s6;s7] (* steps 3 and 5 are swapped *)
+        }
+      | _ -> raise (Internal_error "Bad proof"))
 
   let%test "proof" =
     get_proof (n 42) (force trie_100) = Some (force proof_42_in_trie_100)
