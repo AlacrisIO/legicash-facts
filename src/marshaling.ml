@@ -26,10 +26,10 @@ let marshal_bytes_of_marshal marshal x =
   marshal buffer x ;
   Buffer.to_bytes buffer
 
-let unmarshal_bytes_of_unmarshal (unmarshal: 'a unmarshaler) b =
-  let (t, r) = unmarshal b in
-  assert (r = Bytes.length b) ;
-  t
+let unmarshal_bytes_of_unmarshal (unmarshal: 'value unmarshaler) buffer =
+  let (value, length) = unmarshal buffer in
+  assert (length = Bytes.length buffer) ;
+  value
 
 let marshal_string_of_any v = Marshal.to_string v [Marshal.Compat_32]
 
@@ -39,4 +39,4 @@ let marshal_any b v =
 
 let marshal_bool b bool = Buffer.add_char b (if bool then '\001' else '\000')
 
-let unmarshal_not_implemented ?start:(start=0) bytes = raise Not_implemented
+let unmarshal_not_implemented ?start:(_start=0) _bytes = raise Not_implemented
