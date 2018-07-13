@@ -95,7 +95,7 @@ let user_state_from_address address_t =
     new_user_state
 
 (* convert main chain confirmation to JSON-friendly types *)
-let jsonable_confirmation_of_confirmation (confirmation : Main_chain.confirmation) =
+let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmation.t) =
         { transaction_hash = "0x" ^ (confirmation.transaction_hash |> Digest.to_hex_string)
         ; transaction_index = confirmation.transaction_index |> Unsigned.UInt64.to_int
         ; block_number = confirmation.block_number |> Revision.to_int
