@@ -1,3 +1,8 @@
+# to do anything with Docker:
+#  docker login
+# use your credentials on docker.com
+# you may need to run this command and other docker commands with "sudo"
+
 # to create the Docker image:
 #  docker build -t registry.gitlab.com/legicash/legicash-facts:build-env .
 
