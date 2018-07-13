@@ -35,7 +35,7 @@ let issue_async_transaction (user_state, (operation,value,gas_limit)) =
      (pure_action_seq
         make_tx_header
         (fun (user_state, tx_header) ->
-           sign user_state.keypair.private_key {tx_header; operation})))
+           sign Transaction.digest user_state.keypair.private_key {tx_header; operation})))
   ^>>+ fun (user_state,transaction_signed) ->
   return (add_pending_transaction (user_state,transaction_signed))
 
@@ -71,19 +71,17 @@ let rec get_confirmation transaction_hash =
       let transaction_index = Basic.Util.member "transactionIndex" result_json |> Basic.Util.to_string |> int_of_string |> Unsigned.UInt64.of_int in
       let block_number = Basic.Util.member "blockNumber" result_json |> Basic.Util.to_string |> int_of_string |> Revision.of_int in
       let block_hash = Basic.Util.member "blockHash" result_json |> Basic.Util.to_string |> remove_0x |> Digest.of_hex_string in
-      let confirmation = { transaction_hash
-                         ; transaction_index
-                         ; block_number
-                         ; block_hash
-                         }
+      let confirmation =
+        Confirmation.{
+          transaction_hash
+        ; transaction_index
+        ; block_number
+        ; block_hash
+        }
       in
       return (Ok confirmation)
 
-<<<<<<< 5b44e1df5e7510f9eb9552152be3b508d32f4004
-let wait_for_confirmation ((user_state: user_state), (_signed_transaction: TransactionSigned.t)) =
-=======
-let wait_for_confirmation ((user_state: user_state), (signed_transaction: transaction_signed)) =
->>>>>>> cleanup rebase on master
+let wait_for_confirmation ((user_state: user_state), (signed_transaction: TransactionSigned.t)) =
   let open Lwt in
   let open Yojson in
   Ethereum_transaction.send_transaction_to_net signed_transaction

@@ -69,12 +69,12 @@ let is_side_chain_request_well_formed :
         ; deposit_expedited=_deposit_expedited } ->
       TokenAmount.compare value (TokenAmount.add deposit_amount deposit_fee) >= 0
       && ( match main_chain_operation with
-        | Main_chain.Operation.TransferTokens recipient -> recipient = state.keypair.address
-        | _ -> false )
+          | Main_chain.Operation.TransferTokens recipient -> recipient = state.keypair.address
+          | _ -> false )
       (* TODO: delegate the same signature checking protocol to the main chain *)
       && is_signature_valid Transaction.digest requester signature payload
       && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
-           main_chain_deposit_signed
+        main_chain_deposit_signed
       && TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee >= 0
     | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
       TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee) >= 0
@@ -82,8 +82,8 @@ let is_side_chain_request_well_formed :
       && TokenAmount.compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
       (* TODO: make sure the fee multiplication cannot overflow! *)
       && TokenAmount.compare payment_fee
-           (TokenAmount.mul state.fee_schedule.fee_per_billion
-              (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
+        (TokenAmount.mul state.fee_schedule.fee_per_billion
+           (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
          >= 0
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
       TokenAmount.compare balance (TokenAmount.add withdrawal_amount withdrawal_fee) >= 0
@@ -256,8 +256,8 @@ let issue_user_request =
   (fun (user_state, operation) ->
      (user_state, ()) ^|> get_first_facilitator ^>> make_rx_header
      ^>> action_of_pure_action (fun (user_state, rx_header) ->
-       sign Request.digest user_state.main_chain_user_state.keypair.private_key
-         {Request.rx_header; Request.operation} ) )
+         sign Request.digest user_state.main_chain_user_state.keypair.private_key
+           {Request.rx_header; Request.operation} ) )
   ^>> fun (user_state, request) ->
     (add_user_episteme user_state (mk_rx_episteme request), Ok request)
 
@@ -267,7 +267,7 @@ let issue_user_request =
     active revision will only increase, etc.
 *)
 let update_account_state_with_trusted_operation
-      trusted_operation ({AccountState.balance} as account_state) =
+    trusted_operation ({AccountState.balance} as account_state) =
   let f =
     {account_state with account_revision= Revision.add account_state.account_revision Revision.one} in
   match trusted_operation with
@@ -350,7 +350,7 @@ let payment (user_state, (_facilitator_address, recipient_address, payment_amoun
         ; payment_fee= TokenAmount.of_int 0 (* TODO: configuration item *)
         ; payment_expedited= false } )
 
-let make_main_chain_withdrawal_transaction { withdrawal_amount; withdrawal_fee=_ } user_address facilitator_state =
+let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operation.withdrawal_fee=_ } user_address facilitator_state =
   let open Ethereum_abi in
   let contract_address = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" in (* TODO : use actual contract address *)
   let contract_hex_address = Ethereum_util.address_of_hex_string contract_address in
@@ -367,29 +367,30 @@ let make_main_chain_withdrawal_transaction { withdrawal_amount; withdrawal_fee=_
     }
   in
   let encoded_call = encode_function_call withdrawal_call in
-  let operation = Main_chain.CallFunction (contract_hex_address, encoded_call) in
+  let operation = Main_chain.Operation.CallFunction (contract_hex_address, encoded_call) in
   let tx_header =
-    { sender= facilitator_address
-    ; nonce= Nonce.zero (* TODO: get_nonce facilitator_address *)
-    ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
-    ; gas_limit= TokenAmount.of_int 1000000
-    ; value= TokenAmount.zero
-    }
+    Main_chain.TxHeader.
+      { sender= facilitator_address
+      ; nonce= Nonce.zero (* TODO: get_nonce facilitator_address *)
+      ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
+      ; gas_limit= TokenAmount.of_int 1000000
+      ; value= TokenAmount.zero
+      }
   in
-  let transaction = { tx_header; operation } in
-  sign facilitator_keys.private_key transaction
+  let transaction = Main_chain.{ Transaction.tx_header; Transaction.operation } in
+  Ethereum_transaction.sign_transaction facilitator_keys transaction
 
 (* an action made on the side chain may need a corresponding action on the main chain *)
 let push_side_chain_action_to_main_chain facilitator_state ((user_state : Side_chain.user_state), (signed_confirmation : Confirmation.t signed)) =
   let confirmation = signed_confirmation.payload in
   let facilitator_address = facilitator_state.keypair.address in
-  if not (is_signature_valid facilitator_address signed_confirmation.signature confirmation) then
+  if not (is_signature_valid Confirmation.digest facilitator_address signed_confirmation.signature confirmation) then
     raise (Internal_error "Invalid facilitator signature on signed confirmation");
   let signed_request = confirmation.signed_request in
   let request = signed_request.payload in
   let user_keys = user_state.main_chain_user_state.keypair in
   let user_address = user_keys.address in
-  if not (is_signature_valid user_address signed_request.signature request) then
+  if not (is_signature_valid Request.digest user_address signed_request.signature request) then
     raise (Internal_error "Invalid user signature on signed request");
   match request.operation with
   | Withdrawal details ->
@@ -526,15 +527,16 @@ module Test = struct
     let deficit = min_balance - balance in
     if deficit > 0 then (
       let tx_header =
-        { sender= funding_account
-        ; nonce= Nonce.zero
-        ; gas_price= TokenAmount.of_int 1
-        ; gas_limit= TokenAmount.of_int 1000000
-        ; value= TokenAmount.of_int deficit}
+        Main_chain.TxHeader.
+          { sender= funding_account
+          ; nonce= Nonce.zero
+          ; gas_price= TokenAmount.of_int 1
+          ; gas_limit= TokenAmount.of_int 1000000
+          ; value= TokenAmount.of_int deficit}
       in
-      let operation = Main_chain.TransferTokens keys.address in
-      let transaction = {tx_header; operation} in
-      let signed_transaction = sign trent_keys.private_key transaction in
+      let operation = Main_chain.Operation.TransferTokens keys.address in
+      let transaction = Main_chain.{Transaction.tx_header; Transaction.operation} in
+      let signed_transaction = Ethereum_transaction.sign_transaction trent_keys transaction in
       send_transaction_to_net signed_transaction
       >>= fun json ->
       let json_keys = Yojson.Basic.Util.keys json in
