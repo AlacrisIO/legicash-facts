@@ -34,48 +34,55 @@ module Invoice = struct
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
-type payment_details =
-  {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
-[@@deriving lens]
-
-type deposit_details =
-  { deposit_amount: TokenAmount.t
-  ; deposit_fee: TokenAmount.t
-  ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
-  ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
-  ; deposit_expedited: bool }
-[@@deriving lens]
-
-type withdrawal_details =
-  {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
-[@@deriving lens]
-
-type operation =
-  | Deposit of deposit_details
-  | Payment of payment_details
-  | Withdrawal of withdrawal_details
-
 module Operation = struct
-  type t = operation
-  let marshal b = function
-    | Deposit { deposit_amount
-              ; deposit_fee
-              ; main_chain_deposit_signed
-              ; main_chain_deposit_confirmation
-              ; deposit_expedited } ->
-      Buffer.add_char b 'D' ;
-      TokenAmount.marshal b deposit_amount ;
-      TokenAmount.marshal b deposit_fee ;
-      marshal_signed Main_chain.Transaction.marshal b main_chain_deposit_signed ;
-      Main_chain.Confirmation.marshal b main_chain_deposit_confirmation ;
-      marshal_bool b deposit_expedited
-    | Payment {payment_invoice; payment_fee; payment_expedited} ->
-      Invoice.marshal b payment_invoice;
-      TokenAmount.marshal b payment_fee;
-      marshal_bool b payment_expedited
-    | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-      TokenAmount.marshal b withdrawal_amount;
-      TokenAmount.marshal b withdrawal_fee
+  type payment_details =
+    {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
+  [@@deriving lens]
+
+  type deposit_details =
+    { deposit_amount: TokenAmount.t
+    ; deposit_fee: TokenAmount.t
+    ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
+    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
+    ; deposit_expedited: bool }
+  [@@deriving lens]
+
+  type withdrawal_details =
+    {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
+  [@@deriving lens]
+
+  type t =
+    | Deposit of deposit_details
+    | Payment of payment_details
+    | Withdrawal of withdrawal_details
+
+  module Marshalable = struct
+    type tt = t
+    type t = tt
+    let marshal b = function
+      | Deposit { deposit_amount
+                ; deposit_fee
+                ; main_chain_deposit_signed
+                ; main_chain_deposit_confirmation
+                ; deposit_expedited } ->
+        Buffer.add_char b 'D' ;
+        TokenAmount.marshal b deposit_amount ;
+        TokenAmount.marshal b deposit_fee ;
+        marshal_signed Main_chain.Transaction.marshal b main_chain_deposit_signed ;
+        Main_chain.Confirmation.marshal b main_chain_deposit_confirmation ;
+        marshal_bool b deposit_expedited
+      | Payment {payment_invoice; payment_fee; payment_expedited} ->
+        Buffer.add_char b 'P' ;
+        Invoice.marshal b payment_invoice;
+        TokenAmount.marshal b payment_fee;
+        marshal_bool b payment_expedited
+      | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+        Buffer.add_char b 'W' ;
+        TokenAmount.marshal b withdrawal_amount;
+        TokenAmount.marshal b withdrawal_fee
+    let unmarshal = unmarshal_not_implemented
+  end
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 module RxHeader = struct
@@ -108,7 +115,7 @@ module RxHeader = struct
 end
 
 module Request = struct
-  type t = {rx_header: RxHeader.t; operation: operation} [@@deriving lens]
+  type t = {rx_header: RxHeader.t; operation: Operation.t} [@@deriving lens]
   module Marshalable = struct
     type tt = t
     type t = tt
@@ -249,7 +256,7 @@ exception Account_closed_or_nonexistent
 
 exception Invalid_confirmation
 
-exception Invalid_operation of operation
+exception Invalid_operation of Operation.t
 
 let one_second = Duration.of_int 1000000000
 

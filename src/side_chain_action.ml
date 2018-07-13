@@ -270,19 +270,18 @@ let issue_user_request =
 let update_account_state_with_trusted_operation
       trusted_operation ({AccountState.balance} as account_state) =
   let f =
-    {account_state with account_revision= Revision.add account_state.account_revision Revision.one}
-  in
+    {account_state with account_revision= Revision.add account_state.account_revision Revision.one} in
   match trusted_operation with
-  | Deposit {deposit_amount; deposit_fee=_deposit_fee} ->
+  | Operation.Deposit {deposit_amount; deposit_fee=_deposit_fee} ->
     if true (* check that everything is correct *) then
       {f with balance= TokenAmount.add balance deposit_amount}
     else raise (Internal_error "I mistrusted your deposit operation")
-  | Payment {payment_invoice; payment_fee} ->
+  | Operation.Payment {payment_invoice; payment_fee} ->
     let decrement = TokenAmount.add payment_invoice.amount payment_fee in
     if TokenAmount.compare balance decrement >= 0 then
       {f with balance= TokenAmount.sub balance decrement}
     else raise (Internal_error "I mistrusted your payment operation")
-  | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+  | Operation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
     if true (* check that everything is correct *) then
       {f with balance= TokenAmount.sub balance (TokenAmount.add withdrawal_amount withdrawal_fee)}
     else raise (Internal_error "I mistrusted your withdrawal operation")

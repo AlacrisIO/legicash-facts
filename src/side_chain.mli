@@ -55,37 +55,41 @@ module Invoice : sig
   include DigestibleS with type t := t
 end
 
-type payment_details =
-  {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
-[@@deriving lens]
-
-type deposit_details =
-  { deposit_amount: TokenAmount.t
-  ; deposit_fee: TokenAmount.t
-  ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
-  (* TODO: not a transaction, but an ethereum Log event created by the contract's deposit method *)
-  ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
-  ; deposit_expedited: bool }
-[@@deriving lens]
-
-type withdrawal_details =
-  {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
-[@@deriving lens]
-
 (** an operation on a facilitator side-chain *)
-type operation =
-  | Deposit of deposit_details
-  | Payment of payment_details
-  | Withdrawal of withdrawal_details
-(*
-     | Settlement of settlement_details
+module Operation : sig
+  type payment_details =
+    {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
+  [@@deriving lens]
 
-     type settlement_details =
-     { sender: public_key
-     ; sender_facilitator: public_key
-     ; recipient: public_key
-     ; recipient_facilitator: public_key }
-  *)
+  type deposit_details =
+    { deposit_amount: TokenAmount.t
+    ; deposit_fee: TokenAmount.t
+    ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
+    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
+    ; deposit_expedited: bool }
+  [@@deriving lens]
+
+  type withdrawal_details =
+    {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
+  [@@deriving lens]
+
+  type t =
+    | Deposit of deposit_details
+    | Payment of payment_details
+    | Withdrawal of withdrawal_details
+
+  include DigestibleS with type t := t
+end
+
+(*
+   | Settlement of settlement_details
+
+   type settlement_details =
+   { sender: public_key
+   ; sender_facilitator: public_key
+   ; recipient: public_key
+   ; recipient_facilitator: public_key }
+*)
 
 (** Headers for a request to a facilitator
     Every client request that initiates a transaction comes with a request window,
@@ -119,7 +123,7 @@ end
     an operation, plus headers that provide a reference to the past and a timeout
 *)
 module Request : sig
-  type t = {rx_header: RxHeader.t; operation: operation} [@@deriving lens]
+  type t = {rx_header: RxHeader.t; operation: Operation.t} [@@deriving lens]
   include DigestibleS with type t := t
 end
 
@@ -301,6 +305,6 @@ exception Account_closed_or_nonexistent
 
 exception Invalid_confirmation
 
-exception Invalid_operation of operation
+exception Invalid_operation of Operation.t
 
 val challenge_duration : Duration.t
