@@ -1,5 +1,6 @@
 open Lib
 open Integer
+open Marshaling
 
 let keccak256_string s =
   Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
@@ -10,45 +11,21 @@ let keccak256_string s =
 *)
 let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
-let marshall_of_sized_string_of num_bytes string_of b x =
-  let s = string_of x in
-  if String.length s != num_bytes then
-    raise (Internal_error
-             (Printf.sprintf "marshall_of_sized_string_of expected %d bytes but got string %S of length %d"
-                num_bytes s (String.length s)));
-  Buffer.add_string b s
-let unmarshall_of_sized_of_string num_bytes of_string b start =
-  let s = Bytes.sub_string b start num_bytes in
-  (of_string s, start + num_bytes)
-let marshall_bytes_of_marshall marshall x =
-  let buffer = Buffer.create 256 in
-  marshall buffer x ;
-  Buffer.to_bytes buffer
-let unmarshall_bytes_of_unmarshall unmarshall b =
-  let (t, r) = unmarshall b 0 in
-  assert (r = Bytes.length b) ;
-  t
 let digest_of_string s =
   nat_of_big_endian_bits 256 (keccak256_string s)
-let digest_of_marshall_bytes marshall_bytes x =
-  digest_of_string (Bytes.to_string (marshall_bytes x))
-
-let marshall_string_of_any v = Marshal.to_string v [Marshal.Compat_32]
-
-let marshall_any b v =
-  Buffer.add_string b (marshall_string_of_any v)
-[@@deprecated "Use marshall_any only as temporary stopgap for demos and testing."]
+let digest_of_marshal_bytes marshal_bytes x =
+  digest_of_string (Bytes.to_string (marshal_bytes x))
 
 (* TODO: check bounds, after every operation, etc. *)
 module UInt256 = struct
   include Integer.UInt256
   let of_big_endian_bits = nat_of_big_endian_bits 256
   let to_big_endian_bits = big_endian_bits_of_nat 256
-  let marshall = marshall_of_sized_string_of 32 to_big_endian_bits
-  let unmarshall = unmarshall_of_sized_of_string 32 of_big_endian_bits
-  let marshall_bytes = marshall_bytes_of_marshall marshall
-  let unmarshall_bytes = unmarshall_bytes_of_unmarshall unmarshall
-  let digest = digest_of_marshall_bytes marshall_bytes
+  let marshal = marshal_of_sized_string_of 32 to_big_endian_bits
+  let unmarshal = unmarshal_of_sized_of_string 32 of_big_endian_bits
+  let marshal_bytes = marshal_bytes_of_marshal marshal
+  let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
+  let digest = digest_of_marshal_bytes marshal_bytes
 end
 
 module Data256 = struct
@@ -67,17 +44,17 @@ type 'a digest = Digest.t
 let null_digest = Digest.zero
 
 module type DigestibleS = sig
-  include MarshallableS
-  val marshall_bytes: t -> Bytes.t
-  val unmarshall_bytes: Bytes.t -> t
+  include MarshalableS
+  val marshal_bytes: t -> Bytes.t
+  val unmarshal_bytes: Bytes.t -> t
   val digest: t -> t digest
 end
 
-module DigestibleOfMarshallable (T : MarshallableS) = struct
+module DigestibleOfMarshalable (T : MarshalableS) = struct
   include T
-  let marshall_bytes = marshall_bytes_of_marshall marshall
-  let unmarshall_bytes = unmarshall_bytes_of_unmarshall unmarshall
-  let digest = digest_of_marshall_bytes marshall_bytes
+  let marshal_bytes = marshal_bytes_of_marshal marshal
+  let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
+  let digest = digest_of_marshal_bytes marshal_bytes
 end
 
 module type IntS = sig
@@ -89,11 +66,11 @@ module UInt64 = struct
   include Integer.UInt64
   let of_big_endian_bits b = of_z (nat_of_big_endian_bits 64 b)
   let to_big_endian_bits u = big_endian_bits_of_nat 64 (z_of u)
-  let marshall = marshall_of_sized_string_of 8 to_big_endian_bits
-  let unmarshall = unmarshall_of_sized_of_string 8 of_big_endian_bits
-  let marshall_bytes = marshall_bytes_of_marshall marshall
-  let unmarshall_bytes = unmarshall_bytes_of_unmarshall unmarshall
-  let digest = digest_of_marshall_bytes marshall_bytes
+  let marshal = marshal_of_sized_string_of 8 to_big_endian_bits
+  let unmarshal = unmarshal_of_sized_of_string 8 of_big_endian_bits
+  let marshal_bytes = marshal_bytes_of_marshal marshal
+  let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
+  let digest = digest_of_marshal_bytes marshal_bytes
 end
 
 module Revision = UInt64
@@ -103,13 +80,13 @@ module Timestamp = UInt64
 
 module StringT = struct
   include String
-  module Marshallable__ = struct
+  module Marshalable = struct
     type t = string
-    let marshall x = Buffer.add_string x
-    let unmarshall b start =
+    let marshal x = Buffer.add_string x
+    let unmarshal ?start:(start=0) b =
       let len = Bytes.length b - start in (Bytes.sub_string b start len, len)
   end
-  include (DigestibleOfMarshallable (Marshallable__) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 module Address = struct
@@ -147,12 +124,12 @@ end
 
 module Unit = struct
   type t = unit
-  module Marshallable = struct
+  module Marshalable = struct
     type t = unit
-    let marshall _ _ = ()
-    let unmarshall _ start = ((), start)
+    let marshal _ _ = ()
+    let unmarshal ?start:(start=0) _ = ((), start)
   end
-  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
   let pp formatter _ = Format.fprintf formatter "%s" "()"
   let show x = Format.asprintf "%a" pp x
 end
@@ -198,14 +175,14 @@ let [@warning "-32"] signature_of_string string =
 
 module Signature = struct
   type t = signature
-  let marshall = marshall_of_sized_string_of 64 string_of_signature
-  let unmarshall = bottom (* unmarshall_of_sized_of_string 64 signature_of_string *)
+  let marshal = marshal_of_sized_string_of 64 string_of_signature
+  let unmarshal = unmarshal_not_implemented (* unmarshal_of_sized_of_string 64 signature_of_string *)
 end
 
 
 type 'a signed = {payload: 'a; signature: signature}
-let marshall_signed marshall b {payload; signature} =
-  marshall b payload; Signature.marshall b signature
+let marshal_signed marshal b {payload; signature} =
+  marshal b payload; Signature.marshal b signature
 
 (* digital signature is encrypted hash *)
 let make_signature make_digest private_key data =

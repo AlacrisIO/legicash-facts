@@ -1,7 +1,7 @@
 (* See documentation in main_chain.mli *)
 
-open Lib
 open Action
+open Marshaling
 open Crypto
 open Trie
 
@@ -14,14 +14,14 @@ module AccountMap = MerkleTrie (Address) (TokenAmount)
 module State = struct
   (* TODO: have an actual model of the Ethereum main chain *)
   type t = {revision: Revision.t; accounts: AccountMap.t} [@@deriving lens]
-  module Marshallable = struct
+  module Marshalable = struct
     type tt = t
     type t = tt
-    let marshall b {revision; accounts=_} =
-      Revision.marshall b revision
-    let unmarshall = bottom
+    let marshal b {revision; accounts=_} =
+      Revision.marshal b revision
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 module Confirmation = struct
@@ -29,13 +29,13 @@ module Confirmation = struct
            ; transaction_index: Unsigned.UInt64.t
            ; block_number: Revision.t
            ; block_hash: Digest.t }
-  module Marshallable : (MarshallableS with type t = t) = struct
+  module Marshalable : (MarshalableS with type t = t) = struct
     type tt = t
     type t = tt
-    let marshall = marshall_any
-    let unmarshall = bottom
+    let marshal = marshal_any
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+  include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 
 (** TODO: have an actual confirmation
@@ -53,13 +53,13 @@ module TxHeader = struct
            ; gas_limit: TokenAmount.t
            ; value: TokenAmount.t }
   [@@deriving lens]
-  module Marshallable : (MarshallableS with type t = t) = struct
+  module Marshalable : (MarshalableS with type t = t) = struct
     type tt = t
     type t = tt
-    let marshall = marshall_any
-    let unmarshall = bottom
+    let marshal = marshal_any
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+  include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 
 module Operation = struct
@@ -67,37 +67,37 @@ module Operation = struct
     | TransferTokens of Address.t
     | CreateContract of Bytes.t
     | CallFunction of Address.t * Bytes.t
-  module Marshallable : (MarshallableS with type t = t) = struct
+  module Marshalable : (MarshalableS with type t = t) = struct
     type tt = t
     type t = tt
-    let marshall = marshall_any
-    let unmarshall = bottom
+    let marshal = marshal_any
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+  include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 
 (* contract, data *)
 (** Transaction (to be) posted to the main chain (i.e. Ethereum) *)
 module Transaction = struct
   type t = {tx_header: TxHeader.t; operation: Operation.t} [@@deriving lens]
-  module Marshallable : (MarshallableS with type t = t) = struct
+  module Marshalable : (MarshalableS with type t = t) = struct
     type tt = t
     type t = tt
-    let marshall = marshall_any
-    let unmarshall = bottom
+    let marshal = marshal_any
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+  include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 
 module TransactionSigned = struct
   type t = Transaction.t signed
-  module Marshallable : (MarshallableS with type t = t) = struct
+  module Marshalable : (MarshalableS with type t = t) = struct
     type tt = t
     type t = tt
-    let marshall = marshall_any
-    let unmarshall = bottom
+    let marshal = marshal_any
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : (DigestibleS with type t := t))
+  include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 
 type user_state =

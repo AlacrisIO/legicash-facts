@@ -1,7 +1,7 @@
 (* Types for LegiCash Facilitator side-chains *)
 (* NB: Comments are in the .mli file *)
-open Lib
 open Action
+open Marshaling
 open Crypto
 open Trie
 
@@ -11,27 +11,27 @@ type fraud_proof
 
 module KnowledgeStage = struct
   type t = Unknown | Pending | Confirmed | Rejected
-  module Marshallable = struct
+  module Marshalable = struct
     type tt = t
     type t = tt
     let to_char = function Unknown -> 'U' | Pending -> 'P' | Confirmed -> 'C' | Rejected -> 'R'
-    let marshall b x = Buffer.add_char b (to_char x)
-    let unmarshall = bottom
+    let marshal b x = Buffer.add_char b (to_char x)
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 type memo = string option
 
 module Invoice = struct
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: memo} [@@deriving lens]
-  module Marshallable = struct
+  module Marshalable = struct
     type tt = t
     type t = tt
-    let marshall = marshall_any
-    let unmarshall = bottom
+    let marshal = marshal_any
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 type payment_details =
@@ -57,25 +57,25 @@ type operation =
 
 module Operation = struct
   type t = operation
-  let marshall b = function
+  let marshal b = function
     | Deposit { deposit_amount
               ; deposit_fee
               ; main_chain_deposit_signed
               ; main_chain_deposit_confirmation
               ; deposit_expedited } ->
       Buffer.add_char b 'D' ;
-      TokenAmount.marshall b deposit_amount ;
-      TokenAmount.marshall b deposit_fee ;
-      marshall_signed Main_chain.Transaction.marshall b main_chain_deposit_signed ;
-      Main_chain.Confirmation.marshall b main_chain_deposit_confirmation ;
-      marshall_bool b deposit_expedited
+      TokenAmount.marshal b deposit_amount ;
+      TokenAmount.marshal b deposit_fee ;
+      marshal_signed Main_chain.Transaction.marshal b main_chain_deposit_signed ;
+      Main_chain.Confirmation.marshal b main_chain_deposit_confirmation ;
+      marshal_bool b deposit_expedited
     | Payment {payment_invoice; payment_fee; payment_expedited} ->
-      Invoice.marshall b payment_invoice;
-      TokenAmount.marshall b payment_fee;
-      marshall_bool b payment_expedited
+      Invoice.marshal b payment_invoice;
+      TokenAmount.marshal b payment_fee;
+      marshal_bool b payment_expedited
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-      TokenAmount.marshall b withdrawal_amount;
-      TokenAmount.marshall b withdrawal_fee
+      TokenAmount.marshal b withdrawal_amount;
+      TokenAmount.marshal b withdrawal_fee
 end
 
 module RxHeader = struct
@@ -89,64 +89,64 @@ module RxHeader = struct
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
   [@@deriving lens]
-  let marshall b { facilitator
-                 ; requester
-                 ; requester_revision
-                 ; confirmed_main_chain_state_digest
-                 ; confirmed_main_chain_state_revision
-                 ; confirmed_side_chain_state_digest
-                 ; confirmed_side_chain_state_revision
-                 ; validity_within } =
-    Address.marshall b facilitator ;
-    Address.marshall b requester ;
-    Revision.marshall b requester_revision ;
-    Digest.marshall b confirmed_main_chain_state_digest ;
-    Revision.marshall b confirmed_main_chain_state_revision ;
-    Digest.marshall b confirmed_side_chain_state_digest ;
-    Revision.marshall b confirmed_side_chain_state_revision ;
-    Duration.marshall b validity_within
+  let marshal b { facilitator
+                ; requester
+                ; requester_revision
+                ; confirmed_main_chain_state_digest
+                ; confirmed_main_chain_state_revision
+                ; confirmed_side_chain_state_digest
+                ; confirmed_side_chain_state_revision
+                ; validity_within } =
+    Address.marshal b facilitator ;
+    Address.marshal b requester ;
+    Revision.marshal b requester_revision ;
+    Digest.marshal b confirmed_main_chain_state_digest ;
+    Revision.marshal b confirmed_main_chain_state_revision ;
+    Digest.marshal b confirmed_side_chain_state_digest ;
+    Revision.marshal b confirmed_side_chain_state_revision ;
+    Duration.marshal b validity_within
 end
 
 module Request = struct
   type t = {rx_header: RxHeader.t; operation: operation} [@@deriving lens]
-  module Marshallable = struct
+  module Marshalable = struct
     type tt = t
     type t = tt
-    let marshall b {rx_header; operation} =
-      RxHeader.marshall b rx_header ; Operation.marshall b operation
-    let unmarshall = bottom
+    let marshal b {rx_header; operation} =
+      RxHeader.marshal b rx_header ; Operation.marshal b operation
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 module TxHeader = struct
   type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
-  let marshall b {tx_revision; updated_limit} =
-    Revision.marshall b tx_revision ; TokenAmount.marshall b updated_limit
+  let marshal b {tx_revision; updated_limit} =
+    Revision.marshal b tx_revision ; TokenAmount.marshal b updated_limit
 end
 
 module Confirmation = struct
   type t = {tx_header: TxHeader.t; signed_request: Request.t signed} [@@deriving lens]
-  module Marshallable = struct
+  module Marshalable = struct
     type tt = t
     type t = tt
-    let marshall b {tx_header; signed_request} =
-      TxHeader.marshall b tx_header ; marshall_signed Request.marshall b signed_request
-    let unmarshall = bottom
+    let marshal b {tx_header; signed_request} =
+      TxHeader.marshal b tx_header ; marshal_signed Request.marshal b signed_request
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 module AccountState = struct
   type t = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
-  module Marshallable = struct
+  module Marshalable = struct
     type tt = t
     type t = tt
-    let marshall b {balance; account_revision} =
-      TokenAmount.marshall b balance ; Revision.marshall b account_revision
-    let unmarshall = bottom
+    let marshal b {balance; account_revision} =
+      TokenAmount.marshal b balance ; Revision.marshal b account_revision
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 module ConfirmationMap = MerkleTrie (Revision) (Confirmation)
@@ -163,13 +163,13 @@ module State = struct
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens]
-  module Marshallable = struct
+  module Marshalable = struct
     type tt = t
     type t = tt
-    let marshall = marshall_any
-    let unmarshall = bottom
+    let marshal = marshal_any
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 type episteme =
@@ -184,18 +184,18 @@ module UserAccountStatePerFacilitator = struct
     ; confirmed_state: AccountState.t
     ; pending_operations: episteme list }
   [@@deriving lens]
-  module Marshallable = struct
+  module Marshalable = struct
     type tt = t
     type t = tt
-    let marshall b { facilitator_validity
-                   ; confirmed_state
-                   ; pending_operations=_ } =
-      KnowledgeStage.marshall b facilitator_validity ;
-      AccountState.marshall b confirmed_state ;
+    let marshal b { facilitator_validity
+                  ; confirmed_state
+                  ; pending_operations=_ } =
+      KnowledgeStage.marshal b facilitator_validity ;
+      AccountState.marshal b confirmed_state ;
       () (* TODO: handle the list pending_operation *)
-    let unmarshall = bottom
+    let unmarshal = unmarshal_not_implemented
   end
-  include (DigestibleOfMarshallable (Marshallable) : DigestibleS with type t := t)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 module UserAccountStateMap = MerkleTrie (Address) (UserAccountStatePerFacilitator)

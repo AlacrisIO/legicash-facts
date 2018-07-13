@@ -1,4 +1,5 @@
 open Lib
+open Marshaling
 open Integer
 
 val secp256k1_ctx : Secp256k1.Context.t
@@ -12,9 +13,9 @@ type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 type 'a digest = Nat.t
 
 module type DigestibleS = sig
-  include MarshallableS
-  val marshall_bytes : t -> Bytes.t
-  val unmarshall_bytes : Bytes.t -> t
+  include MarshalableS
+  val marshal_bytes : t -> Bytes.t
+  val unmarshal_bytes : Bytes.t -> t
   val digest : t -> t digest
 end
 
@@ -23,15 +24,10 @@ module type IntS = sig
   include DigestibleS with type t := t
 end
 
-val marshall_of_sized_string_of : int -> ('a -> string) -> 'a marshaller
-val unmarshall_of_sized_of_string : int -> (string -> 'a) -> 'a unmarshaller
-val marshall_bytes_of_marshall : 'a marshaller -> 'a -> Bytes.t
-val unmarshall_bytes_of_unmarshall : 'a unmarshaller -> Bytes.t -> 'a
 val digest_of_string : string -> UInt256.t
-val digest_of_marshall_bytes : ('a -> Bytes.t) -> 'a -> UInt256.t
-val marshall_any : 'a marshaller
+val digest_of_marshal_bytes : ('a -> Bytes.t) -> 'a -> UInt256.t
 
-module DigestibleOfMarshallable (M : MarshallableS) : DigestibleS with type t = M.t
+module DigestibleOfMarshalable (M : MarshalableS) : DigestibleS with type t = M.t
 
 module UInt256 : IntS with type t = Z.t
 module Data256 : IntS with type t = Z.t
@@ -61,7 +57,7 @@ end
 (** a signature for an object of type 'a *)
 type signature
 
-module Signature : MarshallableS with type t = signature
+module Signature : MarshalableS with type t = signature
 
 (** an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: signature}
@@ -76,7 +72,7 @@ val make_signature : ('a -> Digest.t) -> private_key -> 'a -> signature
 
 val sign : ('a -> Digest.t) -> private_key -> 'a -> 'a signed
 
-val marshall_signed : 'a marshaller -> 'a signed marshaller
+val marshal_signed : 'a marshaler -> 'a signed marshaler
 
 (** count of changes in an object.
     A positive integer less than 2**63, incremented at every change to a notional object's state.
