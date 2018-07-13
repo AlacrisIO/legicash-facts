@@ -1,4 +1,5 @@
 open Lib
+open Marshaling
 open Integer
 
 val secp256k1_ctx : Secp256k1.Context.t
@@ -9,25 +10,13 @@ type public_key = Secp256k1.Key.public Secp256k1.Key.t
 (** private counterpart to public key *)
 type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 
-(** a cryptographic digest, "hash", for an object of type 'a *)
-module Digest : sig
-  include IntS
-
-  val make : 'a -> t
-  (** polymorphic 256-bit digest maker; for demos/tests
-      use instances of DigestibleS, below, for real data *)
-
-  val digest : t -> t
-  (** recursively digest a digest *)
-end
-
-type 'a digest = Digest.t
-
-val null_digest : Digest.t
+type 'a digest = Nat.t
 
 module type DigestibleS = sig
-  type t
-  val digest: t -> t digest
+  include MarshalableS
+  val marshal_bytes : t -> Bytes.t
+  val unmarshal_bytes : Bytes.t -> t
+  val digest : t -> t digest
 end
 
 module type IntS = sig
@@ -35,9 +24,17 @@ module type IntS = sig
   include DigestibleS with type t := t
 end
 
-module Nat : IntS with type t = Integer.Nat.t
-module UInt64 : IntS with type t = Integer.UInt64.t
+module DigestibleOfMarshalable (M : MarshalableS) : DigestibleS with type t = M.t
+
 module UInt256 : IntS with type t = Z.t
+module Data256 : IntS with type t = Z.t
+module Digest : IntS with type t = Z.t
+
+val digest_of_marshal_bytes : ('a -> Bytes.t) -> 'a -> Digest.t
+val digest_of_string : string -> Digest.t
+val null_digest : Digest.t
+
+module UInt64 : IntS with type t = Integer.UInt64.t
 
 (** sequence number for changes in a side-chain *)
 module Revision : IntS
@@ -49,28 +46,33 @@ module Timestamp : IntS
 module Duration : IntS
 
 module Address : sig
-  include IntS
+  include IntS with type t = UInt256.t
   include DigestibleS with type t := t
   include ShowableS with type t := t
   val address_size : int
   val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
 end
 
+
 (** a signature for an object of type 'a *)
-type 'a signature
+type signature
+
+module Signature : MarshalableS with type t = signature
 
 (** an object of type 'a with its signature by one party *)
-type 'a signed = {payload: 'a; signature: 'a signature}
+type 'a signed = {payload: 'a; signature: signature}
 
-val is_signature_valid : Address.t -> 'a signature -> 'a -> bool
+val is_signature_valid : ('a -> Digest.t) -> Address.t -> signature -> 'a -> bool
 (** check signature for given value *)
 
-val is_signed_value_valid : Address.t -> 'a signed -> bool
+val is_signed_value_valid : ('a -> Digest.t) -> Address.t -> 'a signed -> bool
 (** check signature for payload within a signed value *)
 
-val make_signature : private_key -> 'a -> 'a signature
+val make_signature : ('a -> Digest.t) -> private_key -> 'a -> signature
 
-val sign : private_key -> 'a -> 'a signed
+val sign : ('a -> Digest.t) -> private_key -> 'a -> 'a signed
+
+val marshal_signed : 'a marshaler -> 'a signed marshaler
 
 (** count of changes in an object.
     A positive integer less than 2**63, incremented at every change to a notional object's state.

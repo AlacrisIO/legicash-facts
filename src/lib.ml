@@ -252,7 +252,6 @@ let string_reverse s =
   let len = String.length s in
   String.init len (fun i -> s.[len - i - 1])
 
-
 module Test = struct
   let%test "hex_string" =
     List.for_all
