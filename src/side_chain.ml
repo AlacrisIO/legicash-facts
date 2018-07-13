@@ -12,8 +12,7 @@ type fraud_proof
 module KnowledgeStage = struct
   type t = Unknown | Pending | Confirmed | Rejected
   module Marshalable = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let to_char = function Unknown -> 'U' | Pending -> 'P' | Confirmed -> 'C' | Rejected -> 'R'
     let marshal b x = Buffer.add_char b (to_char x)
     let unmarshal = unmarshal_not_implemented
@@ -26,8 +25,7 @@ type memo = string option
 module Invoice = struct
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: memo} [@@deriving lens]
   module Marshalable = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal = marshal_any
     let unmarshal = unmarshal_not_implemented
   end
@@ -57,8 +55,7 @@ module Operation = struct
     | Withdrawal of withdrawal_details
 
   module Marshalable = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal b = function
       | Deposit { deposit_amount
                 ; deposit_fee
@@ -117,8 +114,7 @@ end
 module Request = struct
   type t = {rx_header: RxHeader.t; operation: Operation.t} [@@deriving lens]
   module Marshalable = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal b {rx_header; operation} =
       RxHeader.marshal b rx_header ; Operation.marshal b operation
     let unmarshal = unmarshal_not_implemented
@@ -135,8 +131,7 @@ end
 module Confirmation = struct
   type t = {tx_header: TxHeader.t; signed_request: Request.t signed} [@@deriving lens]
   module Marshalable = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal b {tx_header; signed_request} =
       TxHeader.marshal b tx_header ; marshal_signed Request.marshal b signed_request
     let unmarshal = unmarshal_not_implemented
@@ -147,8 +142,7 @@ end
 module AccountState = struct
   type t = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
   module Marshalable = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal b {balance; account_revision} =
       TokenAmount.marshal b balance ; Revision.marshal b account_revision
     let unmarshal = unmarshal_not_implemented
@@ -171,8 +165,7 @@ module State = struct
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens]
   module Marshalable = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal = marshal_any
     let unmarshal = unmarshal_not_implemented
   end
@@ -192,8 +185,7 @@ module UserAccountStatePerFacilitator = struct
     ; pending_operations: episteme list }
   [@@deriving lens]
   module Marshalable = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal b { facilitator_validity
                   ; confirmed_state
                   ; pending_operations=_ } =

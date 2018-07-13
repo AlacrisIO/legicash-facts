@@ -15,8 +15,7 @@ module State = struct
   (* TODO: have an actual model of the Ethereum main chain *)
   type t = {revision: Revision.t; accounts: AccountMap.t} [@@deriving lens]
   module Marshalable = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal b {revision; accounts=_} =
       Revision.marshal b revision
     let unmarshal = unmarshal_not_implemented
@@ -30,8 +29,7 @@ module Confirmation = struct
            ; block_number: Revision.t
            ; block_hash: Digest.t }
   module Marshalable : (MarshalableS with type t = t) = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal = marshal_any
     let unmarshal = unmarshal_not_implemented
   end
@@ -54,8 +52,7 @@ module TxHeader = struct
            ; value: TokenAmount.t }
   [@@deriving lens]
   module Marshalable : (MarshalableS with type t = t) = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal = marshal_any
     let unmarshal = unmarshal_not_implemented
   end
@@ -68,8 +65,7 @@ module Operation = struct
     | CreateContract of Bytes.t
     | CallFunction of Address.t * Bytes.t
   module Marshalable : (MarshalableS with type t = t) = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal = marshal_any
     let unmarshal = unmarshal_not_implemented
   end
@@ -81,8 +77,7 @@ end
 module Transaction = struct
   type t = {tx_header: TxHeader.t; operation: Operation.t} [@@deriving lens]
   module Marshalable : (MarshalableS with type t = t) = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal = marshal_any
     let unmarshal = unmarshal_not_implemented
   end
@@ -92,8 +87,7 @@ end
 module TransactionSigned = struct
   type t = Transaction.t signed
   module Marshalable : (MarshalableS with type t = t) = struct
-    type tt = t
-    type t = tt
+    type nonrec t = t
     let marshal = marshal_any
     let unmarshal = unmarshal_not_implemented
   end
