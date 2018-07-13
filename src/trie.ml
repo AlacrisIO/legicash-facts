@@ -86,6 +86,8 @@ module type TrieS = sig
 
 end
 
+(* TODO: an interface to nodes in batch that reduces the amount of unnecessary hashing?
+   Or simply make hashing lazy? *)
 module Trie (Key : IntS) (Value : T)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   type key = Key.t
