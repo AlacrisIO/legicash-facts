@@ -24,18 +24,17 @@ module type IntS = sig
   include DigestibleS with type t := t
 end
 
-val digest_of_string : string -> UInt256.t
-val digest_of_marshal_bytes : ('a -> Bytes.t) -> 'a -> UInt256.t
-
 module DigestibleOfMarshalable (M : MarshalableS) : DigestibleS with type t = M.t
 
 module UInt256 : IntS with type t = Z.t
 module Data256 : IntS with type t = Z.t
 module Digest : IntS with type t = Z.t
-module UInt64 : IntS with type t = Integer.UInt64.t
 
+val digest_of_marshal_bytes : ('a -> Bytes.t) -> 'a -> Digest.t
 val digest_of_string : string -> Digest.t
 val null_digest : Digest.t
+
+module UInt64 : IntS with type t = Integer.UInt64.t
 
 (** sequence number for changes in a side-chain *)
 module Revision : IntS
@@ -53,6 +52,7 @@ module Address : sig
   val address_size : int
   val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
 end
+
 
 (** a signature for an object of type 'a *)
 type signature
