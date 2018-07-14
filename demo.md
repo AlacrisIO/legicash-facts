@@ -341,3 +341,44 @@ as part of the next side-chain state update.
 We don't need to introduce UTXOs for our exit model, because
 we instead use a court registry, and map/reduce over parallel proofs
 as a way to compute proven-correct exit balances.
+
+### Fallback for when the Court Registry Fails
+
+If bad guys can win big by capturing the court registry, this will give them a big incentive to do so.
+Is there a good way to prevent the bad guys from winning more money than the authorized floating amount
+even if they capture the court registry?
+At the very least, can we ensure that those people who trusted an honest facilitator
+won't be defrauded if the facilitator remains honest in face of a captured court registry?
+
+Ideas:
+
+1. Some privileged party can raise an alarm, at which point we're back to Plasma-style games.
+   Especially in a one-contract-per-facilitator setting, that could be the facilitator themselves.
+   Of course, this only incentivizes the bad guys to capture that trusted party, first.
+2. Anyone can post a large amount of money as a bond and claim there is a problem with the court registry.
+   Optionally, the bond could be bought back by the facilitator, and an auction could occur between
+   those claiming the court registry was captured and those claiming it wasn't.
+   At that point, we're back to Plasma-style games, and a vote by the depositors who recover their money
+   concludes who does or doesn't get their bond back.
+   Now the bad guys have to capture a large share of the depositors' money before it is profitable
+   to even try capturing the court registry. Of course, if the registry and the deposits are
+   undercapitalized compared to the bad guys, they can "just" invest a lot funds to capture a smaller
+   yet profitable amount of money.
+3. Somehow, the data structures are so well-indexed that any invalid data can be pinpointed to the judge
+   after a logarithmic amount of interactive explorations.
+   Then, you still need to drop a large bond to accuse the court of impropriety,
+   but you can prove your case in finite enough time, at which point there's an objective reason
+   to drop into a fallback mode of Plasma-style exit games.
+4. If there remains at least one honest registrar, he can serve as the fallback guy for peer-to-peer
+   exchange of confirmations, from which honest people can identify which withdrawals to investigate;
+   but the bad guys who captured the registry can create a very large amount of withheld transactions,
+   and issue plenty of good ones to taunt the good guys into challenging them,
+   before they start issuing bad ones, and the good guys may lose a lot of money challenging
+   "actually good" withdrawals before they hit the bad ones.
+5. The bad guys can play a game whereas they withhold blocks, but don't do anything bad yet.
+   The good guys with a clue will can exit early, and the bad guys will let them,
+   leaving the clueless victims without capital to defend them as the bad guys now do the actual attack.
+6. If the facilitator is honest but the court registry claims he's not by withholding signatures,
+   is there a way to survive in a one-contract-per-facilitator and/or ERC-20 world?
+   Without allowing a dishonest facilitator to spuriously cause a bank run situation?
+

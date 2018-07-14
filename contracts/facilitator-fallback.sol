@@ -1,7 +1,13 @@
-pragma solidity ^0.4.22;
-
-/* contract to demonstrate that using an address instead of an ABI-encoded
-   function call will call the fallback, with the address as data
+pragma solidity ^0.4.23;
+/* This is a test contract, used in tests in src/ethereum_transaction.ml
+   to demonstrate that using an address instead of an ABI-encoded
+   function call will call the fallback, with the address as data.
+   This technique can be used to accept payments using a simple TransferToken operation.
+   In a one-contract-per-facilitator setup, the amount can be directly credited
+   to the single facilitator of the contract.
+   In a one-contract-per-court-registry setup, this could still work, but with extra steps:
+   the facilitator with the first confirmed state with a claim signed by the depositor is
+   the facilitator that gets credited, which requires a confirmation of the claim on the side-chain.
 */
 
 contract Facilitator {
