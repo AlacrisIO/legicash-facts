@@ -2,6 +2,7 @@ open Lib
 open Action
 open Crypto
 open Main_chain
+open Facilitator_contract
 
 let stub_state = ref genesis_state
 
@@ -43,6 +44,14 @@ let transfer_gas_limit = TokenAmount.of_int 21000
 
 let transfer_tokens (user_state, (recipient, amount)) =
   issue_async_transaction (user_state, (TransferTokens recipient, amount, transfer_gas_limit))
+
+let deposit_gas_limit = TokenAmount.of_int 1000000
+
+(* call facilitator deposit function on main chain *)
+let deposit (user_state, (facilitator_address, amount)) =
+  issue_async_transaction (user_state,(make_deposit_call facilitator_address,
+                                       amount,
+                                       deposit_gas_limit))
 
 let rec get_confirmation transaction_hash =
   let open Lwt in

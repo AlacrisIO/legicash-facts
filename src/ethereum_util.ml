@@ -4,6 +4,7 @@ open Lib
 open Crypto
 
 let hash s = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
+let hash_bytes bytes = hash (Bytes.to_string bytes)
 
 (* Hexadecimal support. See https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding *)
 

@@ -4,6 +4,7 @@ open Crypto
 
 (** Keccak256 hash *)
 val hash : string -> string
+val hash_bytes : bytes -> string
 
 (* Hexadecimal support. See https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding *)
 

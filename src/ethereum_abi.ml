@@ -336,18 +336,19 @@ let abi_ufixed64_of_int64 n num =
   | Int_value bytes -> (Ufixed (64, n), Ufixed_value bytes)
   | v -> expected_int v
 
-let make_signature function_call =
+let make_signature_bytes function_call =
   (* parameter list is shown as a tuple over the passed types *)
   let tys = List.map snd function_call.parameters in
   let params = show_type_for_function_selector (Tuple tys) in
   function_call.function_name ^ params
+  |> Bytes.of_string
 
 (* first four bytes of call are the first four bytes of the Keccak256 hash of the
    signature
 *)
 let encode_signature function_call =
-  let signature = make_signature function_call in
-  let hashed = Ethereum_util.hash signature in
+  let signature = make_signature_bytes function_call in
+  let hashed = Ethereum_util.hash_bytes signature in
   Bytes.of_string (String.sub hashed 0 4)
 
 (* encoding of parameter depends on classification of types as static or dynamic *)

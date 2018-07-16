@@ -56,21 +56,17 @@ let is_side_chain_request_well_formed :
     (* TODO: check confirmed main & side chain state + validity window *)
     && is_signature_valid Request.digest requester signature payload
     (* Check that the numbers add up: *)
-    &&
-    match operation with
+    && match operation with
     | Deposit
         { deposit_amount
         ; deposit_fee
         ; main_chain_deposit_signed=
             { signature
-            ; payload= {tx_header= {value}; operation= main_chain_operation} as payload
+            ; payload= {tx_header= {value}} as payload
             } as main_chain_deposit_signed
         ; main_chain_deposit_confirmation
         ; deposit_expedited=_deposit_expedited } ->
       TokenAmount.compare value (TokenAmount.add deposit_amount deposit_fee) >= 0
-      && ( match main_chain_operation with
-          | Main_chain.Operation.TransferTokens recipient -> recipient = state.keypair.address
-          | _ -> false )
       (* TODO: delegate the same signature checking protocol to the main chain *)
       && is_signature_valid Transaction.digest requester signature payload
       && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
@@ -314,7 +310,7 @@ let deposit ((_user_state, (_facilitator_address, deposit_amount)) as input) =
   (* in Lwt monad, because there's a transfer of tokens in the main chain *)
   let open Lwt in
   input
-  |> lift_main_chain_user_async_action_to_side_chain transfer_tokens
+  |> lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
   ^>>+ fun ((_user_state1, main_chain_deposit_signed) as transaction) ->
   transaction
   |> lift_main_chain_user_async_action_to_side_chain Main_chain_action.wait_for_confirmation
@@ -485,34 +481,35 @@ module Test = struct
     let open Keypair in
     let open Ethereum_json_rpc in
     (* get hex string version of private key *)
-    Lwt_main.run (
-      let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
-      let len = Bigarray.Array1.dim buffer in
-      let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
-      let pk_string_raw = Ethereum_util.hex_string_of_string s in
-      let pk_string_len = String.length pk_string_raw in
-      let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in
-      let password = "" in
-      let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
-      send_rpc_call_to_net json
-      >>= fun result_json ->
-      let json_keys = Basic.Util.keys result_json in
-      let _ =
-        (* OK if we successfully added account, or it existed already *)
-        List.mem "result" json_keys ||
-        let error_json = Basic.Util.member "error" result_json in
-        let error_message = Basic.Util.member "message" error_json |> Basic.Util.to_string in
-        error_message = "account already exists" ||
-        raise (Internal_error error_message)
-      in
-      return ())
+    let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
+    let len = Bigarray.Array1.dim buffer in
+    let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
+    let pk_string_raw = Ethereum_util.hex_string_of_string s in
+    let pk_string_len = String.length pk_string_raw in
+    let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in
+    let password = "" in
+    let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
+    send_rpc_call_to_net json
+    >>= fun result_json ->
+    let json_keys = Basic.Util.keys result_json in
+    let _ =
+      (* OK if we successfully added account, or it existed already *)
+      List.mem "result" json_keys ||
+      let error_json = Basic.Util.member "error" result_json in
+      let error_message = Basic.Util.member "message" error_json |> Basic.Util.to_string in
+      error_message = "account already exists" ||
+      raise (Internal_error error_message)
+    in
+    return ()
 
   let get_prefunded_address () =
     get_first_account ()
-    |> Yojson.Basic.Util.to_string
+    >>= fun first_account ->
+    Yojson.Basic.Util.to_string first_account
     |> Ethereum_util.address_of_hex_string
+    |> Lwt.return
 
-  let fund_account ?(min_balance=10000000) funding_account (keys : Keypair.t) =
+  let fund_account ?(min_balance=1000000000) funding_account (keys : Keypair.t) =
     let open Lwt in
     let open Yojson in
     let open Ethereum_transaction in
@@ -544,24 +541,73 @@ module Test = struct
         let error = Basic.Util.member "error" json |> Basic.to_string in
         raise (Internal_error error))
       else (
-        return (`String "funded"))
+        return ())
     )
     else
-      return (`String "no funding needed")
+      return ()
 
   let _ =
-    let prefunded_address = get_prefunded_address () in
-    ignore (Lwt_main.run (unlock_account prefunded_address));
-    List.iter
-      (fun keys ->
-         create_account_on_testnet keys;
-         ignore (Lwt_main.run (unlock_account keys.address));
-         ignore (Lwt_main.run (fund_account prefunded_address keys)))
-      [alice_keys; bob_keys; trent_keys]
+    get_prefunded_address ()
+    >>= fun prefunded_address ->
+    unlock_account prefunded_address
+    >>= fun _ ->
+        Lwt_list.iter_s
+          (fun keys ->
+             create_account_on_testnet keys
+             >>= fun () ->
+               unlock_account keys.address
+               >>= fun _ ->
+               fund_account prefunded_address keys)
+          [alice_keys; bob_keys; trent_keys]
+
+  let install_contract () =
+    let open Lwt in
+    let open Yojson in
+    let open Main_chain in
+    let open Ethereum_transaction in
+    Test.get_first_account ()
+    >>= fun contract_account_json ->
+    let contract_account = Basic.Util.to_string contract_account_json in
+    let contract_address = Ethereum_util.address_of_hex_string contract_account in
+    Test.unlock_account contract_address
+    >>= fun unlock_contract_json ->
+    assert (not (Test.json_contains_error unlock_contract_json)) ;
+    let tx_header =
+      TxHeader.{ sender= contract_address
+               ; nonce= Nonce.zero
+               ; gas_price= TokenAmount.of_int 1
+               ; gas_limit= TokenAmount.of_int 1000000
+               ; value= TokenAmount.zero }
+    in
+    let operation = Operation.CreateContract Facilitator_contract_binary.facilitator_contract in
+    let transaction = { Transaction.tx_header; Transaction.operation } in
+    let signed_transaction = sign_transaction Keypair.Test.alice_keys transaction in
+    send_transaction_to_net signed_transaction
+    >>= fun output ->
+    assert (not (Test.json_contains_error output)) ;
+    let result_json = Basic.Util.member "result" output in
+    let transaction_hash = Basic.Util.to_string result_json in
+    Test.wait_for_contract_execution transaction_hash
+    >>= fun () ->
+    get_transaction_receipt transaction_hash
+    >>= fun receipt_json ->
+    assert (not (Test.json_contains_error receipt_json)) ;
+    let receipt_result_json = Basic.Util.member "result" receipt_json in
+    let contract_address =
+      Basic.Util.member "contractAddress" receipt_result_json
+      |> Basic.Util.to_string
+      |> Ethereum_util.address_of_hex_string
+    in
+    Facilitator_contract.set_contract_address contract_address;
+    return ()
 
   (* deposit and payment test *)
-  let%test "deposit_valid" =
+  let%test "deposit_and_payment_valid" =
     Lwt_main.run (
+      install_contract ()
+      >>= fun () ->
+      unlock_account alice_keys.address
+      >>= fun _ ->
       let amount_to_deposit = TokenAmount.of_int 523 in
       (* deposit *)
       (alice_state, (trent_address, amount_to_deposit))
@@ -569,6 +615,7 @@ module Test = struct
       >>= fun (alice_state1, signed_request1) ->
       (trent_state, signed_request1) |^>> confirm_request
       |> fun (trent_state1, _signed_confirmation1) ->
+      (* TODO: maybe examine the log for the contract call *)
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
       let alice_account = AccountMap.find alice_address trent_accounts in

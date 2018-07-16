@@ -196,6 +196,7 @@ let list_accounts () =
 (* dev mode provides prefunded address with a very large balance *)
 let prefunded_address = get_prefunded_address ()
 
+(* fund user accounts *)
 let _ =
   Printf.eprintf "Funding account: Trent\n%!";
   ignore (fund_account prefunded_address trent_keys);
@@ -204,6 +205,14 @@ let _ =
        Printf.eprintf "Funding account: %s\n%!" name;
        ignore (fund_account prefunded_address keys))
     account_key_array
+
+(* install contract *)
+let _ =
+  Printf.eprintf "Installing facilitator contract\n%!";
+  ignore (install_contract ())
+
+let _ =
+  Printf.eprintf "*** READY ***\n%!"
 
 let create_side_chain_user_state user_keys =
   let main_chain_user_state =

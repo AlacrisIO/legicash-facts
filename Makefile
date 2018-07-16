@@ -24,7 +24,7 @@ all : hello_legicash
 
 .PHONY: hello_legicash test clean
 
-legicash_lib :
+legicash_lib : contract
 	$(SHOW) "Building Legicash library"
 	$(HIDE) $(BUILDER) build --root=src legicash_lib.a legicash_lib.cmxa legicash_lib.cmxs legicash_lib.cma
 
@@ -51,7 +51,7 @@ else
 	$(SHOW) "Legicash library not installed in OPAM"
 endif
 
-test :
+test : legicash_lib
 	$(SHOW) "Running Legicash tests"
 	$(HIDE) $(BUILDER) runtest --root=src
 
@@ -62,16 +62,31 @@ toplevel : legicash_lib
 repl : toplevel
 	$(HIDE) rlwrap ./bin/$(TOPLEVEL)
 
-endpoints : legicash_lib
+install-contract : legicash_lib src/install_contract.ml
+	$(SHOW) "Installing facilitator contract on main chain"
+	$(HIDE) $(BUILDER) build --root=src install_contract.exe
+
+endpoints : legicash_lib contract
 	make -C src/endpoints test.opt
 
 clean :
 	$(SHOW) "Cleaning via dune"
 	$(HIDE) $(BUILDER) clean --root=src
+	$(SHOW) "Removing contract binary"
+	$(HIDE) rm -f src/facilitator_contract_binary.ml
 	$(SHOW) "Removing OPAM install file"
 	$(HIDE) rm -f legicash.install
 	$(SHOW) "Cleaning endpoints code"
 	$(HIDE) make -C src/endpoints distclean
 
-contract:
-	(cd contracts/ && solc court.sol)
+# real contract
+# contract:
+#	(cd contracts/ && solc court.sol)
+
+# for the endpoints demo, this is a simplified contract that just
+# logs deposits and withdrawals
+contract: src/facilitator_contract_binary.ml
+
+src/facilitator_contract_binary.ml : contracts/deposit-withdraw.sol
+	$(SHOW) "Compiling facilitator contract"
+	$(HIDE) solc --bin $< | tail -n +4 | awk '{ printf ("let facilitator_contract = Bytes.of_string \"%s\"\n",$$1); }' > $@

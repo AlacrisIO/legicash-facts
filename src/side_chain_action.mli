@@ -111,10 +111,12 @@ val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) u
 
 (* useful functions for other test code *)
 module Test : sig
-  val create_account_on_testnet : Keypair.t -> unit
+  val install_contract : unit -> unit Lwt.t
+  (** installs facilitator contract on main chain, enabling corresponding actions on side chain *)
+  val create_account_on_testnet : Keypair.t -> unit Lwt.t
   (** creates an account on network with address created for side chain *)
-  val get_prefunded_address : unit -> Address.t
+  val get_prefunded_address : unit -> Address.t Lwt.t
   (** gets the prefunded address on the test network *)
-  val fund_account : ?min_balance:int -> Address.t -> Keypair.t -> Yojson.Basic.json Lwt.t
+  val fund_account : ?min_balance:int -> Address.t -> Keypair.t -> unit Lwt.t
   (** transfers funds from funding account to account with given keys, if balance less than min_balance *)
 end

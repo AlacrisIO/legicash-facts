@@ -16,10 +16,10 @@ val get_transaction_count : Address.t -> Yojson.Basic.json Lwt.t
 val get_transaction_receipt : string -> Yojson.Basic.json Lwt.t
 (** get receipt for transaction identified by its transaction hash *)
 
-val transaction_executed : string -> bool
+val transaction_executed : string -> bool Lwt.t
 (** has a transaction given by a hash executed; looks for a block number and block hash in the transaction receipt *)
 
-val transaction_execution_matches_transaction : string -> Main_chain.TransactionSigned.t -> bool
+val transaction_execution_matches_transaction : string -> Main_chain.TransactionSigned.t -> bool Lwt.t
 (** do the parameters of a transaction match what the Ethereum network reports for the transaction *)
 
 module Test : sig
@@ -33,6 +33,8 @@ module Test : sig
   (** creates new account with given JSON address on net *)
   val unlock_account : ?duration:int -> Address.t -> Yojson.Basic.json Lwt.t
   (** unlocks account for given duration on net *)
-  val get_first_account : unit -> Yojson.Basic.json
+  val get_first_account : unit -> Yojson.Basic.json Lwt.t
   (** get first account listed on net; for dev network, this is the prefunded account *)
+  val wait_for_contract_execution : string -> unit Lwt.t
+  (** return when contract has completed *)
 end
