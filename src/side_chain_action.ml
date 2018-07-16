@@ -546,7 +546,7 @@ module Test = struct
     else
       return ()
 
-  let _ =
+  let fund_accounts () =
     get_prefunded_address ()
     >>= fun prefunded_address ->
     unlock_account prefunded_address
@@ -604,6 +604,8 @@ module Test = struct
   (* deposit and payment test *)
   let%test "deposit_and_payment_valid" =
     Lwt_main.run (
+      fund_accounts ()
+      >>= fun () ->
       install_contract ()
       >>= fun () ->
       unlock_account alice_keys.address
