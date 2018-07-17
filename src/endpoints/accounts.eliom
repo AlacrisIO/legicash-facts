@@ -120,12 +120,9 @@ let account_keys =
       , "04:16:60:26:f2:e1:9a:15:ec:59:7f:b1:1b:7d:93:2f:b5:f6:32:82:b3:eb:37:c9:1e:98:c7:a6:4c:fd:7f:9c:c7:54:5e:02:81:52:bf:44:5b:9b:c9:71:ed:5f:06:db:05:e3:18:0a:23:20:20:ab:9e:78:5b:15:4f:45:d1:c4:db"
       ) ]
 
-(* data structures for fast access *)
-let account_key_array =
-  Array.of_list (List.map2 (fun name keys -> (name, keys)) account_names account_keys)
-
+let account_key_list = List.map2 (fun name keys -> (name, keys)) account_names account_keys
+let account_key_array = Array.of_list account_key_list
 let number_of_accounts = Array.length account_key_array
-
 let address_to_account_tbl = Hashtbl.create number_of_accounts
 
 let _ =
@@ -158,6 +155,7 @@ let trent_address = trent_keys.address
 
 (* store keys on Ethereum test net. TODO: don't do this on real net!  *)
 let store_keys_on_testnet (name,keys) =
+  let open Lwt in
   let open Secp256k1 in
   let open Yojson in
   let open Keypair in
@@ -171,48 +169,43 @@ let store_keys_on_testnet (name,keys) =
   let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in
   let password = "" in
   let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
-  let result_json = Lwt_main.run (send_rpc_call_to_net json) in
+  send_rpc_call_to_net json
+  >>= fun result_json ->
   let result_keys = Basic.Util.keys result_json in
-  if List.mem "result" result_keys then
+  if List.mem "result" result_keys then (
     let result = Basic.Util.member "result" result_json in
     Printf.eprintf "Succesfully created account for %s on test net with address: %s\n%!"
-      name (Basic.to_string result);
-    ()
+      name (Basic.to_string result));
+  return ()
+
+(* prepare test network with accounts, contract *)
 
 let _ =
-  Array.iter store_keys_on_testnet account_key_array;
+  let open Lwt in
+  (* for top-level operations, don't use Lwt_main.run
+     not needed, may cause deadlock *)
+  Printf.printf "*** PREPARING NETWORK, PLEASE WAIT ***\n%!";
+  Lwt_list.iter_s store_keys_on_testnet account_key_list
+  >>= fun () ->
   store_keys_on_testnet ("Trent",trent_keys)
-
-(* make sure all accounts have a decent balance *)
-let min_testnet_balance = 10000000
-
-(* dup of code in Ethereum_transactions tests; should expose *)
-let list_accounts () =
-  let open Ethereum_json_rpc in
-  let params = [] in
-  let json = build_json_rpc_call Personal_listAccounts params in
-  send_rpc_call_to_net json
-
-(* dev mode provides prefunded address with a very large balance *)
-let prefunded_address = get_prefunded_address ()
-
-(* fund user accounts *)
-let _ =
+  >>= fun () ->
   Printf.eprintf "Funding account: Trent\n%!";
-  ignore (fund_account prefunded_address trent_keys);
-  Array.iter
+  (* dev mode provides prefunded address with a very large balance *)
+  get_prefunded_address ()
+  >>= fun prefunded_address ->
+  fund_account prefunded_address trent_keys
+  >>= fun () ->
+  Lwt_list.iter_s
     (fun (name,keys) ->
        Printf.eprintf "Funding account: %s\n%!" name;
-       ignore (fund_account prefunded_address keys))
-    account_key_array
-
-(* install contract *)
-let _ =
+       fund_account prefunded_address keys)
+    account_key_list
+  >>= fun () ->
   Printf.eprintf "Installing facilitator contract\n%!";
-  ignore (install_contract ())
-
-let _ =
-  Printf.eprintf "*** READY ***\n%!"
+  install_contract ()
+  >>= fun () ->
+  Printf.printf "*** READY ***\n%!";
+  return ()
 
 let create_side_chain_user_state user_keys =
   let main_chain_user_state =

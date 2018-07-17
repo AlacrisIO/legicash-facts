@@ -263,9 +263,6 @@ module Test = struct
   open Ethereum_json_rpc
   open Keypair.Test
 
-  let go s n =
-    Printf.eprintf "%s: %d\n%!" s n
-
   let json_contains_error json =
     match Basic.Util.member "error" json with `Null -> false | _ -> true
 
