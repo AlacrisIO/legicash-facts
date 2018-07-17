@@ -307,7 +307,6 @@ let lift_main_chain_user_async_action_to_side_chain async_action (user_state, in
 let deposit_fee = TokenAmount.of_int 5
 
 let deposit ((_user_state, (_facilitator_address, deposit_amount)) as input) =
-  (* in Lwt monad, because there's a transfer of tokens in the main chain *)
   let open Lwt in
   input
   |> lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
@@ -343,38 +342,26 @@ let payment (user_state, (_facilitator_address, recipient_address, payment_amoun
     ( user_state
     , Payment
         { payment_invoice= invoice
-        ; payment_fee= TokenAmount.of_int 0 (* TODO: configuration item *)
+        ; payment_fee= TokenAmount.of_int 0 (* TODO: we should get this from facilitator fee schedule *)
         ; payment_expedited= false } )
 
-let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operation.withdrawal_fee=_ } user_address facilitator_state =
-  let open Ethereum_abi in
-  let contract_address = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" in (* TODO : use actual contract address *)
-  let contract_hex_address = Ethereum_util.address_of_hex_string contract_address in
-  let facilitator_keys = facilitator_state.keypair in
-  let facilitator_address = facilitator_keys.address in
-  let amount = withdrawal_amount |> TokenAmount.to_int in
-  let withdrawal_call =
-    { function_name = "withdrawTokens"
-    ; parameters =
-        [ abi_address_of_address facilitator_address
-        ; abi_address_of_address user_address
-        ; abi_uint_of_int amount
-        ]
-    }
-  in
-  let encoded_call = encode_function_call withdrawal_call in
-  let operation = Main_chain.Operation.CallFunction (contract_hex_address, encoded_call) in
+let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operation.withdrawal_fee} user_address facilitator_state =
+  (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
+  let ticket = 0L in (* TODO: implement ticketing *)
+  let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
+  let bond = 0 in (* TODO: where does this come from? *)
+  let operation = Facilitator_contract.make_withdraw_call facilitator_state.keypair.address ticket bond confirmed_state in
   let tx_header =
     Main_chain.TxHeader.
-      { sender= facilitator_address
+      { sender= user_address
       ; nonce= Nonce.zero (* TODO: get_nonce facilitator_address *)
       ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
       ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.zero
+      ; value= TokenAmount.sub withdrawal_amount withdrawal_fee
       }
   in
   let transaction = Main_chain.{ Transaction.tx_header; Transaction.operation } in
-  Ethereum_transaction.sign_transaction facilitator_keys transaction
+  Ethereum_transaction.sign_transaction facilitator_state.keypair transaction
 
 (* an action made on the side chain may need a corresponding action on the main chain *)
 let push_side_chain_action_to_main_chain facilitator_state ((user_state : Side_chain.user_state), (signed_confirmation : Confirmation.t signed)) =

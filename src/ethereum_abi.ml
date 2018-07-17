@@ -212,7 +212,7 @@ let abi_uint64_of_int64 n_64 =
   if Int64.compare n_64 Int64.zero < 0 then
     raise (Internal_error "Can't represent negative int64 value as ABI Uint") ;
   match fst (abi_int64_of_int64 n_64) with
-  | Int_value bytes -> (Uint 64, Uint_value bytes)
+  | Int_value bytes -> (Uint_value bytes,Uint 64)
   | v -> raise (Internal_error (Printf.sprintf "Expected Int_value, got %s" (show_abi_value v)))
 
 (* TODO: have builders for larger bit-width types that take an int64, or maybe Signed/Unsigned from

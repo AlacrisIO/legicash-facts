@@ -102,19 +102,9 @@ let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmatio
         ; block_hash = "0x" ^ (confirmation.block_hash |> Digest.to_hex_string)
         }
 
-(* TODO: this is dup'd from a test in Ethereum_transactions;
-   probably want to make that exposed
- *)
-let unlock_account address =
-  let open Ethereum_json_rpc in
-  let params =
-    [`String (Ethereum_util.hex_string_of_address address); `String ""; `Int 5]
-  in
-  let json = build_json_rpc_call_with_tagged_parameters Personal_unlockAccount params in
-  send_rpc_call_to_net json
-
 let deposit_to_trent address amount =
   let open Side_chain_action in
+  let open Ethereum_transaction.Test in
   let address_t = Ethereum_util.address_of_hex_string address in
   let user_state = user_state_from_address address_t in
   let thread =
@@ -153,6 +143,7 @@ let deposit_to_trent address amount =
 
 let withdrawal_from_trent address amount =
   let open Side_chain_action in
+  let open Ethereum_transaction.Test in
   let address_t = Ethereum_util.address_of_hex_string address in
   let user_state = user_state_from_address address_t in
   let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
@@ -160,6 +151,8 @@ let withdrawal_from_trent address amount =
   if TokenAmount.compare (TokenAmount.of_int amount) balance > 0 then
     raise (Internal_error "Insufficient balance to withdraw specified amount");
   let thread =
+    unlock_account address_t
+    >>= fun unlock_json ->
     (user_state, (trent_address,TokenAmount.of_int amount))
     |^>>+
     withdrawal

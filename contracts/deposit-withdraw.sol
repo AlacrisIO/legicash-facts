@@ -13,7 +13,7 @@ contract Facilitators {
 
   event Withdrawal(address facilitator, uint64 ticket);
 
-  function withdraw(address facilitator, uint64 ticket, uint _value, uint _bond, bytes32 _confirmed_state) public {
+  function withdraw(address facilitator, uint64 ticket, uint _bond, bytes32 _confirmed_state) public {
     emit Withdrawal(facilitator, ticket);
     // msg.sender.transfer(_value + _bond);
   }
