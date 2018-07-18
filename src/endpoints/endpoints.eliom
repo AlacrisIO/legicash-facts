@@ -67,6 +67,15 @@ let balance_service = make_post_service "balance"
 
 let balances_service = make_get_service "balances"
 
+(* a proof is obtained with api/proof?tx-revision=nnn *)
+let proof_params = Eliom_parameter.(suffix_prod (suffix_const "proof") (int "tx-revision"))
+
+let proof_service =
+  Eliom_service.create
+    ~path
+    ~meth:(Eliom_service.Get proof_params)
+    ()
+
 (* a thread's address is api/thread?id=nnn *)
 let thread_params = Eliom_parameter.(suffix_prod (suffix_const "thread") (int "id"))
 
@@ -203,6 +212,12 @@ let balances_handler balances () =
     send_json ~code:200 (Yojson.Safe.to_string result_json)
     with Internal_error msg -> bad_response msg
 
+let proof_handler (proof,tx_revision) () =
+  try
+    let result_json = Actions.get_proof tx_revision in
+    send_json ~code:200 (Yojson.Safe.to_string result_json)
+  with Internal_error msg -> bad_response msg
+
 let thread_handler (thread,id) () =
   try
     let result_json = Actions.apply_main_chain_thread id in
@@ -227,6 +242,7 @@ let _ =
   let open Eliom_registration.Any in
   let _ = List.iter (fun (service,handler) -> register service handler) post_endpoints in
   let _ = List.iter (fun (service,handler) -> register service handler) get_endpoints in
-  (* GET endpoint with a query parameter, so has its own type *)
+  (* GET endpoints with query parameters, so their own type *)
+  let _ = register proof_service proof_handler in
   let _ = register thread_service thread_handler in
   ()

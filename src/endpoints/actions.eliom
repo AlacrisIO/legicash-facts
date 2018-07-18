@@ -34,6 +34,7 @@ type main_chain_confirmation =
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
   { user_account_state : user_account_state
+  ; side_chain_tx_revision : int64
   ; main_chain_confirmation : main_chain_confirmation
   }
   [@@deriving yojson]
@@ -42,6 +43,7 @@ type payment_result =
   { sender_account : user_account_state
   ; recipient_account : user_account_state
   ; amount_transferred : int
+  ; side_chain_tx_revision : int64
   }
   [@@deriving yojson]
 
@@ -68,6 +70,19 @@ let add_main_chain_thread thread =
         `Assoc [("result",`String uri);])
   in
   find_thread_id 0
+
+(* get Merkle proof for side chain transaction identified by tx_revsion *)
+let get_proof tx_revision : Yojson.Safe.json =
+  let tx_revision_t = Revision.of_int tx_revision in
+  let operations = !trent_state.current.operations in
+  match ConfirmationMap.get_proof tx_revision_t operations with
+  | None ->
+    `Assoc [("error",`String (Format.sprintf "Cannot provide proof for tx-revision: %d" tx_revision))]
+  | Some proof ->
+    let open Yojson in
+    ConfirmationMap.json_of_proof proof
+    |> Basic.to_string
+    |> Safe.from_string
 
 (* lookup id in thread table; if completed, return result, else return boilerplate *)
 let apply_main_chain_thread id : Yojson.Safe.json =
@@ -112,9 +127,12 @@ let deposit_to_trent address amount =
     >>= fun unlock_json ->
     (user_state, (trent_address,TokenAmount.of_int amount))
     |^>>+ deposit
-    >>= fun (user_state1, signed_request) -> (!trent_state,signed_request)
+    >>= fun (user_state1, signed_request) ->
+    (!trent_state,signed_request)
     |^>> confirm_request
     |> fun (trent_state1,signed_confirmation) ->
+    let confirmation = signed_confirmation.payload in
+    let tx_revision = confirmation.tx_header.tx_revision in
     Hashtbl.replace address_to_user_state_tbl address_t user_state1;
     trent_state := trent_state1;
     (* get transaction hash for main chain *)
@@ -133,7 +151,9 @@ let deposit_to_trent address amount =
                              ; balance
                              }
     in
+    let side_chain_tx_revision = Revision.to_int64 tx_revision in
     let deposit_result = { user_account_state
+                         ; side_chain_tx_revision
                          ; main_chain_confirmation
                          }
     in
@@ -161,6 +181,8 @@ let withdrawal_from_trent address amount =
     |^>>
     confirm_request
     |> fun (trent_state2, signed_confirmation2) ->
+    let confirmation = signed_confirmation2.payload in
+    let tx_revision = confirmation.tx_header.tx_revision in
     (* update trent state *)
     trent_state := trent_state2;
     push_side_chain_action_to_main_chain trent_state2 (user_state1,signed_confirmation2)
@@ -180,7 +202,9 @@ let withdrawal_from_trent address amount =
                              ; balance
                              }
     in
+    let side_chain_tx_revision = Revision.to_int64 tx_revision in
     let withdrawal_result = { user_account_state
+                            ; side_chain_tx_revision
                             ; main_chain_confirmation
                             }
     in
@@ -235,7 +259,8 @@ let payment_on_trent sender recipient amount =
   (!trent_state, signed_request)
   |^>> confirm_request
   |> fun (trent_state_after_confirmation, signed_confirmation) ->
-  (* let confirmation_digest = Digest.make signed_confirmation in *)
+  let confirmation = signed_confirmation.payload in
+  let tx_revision = confirmation.tx_header.tx_revision in
   trent_state := trent_state_after_confirmation;
   let sender_name = get_user_name sender_address_t in
   let recipient_name = get_user_name recipient_address_t in
@@ -250,9 +275,11 @@ let payment_on_trent sender recipient amount =
   in
   let sender_account = make_account_state sender_address_t sender_name sender_account in
   let recipient_account = make_account_state recipient_address_t recipient_name recipient_account in
+  let side_chain_tx_revision = Revision.to_int64 tx_revision in
   let payment_result =
     { sender_account
     ; recipient_account
     ; amount_transferred = amount
+    ; side_chain_tx_revision
     }
   in payment_result_to_yojson payment_result
