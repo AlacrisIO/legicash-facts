@@ -463,7 +463,7 @@ module Trie (Key : IntS) (Value : T)
 
   let find_first_opt f trie =
     let rec divide (index: key) (default: (key*value) option)
-              (leftward: (key*t) list) (rightward: (key*t) list) : t -> (key*value) option = function
+        (leftward: (key*t) list) (rightward: (key*t) list) : t -> (key*value) option = function
       | Empty -> default
       | Leaf {value} -> conquer index value default leftward rightward
       | Branch {left; right; height} ->
@@ -701,33 +701,33 @@ module Trie (Key : IntS) (Value : T)
     | (Branch {left=aleft; right=aright; height}, Branch {left=bleft; right=bright}) ->
       recursek ~i ~treea:aleft ~treeb:bleft
         ~k:(fun left ->
-          recursek ~i:(right_index i height) ~treea:aright ~treeb:bright
-            ~k:(fun right ->
-              branchk ~i ~height ~leftr:left ~rightr:right ~k))
+            recursek ~i:(right_index i height) ~treea:aright ~treeb:bright
+              ~k:(fun right ->
+                  branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Branch {left=left; right=right}, Skip {child; bits; length; height}) ->
       let l1 = length - 1 in
       let ri = right_index i height in
       if Key.has_bit bits l1 then
         onlyak ~i ~anode:left ~k:(fun left ->
-          recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child)
-            ~k:(fun right ->
-              branchk ~i ~height ~leftr:left ~rightr:right ~k))
+            recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child)
+              ~k:(fun right ->
+                  branchk ~i ~height ~leftr:left ~rightr:right ~k))
       else
         recursek ~i ~treea:left ~treeb:(make_skip height l1 bits child)
           ~k:(fun left ->
-            onlyak ~i:ri ~anode:right ~k:(fun right ->
-              branchk ~i ~height ~leftr:left ~rightr:right ~k))
+              onlyak ~i:ri ~anode:right ~k:(fun right ->
+                  branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Skip {child;bits;length;height}, Branch {left;right}) ->
       let l1 = length - 1 in
       let ri = right_index i height in
       if Key.has_bit bits l1 then
         onlybk ~i ~bnode:left ~k:(fun left ->
-          recursek ~i:ri ~treea:(make_skip height l1 bits child) ~treeb:right
-            ~k:(fun right -> branchk ~i ~height ~leftr:left ~rightr:right ~k))
+            recursek ~i:ri ~treea:(make_skip height l1 bits child) ~treeb:right
+              ~k:(fun right -> branchk ~i ~height ~leftr:left ~rightr:right ~k))
       else
         recursek ~i ~treea:(make_skip height l1 bits child) ~treeb:left
           ~k:(fun left -> onlybk ~i:ri ~bnode:right ~k:(fun right ->
-            branchk ~i ~height ~leftr:left ~rightr:right ~k))
+              branchk ~i ~height ~leftr:left ~rightr:right ~k))
     | (Skip {child=achild;bits=abits;length=alength;height}, Skip {child=bchild;bits=bbits;length=blength}) ->
       let length = min alength blength in
       let ahighbits = Key.extract abits (alength - length) length in
@@ -754,9 +754,9 @@ module Trie (Key : IntS) (Value : T)
         let (aleft, aright) = skip_choice height alength abits achild (adifflength - 1) in
         let (bleft, bright) = skip_choice height blength bbits bchild (bdifflength - 1) in
         recursek ~i:isame ~treea:aleft ~treeb:bleft ~k:(fun left ->
-          recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
-            ~k:(fun right ->
-              branchk ~i:isame ~height:sameheight ~leftr:left ~rightr:right ~k:samek))
+            recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
+              ~k:(fun right ->
+                  branchk ~i:isame ~height:sameheight ~leftr:left ~rightr:right ~k:samek))
     | _ -> raise (Internal_error "iterate_over_tree_pair")
 
   let merge f a b =
@@ -767,7 +767,7 @@ module Trie (Key : IntS) (Value : T)
         ~branchk:(fun ~i:_ ~height ~leftr ~rightr ~k -> k (make_branch height leftr rightr))
         ~skipk:(fun ~i:_ ~height ~length ~bits ~childr ~k -> k (make_skip height length bits childr))
         ~leafk:(fun ~i ~valuea ~valueb ~k ->
-          k (match (f i (Some valuea) (Some valueb)) with None -> Empty | Some v -> mk_leaf v))
+            k (match (f i (Some valuea) (Some valueb)) with None -> Empty | Some v -> mk_leaf v))
         ~onlyak:(fun ~i ~anode:ta ~k -> k (mapiopt (fun _ v -> f i (Some v) None) ta))
         ~onlybk:(fun ~i ~bnode:tb ~k -> k (mapiopt (fun _ v -> f i None (Some v)) tb))
         ~i ~treea:a ~treeb:b ~k in
@@ -781,7 +781,7 @@ module Trie (Key : IntS) (Value : T)
         ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~k -> k ())
         ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~k -> k ())
         ~leafk:(fun ~i:_ ~valuea ~valueb ~k ->
-          let r = cmp valuea valueb in if r = 0 then k () else r)
+            let r = cmp valuea valueb in if r = 0 then k () else r)
         ~onlyak:(fun ~i:_ ~anode:_ ~k:_ -> 1)
         ~onlybk:(fun ~i:_ ~bnode:_ ~k:_ -> -1)
         ~i ~treea:a ~treeb:b ~k in
@@ -795,7 +795,7 @@ module Trie (Key : IntS) (Value : T)
           ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~k -> k ())
           ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~k -> k ())
           ~leafk:(fun ~i:_ ~valuea ~valueb ~k ->
-            if eq valuea valueb then k () else false)
+              if eq valuea valueb then k () else false)
           ~onlyak:(fun ~i:_ ~anode:_ ~k:_ -> false)
           ~onlybk:(fun ~i:_ ~bnode:_ ~k:_ -> false)
           ~i ~treea:a ~treeb:b ~k in
@@ -873,6 +873,7 @@ module type MerkleTrieS = sig
   val path_digest : t path -> Digest.t path
   val get_proof : key -> t -> proof option
   val check_proof_consistency : proof -> bool
+  val json_of_proof : proof -> Yojson.Basic.json
 end
 
 module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
@@ -959,12 +960,28 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
       json |> member "bits" |> to_string |> bit_string_to_skip
     else raise (Internal_error "Bad json")
 
+  let json_of_step step =
+    match step with
+    | LeftBranch { right } -> `Assoc [("left",`String ("0x" ^ (Digest.to_hex_string right)))]
+    | RightBranch { left } -> `Assoc [("right",`String ("0x" ^ (Digest.to_hex_string left)))]
+    | SkipChild { bits; length } -> `Assoc [ ("bits",`String ("0x" ^ (Key.to_hex_string bits)))
+                                           ; ("length",`Int length)
+                                           ]
+
   let proof_of_json json =
     { key = json |> member "key" |> to_string |> Key.of_hex_string
     ; trie = json |> member "trie" |> to_string |> Digest.of_hex_string
     ; value = json |> member "value" |> to_string |> Digest.of_hex_string
     ; steps = json |> member "steps" |> to_list |> List.map step_of_json
     }
+
+  let json_of_proof proof =
+    `Assoc
+      [ ("key",`String ("0x" ^ (Key.to_hex_string proof.key)))
+      ; ("trie",`String ("0x" ^ (Digest.to_hex_string proof.trie)))
+      ; ("value",`String ("0x" ^ (Digest.to_hex_string proof.value)))
+      ; ("steps",`List (List.map json_of_step proof.steps))
+      ]
 
   (* let proof_of_json_string = zcompose proof_of_json Yojson.Basic.from_string *)
 end
@@ -1300,17 +1317,17 @@ module Test = struct
                     ]))
 
   let bad_proof = lazy (match force proof_42_in_trie_100 with
-    | { key
-      ; trie
-      ; value
-      ; steps = [s1;s2;s3;s4;s5;s6;s7]
-      } ->
-      { key
-      ; trie
-      ; value
-      ; steps = [s1;s2;s5;s4;s3;s6;s7] (* steps 3 and 5 are swapped *)
-      }
-    | _ -> raise (Internal_error "Bad proof"))
+      | { key
+        ; trie
+        ; value
+        ; steps = [s1;s2;s3;s4;s5;s6;s7]
+        } ->
+        { key
+        ; trie
+        ; value
+        ; steps = [s1;s2;s5;s4;s3;s6;s7] (* steps 3 and 5 are swapped *)
+        }
+      | _ -> raise (Internal_error "Bad proof"))
 
   let%test "proof" =
     get_proof (n 42) (force trie_100) = Some (force proof_42_in_trie_100)

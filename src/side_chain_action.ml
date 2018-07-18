@@ -91,15 +91,29 @@ let check_side_chain_request_well_formed = action_assert __LOC__ is_side_chain_r
 let make_request_confirmation :
   (Request.t signed * AccountState.t * account_lens, Confirmation.t signed) facilitator_action =
   fun (facilitator_state, (signed_request, account_state, account_lens)) ->
-    let revision = Revision.add facilitator_state.current.facilitator_revision Revision.one in
-    ( account_lens.set
-        {account_state with account_revision= signed_request.payload.rx_header.requester_revision}
-        ((facilitator_state_current |-- State.facilitator_revision).set revision facilitator_state)
-    , Ok
-        (sign Confirmation.digest facilitator_state.keypair.private_key
-           { tx_header=TxHeader.{ tx_revision= revision
-                                ; updated_limit= facilitator_state.current.spending_limit}
-           ; Confirmation.signed_request }) )
+    let current_state = facilitator_state.current in
+    let new_revision = Revision.add current_state.facilitator_revision Revision.one in
+    let confirmation =
+      { tx_header=TxHeader.{ tx_revision= new_revision
+                           ; updated_limit= facilitator_state.current.spending_limit
+                           }
+      ; Confirmation.signed_request
+      }
+    in
+    let new_facilitator_state =
+      account_lens.set
+        { account_state with account_revision= signed_request.payload.rx_header.requester_revision }
+        { facilitator_state with
+          previous = Some current_state;
+          current = { current_state with
+                      facilitator_revision = new_revision;
+                      operations = ConfirmationMap.add new_revision confirmation current_state.operations
+                    }
+        }
+    in
+    let signed_confirmation = sign Confirmation.digest facilitator_state.keypair.private_key confirmation in
+    ( new_facilitator_state
+    , Ok signed_confirmation)
 
 exception Spending_limit_exceeded
 
@@ -444,7 +458,7 @@ module Test = struct
   let confirmed_trent_state =
     State.{ previous_main_chain_state= Digest.zero
           ; previous_side_chain_state= Digest.one
-          ; facilitator_revision= Revision.of_int 17
+          ; facilitator_revision= Revision.of_int 0
           ; spending_limit= TokenAmount.of_int 1000000
           ; bond_posted= TokenAmount.of_int 5000000
           ; accounts= AccountMap.empty
@@ -538,14 +552,14 @@ module Test = struct
     >>= fun prefunded_address ->
     unlock_account prefunded_address
     >>= fun _ ->
-        Lwt_list.iter_s
-          (fun keys ->
-             create_account_on_testnet keys
-             >>= fun () ->
-               unlock_account keys.address
-               >>= fun _ ->
-               fund_account prefunded_address keys)
-          [alice_keys; bob_keys; trent_keys]
+    Lwt_list.iter_s
+      (fun keys ->
+         create_account_on_testnet keys
+         >>= fun () ->
+         unlock_account keys.address
+         >>= fun _ ->
+         fund_account prefunded_address keys)
+      [alice_keys; bob_keys; trent_keys]
 
   let install_contract () =
     let open Lwt in

@@ -227,6 +227,7 @@ module type MerkleTrieS = sig
   val path_digest : t path -> Digest.t path
   val get_proof : key -> t -> proof option
   val check_proof_consistency : proof -> bool
+  val json_of_proof : proof -> Yojson.Basic.json
 end
 
 module MerkleTrie (Key : IntS) (Value : DigestibleS) :
