@@ -1,3 +1,5 @@
+open Lib
+
 (** Marshaler: side-effect a Buffer.t to add bytes (or chars, or strings). *)
 type 'a marshaler = Buffer.t -> 'a -> unit
 
@@ -18,8 +20,9 @@ val marshal_bytes_of_marshal : 'a marshaler -> 'a -> Bytes.t
 
 val unmarshal_bytes_of_unmarshal : 'a unmarshaler -> Bytes.t -> 'a
 
-val marshal_any : 'a marshaler (* Do not use in production: only for demos and temporary cut-throughs *)
-
 val marshal_bool : bool marshaler
 
 val unmarshal_not_implemented : 'a unmarshaler
+
+(** Do NOT use this module in production. Only for demos and temporary cut-throughs *)
+module OCamlMarshaling (Type: T) : MarshalableS with type t = Type.t
