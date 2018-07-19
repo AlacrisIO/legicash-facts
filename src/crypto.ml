@@ -58,7 +58,7 @@ module DigestibleOfMarshalable (T : MarshalableS) = struct
 end
 
 module type IntS = sig
-  include Integer.IntS
+ include Integer.IntS
   include DigestibleS with type t := t
 end
 

@@ -6,8 +6,8 @@
   lib integer trie legibase marshaling crypto keypair action
   ethereum_rlp ethereum_patricia_merkle ethereum_transaction ethereum_abi
   ethereum_util ethereum_rlp ethereum_json_rpc
-  main_chain main_chain_action side_chain side_chain_action court_registry
-  facilitator_contract facilitator_contract_binary
+  main_chain main_chain_action side_chain side_chain_action side_chain_db
+  court_registry facilitator_contract facilitator_contract_binary
   version)
  (preprocess (pps ppx_deriving.std ppx_inline_test lens.ppx_deriving))
  ;; -9 : all fields mentioned in a pattern
@@ -15,7 +15,7 @@
  ;; -32 : unused value
  ;; -34 : unused type
  (flags (:standard -w -9-34 -warn-error -27-32-33))
- (libraries cryptokit cstruct integers lens secp256k1 cohttp lwt cohttp-lwt-unix yojson)
+ (libraries cryptokit cstruct integers lens leveldb secp256k1 cohttp lwt cohttp-lwt-unix yojson)
  (inline_tests))
 
 ;; main executable

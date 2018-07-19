@@ -2,6 +2,7 @@
 open Action
 open Crypto
 open Trie
+open Marshaling
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -258,26 +259,30 @@ type ('input, 'output) verifier_action = ('input, 'output, verifier_state) actio
     TODO: account for size of transaction if memo can be long.
     TODO: make fee structure updatable by posting a new fee schedule in advance.
 *)
-type facilitator_fee_schedule =
-  { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
-  ; withdrawal_fee: TokenAmount.t (* fee to accept a withdrawal *)
-  ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
-  ; fee_per_billion: TokenAmount.t
-  (* function TokenAmount.t -> TokenAmount.t ? *) }
-[@@deriving lens]
+module FacilitatorFeeSchedule : sig
+  type t =
+    { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
+    ; withdrawal_fee: TokenAmount.t (* fee to accept a withdrawal *)
+    ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
+    ; fee_per_billion: TokenAmount.t
+    (* function TokenAmount.t -> TokenAmount.t ? *) }
+  [@@deriving lens]
+end
 
 (** Private state of a facilitator (as opposed to what's public in the side-chain)
     TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
 *)
-type facilitator_state =
-  { keypair: Keypair.t
-  ; previous: State.t option
-  ; current: State.t
-  ; fee_schedule: facilitator_fee_schedule }
-[@@deriving lens]
+module FacilitatorState : sig
+  type t = { keypair: Keypair.t
+           ; previous: State.t option
+           ; current: State.t
+           ; fee_schedule: FacilitatorFeeSchedule.t
+           } [@@deriving lens]
+  module Marshalable : MarshalableS
+end
 
 (** function from 'a to 'b that acts on a facilitator_state *)
-type ('input, 'output) facilitator_action = ('input, 'output, facilitator_state) action
+type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t) action
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 

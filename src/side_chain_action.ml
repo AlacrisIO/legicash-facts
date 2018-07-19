@@ -16,10 +16,10 @@ let new_user_account_state_per_facilitator =
   UserAccountStatePerFacilitator.{
     facilitator_validity= Confirmed; confirmed_state= new_account_state; pending_operations= []}
 
-type account_lens = (facilitator_state, AccountState.t) Lens.t
+type account_lens = (FacilitatorState.t, AccountState.t) Lens.t
 
 let facilitator_account_lens address =
-  facilitator_state_current |-- State.accounts
+  FacilitatorState.current |-- State.accounts
   |-- defaulting_lens (konstant new_account_state) (AccountMap.lens address)
 
 (** Given a signed request, handle the special case of opening an account, and return
@@ -40,7 +40,7 @@ let ensure_user_account :
     Thus, we can later parallelize this check.
 *)
 let is_side_chain_request_well_formed :
-  facilitator_state * (Request.t signed * AccountState.t * account_lens * Address.t) -> bool =
+  FacilitatorState.t * (Request.t signed * AccountState.t * account_lens * Address.t) -> bool =
   function
   | ( state
     , ( { payload=
@@ -119,8 +119,9 @@ exception Spending_limit_exceeded
 
 (** Facilitator actions to use up some of the limit *)
 let spend_spending_limit amount (state, x) =
+  let open FacilitatorState in
   if TokenAmount.compare amount state.current.spending_limit <= 0 then
-    ( (facilitator_state_current |-- State.spending_limit).set
+    ( (FacilitatorState.current |-- State.spending_limit).set
         (TokenAmount.sub state.current.spending_limit amount)
         state
     , Ok x )
@@ -139,7 +140,7 @@ exception Already_posted
 let check_against_double_accounting main_chain_transaction_signed (state, x) =
   let witness = Main_chain.TransactionSigned.digest main_chain_transaction_signed in
   let lens =
-    facilitator_state_current |-- State.main_chain_transactions_posted |-- DigestSet.lens witness
+    FacilitatorState.current |-- State.main_chain_transactions_posted |-- DigestSet.lens witness
   in
   if lens.get state then (state, Error Already_posted) else (lens.set true state, Ok x)
 
@@ -189,8 +190,19 @@ let effect_request :
  * parallelize, batch, etc., to have decent performance
 *)
 let confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action =
-  ensure_user_account ^>> check_side_chain_request_well_formed ^>> effect_request
-  ^>> make_request_confirmation
+  function ((facilitator_state,_signed_request) as input) ->
+    input |>
+    ensure_user_account
+    ^>> check_side_chain_request_well_formed
+    ^>> effect_request
+    ^>> make_request_confirmation
+    ^>> fun (updated_facilitator_state, signed_confirmation) ->
+      try
+        Side_chain_db.log_facilitator_state updated_facilitator_state;
+        (updated_facilitator_state,Ok signed_confirmation)
+      with _ ->
+        (* if logging failed, return input facilitator state, error *)
+        (facilitator_state,Error (Internal_error "Could not log request confirmation"))
 
 let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
 
@@ -359,12 +371,12 @@ let payment (user_state, (_facilitator_address, recipient_address, payment_amoun
         ; payment_fee= TokenAmount.of_int 0 (* TODO: we should get this from facilitator fee schedule *)
         ; payment_expedited= false } )
 
-let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operation.withdrawal_fee} user_address facilitator_state =
+let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operation.withdrawal_fee} user_address facilitator_keys =
   (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
   let ticket = 0L in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
   let bond = 0 in (* TODO: where does this come from? *)
-  let operation = Facilitator_contract.make_withdraw_call facilitator_state.keypair.address ticket bond confirmed_state in
+  let operation = Facilitator_contract.make_withdraw_call facilitator_keys.address ticket bond confirmed_state in
   let tx_header =
     Main_chain.TxHeader.
       { sender= user_address
@@ -375,10 +387,10 @@ let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operat
       }
   in
   let transaction = Main_chain.{ Transaction.tx_header; Transaction.operation } in
-  Ethereum_transaction.sign_transaction facilitator_state.keypair transaction
+  Ethereum_transaction.sign_transaction facilitator_keys transaction
 
 (* an action made on the side chain may need a corresponding action on the main chain *)
-let push_side_chain_action_to_main_chain facilitator_state ((user_state : Side_chain.user_state), (signed_confirmation : Confirmation.t signed)) =
+let push_side_chain_action_to_main_chain (facilitator_state : FacilitatorState.t) ((user_state : Side_chain.user_state), (signed_confirmation : Confirmation.t signed)) =
   let confirmation = signed_confirmation.payload in
   let facilitator_address = facilitator_state.keypair.address in
   if not (is_signature_valid Confirmation.digest facilitator_address signed_confirmation.signature confirmation) then
@@ -392,7 +404,7 @@ let push_side_chain_action_to_main_chain facilitator_state ((user_state : Side_c
   match request.operation with
   | Withdrawal details ->
     let open Lwt in
-    let signed_transaction = make_main_chain_withdrawal_transaction details user_address facilitator_state in
+    let signed_transaction = make_main_chain_withdrawal_transaction details user_address facilitator_state.keypair in
     wait_for_confirmation (user_state.main_chain_user_state,signed_transaction)
     >>= fun (main_chain_user_state,main_chain_confirmation) ->
     return ({ user_state with main_chain_user_state },main_chain_confirmation)
@@ -449,7 +461,7 @@ module Test = struct
 
   let alice_state = create_side_chain_user_state_for_testing alice_keys
 
-  let trent_fee_schedule =
+  let trent_fee_schedule : FacilitatorFeeSchedule.t =
     { deposit_fee= TokenAmount.of_int 5
     ; withdrawal_fee= TokenAmount.of_int 5
     ; per_account_limit= TokenAmount.of_int 20000
@@ -466,6 +478,7 @@ module Test = struct
           ; main_chain_transactions_posted= DigestSet.empty }
 
   let trent_state =
+    let open FacilitatorState in
     { keypair= trent_keys
     ; previous= None
     ; current= confirmed_trent_state

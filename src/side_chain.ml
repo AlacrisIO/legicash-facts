@@ -1,5 +1,6 @@
 (* Types for LegiCash Facilitator side-chains *)
 (* NB: Comments are in the .mli file *)
+open Lib
 open Action
 open Marshaling
 open Crypto
@@ -161,7 +162,61 @@ module State = struct
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens]
-  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
+
+  module Marshalable = struct
+    type nonrec t = t
+    let marshal buffer t =
+      Digest.marshal buffer t.previous_main_chain_state;
+      Digest.marshal buffer t.previous_side_chain_state;
+      Revision.marshal buffer t.facilitator_revision;
+      TokenAmount.marshal buffer t.spending_limit;
+      TokenAmount.marshal buffer t.bond_posted;
+      (* AccountMap. TODO *)
+      (* ConfirmationMap. TODO *)
+      let num_elements = DigestSet.cardinal t.main_chain_transactions_posted in
+      UInt64.marshal buffer (UInt64.of_int num_elements);
+      DigestSet.iter
+        (fun elt ->
+           Digest.marshal buffer elt)
+        t.main_chain_transactions_posted
+
+    let unmarshal ?(start=0) bytes =
+      let previous_main_chain_state,previous_main_chain_state_offset =
+        Digest.unmarshal ~start bytes in
+      let previous_side_chain_state,previous_side_chain_state_offset =
+        Digest.unmarshal ~start:previous_main_chain_state_offset bytes in
+      let facilitator_revision,facilitator_revision_offset =
+        Revision.unmarshal ~start:previous_side_chain_state_offset bytes in
+      let spending_limit,spending_limit_offset =
+        TokenAmount.unmarshal ~start:facilitator_revision_offset bytes in
+      let bond_posted,bond_posted_offset =
+        TokenAmount.unmarshal ~start:spending_limit_offset bytes in
+      let num_elements64,num_elements64_offset =
+        UInt64.unmarshal ~start:bond_posted_offset bytes in
+      let num_elements = UInt64.to_int num_elements64 in
+      let rec get_digest_set_elements count set offset =
+        if count >= num_elements then
+          set, offset
+        else
+          let digest,new_offset = Digest.unmarshal ~start:offset bytes in
+          get_digest_set_elements (count + 1) (DigestSet.add digest set) new_offset
+      in
+      let main_chain_transactions_posted,final_offset =
+        get_digest_set_elements 0 DigestSet.empty num_elements64_offset
+      in
+      ( { previous_main_chain_state
+        ; previous_side_chain_state
+        ; facilitator_revision
+        ; spending_limit
+        ; bond_posted
+        ; accounts = Obj.magic 42 (* TODO *)
+        ; operations = Obj.magic 42 (* TODO *)
+        ; main_chain_transactions_posted
+        }
+        ,
+        final_offset
+      )
+  end
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
@@ -205,21 +260,89 @@ type verifier_state
 
 type ('input, 'output) verifier_action = ('input, 'output, verifier_state) action
 
-type facilitator_fee_schedule =
-  { deposit_fee: TokenAmount.t
-  ; withdrawal_fee: TokenAmount.t
-  ; per_account_limit: TokenAmount.t
-  ; fee_per_billion: TokenAmount.t }
-[@@deriving lens]
+module FacilitatorFeeSchedule = struct
+  type t =
+    { deposit_fee: TokenAmount.t
+    ; withdrawal_fee: TokenAmount.t
+    ; per_account_limit: TokenAmount.t
+    ; fee_per_billion: TokenAmount.t }
+  [@@deriving lens]
+  module Marshalable = struct
+    type nonrec t = t
 
-type facilitator_state =
-  { keypair: Keypair.t
-  ; previous: State.t option
-  ; current: State.t
-  ; fee_schedule: facilitator_fee_schedule }
-[@@deriving lens]
+    let marshal buffer t =
+      TokenAmount.marshal buffer t.deposit_fee;
+      TokenAmount.marshal buffer t.withdrawal_fee;
+      TokenAmount.marshal buffer t.per_account_limit;
+      TokenAmount.marshal buffer t.fee_per_billion
 
-type ('input, 'output) facilitator_action = ('input, 'output, facilitator_state) action
+    let unmarshal ?(start = 0) bytes =
+      let deposit_fee,deposit_fee_offset =
+        TokenAmount.unmarshal ~start bytes in
+      let withdrawal_fee,withdrawal_fee_offset =
+        TokenAmount.unmarshal ~start:deposit_fee_offset bytes in
+      let per_account_limit,per_account_limit_offset =
+        TokenAmount.unmarshal ~start:withdrawal_fee_offset bytes in
+      let fee_per_billion,final_offset =
+        TokenAmount.unmarshal ~start:per_account_limit_offset bytes in
+      ( { deposit_fee
+        ; withdrawal_fee
+        ; per_account_limit
+        ; fee_per_billion
+        }
+        ,
+        final_offset
+      )
+  end
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+end
+
+module FacilitatorState = struct
+  type t = { keypair: Keypair.t
+           ; previous: State.t option
+           ; current: State.t
+           ; fee_schedule: FacilitatorFeeSchedule.t
+           } [@@deriving lens]
+  module Marshalable = struct
+    type nonrec t = t
+
+    let marshal buffer t =
+      Keypair.marshal buffer t.keypair;
+      (* use tag to mark option *)
+      begin
+        match t.previous with
+        | None -> Buffer.add_char buffer 'N'
+        | Some state ->
+          Buffer.add_char buffer 'S';
+          State.marshal buffer state
+      end;
+      State.marshal buffer t.current;
+      FacilitatorFeeSchedule.marshal buffer t.fee_schedule
+
+    let unmarshal ?(start=0) bytes =
+      let keypair,keypair_offset = Keypair.unmarshal ~start:start bytes in
+      let option_tag = Bytes.get bytes keypair_offset in
+      let previous,previous_offset =
+        match option_tag with
+        | 'N' -> None,keypair_offset + 1
+        | 'S' ->
+          let prev,offs = State.unmarshal ~start:(keypair_offset + 1) bytes in
+          Some prev,offs
+        | _ -> raise (Internal_error "Unexpected tag for State within FacilitatorState")
+      in
+      let current,current_offset = State.unmarshal ~start:previous_offset bytes in
+      let fee_schedule,final_offset =
+        FacilitatorFeeSchedule.unmarshal ~start:current_offset bytes in
+      ({ keypair
+       ; previous
+       ; current
+       ; fee_schedule
+       },
+       final_offset)
+  end
+end
+
+type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t) action
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 

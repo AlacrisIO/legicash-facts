@@ -52,6 +52,53 @@ let make_keys private_key_string public_key_string =
 let make_keys_from_hex private_key_hex public_key_hex =
   make_keys (parse_coloned_hex_string private_key_hex) (parse_coloned_hex_string public_key_hex)
 
+module Marshalable = struct
+  open Bigarray
+
+  type nonrec t = t
+
+  let marshal buffer t =
+    let bytes_of_key key =
+      let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx key in
+      Bytes.init (Array1.dim buffer) (Array1.get buffer)
+    in
+    Buffer.add_bytes buffer (bytes_of_key t.private_key);
+    Buffer.add_bytes buffer (bytes_of_key t.public_key);
+    Address.marshal buffer t.address
+
+  let unmarshal ?(start=0) bytes =
+    let fill_buffer buffer offset len =
+      for ndx = offset to offset + len - 1 do
+        Array1.set buffer ndx (Bytes.get bytes ndx)
+      done
+    in
+    let private_buffer = Array1.create char c_layout private_key_length in
+    let _ = fill_buffer private_buffer start private_key_length in
+    let private_key =
+      match Secp256k1.Key.read_sk secp256k1_ctx private_buffer with
+      | Ok key -> key
+      | Error s -> raise (Internal_error ("Could not unmarshal private key: " ^ s))
+    in
+    let public_buffer = Array1.create char c_layout public_key_length in
+    let _ = fill_buffer private_buffer (start + private_key_length) public_key_length in
+    let public_key =
+      match Secp256k1.Key.read_pk secp256k1_ctx public_buffer with
+      | Ok key -> key
+      | Error s -> raise (Internal_error ("Could not unmarshal public key: " ^ s))
+    in
+    let address,final_offset = Address.unmarshal ~start:(start + private_key_length + public_key_length) bytes in
+    ( { private_key
+      ; public_key
+      ; address
+      }
+      ,
+      final_offset
+    )
+
+end
+
+include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+
 module Test = struct
 
   let trent_keys =

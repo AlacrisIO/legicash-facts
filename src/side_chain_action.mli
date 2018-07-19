@@ -19,7 +19,7 @@ val deposit : (Address.t * TokenAmount.t, Request.t signed) user_async_action
 val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) user_action
 (** deposit request *)
 
-val push_side_chain_action_to_main_chain : Side_chain.facilitator_state -> (Confirmation.t signed,Main_chain.Confirmation.t) user_async_action
+val push_side_chain_action_to_main_chain : FacilitatorState.t -> (Confirmation.t signed,Main_chain.Confirmation.t) user_async_action
 (** reflect action on side chain on main chain *)
 
 (* Flow 1 Step 4: user pays entry fee on the side chain *)
@@ -72,7 +72,7 @@ val send_message : 'a -> conversation -> unit legi_result
 val send_user_request : user_state -> Request.t signed -> conversation -> unit legi_result
 
 val send_facilitator_confirmation :
-  facilitator_state -> Confirmation.t signed -> conversation -> unit legi_result
+  FacilitatorState.t -> Confirmation.t signed -> conversation -> unit legi_result
 
 val commit_facilitator_state : (unit, unit) facilitator_action
 (** For a facilitator, commit the state of the side-chain to the main-chain *)
