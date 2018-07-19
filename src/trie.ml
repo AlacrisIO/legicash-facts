@@ -66,7 +66,9 @@ module type TrieS = sig
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
 
-  type (+'a) path = {index: key; height: int; steps: 'a step list}
+  type costep = { height: int ; index: key }
+
+  type (+'a) path = {costep: costep; steps: 'a step list}
 
   include MapS
     with type key := key
@@ -504,11 +506,31 @@ module Trie (Key : IntS) (Value : T)
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
 
-  let step_apply make_branch make_skip step (trie, height) =
+  type 'a unstep =
+    { unstep_left: key -> int -> 'a -> 'a -> 'a
+    ; unstep_right: key -> int -> 'a -> 'a -> 'a
+    ; unstep_skip: key -> int -> int -> key -> 'a -> 'a }
+
+  let symmetric_unstep ~branch ~skip () =
+    { unstep_left=branch
+    ; unstep_right=branch
+    ; unstep_skip=skip }
+
+  type costep = { height: int ; index: key }
+
+  let step_apply unstep (trie, {height; index}) step =
     match step with
-    | LeftBranch {right} -> let h = height + 1 in (make_branch h trie right, h)
-    | RightBranch {left} -> let h = height + 1 in (make_branch h left trie, h)
-    | SkipChild {bits; length} -> let h = height + length in (make_skip h length bits trie, h)
+    | LeftBranch {right} ->
+      let h = height + 1 in
+      (unstep.unstep_right index h trie right, {height=h; index})
+    | RightBranch {left} ->
+      let h = height + 1 in
+      let i = Key.sub index (Key.shift_left Key.one height) in
+      (unstep.unstep_left i h left trie, {height=h; index=i})
+    | SkipChild {bits; length} ->
+      let h = height + length in
+      let i = Key.sub index (Key.extract index 0 h) in
+      (unstep.unstep_skip i h length bits trie, {height=h; index=i})
 
   let step_map f = function
     | LeftBranch {right} -> LeftBranch {right= f right}
@@ -520,17 +542,17 @@ module Trie (Key : IntS) (Value : T)
     | RightBranch _ -> 1
     | SkipChild {length} -> length
 
-  type 'a path = {index: key; height: int; steps: 'a step list}
+  type 'a path = {costep: costep; steps: 'a step list}
 
-  let path_apply make_branch make_skip {steps} (t, h) =
-    List.fold_left (fun th s -> step_apply make_branch make_skip s th) (t, h) steps
+  let path_apply unstep {steps} (t, costep) =
+    List.fold_left (step_apply unstep) (t, costep) steps
 
-  let path_map f {index;height;steps} =
-    {index;height;steps= List.map (step_map f) steps}
+  let path_map f {costep;steps} =
+    {costep;steps= List.map (step_map f) steps}
 
   exception Inconsistent_path
 
-  let check_path_consistency {index;height;steps} =
+  let check_path_consistency {costep={index;height};steps} =
     Key.sign index >= 0 &&
     let rec c index height = function
       | [] -> true
@@ -544,24 +566,27 @@ module Trie (Key : IntS) (Value : T)
 
   type zipper = t * (t path)
 
-  let zip t = (t, {index=Key.zero; height=trie_height t; steps=[]})
+  let zip t = (t, {costep={index=Key.zero; height=trie_height t}; steps=[]})
 
   let unzip (t, path) = match path with
-    | {height} ->
+    | {costep={height} as costep} ->
       if not (t = Empty || trie_height t = height) then raise Inconsistent_path else
-        fst (path_apply make_branch make_skip path (t, trie_height t))
+        fst (path_apply
+               (symmetric_unstep ~branch:(konstant make_branch) ~skip:(konstant make_skip) ())
+               path
+               (t, costep))
 
   let next = function
     | (Empty, _up) -> []
     | (Leaf _, _up) -> []
-    | (Branch {left; right}, {index; height; steps}) ->
+    | (Branch {left; right}, {costep={index; height}; steps}) ->
       let height = height - 1 in
       let rindex = right_index index height in
-      [(left, {index; height; steps= LeftBranch {right} :: steps});
-       (right, {index= rindex; height; steps= RightBranch {left} :: steps})]
-    | (Skip {child; bits; length}, {index; height; steps}) ->
+      [(left, {costep={index; height}; steps= LeftBranch {right} :: steps});
+       (right, {costep={index=rindex; height}; steps= RightBranch {left} :: steps})]
+    | (Skip {child; bits; length}, {costep={index; height}; steps}) ->
       let index = skip_index index bits length height in
-      [(child, {index; height=height-length; steps= SkipChild {bits; length} :: steps})]
+      [(child, {costep={index; height=height-length}; steps= SkipChild {bits; length} :: steps})]
 
   let find_path l t =
     let h = trie_height t in
@@ -572,23 +597,26 @@ module Trie (Key : IntS) (Value : T)
       if Key.numbits l > h then
         let hh = height - 1 in
         let left = make_skip hh (hh-h) Key.zero t in
-        (Empty, {index=Key.shift_left Key.zero hh; height=hh; steps=[RightBranch{left}]})
+        (Empty, {costep={index=Key.shift_left Key.zero hh; height=hh}; steps=[RightBranch{left}]})
       else
         let rec f x = match x with
           | (Empty, _) -> x
           | (Leaf _, _) -> x
-          | (Skip {child; bits; length; height}, {index; steps}) ->
+          | (Skip {child; bits; length; height}, {costep={index}; steps}) ->
             let child_height = height - length in
             if Key.equal bits (Key.extract l child_height length) then
               let index=skip_index index bits length height in
-              f (child, {index;height=child_height;steps=SkipChild{bits; length}::steps})
+              f (child, {costep={index;height=child_height};
+                         steps=SkipChild{bits; length}::steps})
             else x
-          | (Branch {left; right; height}, {index; steps}) ->
+          | (Branch {left; right; height}, {costep={index}; steps}) ->
             let child_height = height - 1 in
             if Key.has_bit l child_height then
-              f (right, {index= right_index index height; height=child_height; steps=RightBranch{left}::steps})
+              f (right, {costep={index= right_index index height; height=child_height};
+                         steps=RightBranch{left}::steps})
             else
-              f (left, {index; height=child_height; steps=LeftBranch{right}::steps})
+              f (left, {costep={index; height=child_height};
+                        steps=LeftBranch{right}::steps})
         in
         f (zip t)
 
@@ -598,7 +626,7 @@ module Trie (Key : IntS) (Value : T)
     let o = match t with Leaf {value} -> Some value | _ -> None in
     let u = f o in
     if o = u then t else
-      let ll = Key.extract l 0 up.height in
+      let ll = Key.extract l 0 up.costep.height in
       let newsub =
         match u with
         | None -> remove ll sub
@@ -738,6 +766,17 @@ module Trie (Key : IntS) (Value : T)
       | (Some va), (Some vb) -> f i va vb in
     merge f' a b
 
+  (*let to_seq t = foldlk (fun i v n k () -> (Seq.Cons (i, v) (fun () -> k n))) t Nil identity
+    let to_seq_from k t =
+    let (focus, {costep, steps}) = find_path k t in
+    path_apply
+    { unstep_left = (fun _ _ a b -> seq_cat a b)
+    ; unstep_right = (fun _ _ _ b -> b)
+    ; unstep_skip = (fun _ _ _ _ a -> a) }
+    steps (focus, costep)
+    let add_seq s t = Seq.fold_left (fun t (k, v) -> add k v t) t s
+    val of_seq s = add_seq s empty*)
+
   let lens k = Lens.{get= find k; set= add k}
 
   let find_defaulting default k m = defaulting default (find_opt k m)
@@ -823,11 +862,16 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
       2- starting from the key, the path should follow the key's bits.
   *)
   let check_proof_consistency proof =
-    let path_d = {index=proof.key;height=0;steps=proof.steps} in
+    let path_d = {costep={index=proof.key;height=0};steps=proof.steps} in
     check_path_consistency path_d
-    && let (top_d, height) = path_apply Synth.branch Synth.skip path_d (Synth.leaf_digest proof.value, 0) in
+    && let (top_d, {height; index}) =
+         path_apply
+           (symmetric_unstep ~branch:(konstant Synth.branch) ~skip:(konstant Synth.skip) ())
+           path_d
+           (Synth.leaf_digest proof.value, {height=0; index=proof.key}) in
     proof.trie = top_d
     && height >= Key.numbits proof.key
+    && Key.sign index = 0
 
   let skip_bit_string length bits =
     String.concat "" (List.init length (fun i -> if Key.has_bit bits i then "1" else "0"))
@@ -939,6 +983,12 @@ module MerkleTrieSet (Elt : IntS) = struct
   let find_last_opt f t = option_map fst (T.find_last_opt f t)
   let find_last f t = option_get (find_last_opt f t)
   let of_list l = List.fold_right add l empty
+  (*
+     let to_seq t = Seq.map fst (T.to_seq t)
+     let to_seq_from k t = Seq.map fst (T.to_seq_from k t)
+     let add_seq s t = T.add_seq (Seq.map (fun x -> (x, ())) s) t
+     let of_seq s = add_seq s empty
+  *)
 
   (* TODO: for union, inter, diff, compare, equal, subset, optimize for full subtries, by keeping cardinality as well as digest as synthetic data ? *)
   let union a b = T.merge (fun _ _ _ -> Some ()) a b

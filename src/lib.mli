@@ -261,12 +261,8 @@ module type MapS = sig
 
   (** Zipping through a Map *)
   type (+'a) step
-  val step_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
-    'a step -> ('a*int) -> ('a*int)
   val step_map : ('a -> 'b) -> 'a step -> 'b step
   type (+'a) path
-  val path_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
-    'a path -> ('a*int) -> ('a*int)
   val path_map: ('a -> 'b) -> 'a path -> 'b path
 
   exception Inconsistent_path
@@ -429,7 +425,7 @@ module type MapS = sig
   *)
   val split: key -> t -> t * value option * t
 
-  (* Unimplemented from the standard library's map
+  (* 4.07.0 and later
      val to_seq : t -> (key * value) Seq.t
      val to_seq_from : key -> t -> (key * value) Seq.t
      val add_seq : (key * value) Seq.t -> t -> t
@@ -443,6 +439,8 @@ end
 
 val defaulting_lens : (unit -> 'b) -> ('a, 'b) Lens.t -> ('a, 'b) Lens.t
 (** Assuming that the lens raises Not_found if the value is not found, and then using the provided default, modify the value found (or the default) and put it back in the object *)
+
+(*val seq_cat : 'a Seq.t -> 'a Seq.t -> 'a Seq.t*)
 
 module type ShowableS = sig
   type t

@@ -56,7 +56,9 @@ module type TrieS = sig
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
 
-  type (+'a) path = {index: key; height: int; steps: 'a step list}
+  type costep = { height: int ; index: key }
+
+  type (+'a) path = {costep: costep; steps: 'a step list}
 
   include MapS
     with type key := key
