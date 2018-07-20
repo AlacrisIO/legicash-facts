@@ -15,6 +15,8 @@ contract Facilitators {
 
   function withdraw(address facilitator, uint64 ticket, uint _bond, bytes32 _confirmed_state) public {
     emit Withdrawal(facilitator, ticket);
+    _bond+0;
+    _confirmed_state[0];
     // msg.sender.transfer(_value + _bond);
   }
 }

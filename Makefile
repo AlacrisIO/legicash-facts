@@ -33,7 +33,7 @@ hello_legicash : legicash_lib
 	$(HIDE) $(BUILDER) build --root=src hello_legicash.exe
 
 install : legicash_lib
-ifeq ($(shell ocamlfind query -qe legicash),)
+ifeq ($(shell ocamlfind query -qe legicash 2> /dev/null),)
 	$(SHOW) "Installing Legicash library to OPAM"
 	@ ./scripts/mk-opam-install.sh
 	@ opam pin -y add legicash . -n
@@ -43,7 +43,7 @@ else
 endif
 
 uninstall :
-ifneq ($(shell ocamlfind query -qe legicash),)
+ifneq ($(shell ocamlfind query -qe legicash 2> /dev/null),)
 	$(SHOW) "Uninstalling Legicash library from OPAM"
 	@ opam uninstall legicash
 	@ opam pin remove legicash
@@ -89,4 +89,4 @@ contract: src/facilitator_contract_binary.ml
 
 src/facilitator_contract_binary.ml : contracts/deposit-withdraw.sol
 	$(SHOW) "Compiling facilitator contract"
-	$(HIDE) solc --bin $< | tail -n +4 | awk '{ printf ("let facilitator_contract = Bytes.of_string \"%s\"\n",$$1); }' > $@
+	$(HIDE) solc --bin $< | tail -n +4 | awk '{ printf ("let facilitator_contract = Bytes.of_string \"%s\"\n",$$1); }' > $@.tmp && mv -f $@.tmp $@

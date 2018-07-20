@@ -4,4 +4,6 @@ tezos
 *~
 *.cmo
 *.cmi
+*.tmp
 geth-data
+src/facilitator_contract_binary.ml
