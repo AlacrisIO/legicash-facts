@@ -171,8 +171,8 @@ module State = struct
       Revision.marshal buffer t.facilitator_revision;
       TokenAmount.marshal buffer t.spending_limit;
       TokenAmount.marshal buffer t.bond_posted;
-      (* AccountMap. TODO *)
-      (* ConfirmationMap. TODO *)
+      Marshaling.marshal_any buffer t.accounts; (* TODO: store node-by-node *)
+      Marshaling.marshal_any buffer t.operations; (* TODO: ditto *)
       let num_elements = DigestSet.cardinal t.main_chain_transactions_posted in
       UInt64.marshal buffer (UInt64.of_int num_elements);
       DigestSet.iter
@@ -191,8 +191,12 @@ module State = struct
         TokenAmount.unmarshal ~start:facilitator_revision_offset bytes in
       let bond_posted,bond_posted_offset =
         TokenAmount.unmarshal ~start:spending_limit_offset bytes in
+      let accounts,accounts_offset =
+        Marshaling.unmarshal_any ~start:bond_posted_offset bytes in
+      let operations,operations_offset =
+        Marshaling.unmarshal_any ~start:accounts_offset bytes in
       let num_elements64,num_elements64_offset =
-        UInt64.unmarshal ~start:bond_posted_offset bytes in
+        UInt64.unmarshal ~start:operations_offset bytes in
       let num_elements = UInt64.to_int num_elements64 in
       let rec get_digest_set_elements count set offset =
         if count >= num_elements then
@@ -209,8 +213,8 @@ module State = struct
         ; facilitator_revision
         ; spending_limit
         ; bond_posted
-        ; accounts = Obj.magic 42 (* TODO *)
-        ; operations = Obj.magic 42 (* TODO *)
+        ; accounts
+        ; operations
         ; main_chain_transactions_posted
         }
         ,
@@ -311,9 +315,9 @@ module FacilitatorState = struct
       (* use tag to mark option *)
       begin
         match t.previous with
-        | None -> Buffer.add_char buffer 'N'
+        | None -> Marshaling.marshal_char buffer 'N'
         | Some state ->
-          Buffer.add_char buffer 'S';
+          Marshaling.marshal_char buffer 'S';
           State.marshal buffer state
       end;
       State.marshal buffer t.current;
@@ -340,6 +344,8 @@ module FacilitatorState = struct
        },
        final_offset)
   end
+
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t) action
@@ -371,3 +377,34 @@ exception Invalid_operation of Operation.t
 let one_second = Duration.of_int 1000000000
 
 let challenge_duration = Duration.mul one_second (Duration.of_int 7200)
+
+module Test = struct
+
+  open Keypair.Test
+
+  (* a sample facilitator state *)
+
+  let trent_fee_schedule : FacilitatorFeeSchedule.t =
+    { deposit_fee= TokenAmount.of_int 5
+    ; withdrawal_fee= TokenAmount.of_int 5
+    ; per_account_limit= TokenAmount.of_int 20000
+    ; fee_per_billion= TokenAmount.of_int 42 }
+
+  let confirmed_trent_state =
+    State.{ previous_main_chain_state= Digest.zero
+          ; previous_side_chain_state= Digest.one
+          ; facilitator_revision= Revision.of_int 0
+          ; spending_limit= TokenAmount.of_int 1000000
+          ; bond_posted= TokenAmount.of_int 5000000
+          ; accounts= AccountMap.empty
+          ; operations= ConfirmationMap.empty
+          ; main_chain_transactions_posted= DigestSet.empty }
+
+  let trent_state =
+    let open FacilitatorState in
+    { keypair= trent_keys
+    ; previous= None
+    ; current= confirmed_trent_state
+    ; fee_schedule= trent_fee_schedule }
+
+end

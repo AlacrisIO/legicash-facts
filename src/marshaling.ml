@@ -21,8 +21,10 @@ let unmarshal_of_sized_of_string num_bytes of_string ?start:(start=0) b =
   let s = Bytes.sub_string b start num_bytes in
   (of_string s, start + num_bytes)
 
+let default_buffer_size = 256
+
 let marshal_bytes_of_marshal marshal x =
-  let buffer = Buffer.create 256 in
+  let buffer = Buffer.create default_buffer_size in
   marshal buffer x ;
   Buffer.to_bytes buffer
 
@@ -31,9 +33,16 @@ let unmarshal_bytes_of_unmarshal (unmarshal: 'value unmarshaler) buffer =
   assert (length = Bytes.length buffer) ;
   value
 
-let marshal_string_of_any v = Marshal.to_string v [Marshal.Compat_32]
+let marshal_string_of_marshal marshal x =
+  let buffer = Buffer.create default_buffer_size in
+  marshal buffer x ;
+  Buffer.contents buffer
 
-let marshal_bool b bool = Buffer.add_char b (if bool then '\001' else '\000')
+let marshal_string_of_any value = Marshal.to_string value [Marshal.Compat_32]
+
+let marshal_char buffer ch = Buffer.add_char buffer ch
+
+let marshal_bool buffer bool = marshal_char buffer (if bool then '\001' else '\000')
 
 let unmarshal_not_implemented ?start:(_start=0) _bytes = bottom ()
 

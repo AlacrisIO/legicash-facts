@@ -68,8 +68,8 @@ module Marshalable = struct
 
   let unmarshal ?(start=0) bytes =
     let fill_buffer buffer offset len =
-      for ndx = offset to offset + len - 1 do
-        Array1.set buffer ndx (Bytes.get bytes ndx)
+      for ndx = 0 to len - 1 do
+        Array1.set buffer ndx (Bytes.get bytes (ndx + offset))
       done
     in
     let private_buffer = Array1.create char c_layout private_key_length in
@@ -80,7 +80,7 @@ module Marshalable = struct
       | Error s -> raise (Internal_error ("Could not unmarshal private key: " ^ s))
     in
     let public_buffer = Array1.create char c_layout public_key_length in
-    let _ = fill_buffer private_buffer (start + private_key_length) public_key_length in
+    let _ = fill_buffer public_buffer (start + private_key_length) public_key_length in
     let public_key =
       match Secp256k1.Key.read_pk secp256k1_ctx public_buffer with
       | Ok key -> key

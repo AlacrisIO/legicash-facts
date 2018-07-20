@@ -16,6 +16,7 @@ module type DigestibleS = sig
   include MarshalableS
   val marshal_bytes : t -> Bytes.t
   val unmarshal_bytes : Bytes.t -> t
+  val marshal_string : t -> string
   val digest : t -> t digest
 end
 

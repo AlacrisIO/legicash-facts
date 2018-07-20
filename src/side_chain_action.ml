@@ -198,7 +198,7 @@ let confirm_request : (Request.t signed, Confirmation.t signed) facilitator_acti
     ^>> make_request_confirmation
     ^>> fun (updated_facilitator_state, signed_confirmation) ->
       try
-        Side_chain_db.log_facilitator_state updated_facilitator_state;
+        Side_chain_db.save_facilitator_state updated_facilitator_state;
         (updated_facilitator_state,Ok signed_confirmation)
       with _ ->
         (* if logging failed, return input facilitator state, error *)
@@ -444,6 +444,7 @@ module Test = struct
   open Lwt
   open Keypair.Test
   open Ethereum_transaction.Test
+  open Side_chain.Test
 
   (* open account tests *)
 
@@ -460,29 +461,6 @@ module Test = struct
     {main_chain_user_state; facilitators}
 
   let alice_state = create_side_chain_user_state_for_testing alice_keys
-
-  let trent_fee_schedule : FacilitatorFeeSchedule.t =
-    { deposit_fee= TokenAmount.of_int 5
-    ; withdrawal_fee= TokenAmount.of_int 5
-    ; per_account_limit= TokenAmount.of_int 20000
-    ; fee_per_billion= TokenAmount.of_int 42 }
-
-  let confirmed_trent_state =
-    State.{ previous_main_chain_state= Digest.zero
-          ; previous_side_chain_state= Digest.one
-          ; facilitator_revision= Revision.of_int 0
-          ; spending_limit= TokenAmount.of_int 1000000
-          ; bond_posted= TokenAmount.of_int 5000000
-          ; accounts= AccountMap.empty
-          ; operations= ConfirmationMap.empty
-          ; main_chain_transactions_posted= DigestSet.empty }
-
-  let trent_state =
-    let open FacilitatorState in
-    { keypair= trent_keys
-    ; previous= None
-    ; current= confirmed_trent_state
-    ; fee_schedule= trent_fee_schedule }
 
   let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | _state, Error y -> raise y
   (* Lwt-monadic version of |^>> *)
@@ -660,10 +638,12 @@ module Test = struct
       return true
     )
 
-  (* TODO: uncomment when we have working withdrawal on main chain
-     (* deposit and withdrawal test *)
-     let%test "withdrawal_valid" =
-     Lwt_main.run (
+  (* deposit and withdrawal test *)
+  let%test "withdrawal_valid" =
+    Lwt_main.run (
+      (* previous test installs contract on test net *)
+      unlock_account alice_keys.address
+      >>= fun _ ->
       (* deposit some funds first *)
       let amount_to_deposit = TokenAmount.of_int 1023 in
       (* deposit *)
@@ -671,7 +651,7 @@ module Test = struct
       |^>>+ deposit
       >>= fun (alice_state1, signed_request1) ->
       (trent_state, signed_request1) |^>> confirm_request
-      |> fun (trent_state1, signed_confirmation1) ->
+      |> fun (trent_state1, _signed_confirmation1) ->
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
       let alice_account = AccountMap.find alice_address trent_accounts in
@@ -692,6 +672,6 @@ module Test = struct
       (* TODO: get actual transaction receipt from main chain, check receipt
          maybe this test belongs in Ethereum_transactions
       *)
-      >>= fun json -> return true
-     ) *)
+      >>= fun _ -> return true
+    )
 end

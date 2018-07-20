@@ -9,7 +9,7 @@ PROJECT_NAME := endpoints
 SERVER_FILES := $(wildcard *.eliomi *.eliom)
 
 # OCamlfind packages for the server
-SERVER_PACKAGES := base64 cstruct integers lwt.ppx ppx_deriving_yojson js_of_ocaml-ppx.deriving secp256k1 ppx_inline_test cohttp-lwt-unix lens
+SERVER_PACKAGES := base64 cstruct integers leveldb lwt.ppx ppx_deriving_yojson js_of_ocaml-ppx.deriving secp256k1 ppx_inline_test cohttp-lwt-unix lens
 
 # Directory with files to be statically served
 LOCAL_STATIC = static

@@ -279,6 +279,7 @@ module FacilitatorState : sig
            ; fee_schedule: FacilitatorFeeSchedule.t
            } [@@deriving lens]
   module Marshalable : MarshalableS
+  include DigestibleS with type t := t
 end
 
 (** function from 'a to 'b that acts on a facilitator_state *)
@@ -316,3 +317,8 @@ exception Invalid_confirmation
 exception Invalid_operation of Operation.t
 
 val challenge_duration : Duration.t
+
+module Test : sig
+  val trent_state : FacilitatorState.t
+  (** sample facilitator state for testing *)
+end

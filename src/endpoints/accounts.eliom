@@ -180,11 +180,60 @@ let store_keys_on_testnet (name,keys) =
 
 (* prepare test network with accounts, contract *)
 
+let create_side_chain_user_state user_keys =
+  let main_chain_user_state =
+    { keypair= user_keys
+    ; confirmed_state= Digest.zero
+    ; confirmed_balance= TokenAmount.zero
+    ; pending_transactions= []
+    ; nonce= Nonce.zero }
+  in
+  let (new_account_state : AccountState.t) = {balance= TokenAmount.zero; account_revision= Revision.zero} in
+  let (user_account_state : UserAccountStatePerFacilitator.t) =
+    {facilitator_validity= Confirmed; confirmed_state= new_account_state; pending_operations= []}
+  in
+  let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
+  {main_chain_user_state; facilitators}
+
+let trent_fee_schedule : FacilitatorFeeSchedule.t =
+  { deposit_fee= TokenAmount.of_int 5
+  ; withdrawal_fee= TokenAmount.of_int 5
+  ; per_account_limit= TokenAmount.of_int 20000
+  ; fee_per_billion= TokenAmount.of_int 42 }
+
+let (confirmed_trent_state : Side_chain.State.t) =
+  { previous_main_chain_state= Digest.zero
+  ; previous_side_chain_state= Digest.one
+  ; facilitator_revision= Revision.of_int 17
+  ; spending_limit= TokenAmount.of_int 1000000
+  ; bond_posted= TokenAmount.of_int 5000000
+  ; accounts= AccountMap.empty
+  ; operations= ConfirmationMap.empty
+  ; main_chain_transactions_posted= Trie.DigestSet.empty }
+
+let trent_genesis_state : FacilitatorState.t =
+  { keypair= trent_keys
+  ; previous= None
+  ; current= confirmed_trent_state
+  ; fee_schedule= trent_fee_schedule }
+
+let trent_state = ref trent_genesis_state
+
+let load_trent_state () =
+  Printf.printf "Loading facilitator state...%!";
+  try
+    let facilitator_state = Side_chain_db.retrieve_facilitator_state trent_keys in
+    Printf.printf "done\n%!";
+    trent_state := facilitator_state
+  with _ ->
+    Printf.printf "No saved facilitator state found, using genesis state\n%!"
+
 let _ =
   let open Lwt in
   (* for top-level operations, don't use Lwt_main.run
      not needed, may cause deadlock *)
-  Printf.printf "*** PREPARING NETWORK, PLEASE WAIT ***\n%!";
+  Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
+  load_trent_state ();
   Lwt_list.iter_s store_keys_on_testnet account_key_list
   >>= fun () ->
   store_keys_on_testnet ("Trent",trent_keys)
@@ -206,42 +255,3 @@ let _ =
   >>= fun () ->
   Printf.printf "*** READY ***\n%!";
   return ()
-
-let create_side_chain_user_state user_keys =
-  let main_chain_user_state =
-    { keypair= user_keys
-    ; confirmed_state= Digest.zero
-    ; confirmed_balance= TokenAmount.zero
-    ; pending_transactions= []
-    ; nonce= Nonce.zero }
-  in
-  let (new_account_state : AccountState.t) = {balance= TokenAmount.zero; account_revision= Revision.zero} in
-  let (user_account_state : UserAccountStatePerFacilitator.t) =
-    {facilitator_validity= Confirmed; confirmed_state= new_account_state; pending_operations= []}
-  in
-  let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
-  {main_chain_user_state; facilitators}
-
-let trent_fee_schedule =
-  { deposit_fee= TokenAmount.of_int 5
-  ; withdrawal_fee= TokenAmount.of_int 5
-  ; per_account_limit= TokenAmount.of_int 20000
-  ; fee_per_billion= TokenAmount.of_int 42 }
-
-let (confirmed_trent_state : Side_chain.State.t) =
-  { previous_main_chain_state= Digest.zero
-  ; previous_side_chain_state= Digest.one
-  ; facilitator_revision= Revision.of_int 17
-  ; spending_limit= TokenAmount.of_int 1000000
-  ; bond_posted= TokenAmount.of_int 5000000
-  ; accounts= AccountMap.empty
-  ; operations= ConfirmationMap.empty
-  ; main_chain_transactions_posted= Trie.DigestSet.empty }
-
-let trent_initial_state =
-  { keypair= trent_keys
-  ; previous= None
-  ; current= confirmed_trent_state
-  ; fee_schedule= trent_fee_schedule }
-
-let trent_state = ref trent_initial_state

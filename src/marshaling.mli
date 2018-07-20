@@ -20,7 +20,14 @@ val marshal_bytes_of_marshal : 'a marshaler -> 'a -> Bytes.t
 
 val unmarshal_bytes_of_unmarshal : 'a unmarshaler -> Bytes.t -> 'a
 
+val marshal_string_of_marshal : 'a marshaler -> 'a -> string
+
+(* val marshal_any : 'a marshaler (* Do not use in production: only for demos and temporary cut-throughs *)
+val unmarshal_any : 'a unmarshaler (* ditto *)
+*)
 val marshal_bool : bool marshaler
+
+val marshal_char : char marshaler
 
 val unmarshal_not_implemented : 'a unmarshaler
 
