@@ -168,13 +168,16 @@ module type MapS = sig
 
   (** Zipping through a Map *)
   type (+'a) step
-  val step_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
-    'a step -> ('a*int) -> ('a*int)
   val step_map : ('a -> 'b) -> 'a step -> 'b step
   type (+'a) path
-  val path_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
-    'a path -> ('a*int) -> ('a*int)
   val path_map: ('a -> 'b) -> 'a path -> 'b path
+
+  (* Flesh it out?
+     type (+'a) unstep
+     type (+'a) costep
+     val step_apply : 'a unstep -> 'a step -> ('a * 'a costep) -> ('a * 'a costep)
+     val path_apply : 'a unstep -> 'a path -> ('a * 'a costep) -> ('a * 'a costep)
+  *)
 
   exception Inconsistent_path
 
@@ -214,21 +217,11 @@ module type MapS = sig
   val compare: (value -> value -> int) -> t -> t -> int
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  val iterate_over_tree_pair:
-    recursek:(i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o) ->
-    branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> k:('r -> 'o) -> 'o) ->
-    skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r ->
-           k:('r -> 'o) -> 'o) ->
-    leafk:(i:key -> valuea:value -> valueb:value -> k:('r -> 'o) -> 'o) ->
-    onlyak:(i:key -> anode:t -> k:('r -> 'o) -> 'o) ->
-    onlybk:(i:key -> bnode:t -> k:('r -> 'o) -> 'o) ->
-    i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o
-
   (* Splitting a map *)
   val partition: (key -> value -> bool) -> t -> t * t
   val split: key -> t -> t * value option * t
 
-  (* Unimplemented from the standard library's map
+  (* 4.07.0 and later
      val to_seq : t -> (key * value) Seq.t
      val to_seq_from : key -> t -> (key * value) Seq.t
      val add_seq : (key * value) Seq.t -> t -> t
@@ -241,6 +234,10 @@ end
 
 let defaulting_lens default lens =
   Lens.{get= (fun x -> try lens.get x with Not_found -> default ()); set= lens.set}
+
+(*let seq_cat a b () = match a () with
+  | Nil -> b ()
+  | Cons x a' -> Cons x (seq_cat a' b)*)
 
 module type ShowableS = sig
   type t

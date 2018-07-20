@@ -28,11 +28,7 @@ module Confirmation = struct
            ; transaction_index: Unsigned.UInt64.t
            ; block_number: Revision.t
            ; block_hash: Digest.t }
-  module Marshalable : (MarshalableS with type t = t) = struct
-    type nonrec t = t
-    let marshal = marshal_any
-    let unmarshal = unmarshal_not_implemented
-  end
+  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 
@@ -51,11 +47,7 @@ module TxHeader = struct
            ; gas_limit: TokenAmount.t
            ; value: TokenAmount.t }
   [@@deriving lens]
-  module Marshalable : (MarshalableS with type t = t) = struct
-    type nonrec t = t
-    let marshal = marshal_any
-    let unmarshal = unmarshal_not_implemented
-  end
+  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 
@@ -64,11 +56,7 @@ module Operation = struct
     | TransferTokens of Address.t
     | CreateContract of Bytes.t
     | CallFunction of Address.t * Bytes.t
-  module Marshalable : (MarshalableS with type t = t) = struct
-    type nonrec t = t
-    let marshal = marshal_any
-    let unmarshal = unmarshal_not_implemented
-  end
+  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 
@@ -76,21 +64,13 @@ end
 (** Transaction (to be) posted to the main chain (i.e. Ethereum) *)
 module Transaction = struct
   type t = {tx_header: TxHeader.t; operation: Operation.t} [@@deriving lens]
-  module Marshalable : (MarshalableS with type t = t) = struct
-    type nonrec t = t
-    let marshal = marshal_any
-    let unmarshal = unmarshal_not_implemented
-  end
+  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 
 module TransactionSigned = struct
   type t = Transaction.t signed
-  module Marshalable : (MarshalableS with type t = t) = struct
-    type nonrec t = t
-    let marshal = marshal_any
-    let unmarshal = unmarshal_not_implemented
-  end
+  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
 

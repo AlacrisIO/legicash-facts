@@ -65,7 +65,8 @@
   [Security Audit by QuantStamp](https://quantstamp.com/start),
   [Towards verifying ethereum smart contract bytecode in Isabelle/HOL](https://dl.acm.org/citation.cfm?doid=3176245.3167084),
   [the Parity Light Protocol](https://wiki.parity.io/The-Parity-Light-Protocol-%28PIP%29)
-  (PR for similar light client functionality [in geth](https://github.com/ethereum/go-ethereum/pull/16534/files)).
+  (PR for similar light client functionality [in geth](https://github.com/ethereum/go-ethereum/pull/16534/files)),
+  [Consensys Labs' Ethereum developer tools list](https://github.com/ConsenSysLabs/ethereum-developer-tools-list).
 
 * Compiling to the EVM:
   [Pirapira's Bamboo](https://github.com/pirapira/bamboo).
@@ -74,7 +75,8 @@
   [Scilla-coq](https://github.com/ilyasergey/scilla-coq)
   (see paper [Scilla: a Smart Contract Intermediate-Level LAnguage](http://ilyasergey.net/papers/scilla-overview.pdf)),
   [TezosCoq](https://github.com/tezos/tezoscoq),
-  [Ergo](https://ergo.readthedocs.io/en/latest/Overview.html).
+  [Ergo](https://ergo.readthedocs.io/en/latest/Overview.html),
+  [Russell O'Connor: "Simplicity: A New Language for Blockchains"](https://arxiv.org/abs/1711.03028).
 
 * Atomic swaps:
   [Ethereum atomic swaps with Bitcoin and most other coins, about to hit release](https://www.reddit.com/r/ethereum/comments/865e0l/ethereum_atomic_swaps_with_bitcoin_and_most_other/),

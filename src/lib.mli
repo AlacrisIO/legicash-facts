@@ -261,12 +261,8 @@ module type MapS = sig
 
   (** Zipping through a Map *)
   type (+'a) step
-  val step_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
-    'a step -> ('a*int) -> ('a*int)
   val step_map : ('a -> 'b) -> 'a step -> 'b step
   type (+'a) path
-  val path_apply : (int -> 'a -> 'a -> 'a) -> (int -> int -> key -> 'a -> 'a) ->
-    'a path -> ('a*int) -> ('a*int)
   val path_map: ('a -> 'b) -> 'a path -> 'b path
 
   exception Inconsistent_path
@@ -358,58 +354,6 @@ module type MapS = sig
       the data associated with the keys. *)
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  (** [iterate_over_tree_pair ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k]
-      Describes a recursive computation over a pair of trees in great generality,
-      using continuation-passing style. This style allows the calculation to
-      abort and return the calculation result if it has been determined before
-      the last node of the tree is visited, or continue processing other nodes
-      if necessary.
-
-      The following are caller-specified types:
-
-      - ['r]: type for (total or partial) synthesized result of the computation for the trie of a subtrie.
-
-      - ['o]: return type of the outer continuation of iterate_over_matching_tree_pair itself.
-
-      Inputs:
-
-      - [recursek ~i ~treea ~treeb ~k]: Result from recursing into the [i]th nodes of
-      [treea] and [treeb].
-
-      - [branchk ~i ~height ~leftr ~rightr ~k]: Result from recursing down both
-      branches from node [i] at specified [height], given results [leftr] and
-      [rightr] from the two children of that node.
-
-      - [skipk ~i ~height ~length ~bits ~childr ~k]: Result from recursing
-      down [length] skipped children of node [i], given that the result from
-      extant child of the skipped nodes, with further skipped bits [bits], is [childr].
-
-      - [leafk ~i ~valuea ~valueb ~k]: Result from comparing two leaf nodes at
-      index [i], with values [valuea] and [valueb].
-
-      - [onlyak ~i ~anode ~k]: Result given that [i]th node [anode] is only
-      explicitly present in the first tree argument, [treea].
-
-      - [onlybk ~i ~bnode ~k]: Like [onlyak], mutatis mutandis.
-
-      - [i]: Prefix index of [treea], [treeb] nodes.
-
-      - [treea], [treeb]: The two input trees.
-
-      - [k]: Continuation called on the result of the above recursion, to
-      (eventually) produce the final result.
-
-  *)
-  val iterate_over_tree_pair:
-    recursek:(i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o) ->
-    branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> k:('r -> 'o) -> 'o) ->
-    skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r ->
-           k:('r -> 'o) -> 'o) ->
-    leafk:(i:key -> valuea:value -> valueb:value -> k:('r -> 'o) -> 'o) ->
-    onlyak:(i:key -> anode:t -> k:('r -> 'o) -> 'o) ->
-    onlybk:(i:key -> bnode:t -> k:('r -> 'o) -> 'o) ->
-    i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o
-
   (* Splitting a map *)
 
   (** [partition p m] returns a pair of maps [(m1, m2)], where
@@ -429,7 +373,7 @@ module type MapS = sig
   *)
   val split: key -> t -> t * value option * t
 
-  (* Unimplemented from the standard library's map
+  (* 4.07.0 and later
      val to_seq : t -> (key * value) Seq.t
      val to_seq_from : key -> t -> (key * value) Seq.t
      val add_seq : (key * value) Seq.t -> t -> t
@@ -443,6 +387,8 @@ end
 
 val defaulting_lens : (unit -> 'b) -> ('a, 'b) Lens.t -> ('a, 'b) Lens.t
 (** Assuming that the lens raises Not_found if the value is not found, and then using the provided default, modify the value found (or the default) and put it back in the object *)
+
+(*val seq_cat : 'a Seq.t -> 'a Seq.t -> 'a Seq.t*)
 
 module type ShowableS = sig
   type t

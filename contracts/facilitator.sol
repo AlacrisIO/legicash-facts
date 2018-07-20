@@ -6,20 +6,6 @@ import "claimtypes.sol";
 import "bonds.sol";
 import "ethereum-blocks.sol";
 
-// TODO: For patricia tree verification, import code from:
-//   https://github.com/chriseth/patricia-trie
-//   https://github.com/ethereum/solidity-examples
-
-// TODO: For ethereum block verification, have part of the contract consist in validating
-// a patricia tree of Ethereum blocks, with a recent one (directly checkable) as root,
-// and all the subsequent ones verifiably linking each to its parent.
-
-// TODO: make sure to only use abi.encodePacked if (1) it's cheaper than RLP, and
-// (2a) it's for things we create in this contract that do not interface with RLP encoded
-// data on the blockchain, or (2b) it's actually encoding parameters for contract calls,
-// for which encodePacked was meant. Otherwise, use RLP.sol.
-
-
 /**
  * Contract for a number of facilitator using the same court registry
  */
@@ -27,18 +13,12 @@ contract Facilitators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // DEPOSITS
     //
-    // NB: We do NOT need a deposit function that is called to deposit money.
-    // Instead, depositors will do a transfer transaction to the contract's address.
-    // When the transaction is confirmed, they can credit their account on the side-chain.
-    // A transfer done by a contract isn't valid (it's just free money sent to the contract).
-    // A valid deposit must be done as a transfer transaction.
-    // This constraint allows for much lower GAS costs for the same guarantee.
+    // See facilitator-fallback.sol for an alternate strategy for deposits, not currently implemented.
+    // Question: should we allow the depositor to specify the recipient as well, for a few extra GAS?
     //
-    //event Deposited(address _recipient, uint _value, bytes memo);
-    //function deposit(bytes memo) public {
-    //    emit Deposited(msg.sender, msg.value, memo);
-    //}
-    function() public payable {
+    event Deposited(address _facilitator, address _recipient, uint _value, bytes memo);
+    function deposit(address _facilitator, bytes memo) public payable {
+            emit Deposited(_facilitator, msg.sender, msg.value, memo);
     }
 
     // STATE UPDATE
@@ -48,7 +28,8 @@ contract Facilitators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     //     bytes32 _new_state; // new state of the side-chain
     // }
 
-    function claim_state_update(bytes32 _new_state) public {
+    /* TODO: include a bond with this and every claim */
+    function claim_state_update(bytes32 _new_state) public payable {
         make_claim(keccak256(abi.encodePacked(ClaimType.STATE_UPDATE, msg.sender, _new_state)));
     }
 

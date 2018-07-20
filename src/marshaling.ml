@@ -33,10 +33,12 @@ let unmarshal_bytes_of_unmarshal (unmarshal: 'value unmarshaler) buffer =
 
 let marshal_string_of_any v = Marshal.to_string v [Marshal.Compat_32]
 
-let marshal_any b v =
-  Buffer.add_string b (marshal_string_of_any v)
-[@@deprecated "Use marshal_any only as a stopgap for demos and testing."]
-
 let marshal_bool b bool = Buffer.add_char b (if bool then '\001' else '\000')
 
 let unmarshal_not_implemented ?start:(_start=0) _bytes = bottom ()
+
+module OCamlMarshaling (Type: T) = struct
+  include Type
+  let marshal b v = Buffer.add_string b (marshal_string_of_any v)
+  let unmarshal = unmarshal_not_implemented
+end

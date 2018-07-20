@@ -24,11 +24,7 @@ type memo = string option
 
 module Invoice = struct
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: memo} [@@deriving lens]
-  module Marshalable = struct
-    type nonrec t = t
-    let marshal = marshal_any
-    let unmarshal = unmarshal_not_implemented
-  end
+  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
@@ -150,6 +146,7 @@ module AccountState = struct
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
+(* Module for Maps from Side_chain.TxHeader.tx_revision to (unsigned) Confirmation *)
 module ConfirmationMap = MerkleTrie (Revision) (Confirmation)
 
 module AccountMap = MerkleTrie (Address) (AccountState)
@@ -164,11 +161,7 @@ module State = struct
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens]
-  module Marshalable = struct
-    type nonrec t = t
-    let marshal = marshal_any
-    let unmarshal = unmarshal_not_implemented
-  end
+  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
