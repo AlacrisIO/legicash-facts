@@ -217,16 +217,6 @@ module type MapS = sig
   val compare: (value -> value -> int) -> t -> t -> int
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  val iterate_over_tree_pair:
-    recursek:(i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o) ->
-    branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> k:('r -> 'o) -> 'o) ->
-    skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r ->
-           k:('r -> 'o) -> 'o) ->
-    leafk:(i:key -> valuea:value -> valueb:value -> k:('r -> 'o) -> 'o) ->
-    onlyak:(i:key -> anode:t -> k:('r -> 'o) -> 'o) ->
-    onlybk:(i:key -> bnode:t -> k:('r -> 'o) -> 'o) ->
-    i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o
-
   (* Splitting a map *)
   val partition: (key -> value -> bool) -> t -> t * t
   val split: key -> t -> t * value option * t

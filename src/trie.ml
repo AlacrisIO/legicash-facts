@@ -70,6 +70,19 @@ module type TrieS = sig
 
   type (+'a) path = {costep: costep; steps: 'a step list}
 
+  (** Apply a step *)
+  type 'a unstep =
+    { unstep_left: key -> int -> 'a -> 'a -> 'a
+    ; unstep_right: key -> int -> 'a -> 'a -> 'a
+    ; unstep_skip: key -> int -> int -> key -> 'a -> 'a }
+
+  val symmetric_unstep:
+    branch:(key -> int -> 'a -> 'a -> 'a) ->
+    skip:(key -> int -> int -> key -> 'a -> 'a) -> 'a unstep
+
+  val step_apply : 'a unstep -> ('a * costep) -> 'a step -> ('a * costep)
+  val path_apply : 'a unstep -> 'a -> 'a path -> ('a * costep)
+
   include MapS
     with type key := key
      and type value := value
@@ -86,6 +99,24 @@ module type TrieS = sig
   val step_length : 'a step -> int
   val check_path_consistency : 'a path -> bool
 
+  val iterate_over_tree: (* See [iterate_over_tree] docstring in [trie.mli] *)
+    recursek:(i:key -> tree:t -> k:('r -> 'o) -> 'o) ->
+    branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> k:('r -> 'o) -> 'o) ->
+    skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r ->
+           k:('r -> 'o) -> 'o) ->
+    leafk:(i:key -> value:value -> k:('r -> 'o) -> 'o) ->
+    emptyk:(k:('r -> 'o) -> 'o) ->
+    i:key -> tree:t -> k:('r -> 'o) -> 'o
+
+  val iterate_over_tree_pair:
+    recursek:(i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o) ->
+    branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> k:('r -> 'o) -> 'o) ->
+    skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r ->
+           k:('r -> 'o) -> 'o) ->
+    leafk:(i:key -> valuea:value -> valueb:value -> k:('r -> 'o) -> 'o) ->
+    onlyak:(i:key -> anode:t -> k:('r -> 'o) -> 'o) ->
+    onlybk:(i:key -> bnode:t -> k:('r -> 'o) -> 'o) ->
+    i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o
 end
 
 (* TODO: an interface to nodes in batch that reduces the amount of unnecessary hashing?
@@ -339,6 +370,22 @@ module Trie (Key : IntS) (Value : T)
     in
     m Key.zero t
 
+  let iterate_over_tree (* See [iterate_over_tree] docstring in [trie.mli] *)
+        ~recursek ~branchk ~skipk ~leafk ~emptyk ~i ~tree ~k =
+    match tree with
+    | Empty -> emptyk ~k
+    | Leaf {value} -> leafk ~i ~value:value ~k
+    | Branch {left; right; height} ->
+      recursek ~i ~tree:left
+        ~k:(fun left ->
+          recursek ~i:(right_index i height) ~tree:right
+            ~k:(fun right ->
+              branchk ~i ~height ~leftr:left ~rightr:right ~k))
+    | Skip {child;bits;length;height} ->
+      let child_index = skip_index i bits length height in
+      recursek ~i:child_index ~tree:child
+        ~k:(fun child -> skipk ~i ~height ~length ~bits ~childr:child ~k)
+
   let foldlk f trie acc k =
     let rec frec index acc k = function
       | Empty -> k acc
@@ -511,7 +558,7 @@ module Trie (Key : IntS) (Value : T)
     ; unstep_right: key -> int -> 'a -> 'a -> 'a
     ; unstep_skip: key -> int -> int -> key -> 'a -> 'a }
 
-  let symmetric_unstep ~branch ~skip () =
+  let symmetric_unstep ~branch ~skip =
     { unstep_left=branch
     ; unstep_right=branch
     ; unstep_skip=skip }
@@ -544,7 +591,7 @@ module Trie (Key : IntS) (Value : T)
 
   type 'a path = {costep: costep; steps: 'a step list}
 
-  let path_apply unstep {steps} (t, costep) =
+  let path_apply unstep t {costep; steps} =
     List.fold_left (step_apply unstep) (t, costep) steps
 
   let path_map f {costep;steps} =
@@ -568,13 +615,9 @@ module Trie (Key : IntS) (Value : T)
 
   let zip t = (t, {costep={index=Key.zero; height=trie_height t}; steps=[]})
 
-  let unzip (t, path) = match path with
-    | {costep={height} as costep} ->
-      if not (t = Empty || trie_height t = height) then raise Inconsistent_path else
-        fst (path_apply
-               (symmetric_unstep ~branch:(konstant make_branch) ~skip:(konstant make_skip) ())
-               path
-               (t, costep))
+  let unzip =
+    let unstep = symmetric_unstep ~branch:(konstant make_branch) ~skip:(konstant make_skip) in
+    fun (t, path) -> fst (path_apply unstep t path)
 
   let next = function
     | (Empty, _up) -> []
@@ -649,7 +692,7 @@ module Trie (Key : IntS) (Value : T)
     else
       (make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child, Empty)
 
-  let iterate_over_tree_pair (* See [iterate_over_tree_pair] docstring in [lib.mli] *)
+  let iterate_over_tree_pair (* See [iterate_over_tree_pair] docstring in [trie.mli] *)
         ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k =
     match (treea, treeb) with
     | (_, Empty) -> onlyak ~i ~anode:treea ~k
@@ -866,9 +909,9 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
     check_path_consistency path_d
     && let (top_d, {height; index}) =
          path_apply
-           (symmetric_unstep ~branch:(konstant Synth.branch) ~skip:(konstant Synth.skip) ())
-           path_d
-           (Synth.leaf_digest proof.value, {height=0; index=proof.key}) in
+           (symmetric_unstep ~branch:(konstant Synth.branch) ~skip:(konstant Synth.skip))
+           (Synth.leaf_digest proof.value)
+           path_d in
     proof.trie = top_d
     && height >= Key.numbits proof.key
     && Key.sign index = 0
