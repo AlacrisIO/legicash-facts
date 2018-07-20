@@ -228,6 +228,7 @@ module type MerkleTrieS = sig
   val get_proof : key -> t -> proof option
   val check_proof_consistency : proof -> bool
   val json_of_proof : proof -> Yojson.Basic.json
+  include DigestibleS with type t := t
 end
 
 module MerkleTrie (Key : IntS) (Value : DigestibleS) :

@@ -10,6 +10,7 @@ open Crypto
 open Lazy
 open Integer
 open Yojson.Basic.Util
+open Marshaling
 
 module type TreeSynthS = sig
   type value
@@ -874,6 +875,7 @@ module type MerkleTrieS = sig
   val get_proof : key -> t -> proof option
   val check_proof_consistency : proof -> bool
   val json_of_proof : proof -> Yojson.Basic.json
+  include DigestibleS with type t := t
 end
 
 module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
@@ -984,6 +986,12 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
       ]
 
   (* let proof_of_json_string = zcompose proof_of_json Yojson.Basic.from_string *)
+
+  (* TODO: don't use this for persistence; this will be removed once we have node-by-node
+     storage working
+  *)
+  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
+  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 module type MerkleTrieSetS = sig

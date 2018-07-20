@@ -140,9 +140,18 @@ module AccountState = struct
   type t = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
   module Marshalable = struct
     type nonrec t = t
-    let marshal b {balance; account_revision} =
-      TokenAmount.marshal b balance ; Revision.marshal b account_revision
-    let unmarshal = unmarshal_not_implemented
+    let marshal buffer {balance; account_revision} =
+      TokenAmount.marshal buffer balance;
+      Revision.marshal buffer account_revision
+    let unmarshal ?(start=0) bytes =
+      let balance,balance_offset = TokenAmount.unmarshal ~start bytes in
+      let account_revision,final_offset = Revision.unmarshal ~start:balance_offset bytes in
+      ( { balance
+        ; account_revision
+        }
+        ,
+        final_offset
+      )
   end
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
@@ -171,8 +180,8 @@ module State = struct
       Revision.marshal buffer t.facilitator_revision;
       TokenAmount.marshal buffer t.spending_limit;
       TokenAmount.marshal buffer t.bond_posted;
-      Marshaling.marshal_any buffer t.accounts; (* TODO: store node-by-node *)
-      Marshaling.marshal_any buffer t.operations; (* TODO: ditto *)
+      AccountMap.marshal buffer t.accounts; (* TODO: store node-by-node *)
+      ConfirmationMap.marshal buffer t.operations; (* TODO: ditto *)
       let num_elements = DigestSet.cardinal t.main_chain_transactions_posted in
       UInt64.marshal buffer (UInt64.of_int num_elements);
       DigestSet.iter
@@ -192,9 +201,9 @@ module State = struct
       let bond_posted,bond_posted_offset =
         TokenAmount.unmarshal ~start:spending_limit_offset bytes in
       let accounts,accounts_offset =
-        Marshaling.unmarshal_any ~start:bond_posted_offset bytes in
+        AccountMap.unmarshal ~start:bond_posted_offset bytes in
       let operations,operations_offset =
-        Marshaling.unmarshal_any ~start:accounts_offset bytes in
+        ConfirmationMap.unmarshal ~start:accounts_offset bytes in
       let num_elements64,num_elements64_offset =
         UInt64.unmarshal ~start:operations_offset bytes in
       let num_elements = UInt64.to_int num_elements64 in

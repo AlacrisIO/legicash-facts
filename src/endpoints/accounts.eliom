@@ -222,7 +222,7 @@ let trent_state = ref trent_genesis_state
 let load_trent_state () =
   Printf.printf "Loading facilitator state...%!";
   try
-    let facilitator_state = Side_chain_db.retrieve_facilitator_state trent_keys in
+    let facilitator_state = Side_chain_db.retrieve_facilitator_state trent_address in
     Printf.printf "done\n%!";
     trent_state := facilitator_state
   with _ ->

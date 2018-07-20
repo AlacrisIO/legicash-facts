@@ -48,6 +48,9 @@ let unmarshal_not_implemented ?start:(_start=0) _bytes = bottom ()
 
 module OCamlMarshaling (Type: T) = struct
   include Type
-  let marshal b v = Buffer.add_string b (marshal_string_of_any v)
-  let unmarshal = unmarshal_not_implemented
+  let marshal buffer value = Buffer.add_string buffer (marshal_string_of_any value)
+  let unmarshal ?(start=0) buffer =
+    let value = Marshal.from_bytes buffer start in
+    let size = Marshal.total_size buffer start in
+    value, start + size
 end
