@@ -20,7 +20,7 @@ MAINTAINER Paul Steckler <steck@legi.cash>
 
 # Install Ubuntu packages
 RUN apt-get update -y
-RUN apt-get install -y aspcud dh-autoreconf libgmp-dev make nodejs npm opam pkg-config software-properties-common unzip zlib1g-dev
+RUN apt-get install -y aspcud dh-autoreconf libgmp-dev libleveldb-dev libsnappy-dev make nodejs npm opam pkg-config software-properties-common unzip zlib1g-dev
 
 # Install Solidity compiler
 RUN add-apt-repository ppa:ethereum/ethereum
@@ -37,8 +37,8 @@ RUN cd secp256k1 && ./autogen.sh && ./configure --prefix=/usr --enable-module-re
 # Install OPAM packages
 ENV OCAML_VERSION 4.06.1
 RUN opam init -a && opam switch ${OCAML_VERSION}
-RUN opam install -y cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens secp256k1 yojson \
-    ppx_deriving ppx_tools_versioned ppx_core ppx_driver ppx_inline_test ppx_metaquot
+RUN opam install -y cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens leveldb secp256k1 yojson \
+    ppx_deriving ppx_tools_versioned ppx_core ppx_driver ppx_inline_test
 
 # Install geth (Ethereum node)
 ENV GETH_VERSION geth-linux-amd64-1.8.12-37685930
