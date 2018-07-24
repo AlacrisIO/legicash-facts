@@ -6,6 +6,7 @@
 (* A big endian patricia tree maps non-negative integers to values. *)
 open Lib
 open Crypto
+open Marshaling
 
 (** A signature for the computation of a synthesized attribute from a binary tree *)
 module type TreeSynthS = sig
@@ -125,12 +126,13 @@ module type TrieS = sig
       - [k]: Continuation called on the result of the above recursion, to
       (eventually) produce the final result.
   *)
-  val iterate_over_tree: (* See [iterate_over_tree] docstring in [trie.mli] *)
+  val iterate_over_tree:
     recursek:(i:key -> tree:t -> k:('r -> 'o) -> 'o) ->
-    branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> k:('r -> 'o) -> 'o) ->
-    skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r ->
+    branchk:(i:key -> height:int -> leftr:'r -> rightr:'r -> synth:synth ->
+             k:('r -> 'o) -> 'o) ->
+    skipk:(i:key -> height:int -> length:int -> bits:key -> childr:'r -> synth:synth ->
            k:('r -> 'o) -> 'o) ->
-    leafk:(i:key -> value:value -> k:('r -> 'o) -> 'o) ->
+    leafk:(i:key -> value:value -> synth:synth -> k:('r -> 'o) -> 'o) ->
     emptyk:(k:('r -> 'o) -> 'o) ->
     i:key -> tree:t -> k:('r -> 'o) -> 'o
 
@@ -198,6 +200,8 @@ module Trie (Key : IntS) (Value : T)
 module type TrieSynthMerkleS = sig
   include TrieSynthS with type t = Digest.t
   val leaf_digest : t -> t
+  module Marshalable : MarshalableS
+  include DigestibleS with type t := t
 end
 
 (** A module for Merklizing a Trie . *)
@@ -223,12 +227,41 @@ module type MerkleTrieS = sig
     ; value : Digest.t
     ; steps : (Digest.t step) list
     }
+  val empty_key : key
   val trie_digest : t -> Digest.t
   val path_digest : t path -> Digest.t path
   val get_proof : key -> t -> proof option
   val check_proof_consistency : proof -> bool
   val json_of_proof : proof -> Yojson.Basic.json
-  include DigestibleS with type t := t
+  module type MarshalNodeS = sig
+    (* marshaling here means producing a marshaled version of a single node
+
+       subtrees are referred to by their synths ("pointers")
+
+       invariant: a subtree is never Empty
+
+       because we use pointers, we can't unmarshal to produce the original node, except
+        by consulting the database; hence we don't have an instance of Marshalable
+    *)
+
+    type trie = t
+
+    (* like TrieS.t, except subtrees are of type synth, i.e., they are pointers *)
+    type t =
+      | NodeEmpty
+      | NodeLeaf of { value: value; synth: synth }
+      | NodeBranch of { left: synth; right: synth; height: int; synth: synth }
+      | NodeSkip of { child: synth; bits: key; length: int; height: int; synth: synth }
+
+    val marshal_empty : Buffer.t -> unit
+    val marshal_leaf : Buffer.t -> value -> synth -> unit
+    val marshal_branch : Buffer.t -> synth -> synth -> int -> synth -> unit
+    val marshal_skip : Buffer.t -> synth -> key -> int -> int -> synth -> unit
+    val marshal_trie : Buffer.t -> trie -> unit
+    val unmarshal_to_node : ?start:int -> Bytes.t -> t * int
+  end
+
+  module MarshalNode : MarshalNodeS
 end
 
 module MerkleTrie (Key : IntS) (Value : DigestibleS) :

@@ -1,3 +1,5 @@
+(* integer.mli -- various integer modules with common interface *)
+
 module type IntS = sig
   include Unsigned.S
   val z_of: t -> Z.t

@@ -1,7 +1,7 @@
 open Lib
 
 type 'a marshaler = Buffer.t -> 'a -> unit
-type 'a unmarshaler = ?start:int -> Bytes.t -> 'a*int
+type 'a unmarshaler = ?start:int -> Bytes.t -> 'a * int
 
 module type MarshalableS = sig
   type t

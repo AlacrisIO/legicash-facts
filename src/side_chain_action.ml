@@ -198,11 +198,13 @@ let confirm_request : (Request.t signed, Confirmation.t signed) facilitator_acti
     ^>> make_request_confirmation
     ^>> fun (updated_facilitator_state, signed_confirmation) ->
       try
-        Side_chain_db.save_facilitator_state updated_facilitator_state;
+        Side_chain.FacilitatorState.Persistence.save updated_facilitator_state;
         (updated_facilitator_state,Ok signed_confirmation)
-      with _ ->
+      with exn ->
         (* if logging failed, return input facilitator state, error *)
-        (facilitator_state,Error (Internal_error "Could not log request confirmation"))
+        (facilitator_state,
+         Error (Internal_error
+                  (Format.sprintf "Could not log request confirmation: %s" (Printexc.to_string exn))))
 
 let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
 
@@ -674,4 +676,10 @@ module Test = struct
       *)
       >>= fun _ -> return true
     )
+
+  (* like similar test in Side_chain.Test; here we have nonempty maps *)
+  let%test "db-save-retrieve_after_actions" =
+    Side_chain.FacilitatorState.Persistence.save trent_state;
+    let retrieved_state = Side_chain.FacilitatorState.Persistence.retrieve trent_address in
+    retrieved_state = trent_state
 end

@@ -280,6 +280,10 @@ module FacilitatorState : sig
            } [@@deriving lens]
   module Marshalable : MarshalableS
   include DigestibleS with type t := t
+  module Persistence : sig
+    val save : t -> unit
+    val retrieve : Address.t -> t
+  end
 end
 
 (** function from 'a to 'b that acts on a facilitator_state *)

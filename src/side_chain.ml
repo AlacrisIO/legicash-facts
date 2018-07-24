@@ -172,22 +172,141 @@ module State = struct
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens]
 
+  module type DbNameS = sig val db_name : string end
+
+  module Persistence (Trie : MerkleTrieS) (DbName : DbNameS) = struct
+    open Trie
+    open MarshalNode
+
+    let get_db =
+      let db = ref None in
+      function () ->
+        (* open database on first use; finalizer closes it automatically *)
+        if !db == None then
+          db := Some (LevelDB.open_db DbName.db_name);
+        option_get !db
+
+    let node_saved key =
+      let db = get_db () in
+      LevelDB.mem db key
+
+    let save_node key data =
+      let db = get_db () in
+      LevelDB.put db key data
+
+    let recursek ~i:_ ~tree ~k = k (get_synth tree)
+
+    let branchk ~i:_ ~height ~leftr ~rightr ~synth ~k =
+      let node_key = Synth.marshal_string synth in
+      if node_saved node_key then (
+        synth
+      )
+      else (
+        let buffer = Buffer.create 256 in
+        marshal_branch buffer leftr rightr height synth;
+        save_node node_key (Buffer.contents buffer);
+        k synth
+      )
+
+    let skipk ~i:_ ~height ~length ~bits ~childr ~synth ~k =
+      let node_key = Synth.marshal_string synth in
+      if node_saved node_key then (
+        synth
+      )
+      else (
+        let buffer = Buffer.create 256 in
+        marshal_skip buffer childr bits length height synth;
+        save_node node_key (Buffer.contents buffer);
+        k synth
+      )
+
+    let leafk ~i:_ ~value ~synth ~k =
+      let node_key = Synth.marshal_string synth in
+      if node_saved node_key then (
+        synth
+      )
+      else (
+        let buffer = Buffer.create 256 in
+        marshal_leaf buffer value synth;
+        save_node node_key (Buffer.contents buffer);
+        k synth
+      )
+
+    let emptyk ~k =
+      let node_key = Synth.marshal_string Synth.empty in
+      if not (node_saved node_key) then (
+        let buffer = Buffer.create 1 in
+        marshal_empty buffer;
+        save_node node_key (Buffer.contents buffer)
+      );
+      k Synth.empty
+
+    let root_key = "ROOT"
+
+    let save tree =
+      let root_synth =
+        iterate_over_tree
+          ~recursek ~branchk ~skipk ~leafk ~emptyk
+          ~i:empty_key ~tree ~k:identity
+      in
+      let db = get_db () in
+      LevelDB.put db root_key (Synth.marshal_string root_synth)
+
+    let retrieve_node key =
+      let db = get_db () in
+      match LevelDB.get db key with
+      | Some data ->
+        let node,_ = unmarshal_to_node (Bytes.of_string data) in
+        node
+      | None -> raise (Internal_error (Format.sprintf "Could not retrieve node with key: %s" (unparse_hex_string key)))
+
+    let retrieve () =
+      let db = get_db () in
+      let root_key =
+        match LevelDB.get db root_key with
+        | Some s -> s
+        | None -> raise (Internal_error (Format.sprintf "Could not get trie root in database %s" DbName.db_name))
+      in
+      let rec find_node key =
+        match retrieve_node key with
+        | NodeEmpty -> Empty
+        | NodeLeaf {value; synth} -> Leaf {value; synth}
+        | NodeBranch { left; right; height; synth } ->
+          (* TODO: will recursion blow the stack here? *)
+          let left_trie = find_node (Synth.marshal_string left) in
+          let right_trie = find_node (Synth.marshal_string right) in
+          Branch { left=left_trie; right=right_trie; height; synth }
+        | NodeSkip { child; bits; length; height; synth } ->
+          let child_trie = find_node (Synth.marshal_string child) in
+          Skip { child=child_trie; bits; length; height; synth }
+      in
+      find_node root_key
+  end
+
   module Marshalable = struct
     type nonrec t = t
+
+    module AccountsDb = struct let db_name = "accounts" end
+    module AccountMapPersist = Persistence (AccountMap) (AccountsDb)
+
+    module ConfirmationsDb = struct let db_name = "confirmations" end
+    module ConfirmationMapPersist = Persistence (ConfirmationMap) (ConfirmationsDb)
+
     let marshal buffer t =
       Digest.marshal buffer t.previous_main_chain_state;
       Digest.marshal buffer t.previous_side_chain_state;
       Revision.marshal buffer t.facilitator_revision;
       TokenAmount.marshal buffer t.spending_limit;
       TokenAmount.marshal buffer t.bond_posted;
-      AccountMap.marshal buffer t.accounts; (* TODO: store node-by-node *)
-      ConfirmationMap.marshal buffer t.operations; (* TODO: ditto *)
       let num_elements = DigestSet.cardinal t.main_chain_transactions_posted in
       UInt64.marshal buffer (UInt64.of_int num_elements);
       DigestSet.iter
         (fun elt ->
            Digest.marshal buffer elt)
-        t.main_chain_transactions_posted
+        t.main_chain_transactions_posted;
+      (* save nodes to database *)
+      AccountMapPersist.save  t.accounts;
+      ConfirmationMapPersist.save t.operations
 
     let unmarshal ?(start=0) bytes =
       let previous_main_chain_state,previous_main_chain_state_offset =
@@ -200,12 +319,8 @@ module State = struct
         TokenAmount.unmarshal ~start:facilitator_revision_offset bytes in
       let bond_posted,bond_posted_offset =
         TokenAmount.unmarshal ~start:spending_limit_offset bytes in
-      let accounts,accounts_offset =
-        AccountMap.unmarshal ~start:bond_posted_offset bytes in
-      let operations,operations_offset =
-        ConfirmationMap.unmarshal ~start:accounts_offset bytes in
       let num_elements64,num_elements64_offset =
-        UInt64.unmarshal ~start:operations_offset bytes in
+        UInt64.unmarshal ~start:bond_posted_offset bytes in
       let num_elements = UInt64.to_int num_elements64 in
       let rec get_digest_set_elements count set offset =
         if count >= num_elements then
@@ -217,6 +332,9 @@ module State = struct
       let main_chain_transactions_posted,final_offset =
         get_digest_set_elements 0 DigestSet.empty num_elements64_offset
       in
+      (* restore nodes from database *)
+      let accounts = AccountMapPersist.retrieve () in
+      let operations = ConfirmationMapPersist.retrieve () in
       ( { previous_main_chain_state
         ; previous_side_chain_state
         ; facilitator_revision
@@ -316,6 +434,7 @@ module FacilitatorState = struct
            ; current: State.t
            ; fee_schedule: FacilitatorFeeSchedule.t
            } [@@deriving lens]
+
   module Marshalable = struct
     type nonrec t = t
 
@@ -355,6 +474,40 @@ module FacilitatorState = struct
   end
 
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+
+  module Persistence = struct
+    open LevelDB
+
+    let db_key_of_facilitator_address address =
+      Format.sprintf "facilitator-0x%s" (Address.to_hex_string address)
+
+    let db_name = "facilitator_state"
+
+    let get_db =
+      let db = ref None in
+      function () ->
+        (* open database on first use; finalizer closes it automatically *)
+        if !db == None then
+          db := Some (open_db db_name);
+        option_get !db
+
+    let save facilitator_state =
+      let db = get_db () in
+      let db_key = db_key_of_facilitator_address facilitator_state.keypair.address in
+      put db db_key (marshal_string facilitator_state)
+
+    let retrieve facilitator_address =
+      let db = get_db () in
+      let db_key = db_key_of_facilitator_address facilitator_address in
+      let unmarshaled =
+        match get db db_key with
+        | Some s -> Bytes.of_string s (* TODO: can we avoid copying? *)
+        | None -> raise (Internal_error
+                           (Format.sprintf "No facilitator state saved for address 0x%s"
+                              (Address.to_hex_string facilitator_address)))
+      in
+      unmarshal_bytes unmarshaled
+  end
 end
 
 type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t) action
@@ -415,5 +568,10 @@ module Test = struct
     ; previous= None
     ; current= confirmed_trent_state
     ; fee_schedule= trent_fee_schedule }
+
+  let%test "db-save-retrieve" =
+    FacilitatorState.Persistence.save trent_state;
+    let retrieved_state = FacilitatorState.Persistence.retrieve trent_address in
+    retrieved_state = trent_state
 
 end
