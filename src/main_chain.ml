@@ -13,7 +13,8 @@ module AccountMap = MerkleTrie (Address) (TokenAmount)
 
 module State = struct
   (* TODO: have an actual model of the Ethereum main chain *)
-  type t = {revision: Revision.t; accounts: AccountMap.t} [@@deriving lens]
+  type t = {revision: Revision.t; accounts: AccountMap.t}
+  [@@deriving lens { prefix=true } ]
   module Marshalable = struct
     type nonrec t = t
     let marshal b {revision; accounts=_} =
@@ -46,7 +47,7 @@ module TxHeader = struct
            ; gas_price: TokenAmount.t
            ; gas_limit: TokenAmount.t
            ; value: TokenAmount.t }
-  [@@deriving lens]
+  [@@deriving lens { prefix=true } ]
   module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end
@@ -63,7 +64,8 @@ end
 (* contract, data *)
 (** Transaction (to be) posted to the main chain (i.e. Ethereum) *)
 module Transaction = struct
-  type t = {tx_header: TxHeader.t; operation: Operation.t} [@@deriving lens]
+  type t = {tx_header: TxHeader.t; operation: Operation.t}
+  [@@deriving lens { prefix=true } ]
   module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : (DigestibleS with type t := t))
 end

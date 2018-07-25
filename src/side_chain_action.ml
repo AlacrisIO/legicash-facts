@@ -19,7 +19,7 @@ let new_user_account_state_per_facilitator =
 type account_lens = (FacilitatorState.t, AccountState.t) Lens.t
 
 let facilitator_account_lens address =
-  FacilitatorState.current |-- State.accounts
+  FacilitatorState.lens_current |-- State.lens_accounts
   |-- defaulting_lens (konstant new_account_state) (AccountMap.lens address)
 
 (** Given a signed request, handle the special case of opening an account, and return
@@ -121,7 +121,7 @@ exception Spending_limit_exceeded
 let spend_spending_limit amount (state, x) =
   let open FacilitatorState in
   if TokenAmount.compare amount state.current.spending_limit <= 0 then
-    ( (FacilitatorState.current |-- State.spending_limit).set
+    ( (FacilitatorState.lens_current |-- State.lens_spending_limit).set
         (TokenAmount.sub state.current.spending_limit amount)
         state
     , Ok x )
@@ -140,7 +140,7 @@ exception Already_posted
 let check_against_double_accounting main_chain_transaction_signed (state, x) =
   let witness = Main_chain.TransactionSigned.digest main_chain_transaction_signed in
   let lens =
-    FacilitatorState.current |-- State.main_chain_transactions_posted |-- DigestSet.lens witness
+    FacilitatorState.lens_current |-- State.lens_main_chain_transactions_posted |-- DigestSet.lens witness
   in
   if lens.get state then (state, Error Already_posted) else (lens.set true state, Ok x)
 
@@ -159,13 +159,13 @@ let effect_request :
         ; deposit_expedited } ->
       ( state
       , ( rx
-        , Lens.modify AccountState.balance (TokenAmount.add deposit_amount) account_state
+        , Lens.modify AccountState.lens_balance (TokenAmount.add deposit_amount) account_state
         , account_lens ) )
       ^|> check_against_double_accounting main_chain_deposit_signed
       ^>> maybe_spend_spending_limit deposit_expedited deposit_amount
     | Payment {payment_invoice; payment_fee; payment_expedited} ->
       ( Lens.modify
-          (facilitator_account_lens payment_invoice.recipient |-- AccountState.balance)
+          (facilitator_account_lens payment_invoice.recipient |-- AccountState.lens_balance)
           (TokenAmount.add payment_invoice.amount)
           state
       , ( rx
@@ -273,7 +273,7 @@ let add_user_episteme user_state episteme =
       facilitator user_state.facilitators
   in
   ( user_state_facilitators |-- UserAccountStateMap.lens facilitator
-    |-- UserAccountStatePerFacilitator.pending_operations )
+    |-- UserAccountStatePerFacilitator.lens_pending_operations )
   .set (episteme :: account_state.pending_operations) user_state
 
 let issue_user_request =
@@ -290,8 +290,9 @@ let issue_user_request =
     deposits confirmation will check out,
     active revision will only increase, etc.
 *)
+
 let update_account_state_with_trusted_operation
-    trusted_operation ({AccountState.balance} as account_state) =
+    trusted_operation ({balance} as account_state : AccountState.t) =
   let f =
     {account_state with account_revision= Revision.add account_state.account_revision Revision.one} in
   match trusted_operation with

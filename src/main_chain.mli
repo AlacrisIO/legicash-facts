@@ -15,7 +15,8 @@ module AccountMap : (MerkleTrieS with type key = Address.t and type value = Toke
     3- Abstract into a module signature that can be provided by one or the other.
 *)
 module State : sig
-  type t = {revision: Revision.t; accounts: AccountMap.t} [@@deriving lens]
+  type t = {revision: Revision.t; accounts: AccountMap.t}
+  [@@deriving lens { prefix=true } ]
   include DigestibleS with type t := t
 end
 
@@ -27,7 +28,7 @@ module TxHeader : sig
     ; gas_price: TokenAmount.t
     ; gas_limit: TokenAmount.t
     ; value: TokenAmount.t }
-  [@@deriving lens]
+  [@@deriving lens { prefix=true } ]
   include DigestibleS with type t := t
 end
 
@@ -44,7 +45,8 @@ end
 (* contract, data *)
 
 module Transaction : sig
-  type t = {tx_header: TxHeader.t; operation: Operation.t} [@@deriving lens]
+  type t = {tx_header: TxHeader.t; operation: Operation.t}
+  [@@deriving lens { prefix=true } ]
   include DigestibleS with type t := t
 end
 

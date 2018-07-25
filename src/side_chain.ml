@@ -24,7 +24,8 @@ end
 type memo = string option
 
 module Invoice = struct
-  type t = {recipient: Address.t; amount: TokenAmount.t; memo: memo} [@@deriving lens]
+  type t = {recipient: Address.t; amount: TokenAmount.t; memo: memo}
+  [@@deriving lens { prefix=true } ]
   module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
@@ -175,7 +176,8 @@ module RxHeader = struct
 end
 
 module Request = struct
-  type t = {rx_header: RxHeader.t; operation: Operation.t} [@@deriving lens]
+  type t = {rx_header: RxHeader.t; operation: Operation.t}
+  [@@deriving lens { prefix=true } ]
   module Marshalable = struct
     type nonrec t = t
     let marshal buffer {rx_header; operation} =
@@ -191,7 +193,8 @@ module Request = struct
 end
 
 module TxHeader = struct
-  type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
+  type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t}
+  [@@deriving lens { prefix=true } ]
   let marshal buffer {tx_revision; updated_limit} =
     Revision.marshal buffer tx_revision ; TokenAmount.marshal buffer updated_limit
   let unmarshal ?(start=0) bytes =
@@ -203,7 +206,8 @@ module TxHeader = struct
 end
 
 module Confirmation = struct
-  type t = {tx_header: TxHeader.t; signed_request: Request.t signed} [@@deriving lens]
+  type t = {tx_header: TxHeader.t; signed_request: Request.t signed}
+  [@@deriving lens { prefix=true } ]
   module Marshalable = struct
     type nonrec t = t
     let marshal buffer {tx_header; signed_request} =
@@ -219,7 +223,8 @@ module Confirmation = struct
 end
 
 module AccountState = struct
-  type t = {balance: TokenAmount.t; account_revision: Revision.t} [@@deriving lens]
+  type t = {balance: TokenAmount.t; account_revision: Revision.t}
+  [@@deriving lens { prefix=true } ]
   module Marshalable = struct
     type nonrec t = t
     let marshal buffer {balance; account_revision} =
@@ -252,7 +257,7 @@ module State = struct
            ; accounts: AccountMap.t
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
-  [@@deriving lens]
+  [@@deriving lens { prefix=true } ]
 
   module type DbNameS = sig val db_name : string end
 
@@ -448,7 +453,7 @@ module UserAccountStatePerFacilitator = struct
     { facilitator_validity: KnowledgeStage.t
     ; confirmed_state: AccountState.t
     ; pending_operations: episteme list }
-  [@@deriving lens]
+  [@@deriving lens { prefix=true } ]
   module Marshalable = struct
     type nonrec t = t
     let marshal buffer { facilitator_validity
@@ -483,7 +488,7 @@ module FacilitatorFeeSchedule = struct
     ; withdrawal_fee: TokenAmount.t
     ; per_account_limit: TokenAmount.t
     ; fee_per_billion: TokenAmount.t }
-  [@@deriving lens]
+  [@@deriving lens { prefix=true} ]
   module Marshalable = struct
     type nonrec t = t
 
@@ -519,7 +524,8 @@ module FacilitatorState = struct
            ; previous: State.t option
            ; current: State.t
            ; fee_schedule: FacilitatorFeeSchedule.t
-           } [@@deriving lens]
+           }
+  [@@deriving lens { prefix=true} ]
 
   module Marshalable = struct
     type nonrec t = t
