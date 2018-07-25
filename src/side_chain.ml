@@ -53,28 +53,70 @@ module Operation = struct
 
   module Marshalable = struct
     type nonrec t = t
-    let marshal b = function
+    let marshal buffer = function
       | Deposit { deposit_amount
                 ; deposit_fee
                 ; main_chain_deposit_signed
                 ; main_chain_deposit_confirmation
                 ; deposit_expedited } ->
-        Buffer.add_char b 'D' ;
-        TokenAmount.marshal b deposit_amount ;
-        TokenAmount.marshal b deposit_fee ;
-        marshal_signed Main_chain.Transaction.marshal b main_chain_deposit_signed ;
-        Main_chain.Confirmation.marshal b main_chain_deposit_confirmation ;
-        marshal_bool b deposit_expedited
+        Marshaling.marshal_char buffer 'D' ;
+        TokenAmount.marshal buffer deposit_amount ;
+        TokenAmount.marshal buffer deposit_fee ;
+        marshal_signed Main_chain.Transaction.marshal buffer main_chain_deposit_signed ;
+        Main_chain.Confirmation.marshal buffer main_chain_deposit_confirmation ;
+        marshal_bool buffer deposit_expedited
       | Payment {payment_invoice; payment_fee; payment_expedited} ->
-        Buffer.add_char b 'P' ;
-        Invoice.marshal b payment_invoice;
-        TokenAmount.marshal b payment_fee;
-        marshal_bool b payment_expedited
+        Marshaling.marshal_char buffer 'P' ;
+        Invoice.marshal buffer payment_invoice;
+        TokenAmount.marshal buffer payment_fee;
+        marshal_bool buffer payment_expedited
       | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-        Buffer.add_char b 'W' ;
-        TokenAmount.marshal b withdrawal_amount;
-        TokenAmount.marshal b withdrawal_fee
-    let unmarshal = unmarshal_not_implemented
+        Marshaling.marshal_char buffer 'W' ;
+        TokenAmount.marshal buffer withdrawal_amount;
+        TokenAmount.marshal buffer withdrawal_fee
+    let unmarshal_deposit start bytes =
+      let deposit_amount,deposit_amount_offset = TokenAmount.unmarshal ~start bytes in
+      let deposit_fee,deposit_fee_offset = TokenAmount.unmarshal ~start:deposit_amount_offset bytes in
+      let main_chain_deposit_signed,main_chain_deposit_signed_offset =
+        unmarshal_signed Main_chain.Transaction.unmarshal ~start:deposit_fee_offset bytes in
+      let main_chain_deposit_confirmation,main_chain_deposit_confirmation_offset =
+        Main_chain.Confirmation.unmarshal ~start:main_chain_deposit_signed_offset bytes in
+      let deposit_expedited, final_offset =
+        unmarshal_bool ~start:main_chain_deposit_confirmation_offset bytes in
+      ( Deposit { deposit_amount
+                ; deposit_fee
+                ; main_chain_deposit_signed
+                ; main_chain_deposit_confirmation
+                ; deposit_expedited
+                }
+      , final_offset
+      )
+    let unmarshal_payment start bytes =
+      let payment_invoice,payment_invoice_offset = Invoice.unmarshal ~start bytes in
+      let payment_fee,payment_fee_offset = TokenAmount.unmarshal ~start:payment_invoice_offset bytes in
+      let payment_expedited,final_offset = unmarshal_bool ~start:payment_fee_offset bytes in
+      ( Payment { payment_invoice
+                ; payment_fee
+                ; payment_expedited
+                }
+      , final_offset
+      )
+    let unmarshal_withdrawal start bytes =
+      let withdrawal_amount,withdrawal_amount_offset = TokenAmount.unmarshal ~start bytes in
+      let withdrawal_fee,final_offset = TokenAmount.unmarshal ~start:withdrawal_amount_offset bytes in
+      ( Withdrawal { withdrawal_amount
+                   ; withdrawal_fee
+                   }
+      , final_offset
+      )
+    let unmarshal ?(start=0) bytes =
+      let tag,next = unmarshal_char ~start bytes in
+      match tag with
+      | 'D' -> unmarshal_deposit next bytes
+      | 'P' -> unmarshal_payment next bytes
+      | 'W' -> unmarshal_withdrawal next bytes
+      | _ -> raise (Internal_error (Format.sprintf "Unknown tag %c when unmarshaling operation" tag))
+
   end
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
@@ -89,8 +131,8 @@ module RxHeader = struct
     ; confirmed_side_chain_state_digest: Digest.t
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
-  [@@deriving lens]
-  let marshal b { facilitator
+  [@@deriving lens {prefix=true}]
+  let marshal buffer { facilitator
                 ; requester
                 ; requester_revision
                 ; confirmed_main_chain_state_digest
@@ -98,40 +140,80 @@ module RxHeader = struct
                 ; confirmed_side_chain_state_digest
                 ; confirmed_side_chain_state_revision
                 ; validity_within } =
-    Address.marshal b facilitator ;
-    Address.marshal b requester ;
-    Revision.marshal b requester_revision ;
-    Digest.marshal b confirmed_main_chain_state_digest ;
-    Revision.marshal b confirmed_main_chain_state_revision ;
-    Digest.marshal b confirmed_side_chain_state_digest ;
-    Revision.marshal b confirmed_side_chain_state_revision ;
-    Duration.marshal b validity_within
+    Address.marshal buffer facilitator ;
+    Address.marshal buffer requester ;
+    Revision.marshal buffer requester_revision ;
+    Digest.marshal buffer confirmed_main_chain_state_digest ;
+    Revision.marshal buffer confirmed_main_chain_state_revision ;
+    Digest.marshal buffer confirmed_side_chain_state_digest ;
+    Revision.marshal buffer confirmed_side_chain_state_revision ;
+    Duration.marshal buffer validity_within
+  let unmarshal ?(start=0) bytes =
+    let facilitator,facilitator_offset = Address.unmarshal ~start bytes in
+    let requester,requester_offset = Address.unmarshal ~start:facilitator_offset bytes in
+    let requester_revision,requester_revision_offset = Revision.unmarshal ~start:requester_offset bytes in
+    let confirmed_main_chain_state_digest,confirmed_main_chain_state_digest_offset =
+      Digest.unmarshal ~start:requester_revision_offset bytes in
+    let confirmed_main_chain_state_revision,confirmed_main_chain_state_revision_offset =
+      Revision.unmarshal ~start:confirmed_main_chain_state_digest_offset bytes in
+    let confirmed_side_chain_state_digest,confirmed_side_chain_state_digest_offset =
+      Digest.unmarshal ~start:confirmed_main_chain_state_revision_offset bytes in
+    let confirmed_side_chain_state_revision,confirmed_side_chain_state_revision_offset =
+      Revision.unmarshal ~start:confirmed_side_chain_state_digest_offset bytes in
+    let validity_within,final_offset = Duration.unmarshal ~start:confirmed_side_chain_state_revision_offset bytes in
+    ( { facilitator
+      ; requester
+      ; requester_revision
+      ; confirmed_main_chain_state_digest
+      ; confirmed_main_chain_state_revision
+      ; confirmed_side_chain_state_digest
+      ; confirmed_side_chain_state_revision
+      ; validity_within
+      }
+    , final_offset
+    )
 end
 
 module Request = struct
   type t = {rx_header: RxHeader.t; operation: Operation.t} [@@deriving lens]
   module Marshalable = struct
     type nonrec t = t
-    let marshal b {rx_header; operation} =
-      RxHeader.marshal b rx_header ; Operation.marshal b operation
-    let unmarshal = unmarshal_not_implemented
+    let marshal buffer {rx_header; operation} =
+      RxHeader.marshal buffer rx_header ; Operation.marshal buffer operation
+    let unmarshal ?(start=0) bytes =
+      let rx_header,rx_header_offset = RxHeader.unmarshal ~start bytes in
+      let operation,final_offset = Operation.unmarshal ~start:rx_header_offset bytes in
+      ( { rx_header; operation }
+      , final_offset
+      )
   end
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
 
 module TxHeader = struct
   type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t} [@@deriving lens]
-  let marshal b {tx_revision; updated_limit} =
-    Revision.marshal b tx_revision ; TokenAmount.marshal b updated_limit
+  let marshal buffer {tx_revision; updated_limit} =
+    Revision.marshal buffer tx_revision ; TokenAmount.marshal buffer updated_limit
+  let unmarshal ?(start=0) bytes =
+    let tx_revision,tx_revision_offset = Revision.unmarshal ~start bytes in
+    let updated_limit,final_offset = TokenAmount.unmarshal ~start:tx_revision_offset bytes in
+    ( { tx_revision; updated_limit }
+    , final_offset
+    )
 end
 
 module Confirmation = struct
   type t = {tx_header: TxHeader.t; signed_request: Request.t signed} [@@deriving lens]
   module Marshalable = struct
     type nonrec t = t
-    let marshal b {tx_header; signed_request} =
-      TxHeader.marshal b tx_header ; marshal_signed Request.marshal b signed_request
-    let unmarshal = unmarshal_not_implemented
+    let marshal buffer {tx_header; signed_request} =
+      TxHeader.marshal buffer tx_header ; marshal_signed Request.marshal buffer signed_request
+    let unmarshal ?(start=0) bytes =
+      let tx_header,tx_header_offset = TxHeader.unmarshal ~start bytes in
+      let signed_request,final_offset = unmarshal_signed Request.unmarshal ~start:tx_header_offset bytes in
+      ( { tx_header; signed_request }
+      , final_offset
+      )
   end
   include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
 end
@@ -194,48 +276,37 @@ module State = struct
       let db = get_db () in
       LevelDB.put db key data
 
-    let recursek ~i:_ ~tree ~k = k (get_synth tree)
-
     let branchk ~i:_ ~height ~leftr ~rightr ~synth ~k =
       let node_key = Synth.marshal_string synth in
-      if node_saved node_key then (
-        synth
-      )
-      else (
+      if not (node_saved node_key ) then (
         let buffer = Buffer.create 256 in
         marshal_branch buffer leftr rightr height synth;
         save_node node_key (Buffer.contents buffer);
-        k synth
-      )
+      );
+      k synth
 
     let skipk ~i:_ ~height ~length ~bits ~childr ~synth ~k =
       let node_key = Synth.marshal_string synth in
-      if node_saved node_key then (
-        synth
-      )
-      else (
+      if not (node_saved node_key) then (
         let buffer = Buffer.create 256 in
         marshal_skip buffer childr bits length height synth;
-        save_node node_key (Buffer.contents buffer);
-        k synth
-      )
+        save_node node_key (Buffer.contents buffer)
+      );
+      k synth
 
     let leafk ~i:_ ~value ~synth ~k =
       let node_key = Synth.marshal_string synth in
-      if node_saved node_key then (
-        synth
-      )
-      else (
+      if not (node_saved node_key) then (
         let buffer = Buffer.create 256 in
         marshal_leaf buffer value synth;
-        save_node node_key (Buffer.contents buffer);
-        k synth
-      )
+        save_node node_key (Buffer.contents buffer)
+      );
+      k synth
 
     let emptyk ~k =
       let node_key = Synth.marshal_string Synth.empty in
       if not (node_saved node_key) then (
-        let buffer = Buffer.create 1 in
+        let buffer = Buffer.create 10 in
         marshal_empty buffer;
         save_node node_key (Buffer.contents buffer)
       );
@@ -243,12 +314,25 @@ module State = struct
 
     let root_key = "ROOT"
 
+    (* TODO:
+
+       iterate_over_tree does a post-order depth-first traversal, which
+       means, for example, that we consider the subtrees of
+       branch nodes before examining the branch itself
+
+       what we'd like is to examine whether the branch has been saved,
+       and not traverse the subtrees if so. A breadth-first traversal
+       will do that
+    *)
+
     let save tree =
-      let root_synth =
+      let rec save_trie ~i ~tree ~k =
         iterate_over_tree
-          ~recursek ~branchk ~skipk ~leafk ~emptyk
-          ~i:empty_key ~tree ~k:identity
+          ~recursek:save_trie
+          ~branchk ~skipk ~leafk ~emptyk
+          ~i ~tree ~k
       in
+      let root_synth = save_trie ~i:empty_key ~tree ~k:identity in
       let db = get_db () in
       LevelDB.put db root_key (Synth.marshal_string root_synth)
 
@@ -258,11 +342,13 @@ module State = struct
       | Some data ->
         let node,_ = unmarshal_to_node (Bytes.of_string data) in
         node
-      | None -> raise (Internal_error (Format.sprintf "Could not retrieve node with key: %s" (unparse_hex_string key)))
+      | None -> raise (Internal_error
+                         (Format.sprintf "Could not retrieve node from database %s with key: %s"
+                            DbName.db_name (unparse_hex_string key)))
 
     let retrieve () =
       let db = get_db () in
-      let root_key =
+      let root_synth =
         match LevelDB.get db root_key with
         | Some s -> s
         | None -> raise (Internal_error (Format.sprintf "Could not get trie root in database %s" DbName.db_name))
@@ -280,7 +366,7 @@ module State = struct
           let child_trie = find_node (Synth.marshal_string child) in
           Skip { child=child_trie; bits; length; height; synth }
       in
-      find_node root_key
+      find_node root_synth
   end
 
   module Marshalable = struct
@@ -304,7 +390,7 @@ module State = struct
         (fun elt ->
            Digest.marshal buffer elt)
         t.main_chain_transactions_posted;
-      (* save nodes to database *)
+      (* save trie nodes to database *)
       AccountMapPersist.save  t.accounts;
       ConfirmationMapPersist.save t.operations
 
@@ -365,11 +451,11 @@ module UserAccountStatePerFacilitator = struct
   [@@deriving lens]
   module Marshalable = struct
     type nonrec t = t
-    let marshal b { facilitator_validity
+    let marshal buffer { facilitator_validity
                   ; confirmed_state
                   ; pending_operations=_ } =
-      KnowledgeStage.marshal b facilitator_validity ;
-      AccountState.marshal b confirmed_state ;
+      KnowledgeStage.marshal buffer facilitator_validity ;
+      AccountState.marshal buffer confirmed_state ;
       () (* TODO: handle the list pending_operation *)
     let unmarshal = unmarshal_not_implemented
   end
@@ -453,12 +539,12 @@ module FacilitatorState = struct
 
     let unmarshal ?(start=0) bytes =
       let keypair,keypair_offset = Keypair.unmarshal ~start:start bytes in
-      let option_tag = Bytes.get bytes keypair_offset in
+      let option_tag,option_tag_offset = unmarshal_char ~start:keypair_offset bytes in
       let previous,previous_offset =
         match option_tag with
-        | 'N' -> None,keypair_offset + 1
+        | 'N' -> None,option_tag_offset
         | 'S' ->
-          let prev,offs = State.unmarshal ~start:(keypair_offset + 1) bytes in
+          let prev,offs = State.unmarshal ~start:option_tag_offset bytes in
           Some prev,offs
         | _ -> raise (Internal_error "Unexpected tag for State within FacilitatorState")
       in

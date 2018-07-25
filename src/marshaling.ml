@@ -41,8 +41,18 @@ let marshal_string_of_marshal marshal x =
 let marshal_string_of_any value = Marshal.to_string value [Marshal.Compat_32]
 
 let marshal_char buffer ch = Buffer.add_char buffer ch
+let unmarshal_char ?(start=0) bytes = (Bytes.get bytes start,start + 1)
 
-let marshal_bool buffer bool = marshal_char buffer (if bool then '\001' else '\000')
+let true_char = '\001'
+let false_char = '\000'
+
+let marshal_bool buffer bool = marshal_char buffer (if bool then true_char else false_char)
+let unmarshal_bool ?(start=0) bytes =
+  let (ch,offset) = unmarshal_char ~start bytes in
+  if ch == true_char then (true,offset)
+  else if ch == false_char then (false,offset)
+  else raise (Internal_error
+                (Format.sprintf "Unexpected character %c when unmarshaling boolean" ch))
 
 let unmarshal_not_implemented ?start:(_start=0) _bytes = bottom ()
 

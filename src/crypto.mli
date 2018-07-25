@@ -74,6 +74,10 @@ val make_signature : ('a -> Digest.t) -> private_key -> 'a -> signature
 val sign : ('a -> Digest.t) -> private_key -> 'a -> 'a signed
 
 val marshal_signed : 'a marshaler -> 'a signed marshaler
+(** marshaler for 'a signed, parameterized by the marshaler for the payload of type 'a *)
+
+val unmarshal_signed : 'a unmarshaler -> 'a signed unmarshaler
+(** unmarshaler for 'a signed, parameterized by the unmarshaler for the payload of type 'a *)
 
 (** count of changes in an object.
     A positive integer less than 2**63, incremented at every change to a notional object's state.

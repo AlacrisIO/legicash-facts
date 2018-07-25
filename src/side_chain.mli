@@ -117,7 +117,7 @@ module RxHeader : sig
     ; confirmed_side_chain_state_digest: Digest.t (* State.t digest *)
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
-  [@@deriving lens]
+  [@@deriving lens {prefix=true} ]
 end
 
 (** Request from user to facilitator for operation on the side chain

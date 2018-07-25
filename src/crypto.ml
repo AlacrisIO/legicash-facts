@@ -81,7 +81,6 @@ module Revision = UInt64
 module Duration = UInt64
 module Timestamp = UInt64
 
-
 module StringT = struct
   include String
   module Marshalable = struct
@@ -172,21 +171,45 @@ let secp256k1_msg_of_digest digest =
   secp256k1_msg_of_string (Digest.to_big_endian_bits digest)
 
 let string_of_signature signature =
-  Cstruct.to_string (Cstruct.of_bigarray (Secp256k1.Sign.to_bytes secp256k1_ctx signature))
+  (* see https://bitcoin.stackexchange.com/questions/38351/ecdsa-v-r-s-what-is-v
+     for information about recovery id
+  *)
+  let bytes, recid = Secp256k1.Sign.to_bytes_recid secp256k1_ctx signature in
+  let buffer = Buffer.create 8 in
+  UInt64.marshal buffer (UInt64.of_int recid);
+  (Buffer.contents buffer) ^ (Cstruct.to_string (Cstruct.of_bigarray bytes))
 
 let [@warning "-32"] signature_of_string string =
-  Secp256k1.Sign.read secp256k1_ctx (Cstruct.of_string string).buffer
+  let recid_bytes = Bytes.of_string (String.sub string 0 8) in
+  let recid64,_ = UInt64.unmarshal recid_bytes in
+  let recid = UInt64.to_int recid64 in
+  let signature_string = String.sub string 8 (String.length string - 8) in
+  match Secp256k1.Sign.read_recoverable ~recid secp256k1_ctx (Cstruct.of_string signature_string).buffer with
+  | Ok signature -> signature
+  | Error msg ->
+    raise (Internal_error (Format.sprintf "Could not get signature from string: %s" msg))
 
 module Signature = struct
   type t = signature
-  let marshal = marshal_of_sized_string_of 64 string_of_signature
-  let unmarshal = unmarshal_not_implemented (* unmarshal_of_sized_of_string 64 signature_of_string *)
+  (* 8 bytes for the recovery id + 64 bytes for the signature proper *)
+  let width = 72
+  let marshal = marshal_of_sized_string_of width string_of_signature
+  let unmarshal = unmarshal_of_sized_of_string width signature_of_string
 end
 
-
 type 'a signed = {payload: 'a; signature: signature}
-let marshal_signed marshal b {payload; signature} =
-  marshal b payload; Signature.marshal b signature
+
+let marshal_signed marshal buffer {payload; signature} =
+  marshal buffer payload; Signature.marshal buffer signature
+
+let unmarshal_signed (unmarshal:'a unmarshaler) ?(start=0) bytes : 'a signed * int =
+  let payload,payload_offset = unmarshal ~start bytes in
+  let signature,final_offset = Signature.unmarshal ~start:payload_offset bytes in
+  ( { payload
+    ; signature
+    }
+  , final_offset
+  )
 
 (* digital signature is encrypted hash *)
 let make_signature make_digest private_key data =

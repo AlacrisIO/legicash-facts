@@ -22,9 +22,11 @@ val unmarshal_bytes_of_unmarshal : 'a unmarshaler -> Bytes.t -> 'a
 
 val marshal_string_of_marshal : 'a marshaler -> 'a -> string
 
-val marshal_bool : bool marshaler
-
 val marshal_char : char marshaler
+val unmarshal_char : char unmarshaler
+
+val marshal_bool : bool marshaler
+val unmarshal_bool : bool unmarshaler
 
 val unmarshal_not_implemented : 'a unmarshaler
 

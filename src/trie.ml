@@ -1047,28 +1047,33 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
 
     module UInt64 = Crypto.UInt64 (* not Integer.UInt64, which lacks marshaling *)
 
+    let empty_tag = 'E'
+    let leaf_tag = 'L'
+    let branch_tag = 'B'
+    let skip_tag = 'S'
+
     let marshal_empty buffer =
-      Marshaling.marshal_char buffer 'E'
+      Marshaling.marshal_char buffer empty_tag
 
     let marshal_leaf buffer value synth =
-      Marshaling.marshal_char buffer 'L';
+      Marshaling.marshal_char buffer leaf_tag;
       Value.marshal buffer value;
       Synth.marshal buffer synth
 
     let marshal_branch buffer left right height synth =
-        Marshaling.marshal_char buffer 'B';
+        Marshaling.marshal_char buffer branch_tag;
         Synth.marshal buffer left;
         Synth.marshal buffer right;
         UInt64.marshal buffer (UInt64.of_int height);
         Synth.marshal buffer synth
 
     let marshal_skip buffer child bits length height synth =
-        Marshaling.marshal_char buffer 'S';
+        Marshaling.marshal_char buffer skip_tag;
         Synth.marshal buffer child;
-        let num_bits = Key.numbits bits in
+        let bits_string = Key.to_big_endian_bits bits in
         (* we don't know statically the length of bits here, so record it *)
-        UInt64.marshal buffer (UInt64.of_int num_bits);
-        Buffer.add_string buffer (Key.to_big_endian_bits bits);
+        UInt64.marshal buffer (UInt64.of_int (String.length bits_string));
+        Buffer.add_string buffer bits_string;
         UInt64.marshal buffer (UInt64.of_int length);
         UInt64.marshal buffer (UInt64.of_int height);
         Synth.marshal buffer synth
@@ -1104,11 +1109,11 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
 
     let unmarshal_skip start bytes =
       let child,child_offset = Synth.unmarshal ~start bytes in
-      let num_bits,num_bits_offset = UInt64.unmarshal ~start:child_offset bytes in
-      let bits_len = UInt64.to_int (UInt64.div num_bits (UInt64.of_int 8)) in
-      let bits_string = Bytes.sub_string bytes num_bits_offset bits_len in
+      let bits_length64,bits_length64_offset = UInt64.unmarshal ~start:child_offset bytes in
+      let bits_len = UInt64.to_int bits_length64 in
+      let bits_string = Bytes.sub_string bytes bits_length64_offset bits_len in
       let bits = Key.of_big_endian_bits bits_string in
-      let length64, length64_offset = UInt64.unmarshal ~start:(num_bits_offset + bits_len) bytes in
+      let length64, length64_offset = UInt64.unmarshal ~start:(bits_length64_offset + bits_len) bytes in
       let length = UInt64.to_int length64 in
       let height64, height64_offset = UInt64.unmarshal ~start:length64_offset bytes in
       let height = UInt64.to_int height64 in
@@ -1118,14 +1123,17 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
       )
 
     let unmarshal_to_node ?(start=0) bytes =
-      let node_tag = Bytes.get bytes start in
-      let next = start + 1 in
-      match node_tag with
-      | 'E' -> (NodeEmpty,next)
-      | 'L' -> unmarshal_leaf next bytes
-      | 'B' -> unmarshal_branch next bytes
-      | 'S' -> unmarshal_skip next bytes
-      | _ -> raise (Internal_error "Unexpected tag when unmarshaling node")
+      let node_tag,next = unmarshal_char ~start bytes in
+      if node_tag == empty_tag then
+        (NodeEmpty,next)
+      else if node_tag == leaf_tag then
+        unmarshal_leaf next bytes
+      else if node_tag == branch_tag then
+        unmarshal_branch next bytes
+      else if node_tag == skip_tag then
+        unmarshal_skip next bytes
+      else
+        raise (Internal_error "Unexpected tag when unmarshaling node")
   end
 end
 
