@@ -591,14 +591,14 @@ module FacilitatorState = struct
     let retrieve facilitator_address =
       let db = get_db () in
       let db_key = db_key_of_facilitator_address facilitator_address in
-      let unmarshaled =
+      let bytes =
         match get db db_key with
         | Some s -> Bytes.of_string s (* TODO: can we avoid copying? *)
         | None -> raise (Internal_error
                            (Format.sprintf "No facilitator state saved for address 0x%s"
                               (Address.to_hex_string facilitator_address)))
       in
-      unmarshal_bytes unmarshaled
+      unmarshal_bytes bytes
   end
 end
 
