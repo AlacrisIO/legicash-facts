@@ -291,6 +291,9 @@ let issue_user_request =
     active revision will only increase, etc.
 *)
 
+(* TODO: is this used? should balances and revisions be updated in effect_request?
+         looks like balances already are
+*)
 let update_account_state_with_trusted_operation
     trusted_operation ({balance} as account_state : AccountState.t) =
   let f =
