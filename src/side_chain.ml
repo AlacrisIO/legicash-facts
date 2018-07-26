@@ -317,8 +317,6 @@ module State = struct
       );
       k Synth.empty
 
-    let root_key = "ROOT"
-
     (* TODO:
 
        iterate_over_tree does a post-order depth-first traversal, which
@@ -330,7 +328,7 @@ module State = struct
        will do that
     *)
 
-    let save tree =
+    let save root_key tree =
       let rec save_trie ~i ~tree ~k =
         iterate_over_tree
           ~recursek:save_trie
@@ -351,7 +349,7 @@ module State = struct
                          (Format.sprintf "Could not retrieve node from database %s with key: %s"
                             DbName.db_name (unparse_hex_string key)))
 
-    let retrieve () =
+    let retrieve root_key =
       let db = get_db () in
       let root_synth =
         match LevelDB.get db root_key with
@@ -384,6 +382,7 @@ module State = struct
     module ConfirmationMapPersist = Persistence (ConfirmationMap) (ConfirmationsDb)
 
     let marshal buffer t =
+      let start_length = Buffer.length buffer in
       Digest.marshal buffer t.previous_main_chain_state;
       Digest.marshal buffer t.previous_side_chain_state;
       Revision.marshal buffer t.facilitator_revision;
@@ -395,9 +394,14 @@ module State = struct
         (fun elt ->
            Digest.marshal buffer elt)
         t.main_chain_transactions_posted;
+      let end_length = Buffer.length buffer in
+      (* use hash of the non-trie contents as root key *)
+      let non_trie_state = String.sub (Buffer.contents buffer)
+          start_length (end_length - start_length)
+      in
       (* save trie nodes to database *)
-      AccountMapPersist.save  t.accounts;
-      ConfirmationMapPersist.save t.operations
+      AccountMapPersist.save non_trie_state t.accounts;
+      ConfirmationMapPersist.save non_trie_state t.operations
 
     let unmarshal ?(start=0) bytes =
       let previous_main_chain_state,previous_main_chain_state_offset =
@@ -423,9 +427,11 @@ module State = struct
       let main_chain_transactions_posted,final_offset =
         get_digest_set_elements 0 DigestSet.empty num_elements64_offset
       in
+      (* use non_trie_state as root key *)
+      let non_trie_state = String.sub (Bytes.to_string bytes) start (final_offset - start) in
       (* restore nodes from database *)
-      let accounts = AccountMapPersist.retrieve () in
-      let operations = ConfirmationMapPersist.retrieve () in
+      let accounts = AccountMapPersist.retrieve non_trie_state in
+      let operations = ConfirmationMapPersist.retrieve non_trie_state in
       ( { previous_main_chain_state
         ; previous_side_chain_state
         ; facilitator_revision
@@ -586,6 +592,11 @@ module FacilitatorState = struct
     let save facilitator_state =
       let db = get_db () in
       let db_key = db_key_of_facilitator_address facilitator_state.keypair.address in
+      (* side effect of marshaling facilitator state: the tries within the State
+         components are written to databases; there is a database for each
+         trie type; the tries are likewise read from the databases when
+         the facilitator state is unmarshaled
+      *)
       put db db_key (marshal_string facilitator_state)
 
     let retrieve facilitator_address =
@@ -599,6 +610,7 @@ module FacilitatorState = struct
                               (Address.to_hex_string facilitator_address)))
       in
       unmarshal_bytes bytes
+
   end
 end
 
