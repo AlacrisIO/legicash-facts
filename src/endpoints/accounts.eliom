@@ -144,8 +144,6 @@ let _ =
     (fun keys -> Hashtbl.add address_to_keys_tbl keys.address keys)
     account_keys
 
-let (address_to_user_state_tbl : (Address.t,Side_chain.user_state) Hashtbl.t) = Hashtbl.create number_of_accounts
-
 let trent_keys =
   Keypair.make_keys_from_hex
     "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
@@ -180,6 +178,8 @@ let store_keys_on_testnet (name,keys) =
 
 (* prepare test network with accounts, contract *)
 
+let (address_to_user_state_tbl : (Address.t,Side_chain.user_state) Hashtbl.t) = Hashtbl.create number_of_accounts
+
 let create_side_chain_user_state user_keys =
   let main_chain_user_state =
     { keypair= user_keys
@@ -195,6 +195,13 @@ let create_side_chain_user_state user_keys =
   let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
   {main_chain_user_state; facilitators}
 
+let create_user_states () =
+  List.iter
+    (fun (_name,(keys:Keypair.t)) ->
+       Hashtbl.add address_to_user_state_tbl keys.address
+         (create_side_chain_user_state keys))
+    account_key_list
+
 let trent_fee_schedule : FacilitatorFeeSchedule.t =
   { deposit_fee= TokenAmount.of_int 5
   ; withdrawal_fee= TokenAmount.of_int 5
@@ -203,8 +210,8 @@ let trent_fee_schedule : FacilitatorFeeSchedule.t =
 
 let (confirmed_trent_state : Side_chain.State.t) =
   { previous_main_chain_state= Digest.zero
-  ; previous_side_chain_state= Digest.one
-  ; facilitator_revision= Revision.of_int 17
+  ; previous_side_chain_state= Digest.zero
+  ; facilitator_revision= Revision.of_int 0
   ; spending_limit= TokenAmount.of_int 1000000
   ; bond_posted= TokenAmount.of_int 5000000
   ; accounts= AccountMap.empty
@@ -219,20 +226,47 @@ let trent_genesis_state : FacilitatorState.t =
 
 let trent_state = ref trent_genesis_state
 
+let set_trent_state state = trent_state := state
+
+let user_accounts_from_trent_state address =
+  let open UserAccountStatePerFacilitator in
+  let accounts = !trent_state.current.accounts in
+  try
+    let user_account = AccountMap.find address accounts in
+    let account_state =
+      {facilitator_validity= Confirmed; confirmed_state= user_account; pending_operations= []}
+    in
+    UserAccountStateMap.singleton trent_address account_state
+  with Not_found ->
+    raise (Internal_error
+             (Format.sprintf "Could not find user state for address: %s"
+                (Address.to_hex_string address)))
+
 let load_trent_state () =
   Printf.printf "Loading facilitator state...%!";
   try
     let facilitator_state = Side_chain.FacilitatorState.Persistence.retrieve trent_address in
     Printf.printf "done\n%!";
-    trent_state := facilitator_state
-  with _ ->
-    Printf.printf "no saved facilitator state found, using genesis state\n%!"
+    set_trent_state facilitator_state;
+    (* update user states with retrieved trent state *)
+    Hashtbl.iter
+      (fun address user_state ->
+         try
+           let new_user_accounts = user_accounts_from_trent_state address in
+           Hashtbl.replace address_to_user_state_tbl address
+             { user_state with facilitators = new_user_accounts }
+         with _ -> ())
+      address_to_user_state_tbl
+  with exn ->
+    Printf.printf "Could not load facilitator state, using genesis state: %s\n%!"
+      (Printexc.to_string exn)
 
 let _ =
   let open Lwt in
   (* for top-level operations, don't use Lwt_main.run
      not needed, may cause deadlock *)
   Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
+  create_user_states ();
   load_trent_state ();
   Lwt_list.iter_s store_keys_on_testnet account_key_list
   >>= fun () ->

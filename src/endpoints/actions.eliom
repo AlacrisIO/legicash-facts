@@ -100,14 +100,8 @@ let user_state_from_address address_t =
   try
     Hashtbl.find address_to_user_state_tbl address_t
   with Not_found ->
-    let keys =
-      try
-        Hashtbl.find address_to_keys_tbl address_t
-      with Not_found -> raise (Internal_error "Can't find address for deposit")
-    in
-    let new_user_state = create_side_chain_user_state keys in
-    Hashtbl.add address_to_user_state_tbl address_t new_user_state;
-    new_user_state
+    raise (Internal_error (Format.sprintf "Could not find user state for address: 0x%s"
+                             (Address.to_hex_string address_t)))
 
 (* convert main chain confirmation to JSON-friendly types *)
 let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmation.t) =
@@ -116,6 +110,8 @@ let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmatio
         ; block_number = confirmation.block_number |> Revision.to_int
         ; block_hash = "0x" ^ (confirmation.block_hash |> Digest.to_hex_string)
         }
+
+let json_of_exn exn = `Assoc [("error",`String (Printexc.to_string exn))]
 
 let deposit_to_trent address amount =
   let open Side_chain_action in
@@ -134,7 +130,7 @@ let deposit_to_trent address amount =
     let confirmation = signed_confirmation.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
     Hashtbl.replace address_to_user_state_tbl address_t user_state1;
-    trent_state := trent_state1;
+    set_trent_state trent_state1;
     (* get transaction hash for main chain *)
     let operation = signed_request.payload.operation in
     let main_chain_confirmation =
@@ -184,7 +180,7 @@ let withdrawal_from_trent address amount =
     let confirmation = signed_confirmation2.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
     (* update trent state *)
-    trent_state := trent_state2;
+    set_trent_state trent_state2;
     push_side_chain_action_to_main_chain trent_state2 (user_state1,signed_confirmation2)
     >>= fun (user_state2,maybe_main_chain_confirmation) ->
     (* update user state, which refers to main chain state *)
@@ -261,7 +257,7 @@ let payment_on_trent sender recipient amount =
   |> fun (trent_state_after_confirmation, signed_confirmation) ->
   let confirmation = signed_confirmation.payload in
   let tx_revision = confirmation.tx_header.tx_revision in
-  trent_state := trent_state_after_confirmation;
+  set_trent_state trent_state_after_confirmation;
   let sender_name = get_user_name sender_address_t in
   let recipient_name = get_user_name recipient_address_t in
   let accounts = !trent_state.current.accounts in

@@ -205,6 +205,7 @@ clean:
 	-rm -f *.type_mli
 	-rm -f ${PROJECT_NAME}.js
 	-rm -rf ${ELIOM_CLIENT_DIR} ${ELIOM_SERVER_DIR}
+	-rm -rf accounts confirmations facilitator_state
 
 distclean: clean
 	-rm -rf $(TEST_PREFIX) $(DEPSDIR) .depend
