@@ -47,6 +47,13 @@ type payment_result =
   }
   [@@deriving yojson]
 
+type tps_result =
+  { transactions_per_second : int
+  ; time : string
+  }
+  [@@deriving yojson]
+
+
 let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | state, Error y -> raise y
 (* Lwt-monadic version of |^>> *)
 let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | state, Error y -> raise y
@@ -238,6 +245,22 @@ let get_all_balances_on_trent () =
   let sorted_balances_json = List.map user_account_state_to_yojson sorted_user_account_states in
   `List sorted_balances_json
 
+
+(* every payment generates a timestamp in this array, treated as circular buffer *)
+(* should be big enough to hold one minute's worth of payments on a fast machine *)
+let num_timestamps = 30000
+let payment_timestamps = Array.make num_timestamps 0.0
+
+(* offset where next timestamp goes *)
+let payment_timestamps_cursor = ref 0
+
+let payment_timestamp () =
+  payment_timestamps.(!payment_timestamps_cursor) <- Unix.gettimeofday ();
+  incr payment_timestamps_cursor;
+  (* wrap if needed *)
+  if !payment_timestamps_cursor >= num_timestamps then
+    payment_timestamps_cursor := 0
+
 let payment_on_trent sender recipient amount =
   if sender = recipient then
     raise (Internal_error "Sender and recipient are the same");
@@ -255,9 +278,12 @@ let payment_on_trent sender recipient amount =
   (!trent_state, signed_request)
   |^>> confirm_request
   |> fun (trent_state_after_confirmation, signed_confirmation) ->
+  set_trent_state trent_state_after_confirmation;
+  (* set timestamp, now that all processing on Trent is done *)
+  payment_timestamp ();
+  (* remaining code is preparing response *)
   let confirmation = signed_confirmation.payload in
   let tx_revision = confirmation.tx_header.tx_revision in
-  set_trent_state trent_state_after_confirmation;
   let sender_name = get_user_name sender_address_t in
   let recipient_name = get_user_name recipient_address_t in
   let accounts = !trent_state.current.accounts in
@@ -278,4 +304,41 @@ let payment_on_trent sender recipient amount =
     ; amount_transferred = amount
     ; side_chain_tx_revision
     }
-  in payment_result_to_yojson payment_result
+  in
+  payment_result_to_yojson payment_result
+
+let get_transaction_rate_on_trent () =
+  (* start search from last timestamp *)
+  let current_cursor = !payment_timestamps_cursor in
+  let last_cursor =
+    if current_cursor = 0 then
+      num_timestamps - 1
+    else
+      current_cursor - 1
+  in
+  let now = Unix.gettimeofday () in
+  let rec count_transactions ndx count =
+    (* traversed entire array, shouldn't happen *)
+    if ndx = current_cursor then
+      raise (Internal_error "Timestamps array is not big enough")
+    else if now -. payment_timestamps.(ndx) >= 60.0 then
+      count
+    else (* decrement, or wrap backwards *)
+      count_transactions (if ndx = 0 then num_timestamps - 1 else ndx - 1) (count + 1)
+  in
+  let raw_count = count_transactions last_cursor 0 in
+  let transactions_per_second = raw_count / 60 in
+  let tm = Unix.localtime now in
+  let time =
+    Format.sprintf "%d:%02d:%02d %02d:%02d:%02d"
+      (tm.tm_year + 1900)
+      (tm.tm_mon + 1)
+      tm.tm_mday
+      tm.tm_hour
+      tm.tm_min
+      tm.tm_sec
+  in
+  let tps_result = { transactions_per_second
+                   ; time
+                   } in
+  tps_result_to_yojson tps_result

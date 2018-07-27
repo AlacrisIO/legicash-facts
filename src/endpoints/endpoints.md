@@ -130,18 +130,35 @@ Balances
 
   The result is a JSON list of "account" records, sorted by user name.
 
+Transaction rate
+----------------
+
+  URL: api/tps
+
+  GET
+
+  The result is a JSON record of the form:
+
+    { "transaction_rate" : int
+      "time" : string
+	}
+
+  indicating the transactions per second in the minute preceding
+  the request, and the time when the request was received. The
+  time format is YYYY:MM:DD HH:MM:SS.
+
 Proofs
 ------
 
   URL: api/proof?tx-revision=nn, where "nn" is an integer
-  
+
   GET
-  
+
   If there's a valid Merkle proof for the transaction with "tx-revision", a JSON record
   of type "proof" is returned. The "trie" field should published on the main chain.
   Otherwise, a JSON record with an "error" field is returned.
 
-  Note that "key" field of the proof is a hex-string, while this endpoint below takes an ordinary 
+  Note that "key" field of the proof is a hex-string, while this endpoint below takes an ordinary
   integer in the "tx-revision" parameter. Those two values agree on their numeric value.
 
 Deposit/withdrawal threads
@@ -163,5 +180,5 @@ Deposit/withdrawal threads
     }
 
   where "side\_chain\_tx\_revision" is a sequence number for the request confirmed by the side chain
-  facilitator, and "main\_chain\_confirmation" has the details of the transaction in a block on the 
+  facilitator, and "main\_chain\_confirmation" has the details of the transaction in a block on the
   main chain.

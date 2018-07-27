@@ -42,7 +42,7 @@ type error_message = {
 
 let path = Eliom_service.Path ["api"]
 
-let make_params name = 
+let make_params name =
   Eliom_parameter.(suffix (suffix_const name))
 
 let make_post_service name =
@@ -66,6 +66,8 @@ let payment_service = make_post_service "payment"
 let balance_service = make_post_service "balance"
 
 let balances_service = make_get_service "balances"
+
+let transaction_rate_service = make_get_service "tps"
 
 (* a proof is obtained with api/proof?tx-revision=nnn *)
 let proof_params = Eliom_parameter.(suffix_prod (suffix_const "proof") (int "tx-revision"))
@@ -206,11 +208,16 @@ let balance_handler () (content_type,raw_content_opt) =
   else
     not_json_content_error ()
 
-let balances_handler balances () =
-  try
-    let result_json = Actions.get_all_balances_on_trent () in
-    send_json ~code:200 (Yojson.Safe.to_string result_json)
+(* create handler for GET endpoint without query parameters *)
+let make_get_handler action =
+  fun _ () ->
+    try
+      let result_json = action () in
+      send_json ~code:200 (Yojson.Safe.to_string result_json)
     with Internal_error msg -> bad_response msg
+
+let balances_handler = make_get_handler Actions.get_all_balances_on_trent
+let transaction_rate_handler = make_get_handler Actions.get_transaction_rate_on_trent
 
 let proof_handler (proof,tx_revision) () =
   try
@@ -236,7 +243,9 @@ let post_endpoints =
   ]
 
 let get_endpoints =
-  [ (balances_service, balances_handler) ]
+  [ (balances_service, balances_handler)
+  ; (transaction_rate_service,transaction_rate_handler)
+  ]
 
 let _ =
   let open Eliom_registration.Any in
