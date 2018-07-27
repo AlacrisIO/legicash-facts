@@ -221,19 +221,13 @@ let rlp_of_signed_transaction transaction_rlp ~v ~r ~s =
    describes the transaction hashing algorithm
 *)
 let get_transaction_hash signed_transaction private_key =
-  let open Bigarray in
   let transaction = signed_transaction.payload in
   let transaction_rlp = rlp_of_transaction transaction in
   (* step 1: RLP-encode and hash the transaction *)
   let encoded_transaction = Ethereum_rlp.encode transaction_rlp in
   let hashed_transaction = Ethereum_util.hash (Ethereum_rlp.to_string encoded_transaction) in
   (* step 2: sign the hash with a private key, extract pieces of the signature *)
-  let hash_buffer = Array1.create Char c_layout (String.length hashed_transaction) in
-  let _ =
-    for ndx = 0 to Array1.dim hash_buffer - 1 do
-      Array1.set hash_buffer ndx hashed_transaction.[ndx]
-    done
-  in
+  let hash_buffer = Cstruct.to_bigarray (Cstruct.of_string hashed_transaction) in
   let msg =
     match Secp256k1.Sign.msg_of_bytes hash_buffer with
     | Some msg -> msg
@@ -244,12 +238,15 @@ let get_transaction_hash signed_transaction private_key =
     | Ok signature -> Secp256k1.Sign.to_bytes_recid secp256k1_ctx signature
     | Error err -> raise (Internal_error ("Could not sign transaction hash: " ^ err))
   in
-  let v = String.make 1 (Char.chr (recid + 27)) in
-  let string_of_subarray subarray =
-    String.init (Array1.dim subarray) (fun ndx -> Array1.get subarray ndx)
+  let signature_cstruct = Cstruct.of_bigarray signature_buffer in
+  let string_from_signature_subarray start len =
+    let bytes = Bytes.create len in
+    Cstruct.blit_to_bytes signature_cstruct start bytes 0 len;
+    Bytes.to_string bytes
   in
-  let r = string_of_subarray (Array1.sub signature_buffer 0 32) in
-  let s = string_of_subarray (Array1.sub signature_buffer 32 32) in
+  let v = String.make 1 (Char.chr (recid + 27)) in
+  let r = string_from_signature_subarray 0 32 in
+  let s = string_from_signature_subarray 32 32 in
   (* step 3: RLP-encode and hash the transaction augmented with the signature *)
   let signed_transaction_rlp = rlp_of_signed_transaction transaction_rlp ~v ~r ~s in
   let encoded_signed_transaction = Ethereum_rlp.encode signed_transaction_rlp in

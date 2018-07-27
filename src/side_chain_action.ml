@@ -480,8 +480,7 @@ module Test = struct
     let open Ethereum_json_rpc in
     (* get hex string version of private key *)
     let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
-    let len = Bigarray.Array1.dim buffer in
-    let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
+    let s = Cstruct.to_string (Cstruct.of_bigarray buffer) in
     let pk_string_raw = Ethereum_util.hex_string_of_string s in
     let pk_string_len = String.length pk_string_raw in
     let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in

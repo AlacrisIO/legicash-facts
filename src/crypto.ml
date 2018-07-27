@@ -106,13 +106,11 @@ module Address = struct
   let to_big_endian_bits = big_endian_bits_of_nat 160
 
   let of_public_key public_key =
-    let open Bigarray in
-    let public_keylen = 64 in
     let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
     (* uncompressed public key has an extra byte at the beginning, which we remove:
        https://bitcoin.stackexchange.com/questions/57855/c-secp256k1-what-do-prefixes-0x06-and-0x07-in-an-uncompressed-public-key-signif
     *)
-    let pubkey_string = String.init public_keylen (fun ndx -> Array1.get buffer (ndx + 1)) in
+    let pubkey_string = Cstruct.to_string (Cstruct.of_bigarray ~off:1 buffer) in
     let hash = keccak256_string pubkey_string in
     let hash_len = String.length hash in
     Nat.of_bits (String.init address_size (fun ndx -> hash.[hash_len - ndx - 1]))
@@ -158,10 +156,7 @@ type private_key = Secp256k1.Key.secret Secp256k1.Key.t
    for strings representing hashes, the msg format is suitable for signing.
 *)
 let secp256k1_msg_of_string s =
-  let open Bigarray in
-  let sz = String.length s in
-  let buffer = Array1.create char c_layout sz in
-  let _ = for i = 0 to sz - 1 do Bigarray.Array1.set buffer i s.[i] done in
+  let buffer = Cstruct.to_bigarray (Cstruct.of_string s) in
   match Secp256k1.Sign.msg_of_bytes buffer with
   | Some msg -> msg
   | None -> raise (Internal_error "Could not create SECP256K1.Sign.msg from string")
@@ -184,7 +179,8 @@ let [@warning "-32"] signature_of_string string =
   let recid64,_ = UInt64.unmarshal recid_bytes in
   let recid = UInt64.to_int recid64 in
   let signature_string = String.sub string 8 (String.length string - 8) in
-  match Secp256k1.Sign.read_recoverable ~recid secp256k1_ctx (Cstruct.of_string signature_string).buffer with
+  match Secp256k1.Sign.read_recoverable ~recid secp256k1_ctx
+          (Cstruct.to_bigarray (Cstruct.of_string signature_string)) with
   | Ok signature -> signature
   | Error msg ->
     raise (Internal_error (Format.sprintf "Could not get signature from string: %s" msg))

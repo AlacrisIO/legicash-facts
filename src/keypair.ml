@@ -1,6 +1,5 @@
 (* keypair.ml -- Secp256k1 key pairs *)
 
-open Bigarray
 open Lib
 open Crypto
 
@@ -13,12 +12,6 @@ let private_key_length = 32
 
 let public_key_length = 65
 
-let string_to_secp256k1_buffer s =
-  let len = String.length s in
-  let buffer = Array1.create char c_layout len in
-  for ndx = 0 to len - 1 do Bigarray.Array1.set buffer ndx s.[ndx] done ;
-  buffer
-
 let make_public_key public_key_string =
   let len = String.length public_key_string in
   if len <> public_key_length then
@@ -26,7 +19,7 @@ let make_public_key public_key_string =
       (Internal_error
          (Printf.sprintf "Bad public key length %d for %s" len
             (unparse_coloned_hex_string public_key_string))) ;
-  let public_key_buffer = string_to_secp256k1_buffer public_key_string in
+  let public_key_buffer = Cstruct.to_bigarray (Cstruct.of_string public_key_string) in
   match Secp256k1.Key.read_pk secp256k1_ctx public_key_buffer with
   | Ok pk -> pk
   | Error msg -> raise (Internal_error msg)
@@ -38,7 +31,7 @@ let make_private_key private_key_string =
       (Internal_error
          (Printf.sprintf "Bad private key length %d for %s" len
             (unparse_coloned_hex_string private_key_string))) ;
-  let private_key_buffer = string_to_secp256k1_buffer private_key_string in
+  let private_key_buffer = Cstruct.to_bigarray (Cstruct.of_string private_key_string) in
   match Secp256k1.Key.read_sk secp256k1_ctx private_key_buffer with
   | Ok sk -> sk
   | Error msg -> raise (Internal_error msg)
@@ -53,36 +46,30 @@ let make_keys_from_hex private_key_hex public_key_hex =
   make_keys (parse_coloned_hex_string private_key_hex) (parse_coloned_hex_string public_key_hex)
 
 module Marshalable = struct
-  open Bigarray
 
   type nonrec t = t
 
   let marshal buffer t =
     let bytes_of_key key =
       let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx key in
-      Bytes.init (Array1.dim buffer) (Array1.get buffer)
+      Cstruct.to_bytes (Cstruct.of_bigarray buffer)
     in
     Buffer.add_bytes buffer (bytes_of_key t.private_key);
     Buffer.add_bytes buffer (bytes_of_key t.public_key);
     Address.marshal buffer t.address
 
   let unmarshal ?(start=0) bytes =
-    let fill_buffer buffer offset len =
-      for ndx = 0 to len - 1 do
-        Array1.set buffer ndx (Bytes.get bytes (ndx + offset))
-      done
-    in
-    let private_buffer = Array1.create char c_layout private_key_length in
-    let _ = fill_buffer private_buffer start private_key_length in
+    let private_buffer = Cstruct.create private_key_length in
+    let _ = Cstruct.blit_from_bytes bytes start private_buffer 0 private_key_length in
     let private_key =
-      match Secp256k1.Key.read_sk secp256k1_ctx private_buffer with
+      match Secp256k1.Key.read_sk secp256k1_ctx (Cstruct.to_bigarray private_buffer) with
       | Ok key -> key
       | Error s -> raise (Internal_error ("Could not unmarshal private key: " ^ s))
     in
-    let public_buffer = Array1.create char c_layout public_key_length in
-    let _ = fill_buffer public_buffer (start + private_key_length) public_key_length in
+    let public_buffer = Cstruct.create public_key_length in
+    let _ = Cstruct.blit_from_bytes bytes (start + private_key_length) public_buffer 0 public_key_length in
     let public_key =
-      match Secp256k1.Key.read_pk secp256k1_ctx public_buffer with
+      match Secp256k1.Key.read_pk secp256k1_ctx (Cstruct.to_bigarray public_buffer) with
       | Ok key -> key
       | Error s -> raise (Internal_error ("Could not unmarshal public key: " ^ s))
     in
