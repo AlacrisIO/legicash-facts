@@ -273,66 +273,68 @@ module State = struct
           db := Some (LevelDB.open_db DbName.db_name);
         option_get !db
 
-    let node_saved key =
+    let node_saved synth =
       let db = get_db () in
-      LevelDB.mem db key
+      LevelDB.mem db synth
 
-    let save_node key data =
+    let save_node synth data =
       let db = get_db () in
-      LevelDB.put db key data
-
-    let branchk ~i:_ ~height ~leftr ~rightr ~synth ~k =
-      let node_key = Synth.marshal_string synth in
-      if not (node_saved node_key ) then (
-        let buffer = Buffer.create 256 in
-        marshal_branch buffer leftr rightr height synth;
-        save_node node_key (Buffer.contents buffer);
-      );
-      k synth
-
-    let skipk ~i:_ ~height ~length ~bits ~childr ~synth ~k =
-      let node_key = Synth.marshal_string synth in
-      if not (node_saved node_key) then (
-        let buffer = Buffer.create 256 in
-        marshal_skip buffer childr bits length height synth;
-        save_node node_key (Buffer.contents buffer)
-      );
-      k synth
-
-    let leafk ~i:_ ~value ~synth ~k =
-      let node_key = Synth.marshal_string synth in
-      if not (node_saved node_key) then (
-        let buffer = Buffer.create 256 in
-        marshal_leaf buffer value synth;
-        save_node node_key (Buffer.contents buffer)
-      );
-      k synth
-
-    let emptyk ~k =
-      let node_key = Synth.marshal_string Synth.empty in
-      if not (node_saved node_key) then (
-        let buffer = Buffer.create 10 in
-        marshal_empty buffer;
-        save_node node_key (Buffer.contents buffer)
-      );
-      k Synth.empty
-
-    (* TODO:
-
-       iterate_over_tree does a post-order depth-first traversal, which
-       means, for example, that we consider the subtrees of
-       branch nodes before examining the branch itself
-
-       what we'd like is to examine whether the branch has been saved,
-       and not traverse the subtrees if so. A breadth-first traversal
-       will do that
-    *)
+      LevelDB.put db synth data
 
     let save root_key tree =
+
+      let branchk ~i:_ ~height ~leftr ~rightr ~synth ~k =
+        let node_key = Synth.marshal_string synth in
+        if not (node_saved node_key ) then (
+          let buffer = Buffer.create 256 in
+          marshal_branch buffer leftr rightr height synth;
+          save_node node_key (Buffer.contents buffer);
+        );
+        k synth
+      in
+
+      let skipk ~i:_ ~height ~length ~bits ~childr ~synth ~k =
+        let node_key = Synth.marshal_string synth in
+        if not (node_saved node_key) then (
+          let buffer = Buffer.create 256 in
+          marshal_skip buffer childr bits length height synth;
+          save_node node_key (Buffer.contents buffer)
+        );
+        k synth
+      in
+
+      let leafk ~i:_ ~value ~synth ~k =
+        let node_key = Synth.marshal_string synth in
+        if not (node_saved node_key) then (
+          let buffer = Buffer.create 256 in
+          marshal_leaf buffer value synth;
+          save_node node_key (Buffer.contents buffer)
+        );
+        k synth
+      in
+
+      let emptyk ~k =
+        let node_key = Synth.marshal_string Synth.empty in
+        if not (node_saved node_key) then (
+          let buffer = Buffer.create 10 in
+          marshal_empty buffer;
+          save_node node_key (Buffer.contents buffer)
+        );
+        k Synth.empty
+      in
+
       let rec save_trie ~i ~tree ~k =
+        (* this needs to be closed under save_tree, unlike the others *)
+        let recursek ~i ~tree ~k =
+          let synth = get_synth tree in
+          let node_key = Synth.marshal_string synth in
+          if node_saved node_key then
+            k synth
+          else
+            save_trie ~i ~tree ~k
+        in
         iterate_over_tree
-          ~recursek:save_trie
-          ~branchk ~skipk ~leafk ~emptyk
+          ~recursek  ~branchk ~skipk ~leafk ~emptyk
           ~i ~tree ~k
       in
       let root_synth = save_trie ~i:empty_key ~tree ~k:identity in
@@ -610,7 +612,6 @@ module FacilitatorState = struct
                               (Address.to_hex_string facilitator_address)))
       in
       unmarshal_bytes bytes
-
   end
 end
 
@@ -674,6 +675,12 @@ module Test = struct
     ; fee_schedule= trent_fee_schedule }
 
   let%test "db-save-retrieve" =
+    (* test whether retrieving a saved facilitator state yields the same state
+       here, the account and confirmation maps are empty, so it doesn't really
+         exercise the node-by-node persistence machinery
+       in Side_chain_action.Test, the "deposit_and_payment_valid" test does
+        a save and retrieval with nonempty such maps
+    *)
     FacilitatorState.Persistence.save trent_state;
     let retrieved_state = FacilitatorState.Persistence.retrieve trent_address in
     retrieved_state = trent_state

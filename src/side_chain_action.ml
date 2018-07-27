@@ -641,7 +641,11 @@ module Test = struct
       let bob_expected_balance = payment_amount in
       assert (alice_account.balance = alice_expected_balance) ;
       assert (bob_account.balance = bob_expected_balance) ;
-      return true
+      (* test whether retrieving saved facilitator state yields the same state
+         like similar test in Side_chain.Test; here we have nonempty account, confirmation maps *)
+      Side_chain.FacilitatorState.Persistence.save trent_state2;
+      let retrieved_state = Side_chain.FacilitatorState.Persistence.retrieve trent_address in
+      return (retrieved_state = trent_state2)
     )
 
   (* deposit and withdrawal test *)
@@ -678,12 +682,8 @@ module Test = struct
       (* TODO: get actual transaction receipt from main chain, check receipt
          maybe this test belongs in Ethereum_transactions
       *)
-      >>= fun _ -> return true
+      >>= fun _ ->
+      return true
     )
 
-  (* like similar test in Side_chain.Test; here we have nonempty maps *)
-  let%test "db-save-retrieve_after_actions" =
-    Side_chain.FacilitatorState.Persistence.save trent_state;
-    let retrieved_state = Side_chain.FacilitatorState.Persistence.retrieve trent_address in
-    retrieved_state = trent_state
 end

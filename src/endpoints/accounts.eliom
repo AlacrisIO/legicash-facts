@@ -257,9 +257,8 @@ let load_trent_state () =
              { user_state with facilitators = new_user_accounts }
          with _ -> ())
       address_to_user_state_tbl
-  with exn ->
-    Printf.printf "Could not load facilitator state, using genesis state: %s\n%!"
-      (Printexc.to_string exn)
+  with _ ->
+    Printf.printf "Could not load facilitator state, using genesis state\n%!"
 
 let _ =
   let open Lwt in
