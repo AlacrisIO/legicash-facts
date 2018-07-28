@@ -317,11 +317,12 @@ let get_transaction_rate_on_trent () =
       current_cursor - 1
   in
   let now = Unix.gettimeofday () in
+  let minute_ago = now -. 60.0 in
   let rec count_transactions ndx count =
     (* traversed entire array, shouldn't happen *)
     if ndx = current_cursor then
       raise (Internal_error "Timestamps array is not big enough")
-    else if now -. payment_timestamps.(ndx) >= 60.0 then
+    else if payment_timestamps.(ndx) <= minute_ago then
       count
     else (* decrement, or wrap backwards *)
       count_transactions (if ndx = 0 then num_timestamps - 1 else ndx - 1) (count + 1)
