@@ -161,6 +161,24 @@ Proofs
   Note that "key" field of the proof is a hex-string, while this endpoint below takes an ordinary
   integer in the "tx-revision" parameter. Those two values agree on their numeric value.
 
+Recent transactions
+-------------------
+
+  URL: api/recent_transactions, or
+  URL: api/recent_transactions?limit=nn, where "nn" is an integer
+
+  POST / Content-Type: application/json
+
+  The body is a JSON record of the form:
+
+    { "address" : address }
+ 
+  The result is a JSON list of transactions. If the "limit" parameter is given, the list 
+  is limited to that number of the most recent transactions requested by the user with 
+  the given address; otherwise, the list is all the transactions by that user.
+  
+  The transactions are deposits, withdrawals, or payments, along with their details.
+
 Deposit/withdrawal threads
 --------------------------
 

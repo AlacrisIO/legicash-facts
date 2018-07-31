@@ -244,10 +244,64 @@ let get_all_balances_on_trent () =
   let sorted_balances_json = List.map user_account_state_to_yojson sorted_user_account_states in
   `List sorted_balances_json
 
+(* convert Request to nice JSON *)
+let make_operation_json address (revision:Revision.t) (request:Request.t) =
+  let revision_field = ("facilitator_revision",`Int (Revision.to_int revision)) in
+  match request.operation with
+    Deposit details ->
+    `Assoc
+      [ ("transaction_type",`String "deposit")
+      ; revision_field
+      ; ("address",`String address)
+      ; ("amount",`Int (TokenAmount.to_int details.deposit_amount))
+      ]
+  | Payment details ->
+    `Assoc
+      [ ("transaction_type",`String "payment")
+      ; revision_field
+      ; ("sender",`String address)
+      ; ("recipient",`String (Address.to_hex_string details.payment_invoice.recipient))
+      ; ("amount",`Int (TokenAmount.to_int details.payment_invoice.amount))
+      ]
+  | Withdrawal details ->
+    `Assoc
+      [ ("transaction_type",`String "withdrawal")
+      ; revision_field
+      ; ("address",`String address)
+      ; ("amount",`Int (TokenAmount.to_int details.withdrawal_amount))
+      ]
+
+let get_recent_transactions_on_trent address maybe_limit =
+  let exception Reached_limit of Yojson.Safe.json list in
+  let address_t = Ethereum_util.address_of_hex_string address in
+  let all_operations = !trent_state.current.operations in
+  let get_operation_for_address _rev (confirmation:Confirmation.t) ((count,operations) as accum) =
+    if is_option_some maybe_limit &&
+       count >= option_get maybe_limit then
+      raise (Reached_limit operations);
+    let request = (confirmation.signed_request).payload in
+    let requester = request.rx_header.requester in
+    if requester = address_t then
+      (count+1,make_operation_json address confirmation.tx_header.tx_revision request::operations)
+    else
+      accum
+  in
+  let operations =
+    try
+      let _,ops =
+        ConfirmationMap.fold_right
+          get_operation_for_address
+          all_operations (0,[])
+      in ops
+    with Reached_limit ops -> ops
+  in
+  `List operations
+
+
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
-let num_timestamps = 30000
+let num_timestamps = 100000
 let payment_timestamps = Array.make num_timestamps 0.0
 
 (* offset where next timestamp goes *)
