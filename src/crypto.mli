@@ -17,6 +17,7 @@ module type DigestibleS = sig
   val marshal_bytes : t -> Bytes.t
   val unmarshal_bytes : Bytes.t -> t
   val marshal_string : t -> string
+  val unmarshal_string : string -> t
   val digest : t -> t digest
 end
 

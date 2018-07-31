@@ -13,14 +13,13 @@ module type MarshalableS = sig
 end
 
 val marshal_of_sized_string_of : int -> ('a -> string) -> 'a marshaler
-
 val unmarshal_of_sized_of_string : int -> (string -> 'a) -> 'a unmarshaler
 
 val marshal_bytes_of_marshal : 'a marshaler -> 'a -> Bytes.t
-
 val unmarshal_bytes_of_unmarshal : 'a unmarshaler -> Bytes.t -> 'a
 
 val marshal_string_of_marshal : 'a marshaler -> 'a -> string
+val unmarshal_string_of_unmarshal : 'a unmarshaler -> string -> 'a
 
 val marshal_char : char marshaler
 val unmarshal_char : char unmarshaler
