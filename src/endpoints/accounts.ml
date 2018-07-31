@@ -2,7 +2,6 @@
 
 open Legicash_lib
 
-open Legibase
 open Lib
 open Crypto
 open Main_chain

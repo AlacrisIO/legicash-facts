@@ -1,12 +1,11 @@
-
 #----------------------------------------------------------------------
-#           SETTINGS FOR THE ELIOM PROJECT endpoints
+#           SETTINGS FOR THE Legicash project endpoints
 #----------------------------------------------------------------------
 
 PROJECT_NAME := endpoints
 
 # Source files for the server
-SERVER_FILES := $(wildcard *.eliomi *.eliom)
+SERVER_FILES := $(wildcard *.mli *.ml)
 
 # OCamlfind packages for the server
 SERVER_PACKAGES := base64 cstruct integers leveldb lwt.ppx ppx_deriving_yojson js_of_ocaml-ppx.deriving secp256k1 ppx_inline_test cohttp-lwt-unix lens
@@ -24,37 +23,32 @@ PERSISTENT_DATA_BACKEND = dbm
 # JavaScript, ocsigenserver
 DEBUG := no
 
-# User to run server with (make run.*)
+# User to run server with (make run)
 WWWUSER := www-data
 WWWGROUP := www-data
 
-# Port for running the server (make run.*)
+# Port for running the server (make run)
 PORT := 80
 
-# Port for testing (make test.*)
+# Port for testing (make run.test)
 TEST_PORT := 8081
 
-# Root of installation (must end with /)
-PREFIX := /usr/local/
+# Root of installation
+PREFIX := ./local
 
-# Local folder for make test.* (must end with /)
-# Do not add files manually in this directory.
-# It is just here to test your installation before installing in /
-TEST_PREFIX := local/
-
-# The installation tree (relative to $(PREFIX) when
-# installing/running or $(TEST_PREFIX) when testing).
 # Configuration file $(PROJECT_NAME).conf
-ETCDIR := etc/${PROJECT_NAME}
+ETCDIR := $(PREFIX)/etc/${PROJECT_NAME}
 # Project's library $(PROJECT_NAME).cma (cmxs)
-LIBDIR := lib/${PROJECT_NAME}
+LIBDIR := $(PREFIX)/lib/${PROJECT_NAME}
 # Command pipe, eg. $ echo reload > $(INSTALL_PREFIX)$(CMDPIPE)
-CMDPIPE := var/run/${PROJECT_NAME}-cmd
+RUNDIR := $(PREFIX)/var/run
+# Command pipe, eg. $ echo reload > $(INSTALL_PREFIX)$(CMDPIPE)
+CMDPIPE := $(RUNDIR)/${PROJECT_NAME}-cmd
 # Ocsigenserver's logging files
-LOGDIR := var/log/${PROJECT_NAME}
+LOGDIR := $(PREFIX)/var/log/${PROJECT_NAME}
+# need access file to start Ocsigen
+LOGFILE := $(LOGDIR)/access.log
 # Ocsigenserver's persistent data files
-DATADIR := var/data/${PROJECT_NAME}
+DATADIR := $(PREFIX)/var/data/${PROJECT_NAME}
 # Copy of $(LOCAL_STATIC)
-STATICDIR := var/www/${PROJECT_NAME}/static
-# Project's JavaScript file
-ELIOMSTATICDIR := var/www/${PROJECT_NAME}/eliom
+STATICDIR := $(PREFIX)/var/www/${PROJECT_NAME}/static

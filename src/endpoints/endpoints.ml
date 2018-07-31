@@ -1,6 +1,5 @@
 (* endpoints.eliom -- Legicash REST API endpoints *)
 
-open Yojson
 open Legicash_lib
 open Lib
 open Lwt
@@ -120,7 +119,7 @@ let not_json_content_error () =
 let missing_content_error operation =
   send_error ~code:400 (Format.sprintf "Missing content in %s request" operation)
 
-let bad_signed_json error =
+let bad_signed_json _error =
   send_error ~code:400 "Invalid signed JSON"
 
 let bad_response msg =
@@ -219,13 +218,13 @@ let make_get_handler action =
 let balances_handler = make_get_handler Actions.get_all_balances_on_trent
 let transaction_rate_handler = make_get_handler Actions.get_transaction_rate_on_trent
 
-let proof_handler (proof,tx_revision) () =
+let proof_handler (_proof,tx_revision) () =
   try
     let result_json = Actions.get_proof tx_revision in
     send_json ~code:200 (Yojson.Safe.to_string result_json)
   with Internal_error msg -> bad_response msg
 
-let thread_handler (thread,id) () =
+let thread_handler (_thread,id) () =
   try
     let result_json = Actions.apply_main_chain_thread id in
     send_json ~code:200 (Yojson.Safe.to_string result_json)
@@ -249,9 +248,9 @@ let get_endpoints =
 
 let _ =
   let open Eliom_registration.Any in
-  let _ = List.iter (fun (service,handler) -> register service handler) post_endpoints in
-  let _ = List.iter (fun (service,handler) -> register service handler) get_endpoints in
+  let _ = List.iter (fun (service,handler) -> register ~service handler) post_endpoints in
+  let _ = List.iter (fun (service,handler) -> register ~service handler) get_endpoints in
   (* GET endpoints with query parameters, so their own type *)
-  let _ = register proof_service proof_handler in
-  let _ = register thread_service thread_handler in
+  let _ = register ~service:proof_service proof_handler in
+  let _ = register ~service:thread_service thread_handler in
   ()

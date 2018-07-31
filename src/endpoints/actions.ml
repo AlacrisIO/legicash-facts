@@ -4,7 +4,6 @@ open Lwt
 
 open Legicash_lib
 
-open Legibase
 open Lib
 open Crypto
 open Side_chain
@@ -54,9 +53,9 @@ type tps_result =
   [@@deriving yojson]
 
 
-let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | state, Error y -> raise y
+let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | _state, Error y -> raise y
 (* Lwt-monadic version of |^>> *)
-let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | state, Error y -> raise y
+let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | _state, Error y -> raise y
 
 (* table of id's to Lwt threads *)
 let id_to_thread_tbl = Hashtbl.create 1031
@@ -127,7 +126,7 @@ let deposit_to_trent address amount =
   let user_state = user_state_from_address address_t in
   let thread =
     unlock_account address_t
-    >>= fun unlock_json ->
+    >>= fun _unlock_json ->
     (user_state, (trent_address,TokenAmount.of_int amount))
     |^>>+ deposit
     >>= fun (user_state1, signed_request) ->
@@ -175,7 +174,7 @@ let withdrawal_from_trent address amount =
     raise (Internal_error "Insufficient balance to withdraw specified amount");
   let thread =
     unlock_account address_t
-    >>= fun unlock_json ->
+    >>= fun _unlock_json ->
     (user_state, (trent_address,TokenAmount.of_int amount))
     |^>>+
     withdrawal
