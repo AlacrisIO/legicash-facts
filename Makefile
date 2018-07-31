@@ -67,7 +67,7 @@ install-contract : legicash_lib src/install_contract.ml
 	$(HIDE) $(BUILDER) build --root=src install_contract.exe
 
 endpoints : legicash_lib contract
-	make -C src/endpoints test.opt
+	make -C src/endpoints run.test
 
 clean :
 	$(SHOW) "Cleaning via dune"
@@ -77,7 +77,7 @@ clean :
 	$(SHOW) "Removing OPAM install file"
 	$(HIDE) rm -f legicash.install
 	$(SHOW) "Cleaning endpoints code"
-	$(HIDE) make -C src/endpoints distclean
+	$(HIDE) make -C src/endpoints clean
 
 # real contract
 # contract:
