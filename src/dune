@@ -6,6 +6,7 @@
   lib integer trie legibase marshaling crypto keypair action
   ethereum_rlp ethereum_patricia_merkle ethereum_transaction ethereum_abi
   ethereum_util ethereum_rlp ethereum_json_rpc
+  db
   main_chain main_chain_action side_chain side_chain_action
   court_registry facilitator_contract facilitator_contract_binary
   version)
@@ -14,8 +15,8 @@
  ;; -27 : unused variable
  ;; -32 : unused value
  ;; -34 : unused type
- (flags (:standard -w -9-34 -warn-error -27-32-33))
- (libraries cryptokit cstruct integers lens leveldb secp256k1 cohttp lwt cohttp-lwt-unix yojson)
+ (flags (:standard -w -9-34 -warn-error -27-32-33 -I +threads))
+ (libraries cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt secp256k1 threads yojson)
  (inline_tests))
 
 ;; main executable
@@ -30,5 +31,5 @@
  (name       legicaml)
  (modules legicaml)
  (libraries  compiler-libs.toplevel legicash_lib)
- (link_flags -linkall -cclib -lintegers)
+ (link_flags -linkall -cclib -lintegers -I +threads)
  (modes      byte))

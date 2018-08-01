@@ -26,6 +26,7 @@ module UInt256 = struct
   let marshal_bytes = marshal_bytes_of_marshal marshal
   let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
   let marshal_string = marshal_string_of_marshal marshal
+  let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
   let digest = digest_of_marshal_bytes marshal_bytes
 end
 
@@ -49,6 +50,7 @@ module type DigestibleS = sig
   val marshal_bytes: t -> Bytes.t
   val unmarshal_bytes: Bytes.t -> t
   val marshal_string: t -> string
+  val unmarshal_string: string -> t
   val digest: t -> t digest
 end
 
@@ -57,11 +59,12 @@ module DigestibleOfMarshalable (T : MarshalableS) = struct
   let marshal_bytes = marshal_bytes_of_marshal marshal
   let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
   let marshal_string = marshal_string_of_marshal marshal
+  let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
   let digest = digest_of_marshal_bytes marshal_bytes
 end
 
 module type IntS = sig
- include Integer.IntS
+  include Integer.IntS
   include DigestibleS with type t := t
 end
 
@@ -74,6 +77,7 @@ module UInt64 = struct
   let marshal_bytes = marshal_bytes_of_marshal marshal
   let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
   let marshal_string = marshal_string_of_marshal marshal
+  let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
   let digest = digest_of_marshal_bytes marshal_bytes
 end
 
