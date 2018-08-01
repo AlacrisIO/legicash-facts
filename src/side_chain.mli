@@ -1,7 +1,7 @@
 (* Types for LegiCash Facilitator side-chains *)
 open Action
 open Crypto
-open Trie
+open Merkle_trie
 open Marshaling
 
 module TokenAmount = Main_chain.TokenAmount

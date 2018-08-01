@@ -85,13 +85,6 @@ let db_digest_of_value marshal_string value =
 (** TODO: mechanism to forget old values? Or is GC enough? *)
 type 'a dv = {digest: Digest.t Lazy.t; value: 'a Lazy.t}
 
-module type RefS = sig
-  type t
-  type value
-  val get : t -> value
-  val make : value -> t
-end
-
 module type DigestValueBaseS = sig
   include RefS
   type digest

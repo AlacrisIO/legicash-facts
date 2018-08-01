@@ -1,6 +1,6 @@
 open Action
 open Crypto
-open Trie
+open Merkle_trie
 
 module TokenAmount : IntS
 

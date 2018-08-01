@@ -4,7 +4,7 @@ open Lib
 open Action
 open Marshaling
 open Crypto
-open Trie
+open Merkle_trie
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -134,13 +134,13 @@ module RxHeader = struct
     ; validity_within: Duration.t }
   [@@deriving lens {prefix=true}]
   let marshal buffer { facilitator
-                ; requester
-                ; requester_revision
-                ; confirmed_main_chain_state_digest
-                ; confirmed_main_chain_state_revision
-                ; confirmed_side_chain_state_digest
-                ; confirmed_side_chain_state_revision
-                ; validity_within } =
+                     ; requester
+                     ; requester_revision
+                     ; confirmed_main_chain_state_digest
+                     ; confirmed_main_chain_state_revision
+                     ; confirmed_side_chain_state_digest
+                     ; confirmed_side_chain_state_revision
+                     ; validity_within } =
     Address.marshal buffer facilitator ;
     Address.marshal buffer requester ;
     Revision.marshal buffer requester_revision ;
@@ -399,7 +399,7 @@ module State = struct
       let end_length = Buffer.length buffer in
       (* use hash of the non-trie contents as root key *)
       let non_trie_state = String.sub (Buffer.contents buffer)
-          start_length (end_length - start_length)
+                             start_length (end_length - start_length)
       in
       (* save trie nodes to database *)
       AccountMapPersist.save non_trie_state t.accounts;
@@ -465,8 +465,8 @@ module UserAccountStatePerFacilitator = struct
   module Marshalable = struct
     type nonrec t = t
     let marshal buffer { facilitator_validity
-                  ; confirmed_state
-                  ; pending_operations=_ } =
+                       ; confirmed_state
+                       ; pending_operations=_ } =
       KnowledgeStage.marshal buffer facilitator_validity ;
       AccountState.marshal buffer confirmed_state ;
       () (* TODO: handle the list pending_operation *)
@@ -677,9 +677,9 @@ module Test = struct
   let%test "db-save-retrieve" =
     (* test whether retrieving a saved facilitator state yields the same state
        here, the account and confirmation maps are empty, so it doesn't really
-         exercise the node-by-node persistence machinery
+       exercise the node-by-node persistence machinery
        in Side_chain_action.Test, the "deposit_and_payment_valid" test does
-        a save and retrieval with nonempty such maps
+       a save and retrieval with nonempty such maps
     *)
     FacilitatorState.Persistence.save trent_state;
     let retrieved_state = FacilitatorState.Persistence.retrieve trent_address in

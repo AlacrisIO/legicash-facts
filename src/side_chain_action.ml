@@ -2,7 +2,7 @@ open Lib
 open Action
 open Crypto
 open Keypair
-open Trie
+open Merkle_trie
 open Main_chain
 open Side_chain
 open Main_chain_action
@@ -70,7 +70,7 @@ let is_side_chain_request_well_formed :
       (* TODO: delegate the same signature checking protocol to the main chain *)
       && is_signature_valid Transaction.digest requester signature payload
       && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
-        main_chain_deposit_signed
+           main_chain_deposit_signed
       && TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee >= 0
     | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
       TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee) >= 0
@@ -78,8 +78,8 @@ let is_side_chain_request_well_formed :
       && TokenAmount.compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
       (* TODO: make sure the fee multiplication cannot overflow! *)
       && TokenAmount.compare payment_fee
-        (TokenAmount.mul state.fee_schedule.fee_per_billion
-           (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
+           (TokenAmount.mul state.fee_schedule.fee_per_billion
+              (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
          >= 0
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
       TokenAmount.compare balance (TokenAmount.add withdrawal_amount withdrawal_fee) >= 0
@@ -171,7 +171,7 @@ let effect_request :
       , ( rx
         , { account_state with
             balance= TokenAmount.sub account_state.balance
-                (TokenAmount.add payment_invoice.amount payment_fee) }
+                       (TokenAmount.add payment_invoice.amount payment_fee) }
         , account_lens ) )
       ^|> maybe_spend_spending_limit payment_expedited payment_invoice.amount
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
@@ -180,7 +180,7 @@ let effect_request :
           ( rx
           , { account_state with
               balance= TokenAmount.sub account_state.balance
-                  (TokenAmount.add withdrawal_amount withdrawal_fee) }
+                         (TokenAmount.add withdrawal_amount withdrawal_fee) }
           , account_lens ) )
 
 (** TODO:
@@ -280,8 +280,8 @@ let issue_user_request =
   (fun (user_state, operation) ->
      (user_state, ()) ^|> get_first_facilitator ^>> make_rx_header
      ^>> action_of_pure_action (fun (user_state, rx_header) ->
-         sign Request.digest user_state.main_chain_user_state.keypair.private_key
-           {Request.rx_header; Request.operation} ) )
+       sign Request.digest user_state.main_chain_user_state.keypair.private_key
+         {Request.rx_header; Request.operation} ) )
   ^>> fun (user_state, request) ->
     (add_user_episteme user_state (mk_rx_episteme request), Ok request)
 
@@ -292,10 +292,10 @@ let issue_user_request =
 *)
 
 (* TODO: is this used? should balances and revisions be updated in effect_request?
-         looks like balances already are
+   looks like balances already are
 *)
 let update_account_state_with_trusted_operation
-    trusted_operation ({balance} as account_state : AccountState.t) =
+      trusted_operation ({balance} as account_state : AccountState.t) =
   let f =
     {account_state with account_revision= Revision.add account_state.account_revision Revision.one} in
   match trusted_operation with

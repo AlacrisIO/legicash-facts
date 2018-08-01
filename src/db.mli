@@ -1,3 +1,4 @@
+open Lib
 open Marshaling
 open Crypto
 
@@ -15,13 +16,6 @@ val db_value_of_digest : (string -> 'a) -> Digest.t -> 'a
 val db_digest_of_value : ('a -> string) -> 'a -> Digest.t
 
 type 'a dv
-
-module type RefS = sig
-  type t
-  type value
-  val get : t -> value
-  val make : value -> t
-end
 
 module type DigestValueBaseS = sig
   include RefS

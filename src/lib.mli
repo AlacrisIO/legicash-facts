@@ -27,13 +27,13 @@ val identity : 'a -> 'a
 (** SKI combinators, 2: Konstanzfunktion, nice to use with defaulting *)
 val konstant : 'a -> 'b -> 'a
 
-(** SKI combinators, 3: verSchmelzungsfunktion (amalgamation function; smelting) *)
+(** SKI combinators, 3: verSchmelzungsfunktion (amalgamation function; Smelting) *)
 val schoenfinkel : ('a -> 'b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
-(** SKI combinators, 4: verTauschungsfunktion (exchange function) *)
+(** SKI combinators, 4: verTauschungsfunktion (exchange funcTion) *)
 val transpose : ('a -> 'b -> 'c) -> 'b -> 'a -> 'c
 
-(** SKI combinators, 5: Zusammensetzungsfunktion (composition function) *)
+(** SKI combinators, 5: Zusammensetzungsfunktion (compoZition function) *)
 val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
 
@@ -398,3 +398,9 @@ end
 
 val string_reverse : string -> string
 
+module type RefS = sig
+  type t
+  type value
+  val get : t -> value
+  val make : value -> t
+end

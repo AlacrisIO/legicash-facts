@@ -3,7 +3,7 @@
 open Action
 open Marshaling
 open Crypto
-open Trie
+open Merkle_trie
 
 module TokenAmount = UInt64
 module Nonce = UInt64
