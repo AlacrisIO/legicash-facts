@@ -13,6 +13,8 @@
     %%% Only set when debugging
     %%DEBUGMODE%%
     <commandpipe>%%CMDPIPE%%</commandpipe>
+    <minthreads>1000</minthreads>
+    <maxthreads>10000</maxthreads>
     <extension findlib-package="ocsigenserver.ext.staticmod"/>
     <extension findlib-package="ocsigenserver.ext.ocsipersist-%%PERSISTENT_DATA_BACKEND%%"/>
     <extension findlib-package="eliom.server"/>
