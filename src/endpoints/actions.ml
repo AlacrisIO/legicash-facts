@@ -60,8 +60,6 @@ type tps_result =
   }
 [@@deriving yojson]
 
-let trent_mutex = Lwt_mutex.create ()
-
 let ensure_ok = function state, Ok x -> (state, x) | _state, Error y -> raise y
 
 let ( |^>> ) v f = v |> f |> ensure_ok
@@ -311,11 +309,16 @@ let payment_timestamp () =
 let payment_on_trent sender recipient amount =
   if sender = recipient then
     raise (Internal_error "Sender and recipient are the same");
+  Printf.printf "1\n%!";
   let sender_address_t = Ethereum_util.address_of_hex_string sender in
   let recipient_address_t = Ethereum_util.address_of_hex_string recipient in
+  Printf.printf "1.1\n%!";
   let sender_state = Hashtbl.find address_to_user_state_tbl sender_address_t in
+  Printf.printf "1.2\n%!";
   let starting_accounts = !trent_state.current.accounts in
+  let _ = Printf.eprintf "EMPTY?: %B\n%!" (starting_accounts = AccountMap.empty) in
   let sender_account = AccountMap.find sender_address_t starting_accounts in
+  Printf.printf "2\n%!";
   if (TokenAmount.to_int sender_account.balance) < amount then
     raise (Internal_error "Sender has insufficient balance to make this payment");
   let sender_state_ref = ref sender_state in
@@ -327,7 +330,6 @@ let payment_on_trent sender recipient amount =
   >>= fun confirmation ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
-  (* remove completed operation from pending operations *)
   (* remaining code is preparing response *)
   let tx_revision = confirmation.tx_header.tx_revision in
   let sender_name = get_user_name sender_address_t in
