@@ -60,7 +60,6 @@ type tps_result =
   }
 [@@deriving yojson]
 
-
 let ensure_ok = function state, Ok x -> (state, x) | _state, Error y -> raise y
 
 let ( |^>> ) v f = v |> f |> ensure_ok
@@ -68,7 +67,7 @@ let ( |^>> ) v f = v |> f |> ensure_ok
 let ( |^>>+ ) v f = v |> f >>= Lwt.map ensure_ok
 
 (* table of id's to Lwt threads *)
-let id_to_thread_tbl = Hashtbl.create 1031
+let (id_to_thread_tbl : (int,Yojson.Safe.json Lwt.t) Hashtbl.t) = Hashtbl.create 1031
 
 (* add Lwt.t thread to table, return its id *)
 let add_main_chain_thread thread =
@@ -289,8 +288,6 @@ let get_recent_transactions_on_trent address maybe_limit =
   in
   `List operations
 
-
-
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
 let num_timestamps = 100000
@@ -309,11 +306,16 @@ let payment_timestamp () =
 let payment_on_trent sender recipient amount =
   if sender = recipient then
     raise (Internal_error "Sender and recipient are the same");
+  Printf.printf "1\n%!";
   let sender_address_t = Ethereum_util.address_of_hex_string sender in
   let recipient_address_t = Ethereum_util.address_of_hex_string recipient in
+  Printf.printf "1.1\n%!";
   let sender_state = Hashtbl.find address_to_user_state_tbl sender_address_t in
+  Printf.printf "1.2\n%!";
   let starting_accounts = !trent_state.current.accounts in
+  let _ = Printf.eprintf "EMPTY?: %B\n%!" (starting_accounts = AccountMap.empty) in
   let sender_account = AccountMap.find sender_address_t starting_accounts in
+  Printf.printf "2\n%!";
   if (TokenAmount.to_int sender_account.balance) < amount then
     raise (Internal_error "Sender has insufficient balance to make this payment");
   let sender_state_ref = ref sender_state in
@@ -325,6 +327,7 @@ let payment_on_trent sender recipient amount =
   >>= fun confirmation ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
+  Printf.printf "4\n%!";
   (* remaining code is preparing response *)
   let tx_revision = confirmation.tx_header.tx_revision in
   let sender_name = get_user_name sender_address_t in

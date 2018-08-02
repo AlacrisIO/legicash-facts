@@ -17,16 +17,21 @@ CONFIG_TEST=${PROJECT_NAME}-test.conf
 
 include Makefile.options
 
-all : endpoints_lib $(CONFIG) $(CONFIG_TEST)
+# all : endpoints_lib $(CONFIG) $(CONFIG_TEST)
+all : api_scgi
 
 .PHONY: endpoints_lib
 
-ENDPOINTS_LIB=endpoints.cmxs
+ENDPOINTS_LIB=endpoints_lib.cmxs
 
 endpoints_lib : $(LIBDIR)
 	$(SHOW) "Building endpoints library"
 	$(HIDE) $(BUILDER) build --root=. $(ENDPOINTS_LIB)
 	$(HIDE) cp _build/default/$(ENDPOINTS_LIB) $(LIBDIR)/
+
+api_scgi : endpoints_lib
+	$(SHOW) "Building Legicash API SCGI executable"
+	$(HIDE) $(BUILDER) build --root=. api_scgi.exe
 
 # subdirectories
 
@@ -109,4 +114,3 @@ clean:
 	-rm -f $(CONFIG) $(CONFIG_TEST)
 	-rm -rf _build
 	-rm -rf accounts confirmations facilitator_state
-

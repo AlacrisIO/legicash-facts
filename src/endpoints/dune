@@ -1,7 +1,8 @@
 ;; dune file for Legicash endpoints demo
+
 (library
  (name endpoints)
- (modules accounts actions endpoints)
+ (modules accounts actions)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson lwt_ppx))
  ;; -9 : all fields mentioned in a pattern
  ;; -27 : unused variable
@@ -9,4 +10,11 @@
  ;; -34 : unused type
  ;; -39 : unused rec (@@deriving yojson yields these)
  (flags (:standard -w -9-34-39 -warn-error -27-32-33 -I ../../../_build/default/.legicash_lib.objs))
- (libraries base64 cohttp-lwt-unix eliom.server integers lwt ppx_deriving_yojson.runtime secp256k1 yojson))
+ (libraries cohttp-lwt-unix eliom.server integers lwt ppx_deriving_yojson.runtime secp256k1 yojson))
+
+(executable
+  (name api_scgi)
+  (modules api_scgi)
+  (preprocess (pps ppx_deriving.std ppx_inline_test ppx_deriving_yojson))
+  (flags (:standard -w -9-34-39 -warn-error -27-32-33))
+  (libraries cryptokit cstruct leveldb legicash endpoints_lib netcgi2 unix))
