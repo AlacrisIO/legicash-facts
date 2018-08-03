@@ -161,6 +161,7 @@ let api_config = { default_config with
 let _ =
   Netcgi_scgi.run
     ~config:api_config
+    ~arg_store:(fun _ _ _ -> `Memory)
     (* must match "scgi_pass" in nginx/conf/scgi.conf *)
     ~sockaddr:(ADDR_INET (Unix.inet_addr_of_string "127.0.0.1",1025))
     handler
