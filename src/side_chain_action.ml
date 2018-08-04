@@ -1,6 +1,7 @@
 open Lib
 open Action
 open Crypto
+open Db
 open Keypair
 open Merkle_trie
 open Main_chain
@@ -198,7 +199,7 @@ let confirm_request : (Request.t signed, Confirmation.t signed) facilitator_acti
     ^>> make_request_confirmation
     ^>> fun (updated_facilitator_state, signed_confirmation) ->
       try
-        Side_chain.FacilitatorState.Persistence.save updated_facilitator_state;
+        Side_chain.FacilitatorState.save updated_facilitator_state;
         (updated_facilitator_state,Ok signed_confirmation)
       with exn ->
         (* if logging failed, return input facilitator state, error *)
@@ -257,16 +258,17 @@ let make_rx_header (user_state, facilitator_address) =
         ; RxHeader.validity_within= default_validity_window } )
 
 let mk_rx_episteme rx =
-  {request= rx; confirmation_option= None; main_chain_confirmation_option= None}
+  Episteme.{request= rx; confirmation_option= None; main_chain_confirmation_option= None}
 
 let [@warning "-32"] mk_tx_episteme tx =
-  { request= tx.payload.Confirmation.signed_request
-  ; confirmation_option= Some tx
-  ; main_chain_confirmation_option= None }
+  Episteme.
+    { request= tx.payload.Confirmation.signed_request
+    ; confirmation_option= Some tx
+    ; main_chain_confirmation_option= None }
 
 (** TODO: Handle cases of updates to previous epistemes, rather than just new ones *)
 let add_user_episteme user_state episteme =
-  let facilitator = episteme.request.payload.rx_header.facilitator in
+  let facilitator = episteme.Episteme.request.payload.rx_header.facilitator in
   let account_state =
     UserAccountStateMap.find_defaulting
       (konstant new_user_account_state_per_facilitator)
@@ -326,7 +328,7 @@ let [@warning "-32"] optimistic_facilitator_account_state (user_state, facilitat
     | Rejected -> confirmed_state
     | _ ->
       update_account_state_with_trusted_operations
-        (List.map (fun x -> x.request.payload.operation) pending_operations)
+        (List.map (fun x -> x.Episteme.request.payload.operation) pending_operations)
         confirmed_state
 
 let lift_main_chain_user_async_action_to_side_chain async_action (user_state, input) =
@@ -369,7 +371,7 @@ let withdrawal (user_state, (_facilitator_address, withdrawal_amount)) =
                     } ))
 
 let payment (user_state, (_facilitator_address, recipient_address, payment_amount)) =
-  let invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= None} in
+  let invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= ""} in
   issue_user_request
     ( user_state
     , Payment
@@ -642,8 +644,8 @@ module Test = struct
       assert (bob_account.balance = bob_expected_balance) ;
       (* test whether retrieving saved facilitator state yields the same state
          like similar test in Side_chain.Test; here we have nonempty account, confirmation maps *)
-      Side_chain.FacilitatorState.Persistence.save trent_state2;
-      let retrieved_state = Side_chain.FacilitatorState.Persistence.retrieve trent_address in
+      Side_chain.FacilitatorState.save trent_state2;
+      let retrieved_state = Side_chain.FacilitatorState.load trent_address in
       return (retrieved_state = trent_state2)
     )
 

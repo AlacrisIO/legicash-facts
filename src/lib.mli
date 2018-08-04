@@ -36,6 +36,7 @@ val transpose : ('a -> 'b -> 'c) -> 'b -> 'a -> 'c
 (** SKI combinators, 5: Zusammensetzungsfunktion (compoZition function) *)
 val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
+val (>>) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
 
 (* Options *)
 
@@ -53,6 +54,12 @@ val list_of_option : 'a option -> 'a list
 
 (** Map a function to the content of the option, if any *)
 val option_map : ('a -> 'b) -> 'a option -> 'b option
+
+(** Iterate (at most once) over option, if any *)
+val option_iter : ('a -> unit) -> 'a option -> unit
+
+(** map for list as left functor *)
+val map_fst : ('a -> 'b) -> 'a * 'c -> 'b * 'c
 
 (** Parse one hex char into an integer *)
 val int_of_hex_char : char -> int
@@ -398,9 +405,18 @@ end
 
 val string_reverse : string -> string
 
-module type RefS = sig
+module type WrapTypeS = sig
+  type +'a t
+end
+
+module type WrapS = sig
   type t
   type value
   val get : t -> value
   val make : value -> t
 end
+
+module IdWrapType : WrapTypeS with type +'a t = 'a
+
+module IdWrap (Type: T) : WrapS with type t = Type.t and type value = Type.t
+

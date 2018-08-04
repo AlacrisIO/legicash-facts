@@ -1,7 +1,9 @@
 (* keypair.ml -- Secp256k1 key pairs *)
 
 open Lib
+open Marshaling
 open Crypto
+open Db
 
 type t =
   { private_key: Secp256k1.Key.secret Secp256k1.Key.t
@@ -36,74 +38,77 @@ let make_private_key private_key_string =
   | Ok sk -> sk
   | Error msg -> raise (Internal_error msg)
 
-let make_keys private_key_string public_key_string =
+let make_keypair private_key_string public_key_string =
   let public_key = make_public_key public_key_string in
   let private_key = make_private_key private_key_string in
   let address = Address.of_public_key public_key in
   {private_key; public_key; address}
 
-let make_keys_from_hex private_key_hex public_key_hex =
-  make_keys (parse_coloned_hex_string private_key_hex) (parse_coloned_hex_string public_key_hex)
+let make_keypair_from_hex private_key_hex public_key_hex =
+  make_keypair (parse_coloned_hex_string private_key_hex) (parse_coloned_hex_string public_key_hex)
 
-module Marshalable = struct
+let keypair_of_address address =
+  raise (Internal_error
+           (Printf.sprintf "Can't find keypair with address 0x%s"
+              (Address.to_hex_string address)))
+
+
+module PrePersistable = struct
 
   type nonrec t = t
 
-  let marshal buffer t =
-    let bytes_of_key key =
-      let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx key in
-      Cstruct.to_bytes (Cstruct.of_bigarray buffer)
-    in
-    Buffer.add_bytes buffer (bytes_of_key t.private_key);
-    Buffer.add_bytes buffer (bytes_of_key t.public_key);
-    Address.marshal buffer t.address
-
-  let unmarshal ?(start=0) bytes =
-    let private_buffer = Cstruct.create private_key_length in
-    let _ = Cstruct.blit_from_bytes bytes start private_buffer 0 private_key_length in
-    let private_key =
-      match Secp256k1.Key.read_sk secp256k1_ctx (Cstruct.to_bigarray private_buffer) with
-      | Ok key -> key
-      | Error s -> raise (Internal_error ("Could not unmarshal private key: " ^ s))
-    in
-    let public_buffer = Cstruct.create public_key_length in
-    let _ = Cstruct.blit_from_bytes bytes (start + private_key_length) public_buffer 0 public_key_length in
-    let public_key =
-      match Secp256k1.Key.read_pk secp256k1_ctx (Cstruct.to_bigarray public_buffer) with
-      | Ok key -> key
-      | Error s -> raise (Internal_error ("Could not unmarshal public key: " ^ s))
-    in
-    let address,final_offset = Address.unmarshal ~start:(start + private_key_length + public_key_length) bytes in
-    ( { private_key
-      ; public_key
-      ; address
-      }
-      ,
-      final_offset
-    )
-
+  let marshaling =
+    { marshal =
+        (fun buffer t ->
+           let bytes_of_key key =
+             let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx key in
+             Cstruct.to_bytes (Cstruct.of_bigarray buffer)
+           in
+           Buffer.add_bytes buffer (bytes_of_key t.private_key);
+           Buffer.add_bytes buffer (bytes_of_key t.public_key);
+           Address.marshal buffer t.address)
+    ; unmarshal =
+        (fun ?(start=0) bytes ->
+           let private_buffer = Cstruct.create private_key_length in
+           let _ = Cstruct.blit_from_bytes bytes start private_buffer 0 private_key_length in
+           let private_key =
+             match Secp256k1.Key.read_sk secp256k1_ctx (Cstruct.to_bigarray private_buffer) with
+             | Ok key -> key
+             | Error s -> raise (Internal_error ("Could not unmarshal private key: " ^ s))
+           in
+           let public_buffer = Cstruct.create public_key_length in
+           let _ = Cstruct.blit_from_bytes bytes (start + private_key_length) public_buffer 0 public_key_length in
+           let public_key =
+             match Secp256k1.Key.read_pk secp256k1_ctx (Cstruct.to_bigarray public_buffer) with
+             | Ok key -> key
+             | Error s -> raise (Internal_error ("Could not unmarshal public key: " ^ s))
+           in
+           let address,final_offset = Address.unmarshal ~start:(start + private_key_length + public_key_length) bytes in
+           ({ private_key; public_key; address }, final_offset)) }
+  let make_persistent = normal_persistent
+  let walk_dependencies = no_dependencies
 end
 
-include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+include (Persistable (PrePersistable) : PersistableS with type t := t)
 
 module Test = struct
 
   let trent_keys =
-    make_keys_from_hex
+    make_keypair_from_hex
       "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
       "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
 
   let trent_address = trent_keys.address
 
   let alice_keys =
-    make_keys_from_hex
+    make_keypair_from_hex
       "d5:69:84:dc:08:3d:76:97:01:71:4e:eb:1d:4c:47:a4:54:25:5a:3b:bc:3e:9f:44:84:20:8c:52:bd:a3:b6:4e"
       "04:23:a7:cd:9a:03:fa:9c:58:57:e5:14:ae:5a:cb:18:ca:91:e0:7d:69:45:3e:d8:51:36:ea:6a:00:36:10:67:b8:60:a5:b2:0f:11:53:33:3a:ef:2d:1b:a1:3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
 
   let alice_address = alice_keys.address
 
   let bob_keys =
-    make_keys_from_hex
+    make_keypair_from_hex
       "f1:d3:cd:20:22:e1:d6:64:98:32:76:04:83:4d:f0:73:06:64:f7:1a:8d:d1:1e:46:a3:3b:4a:0e:bb:40:ca:8e"
       "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
 
@@ -155,7 +160,7 @@ module Test = struct
     let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) msg in
     hash
     = parse_coloned_hex_string
-      "4e:03:65:7a:ea:45:a9:4f:c7:d4:7b:a8:26:c8:d6:67:c0:d1:e6:e3:3a:64:a0:36:ec:44:f5:8f:a1:2d:6c:45"
+        "4e:03:65:7a:ea:45:a9:4f:c7:d4:7b:a8:26:c8:d6:67:c0:d1:e6:e3:3a:64:a0:36:ec:44:f5:8f:a1:2d:6c:45"
 
   (* test that addresses are really last 20 bytes of Keccak256 hash of public keys *)
 

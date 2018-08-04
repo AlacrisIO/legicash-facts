@@ -1,5 +1,6 @@
 open Action
 open Crypto
+open Db
 open Merkle_trie
 
 module TokenAmount : IntS
@@ -17,7 +18,7 @@ module AccountMap : (MerkleTrieS with type key = Address.t and type value = Toke
 module State : sig
   type t = {revision: Revision.t; accounts: AccountMap.t}
   [@@deriving lens { prefix=true } ]
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
 
 (** TODO: make sure it matches Ethereum transfer data *)
@@ -29,7 +30,7 @@ module TxHeader : sig
     ; gas_limit: TokenAmount.t
     ; value: TokenAmount.t }
   [@@deriving lens { prefix=true } ]
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
 
 module Operation : sig
@@ -39,7 +40,7 @@ module Operation : sig
     | CreateContract of Bytes.t
     (* code *)
     | CallFunction of Address.t * Bytes.t
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
 
 (* contract, data *)
@@ -47,12 +48,12 @@ end
 module Transaction : sig
   type t = {tx_header: TxHeader.t; operation: Operation.t}
   [@@deriving lens { prefix=true } ]
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
 
 module TransactionSigned : sig
   type t = Transaction.t signed
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
 
 (** Confirmation of a transaction on the main chain
@@ -60,20 +61,23 @@ end
     TODO: maybe also include a path and/or merkle tree from there?
 *)
 module Confirmation : sig
-  type t = { transaction_hash: Digest.t
-           ; transaction_index: Unsigned.UInt64.t
+  type t = { transaction_hash: digest
+           ; transaction_index: UInt64.t
            ; block_number: Revision.t
-           ; block_hash: Digest.t }
-  include DigestibleS with type t := t
+           ; block_hash: digest }
+  include PersistableS with type t := t
 end
 
 val is_confirmation_valid : Confirmation.t -> TransactionSigned.t -> bool
 
+(** State for the user client.
+    confirmed_state is a digest of the confirmed Main_chain.State that this is relative to.
+    confirmed_balance is the balance of the user account relative to that confirmed_state.
+*)
 type user_state =
   { keypair: Keypair.t
-  ; confirmed_state: State.t digest
-  ; confirmed_balance:
-      TokenAmount.t (* Only store the confirmed state, and have any updates in pending *)
+  ; confirmed_state: digest
+  ; confirmed_balance: TokenAmount.t
   ; pending_transactions: TransactionSigned.t list
   ; nonce: Nonce.t }
 [@@deriving lens]

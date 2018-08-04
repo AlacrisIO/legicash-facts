@@ -67,6 +67,34 @@ let remove_db key =
   let transaction = the_db_transaction () in
   LevelDB.Batch.delete transaction key
 
+
+(** Walking across the dependencies of an object *)
+type 'a dependency_walking_methods =
+  { digest: 'a -> digest
+  ; marshal_string: 'a -> string
+  ; make_persistent: ('a -> unit) -> 'a -> unit
+  ; walk_dependencies: 'a dependency_walker }
+and dependency_walking_context =
+  { walk: 'a. 'a dependency_walker }
+and 'a dependency_walker = 'a dependency_walking_methods -> dependency_walking_context -> 'a -> unit
+
+let normal_persistent f x = f x
+
+let already_persistent _fun _x = ()
+
+let no_dependencies _methods _context _x = ()
+
+let walk_dependency methods context x =
+  context.walk methods context x
+
+let one_dependency f methods _methods context x =
+  walk_dependency methods context (f x)
+
+let seq_dependencies dep1 dep2 methods context x = dep1 methods context x ; dep2 methods context x
+
+let dependency_walking_not_implemented =
+  { digest= bottom; marshal_string= bottom; make_persistent= bottom; walk_dependencies= bottom }
+
 let content_addressed_storage_prefix = "K256"
 
 let content_addressed_storage_key digest =
@@ -75,42 +103,185 @@ let content_addressed_storage_key digest =
 let db_value_of_digest unmarshal_string digest =
   digest |> content_addressed_storage_key |> get_db |> option_get |> unmarshal_string
 
-let db_digest_of_value marshal_string value =
-  let data = marshal_string value in
-  let digest = digest_of_string data in
-  let key = content_addressed_storage_key digest in
-  (if not (has_db_key key) then put_db key data) ;
-  digest
+(** TODO: have a version that computes the digest from the marshal_string *)
+let saving_walker methods context x =
+  methods.make_persistent
+    (fun _ ->
+       let key = x |> methods.digest |> content_addressed_storage_key in
+       if not (has_db_key key) then
+         (methods.walk_dependencies methods context x;
+          put_db key (methods.marshal_string x)))
+    x
+
+let saving_context = { walk = saving_walker }
+
+let save_of_dependency_walking methods x = walk_dependency methods saving_context x
+
+module type PrePersistableDependencyS = sig
+  type t
+  val make_persistent: (t -> unit) -> t -> unit
+  val walk_dependencies : t dependency_walker
+end
+
+module type PrePersistableS = sig
+  include PreMarshalableS
+  include PrePersistableDependencyS with type t := t
+end
+
+module type PersistableS = sig
+  include PrePersistableS
+  include MarshalableS with type t := t
+  include DigestibleS with type t := t
+  val dependency_walking : t dependency_walking_methods
+  val save : t -> unit
+end
+
+module Persistable (P : PrePersistableS) = struct
+  include P
+  module M = Marshalable(P)
+  include (M : MarshalableS with type t := t)
+  include (DigestibleOfMarshalable(M) : DigestibleS with type t := t)
+  let dependency_walking = { digest; marshal_string; walk_dependencies; make_persistent }
+  let save = save_of_dependency_walking dependency_walking
+end
+
+module TrivialPersistable (P : PreMarshalableS) =
+  Persistable(struct
+    include P
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
+  end)
+
+module OCamlPersistable (Type: T) =
+  Persistable(struct
+    include OCamlMarshaling (Type)
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
+  end)
+
+module type IntS = sig
+  include Integer.IntS
+  include PersistableS with type t := t
+end
+
+module DBInt(I : Integer.IntS) = struct
+  include I
+  include (Persistable (struct
+             include I
+             include (TrivialPersistable (I) : PrePersistableDependencyS with type t := t)
+           end) : PersistableS with type t := t)
+end
+
+module UInt16 = DBInt(Integer.UInt16)
+module UInt32 = DBInt(Integer.UInt32)
+module UInt64 = DBInt(Integer.UInt64)
+module Data256 = DBInt(Integer.Data256)
+module UInt256 = DBInt(Integer.UInt256)
+module Digest = DBInt(Crypto.Digest)
+module Address = struct
+  include Crypto.Address
+  include (DBInt(Crypto.Address) : PersistableS with type t := t)
+end
+module Signature = Persistable(struct
+    include Crypto.Signature
+    include (TrivialPersistable (Crypto.Signature) : PrePersistableDependencyS with type t := t)
+  end)
+
+module Revision = UInt64
+
+module Duration = UInt64
+
+module Timestamp = UInt64
+
 
 (** TODO: mechanism to forget old values? Or is GC enough? *)
-type 'a dv = {digest: Digest.t Lazy.t; value: 'a Lazy.t}
+type +'a dv = {digest: Digest.t Lazy.t; value: 'a Lazy.t; mutable persisted: bool}
+let dv_get dv = Lazy.force dv.value
+let dv_digest dv = Lazy.force dv.digest
+let dv_make digest value =
+  { digest=lazy (digest value)
+  ; value=lazy value
+  ; persisted=false }
+let dv_of_digest unmarshal_string digest =
+  { digest=lazy digest
+  ; value=lazy (db_value_of_digest unmarshal_string digest)
+  ; persisted=true }
+let dv_marshal buffer x =
+  marshal_map dv_digest Digest.marshal buffer x
+let dv_unmarshal unmarshal_string =
+  unmarshal_map (dv_of_digest unmarshal_string) Digest.unmarshal
+let dv_marshaling value_unmarshal_string =
+  { marshal= dv_marshal
+  ; unmarshal= dv_unmarshal value_unmarshal_string }
 
 module type DigestValueBaseS = sig
-  include RefS
+  include WrapS
   type digest
   val of_digest : digest -> t
   val digest : t -> digest
 end
 
 module type DigestValueS = sig
-  module Value : MarshalableS
+  type value
   include DigestValueBaseS
-    with type t = Value.t dv
-     and type value = Value.t
+    with type value := value
+     and type t = value dv
      and type digest = Digest.t
+  include PersistableS with type t := t
 end
 
-module DigestValue (Value : DigestibleS) = struct
-  module Value : DigestibleS with type t = Value.t = Value
+module DigestValueType = struct
+  type +'a t = 'a dv
+end
+
+
+module DigestValue (Value : PersistableS) = struct
   type value = Value.t
   type digest = Digest.t
-  type t = value dv
-  let get t = Lazy.force t.value
-  let digest t = Lazy.force t.digest
-  let make value =
-    { digest=lazy (db_digest_of_value Value.marshal_string value)
-    ; value=lazy value }
-  let of_digest digest =
-    { digest=lazy digest
-    ; value=lazy (db_value_of_digest Value.unmarshal_string digest)}
+  let get = dv_get
+  let make = dv_make Value.digest
+  include Persistable(struct
+      type t = value dv
+      let marshaling = { marshal= marshal_map get Value.marshal
+                       ; unmarshal= unmarshal_map make Value.unmarshal }
+      let walk_dependencies _methods context x =
+        walk_dependency Value.dependency_walking context (dv_get x)
+      let make_persistent f dv = if not dv.persisted then (dv.persisted <- true; f dv)
+    end)
+  let of_digest = dv_of_digest Value.unmarshal_string
+  let digest = dv_digest
 end
+
+module StringT = struct
+  include String
+  module PrePersistable = struct
+    type t = string
+    let marshaling =
+      { marshal = (fun buffer x -> Buffer.add_string buffer x)
+      ; unmarshal = (fun ?start:(start=0) b ->
+          let len = Bytes.length b - start in (Bytes.sub_string b start len, len)) }
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
+  end
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
+end
+
+module Unit = struct
+  type t = unit
+  module PrePersistable = struct
+    type t = unit
+    let marshaling = { marshal = (fun _buffer () -> ())
+                     ; unmarshal = (fun ?(start=0) _bytes -> ((), start)) }
+    let make_persistent = already_persistent
+    let walk_dependencies = no_dependencies
+  end
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
+  let pp formatter _ = Format.fprintf formatter "%s" "()"
+  let show x = Format.asprintf "%a" pp x
+end
+
+module UInt16int = Marshalable(struct
+    type t = int
+    let marshaling = marshaling_map UInt16.of_int UInt16.to_int UInt16.marshaling
+  end)
+

@@ -23,6 +23,9 @@
  [documentation](https://ocaml.janestreet.com/ocaml-core/latest/doc/index.html),
  [OCaml Labs](http://ocamllabs.io/).
 
+* OCaml metaprogramming:
+ [Oleg's Reconciling Abstraction with High Performance: A MetaOCaml approach](https://www.nowpublishers.com/article/Details/PGL-038).
+
 * [Computability Logic](http://www.csc.villanova.edu/~japaridz/CL/)
 
 * [K Framework](http://www.kframework.org/index.php/Main_Page),
@@ -66,7 +69,8 @@
   [Towards verifying ethereum smart contract bytecode in Isabelle/HOL](https://dl.acm.org/citation.cfm?doid=3176245.3167084),
   [the Parity Light Protocol](https://wiki.parity.io/The-Parity-Light-Protocol-%28PIP%29)
   (PR for similar light client functionality [in geth](https://github.com/ethereum/go-ethereum/pull/16534/files)),
-  [Consensys Labs' Ethereum developer tools list](https://github.com/ConsenSysLabs/ethereum-developer-tools-list).
+  [Consensys Labs' Ethereum developer tools list](https://github.com/ConsenSysLabs/ethereum-developer-tools-list),
+  [Solium, linter and formatter for Solidity](https://github.com/duaraghav8/solium).
 
 * Compiling to the EVM:
   [Pirapira's Bamboo](https://github.com/pirapira/bamboo).

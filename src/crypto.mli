@@ -1,4 +1,3 @@
-open Lib
 open Marshaling
 open Integer
 
@@ -10,69 +9,49 @@ type public_key = Secp256k1.Key.public Secp256k1.Key.t
 (** private counterpart to public key *)
 type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 
-type 'a digest = Nat.t
+module Digest : IntS
+
+type digest = Digest.t
 
 module type DigestibleS = sig
-  include MarshalableS
-  val marshal_bytes : t -> Bytes.t
-  val unmarshal_bytes : Bytes.t -> t
-  val marshal_string : t -> string
-  val unmarshal_string : string -> t
-  val digest : t -> t digest
-end
-
-module type IntS = sig
-  include Integer.IntS
-  include DigestibleS with type t := t
+  type t
+  val digest: t -> digest
 end
 
 module DigestibleOfMarshalable (M : MarshalableS) : DigestibleS with type t = M.t
 
-module UInt256 : IntS with type t = Z.t
-module Data256 : IntS with type t = Z.t
-module Digest : IntS with type t = Z.t
+module DigestibleOfPreMarshalable (P : PreMarshalableS) : DigestibleS with type t = P.t
 
 val digest_of_marshal_bytes : ('a -> Bytes.t) -> 'a -> Digest.t
-val digest_of_string : string -> Digest.t
-val null_digest : Digest.t
+val digest_of_marshal : 'a marshaler -> 'a -> Digest.t
+val digest_of_string : string -> digest
+val null_digest : digest
 
-module UInt64 : IntS with type t = Integer.UInt64.t
-
-(** sequence number for changes in a side-chain *)
-module Revision : IntS
-
-(** type of a timestamp *)
-module Timestamp : IntS
-
-(** duration in terms of nanoseconds, for use in timeouts. TODO: should the unit be consensus cycles instead? *)
-module Duration : IntS
-
+(** An Address identifies a party (user, facilitator)
+    per Ethereum, use the last 20 bytes of the Keccak256 hash of the party's public key *)
 module Address : sig
-  include IntS with type t = UInt256.t
-  include DigestibleS with type t := t
-  include ShowableS with type t := t
+  include IntS (* with type t = Z.t *)
   val address_size : int
   val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
 end
 
-
 (** a signature for an object of type 'a *)
 type signature
 
-module Signature : MarshalableS with type t = signature
+module Signature : PreMarshalableS with type t = signature
 
 (** an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: signature}
 
-val is_signature_valid : ('a -> Digest.t) -> Address.t -> signature -> 'a -> bool
+val is_signature_valid : ('a -> digest) -> Address.t -> signature -> 'a -> bool
 (** check signature for given value *)
 
-val is_signed_value_valid : ('a -> Digest.t) -> Address.t -> 'a signed -> bool
+val is_signed_value_valid : ('a -> digest) -> Address.t -> 'a signed -> bool
 (** check signature for payload within a signed value *)
 
-val make_signature : ('a -> Digest.t) -> private_key -> 'a -> signature
+val make_signature : ('a -> digest) -> private_key -> 'a -> signature
 
-val sign : ('a -> Digest.t) -> private_key -> 'a -> 'a signed
+val sign : ('a -> digest) -> private_key -> 'a -> 'a signed
 
 val marshal_signed : 'a marshaler -> 'a signed marshaler
 (** marshaler for 'a signed, parameterized by the marshaler for the payload of type 'a *)
@@ -80,19 +59,5 @@ val marshal_signed : 'a marshaler -> 'a signed marshaler
 val unmarshal_signed : 'a unmarshaler -> 'a signed unmarshaler
 (** unmarshaler for 'a signed, parameterized by the unmarshaler for the payload of type 'a *)
 
-(** count of changes in an object.
-    A positive integer less than 2**63, incremented at every change to a notional object's state.
-    In Quake, we used to call that the mod-count (modification count).
-    Can serve as a local counter in a Lamport clock.
-    Should a user record have two of them, one for the user one for the server?
-    Not for now: the server can use the global clock for the server.
-*)
+val marshaling_signed : 'a marshaling -> 'a signed marshaling
 
-module StringT : sig
-  include DigestibleS with type t = string
-end
-
-module Unit : sig
-  include DigestibleS with type t = unit
-  include ShowableS with type t := unit
-end

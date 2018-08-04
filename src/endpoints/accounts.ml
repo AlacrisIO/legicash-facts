@@ -39,7 +39,7 @@ let account_names =
 
 let account_keys =
   List.map
-    (fun (priv, pub) -> Keypair.make_keys_from_hex priv pub)
+    (fun (priv, pub) -> Keypair.make_keypair_from_hex priv pub)
     [ ( "fd:c8:f1:5b:2d:d9:22:9b:0b:92:46:09:43:93:af:c2:3b:3b:70:5c:07:e6:74:f6:cb:61:41:20:d1:62:78:18"
       , "04:55:62:69:5c:85:f8:8f:6c:ba:ec:12:1d:2a:3d:a6:66:6c:5d:c8:54:0d:86:35:8b:d5:69:a1:88:2b:be:6d:dc:f4:5b:76:f5:64:31:33:93:9c:8e:7a:33:99:47:ca:1b:11:52:90:d5:77:34:30:23:d7:9c:25:6d:bc:54:bc:97"
       )
@@ -144,7 +144,7 @@ let _ =
     account_keys
 
 let trent_keys =
-  Keypair.make_keys_from_hex
+  Keypair.make_keypair_from_hex
     "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
     "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
 

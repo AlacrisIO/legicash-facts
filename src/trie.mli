@@ -5,7 +5,7 @@
 
 (* A big endian patricia tree maps non-negative integers to values. *)
 open Lib
-open Integer
+open Db
 
 (** A signature for the computation of a synthesized attribute from a binary tree *)
 module type TreeSynthS = sig
@@ -39,17 +39,34 @@ module TrieSynthComputeSkip (Key : IntS) (Synth: TrieSynthS) : sig
   include TrieSynthS with type key := Key.t
 end
 
-(** A module for Big-Endian Patricia Tree. *)
-module type TrieS = sig
+module type TrieTypeS = sig
   type key
   type value
   type synth
-
-  type t =
+  type +'a wrap
+  type t = trie wrap
+  and trie =
     | Empty
     | Leaf of {value: value; synth: synth}
     | Branch of {left: t; right: t; height: int; synth: synth}
     | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
+  val trie_synth : trie -> synth
+  val trie_leaf : value -> trie
+  val trie_branch : (t -> trie) -> int -> t -> t -> trie
+  val trie_skip : (t -> trie) -> int -> int -> key -> t -> trie
+end
+
+module TrieType
+    (Key : IntS) (Value : T) (WrapType : WrapTypeS)
+    (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
+  : TrieTypeS with type key = Key.t
+               and type value = Value.t
+               and type synth = Synth.t
+               and type +'a wrap = 'a WrapType.t
+
+(** A module for Big-Endian Patricia Tree. *)
+module type TrieS = sig
+  include TrieTypeS
 
   type (+'a) step =
     | LeftBranch of {right: 'a}
@@ -189,9 +206,18 @@ module type TrieS = sig
 end
 
 (** A module for Big-Endian Patricia Tree, a.k.a. Trie. *)
-module Trie (Key : IntS) (Value : T)
+module Trie
+    (Key : IntS) (Value : T) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
+    (TrieType : TrieTypeS with type key = Key.t
+                           and type value = Value.t
+                           and type +'a wrap = 'a WrapType.t
+                           and type synth = Synth.t)
+    (Wrap : WrapS with type value = TrieType.trie and type t = TrieType.trie WrapType.t)
   : TrieS with type key = Key.t
            and type value = Value.t
+           and type +'a wrap = 'a WrapType.t
            and type synth = Synth.t
+           and type trie = TrieType.trie
+           and type t = TrieType.trie WrapType.t
 

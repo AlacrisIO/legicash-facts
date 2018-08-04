@@ -48,16 +48,52 @@ module TrieSynthComputeSkip (Key : IntS) (Synth: TreeSynthS) = struct
     c 0 synth
 end
 
-module type TrieS = sig
+module type TrieTypeS = sig
   type key
   type value
   type synth
-
-  type t =
+  type +'a wrap
+  type t = trie wrap
+  and trie =
     | Empty
     | Leaf of {value: value; synth: synth}
     | Branch of {left: t; right: t; height: int; synth: synth}
     | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
+  val trie_synth : trie -> synth
+  val trie_leaf : value -> trie
+  val trie_branch : (t -> trie) -> int -> t -> t -> trie
+  val trie_skip : (t -> trie) -> int -> int -> key -> t -> trie
+end
+
+module TrieType
+    (Key : IntS) (Value : T) (WrapType : WrapTypeS)
+    (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
+  type key = Key.t
+  type value = Value.t
+  type synth = Synth.t
+  type +'a wrap = 'a WrapType.t
+  type t = trie wrap
+  and trie =
+    | Empty
+    | Leaf of {value: value; synth: synth}
+    | Branch of {left: t; right: t; height: int; synth: synth}
+    | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
+  let trie_synth = function
+    | Empty -> Synth.empty
+    | Leaf {synth} -> synth
+    | Branch {synth} -> synth
+    | Skip {synth} -> synth
+  let get_synth get x = trie_synth (get x)
+  let trie_leaf value = Leaf {value; synth=Synth.leaf value}
+  let trie_branch get height left right =
+    Branch {left; right; height; synth=Synth.branch height (get_synth get left) (get_synth get right)}
+  let trie_skip get height length bits child =
+    Skip {child; height; length; bits;
+          synth=Synth.skip height length bits (get_synth get child)}
+end
+
+module type TrieS = sig
+  include TrieTypeS
 
   type (+'a) step =
     | LeftBranch of {right: 'a}
@@ -120,32 +156,34 @@ end
 
 (* TODO: an interface to nodes in batch that reduces the amount of unnecessary hashing?
    Or simply make hashing lazy? *)
-module Trie (Key : IntS) (Value : T)
-    (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
+module Trie
+    (Key : IntS) (Value : T) (WrapType : WrapTypeS)
+    (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
+    (TrieType : TrieTypeS with type key = Key.t
+                           and type value = Value.t
+                           and type +'a wrap = 'a WrapType.t
+                           and type synth = Synth.t)
+    (Wrap : WrapS with type value = TrieType.trie and type t = TrieType.t) = struct
+  include TrieType
 
-  type key = Key.t
-  type value = Value.t
-  type synth = Synth.t
+  let wrap_fun f x = f (Wrap.get x)
 
-  type t =
-    | Empty
-    | Leaf of {value: value; synth: synth}
-    | Branch of {left: t; right: t; height: int; synth: synth}
-    | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
+  let get_synth = wrap_fun trie_synth
 
-  let get_synth = function
-    | Empty -> Synth.empty
-    | Leaf {synth} -> synth
-    | Branch {synth} -> synth
-    | Skip {synth} -> synth
+  let trie_height =
+    wrap_fun
+      (function
+        | Empty -> -1
+        | Leaf _ -> 0
+        | Branch {height} -> height
+        | Skip {height} -> height)
 
-  let trie_height = function
-    | Empty -> -1
-    | Leaf _ -> 0
-    | Branch {height} -> height
-    | Skip {height} -> height
+  let empty = Wrap.make Empty
 
-  let rec check_invariant = function
+  (* Is this trie empty, i.e. having no mapping from index to value? *)
+  let is_empty = wrap_fun (fun trie -> trie = Empty)
+
+  let rec check_invariant trie = match Wrap.get trie with
     | Empty ->
       true (* In a normalized trie, Empty only happens at the toplevel:
               Otherwise, a Branch with an Empty child is normalized to a Skip *)
@@ -173,39 +211,37 @@ module Trie (Key : IntS) (Value : T)
           || raise (Internal_error "Skip bits negative"))
       && (length >= Key.numbits bits
           || raise (Internal_error "Skip bits longer than length"))
-      && (not (child = Empty)
+      && (not (is_empty child)
           || raise (Internal_error "Skip child empty"))
       && (height - length = trie_height child (* in particular, child isn't Empty *)
           || raise (Internal_error "Skip child height mismatch"))
       && check_invariant child
+
   let verify x =
     if check_invariant x then
       x
     else
       raise (Internal_error "Invariant failed")
 
-  let empty = Empty
-
-  (* Is this trie empty, i.e. having no mapping from index to value? *)
-  let is_empty trie = trie = Empty
-
   let find_opt key trie =
     let height = trie_height trie in
     if Key.sign key < 0 || Key.numbits key > height then
       None
     else
-      let rec f height = function
-        | Empty -> None
-        | Leaf {value} -> Some value
-        | Skip {child; bits; length} ->
-          let child_height = height - length in
-          if Key.equal bits (Key.extract key child_height length)
-          then f child_height child
-          else None
-        | Branch {left; right} ->
-          let child_height = height - 1 in
-          let child = if Key.has_bit key child_height then right else left in
-          f child_height child
+      let rec f height =
+        wrap_fun
+          (function
+            | Empty -> None
+            | Leaf {value} -> Some value
+            | Skip {child; bits; length} ->
+              let child_height = height - length in
+              if Key.equal bits (Key.extract key child_height length)
+              then f child_height child
+              else None
+            | Branch {left; right} ->
+              let child_height = height - 1 in
+              let child = if Key.has_bit key child_height then right else left in
+              f child_height child)
       in
       f height trie
 
@@ -214,14 +250,13 @@ module Trie (Key : IntS) (Value : T)
   let mem key trie = is_option_some (find_opt key trie)
 
   (* Lower-level trie constructors, synthesizing the synth attribute *)
-  let mk_leaf value =
-    Leaf {value; synth=Synth.leaf value}
+  let mk_leaf value = trie_leaf value |> Wrap.make
 
   let mk_branch height left right =
-    Branch {left; right; height; synth=Synth.branch height (get_synth left) (get_synth right)}
+    trie_branch Wrap.get height left right |> Wrap.make
 
   let mk_skip height length bits child =
-    Skip {child; height; length; bits; synth=Synth.skip height length bits (get_synth child)}
+    trie_skip Wrap.get height length bits child |> Wrap.make
 
   (* Higher-level trie constructors, normalizing the skip cases *)
   let make_leaf height key value =
@@ -233,8 +268,8 @@ module Trie (Key : IntS) (Value : T)
   let make_skip height length bits child =
     if length = 0 then child else
       let bits = Key.extract bits 0 length in
-      match child with
-      | Empty -> Empty
+      match Wrap.get child with
+      | Empty -> empty
       | Skip {child=child'; bits=bits'; length=length'} ->
         let length'' = length + length' in
         let bits'' = Key.logor (Key.shift_left bits length') bits' in
@@ -250,8 +285,8 @@ module Trie (Key : IntS) (Value : T)
     else mk_branch height left right
 
   (** Normalize the head of a trie, removing unneeded skipping of zeroes *)
-  let make_head = function
-    | Skip {child; bits; length; height} as x ->
+  let make_head trie = match Wrap.get trie with
+    | Skip {child; bits; length; height} ->
       let n = Key.numbits bits in
       if n < length then
         if n = 0 then
@@ -259,8 +294,8 @@ module Trie (Key : IntS) (Value : T)
         else
           let h = height + n - length in
           make_skip h n bits child
-      else x
-    | x -> x
+      else trie
+    | _ -> trie
 
   let singleton key value = make_leaf (Key.numbits key) key value
 
@@ -275,7 +310,7 @@ module Trie (Key : IntS) (Value : T)
           (make_skip (key_height - 1) (key_height - height - 1) Key.zero trie)
           (make_leaf (key_height - 1) key value)
       else
-        let rec ins height t k = match t with
+        let rec ins height t k = match Wrap.get t with
           | Empty -> k (make_leaf height key value)
           | Leaf {value=old} -> if value==old then trie else k (mk_leaf value)
           | Branch {left; right} ->
@@ -314,9 +349,9 @@ module Trie (Key : IntS) (Value : T)
 
   let remove key trie =
     let rec r height t k =
-      match t with
+      match Wrap.get t with
       | Empty -> trie (* key was absent; return unchanged trie *)
-      | Leaf _ -> k Empty
+      | Leaf _ -> k empty
       | Branch {left; right} ->
         let child_height = height - 1 in
         if Key.has_bit key child_height then
@@ -340,39 +375,45 @@ module Trie (Key : IntS) (Value : T)
   let right_index index height =
     (Key.add index (Key.shift_left Key.one (height - 1)))
 
-  let rec map f = function
-    | Empty -> Empty
-    | Leaf {value} -> mk_leaf (f value)
-    | Branch {left; right; height} ->
-      mk_branch height (map f left) (map f right)
-    | Skip {child; bits; length; height} ->
-      mk_skip height length bits (map f child)
+  let rec map f =
+    wrap_fun
+      (function
+        | Empty -> empty
+        | Leaf {value} -> mk_leaf (f value)
+        | Branch {left; right; height} ->
+          mk_branch height (map f left) (map f right)
+        | Skip {child; bits; length; height} ->
+          mk_skip height length bits (map f child))
 
   let mapi f t =
-    let rec m index = function
-      | Empty -> Empty
-      | Leaf {value} -> mk_leaf (f index value)
-      | Branch {left; right; height} ->
-        mk_branch height (m index left) (m (right_index index height) right)
-      | Skip {child; bits; length; height} ->
-        mk_skip height length bits (m (skip_index index bits length height) child)
+    let rec m index =
+      wrap_fun
+        (function
+          | Empty -> empty
+          | Leaf {value} -> mk_leaf (f index value)
+          | Branch {left; right; height} ->
+            mk_branch height (m index left) (m (right_index index height) right)
+          | Skip {child; bits; length; height} ->
+            mk_skip height length bits (m (skip_index index bits length height) child))
     in
     m Key.zero t
 
   let mapiopt f t =
-    let rec m i = function
-      | Empty -> Empty
-      | Leaf {value} -> (match (f i value) with None -> Empty | Some v -> mk_leaf v)
-      | Branch {left; right; height} ->
-        make_branch height (m i left) (m (right_index i height) right)
-      | Skip {child; bits; length; height} ->
-        make_skip height length bits (m (skip_index i bits length height) child)
+    let rec m i =
+      wrap_fun
+        (function
+          | Empty -> empty
+          | Leaf {value} -> (match (f i value) with None -> empty | Some v -> mk_leaf v)
+          | Branch {left; right; height} ->
+            make_branch height (m i left) (m (right_index i height) right)
+          | Skip {child; bits; length; height} ->
+            make_skip height length bits (m (skip_index i bits length height) child))
     in
     m Key.zero t
 
   let iterate_over_tree (* See [iterate_over_tree] docstring in [trie.mli] *)
         ~recursek ~branchk ~skipk ~leafk ~emptyk ~i ~tree ~k =
-    match tree with
+    match Wrap.get tree with
     | Empty -> emptyk ~k
     | Leaf {value; synth} -> leafk ~i ~value ~synth ~k
     | Branch {left; right; height; synth} ->
@@ -387,26 +428,26 @@ module Trie (Key : IntS) (Value : T)
         ~k:(fun child -> skipk ~i ~height ~length ~bits ~childr:child ~synth ~k)
 
   let foldlk f trie acc k =
-    let rec frec index acc k = function
+    let rec frec index trie acc k = match Wrap.get trie with
       | Empty -> k acc
       | Leaf {value} -> (f index value acc k)
       | Branch {left; right; height} ->
-        frec index acc (fun acc -> frec (right_index index height) acc k right) left
+        frec index left acc (fun acc -> frec (right_index index height) right acc k)
       | Skip {child; bits; length; height} ->
-        frec (skip_index index bits length height) acc k child
+        frec (skip_index index bits length height) child acc k
     in
-    frec Key.zero acc k trie
+    frec Key.zero trie acc k
 
   let foldrk f t acc k =
-    let rec frec index acc k = function
+    let rec frec index trie acc k = match Wrap.get trie with
       | Empty -> k acc
       | Leaf {value} -> (f index value acc k)
       | Branch {left; right; height} ->
-        frec (right_index index height) acc (fun acc -> frec index acc k left) right
+        frec (right_index index height) right acc (fun acc -> frec index left acc k)
       | Skip {child; bits; length; height} ->
-        frec (skip_index index bits length height) acc k child
+        frec (skip_index index bits length height) child acc k
     in
-    frec Key.zero acc k t
+    frec Key.zero t acc k
 
   let fold f t acc =
     foldlk (fun i v acc k -> k (f i v acc)) t acc identity
@@ -424,20 +465,20 @@ module Trie (Key : IntS) (Value : T)
     foldlk (fun i v b k -> if p i v then true else k b) t false identity
 
   let filter p t =
-    let rec filterrec index = function
-      | Empty -> (Empty, true)
-      | Leaf {value} as x -> if (p index value) then (x, true) else (Empty, false)
-      | Branch {left; right; height} as x ->
+    let rec filterrec index trie = match Wrap.get trie with
+      | Empty -> (empty, true)
+      | Leaf {value} -> if (p index value) then (trie, true) else (empty, false)
+      | Branch {left; right; height} ->
         let newleft, sameleft = filterrec index left in
         let newright, sameright = filterrec (right_index index height) right in
-        if sameleft && sameright then (x, true) else (make_branch height newleft newright, false)
-      | Skip {child; bits; length; height} as x ->
+        if sameleft && sameright then (trie, true) else (make_branch height newleft newright, false)
+      | Skip {child; bits; length; height} ->
         let newchild, samechild = filterrec (skip_index index bits length height) child in
-        if samechild then (x, true) else (make_skip height length bits newchild, false)
+        if samechild then (trie, true) else (make_skip height length bits newchild, false)
     in
     fst (filterrec Key.zero t)
 
-  let rec cardinal = function
+  let rec cardinal trie = match Wrap.get trie with
     | Empty -> 0
     | Leaf _ -> 1
     | Branch {left; right} -> (cardinal left) + (cardinal right)
@@ -463,15 +504,17 @@ module Trie (Key : IntS) (Value : T)
 
   let find_first_opt f trie =
     let rec divide (index: key) (default: (key*value) option)
-              (leftward: (key*t) list) (rightward: (key*t) list) : t -> (key*value) option = function
-      | Empty -> default
-      | Leaf {value} -> conquer index value default leftward rightward
-      | Branch {left; right; height} ->
-        (match leftward with
-         | [] -> divide (right_index index height) default [(index, left)] rightward right
-         | _ -> divide index default leftward ((right_index index height, right)::rightward) left)
-      | Skip {child;height;length;bits} ->
-        divide (skip_index index bits length height) default leftward rightward child
+              (leftward: (key*t) list) (rightward: (key*t) list) : t -> (key*value) option =
+      wrap_fun
+        (function
+          | Empty -> default
+          | Leaf {value} -> conquer index value default leftward rightward
+          | Branch {left; right; height} ->
+            (match leftward with
+             | [] -> divide (right_index index height) default [(index, left)] rightward right
+             | _ -> divide index default leftward ((right_index index height, right)::rightward) left)
+          | Skip {child;height;length;bits} ->
+            divide (skip_index index bits length height) default leftward rightward child)
     and conquer index value default leftward rightward =
       let (new_default, tries) =
         if f index then (Some (index, value), leftward) else (default, List.rev rightward) in
@@ -484,7 +527,7 @@ module Trie (Key : IntS) (Value : T)
   let find_first f t = option_get (find_first_opt f t)
 
   let find_last_opt f trie =
-    let rec flo index default trie = match trie with
+    let rec flo index default trie = match Wrap.get trie with
       | Empty -> default
       | Leaf {value} -> if f index then Some (index, value) else default
       | Branch {left;right;height} ->
@@ -501,9 +544,9 @@ module Trie (Key : IntS) (Value : T)
   let find_last f t = option_get (find_last_opt f t)
 
   let partition p t =
-    let rec prec index = function
-      | Empty -> (Empty, Empty)
-      | Leaf {value} as x -> if p index value then (x, Empty) else (Empty, x)
+    let rec prec index trie = match Wrap.get trie with
+      | Empty -> (empty, empty)
+      | Leaf {value} -> if p index value then (trie, empty) else (empty, trie)
       | Branch {left; right; height} ->
         let (ly, ln) = prec index left in
         let (ry, rn) = prec (right_index index height) right in
@@ -517,13 +560,13 @@ module Trie (Key : IntS) (Value : T)
 
   let split k t =
     if Key.sign k < 0 then
-      (Empty, None, t)
+      (empty, None, t)
     else if Key.numbits k > trie_height t then
-      (t, None, Empty)
+      (t, None, empty)
     else
-      let rec srec index = function
-        | Empty -> (Empty, None, Empty)
-        | Leaf {value} -> (Empty, Some value, Empty)
+      let rec srec index trie = match Wrap.get trie with
+        | Empty -> (empty, None, empty)
+        | Leaf {value} -> (empty, Some value, empty)
         | Branch {left; right; height} ->
           if Key.has_bit k (height - 1) then
             let (l, x, r) = srec (right_index index height) right in
@@ -619,7 +662,7 @@ module Trie (Key : IntS) (Value : T)
     let unstep = symmetric_unstep ~branch:(konstant make_branch) ~skip:(konstant make_skip) in
     fun (t, path) -> fst (path_apply unstep t path)
 
-  let next = function
+  let next (trie, path) = match (Wrap.get trie, path) with
     | (Empty, _up) -> []
     | (Leaf _, _up) -> []
     | (Branch {left; right}, {costep={index; height}; steps}) ->
@@ -640,18 +683,18 @@ module Trie (Key : IntS) (Value : T)
       if Key.numbits l > h then
         let hh = height - 1 in
         let left = make_skip hh (hh-h) Key.zero t in
-        (Empty, {costep={index=Key.shift_left Key.zero hh; height=hh}; steps=[RightBranch{left}]})
+        (empty, {costep={index=Key.shift_left Key.zero hh; height=hh}; steps=[RightBranch{left}]})
       else
-        let rec f x = match x with
-          | (Empty, _) -> x
-          | (Leaf _, _) -> x
+        let rec f (trie, path) = match (Wrap.get trie, path) with
+          | (Empty, _) -> (trie, path)
+          | (Leaf _, _) -> (trie, path)
           | (Skip {child; bits; length; height}, {costep={index}; steps}) ->
             let child_height = height - length in
             if Key.equal bits (Key.extract l child_height length) then
               let index=skip_index index bits length height in
               f (child, {costep={index;height=child_height};
                          steps=SkipChild{bits; length}::steps})
-            else x
+            else (trie, path)
           | (Branch {left; right; height}, {costep={index}; steps}) ->
             let child_height = height - 1 in
             if Key.has_bit l child_height then
@@ -666,7 +709,7 @@ module Trie (Key : IntS) (Value : T)
   (* update, using paths *)
   let update l f t =
     let (sub, up) = find_path l t in
-    let o = match t with Leaf {value} -> Some value | _ -> None in
+    let o = match Wrap.get t with Leaf {value} -> Some value | _ -> None in
     let u = f o in
     if o = u then t else
       let ll = Key.extract l 0 up.costep.height in
@@ -688,13 +731,13 @@ module Trie (Key : IntS) (Value : T)
 
   let skip_choice height length bits child sublength =
     if Key.has_bit bits sublength then
-      (Empty, make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child)
+      (empty, make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child)
     else
-      (make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child, Empty)
+      (make_skip (height - length + sublength) sublength (Key.extract bits 0 sublength) child, empty)
 
   let iterate_over_tree_pair (* See [iterate_over_tree_pair] docstring in [trie.mli] *)
         ~recursek ~branchk ~skipk ~leafk ~onlyak ~onlybk ~i ~treea ~treeb ~k =
-    match (treea, treeb) with
+    match (Wrap.get treea, Wrap.get treeb) with
     | (_, Empty) -> onlyak ~i ~anode:treea ~k
     | (Empty, _) -> onlybk ~i ~bnode:treeb ~k
     | (Leaf {value=va}, Leaf {value=vb}) -> leafk ~i ~valuea:va ~valueb:vb ~k
@@ -767,7 +810,7 @@ module Trie (Key : IntS) (Value : T)
         ~branchk:(fun ~i:_ ~height ~leftr ~rightr ~k -> k (make_branch height leftr rightr))
         ~skipk:(fun ~i:_ ~height ~length ~bits ~childr ~k -> k (make_skip height length bits childr))
         ~leafk:(fun ~i ~valuea ~valueb ~k ->
-          k (match (f i (Some valuea) (Some valueb)) with None -> Empty | Some v -> mk_leaf v))
+          k (match (f i (Some valuea) (Some valueb)) with None -> empty | Some v -> mk_leaf v))
         ~onlyak:(fun ~i ~anode:ta ~k -> k (mapiopt (fun _ v -> f i (Some v) None) ta))
         ~onlybk:(fun ~i ~bnode:tb ~k -> k (mapiopt (fun _ v -> f i None (Some v)) tb))
         ~i ~treea:a ~treeb:b ~k in

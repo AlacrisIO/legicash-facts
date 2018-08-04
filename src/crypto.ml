@@ -1,114 +1,55 @@
 open Lib
-open Integer
 open Marshaling
+open Integer
 
 let keccak256_string s =
   Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
-(* NB: reusing the (keccak 256) object causes a segfault *)
+(* NB: reusing the (Cryptokit.Hash.keccak 256) object causes a segfault *)
 
-(* create context just once, because expensive operation; assumes
-   single instantiation of this module
+(* Create context just once, because it's an expensive operation.
+   This assumes single instantiation of this module.
 *)
 let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
+module Digest = Data256
+
+type digest = Digest.t
+
 let digest_of_string s =
-  nat_of_big_endian_bits 256 (keccak256_string s)
+  Digest.of_big_endian_bits (keccak256_string s)
 let digest_of_marshal_bytes marshal_bytes x =
-  digest_of_string (Bytes.to_string (marshal_bytes x))
-
-(* TODO: check bounds, after every operation, etc. *)
-module UInt256 = struct
-  include Integer.UInt256
-  let of_big_endian_bits = nat_of_big_endian_bits 256
-  let to_big_endian_bits = big_endian_bits_of_nat 256
-  let marshal = marshal_of_sized_string_of 32 to_big_endian_bits
-  let unmarshal = unmarshal_of_sized_of_string 32 of_big_endian_bits
-  let marshal_bytes = marshal_bytes_of_marshal marshal
-  let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
-  let marshal_string = marshal_string_of_marshal marshal
-  let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
-  let digest = digest_of_marshal_bytes marshal_bytes
-end
-
-module Data256 = struct
-  include UInt256
-  let of_hex_string = sized_nat_of_hex_string 256
-  let to_hex_string = hex_string_of_sized_nat 256
-end
-
-module Digest = struct
-  include Data256
-end
-
-type 'a digest = Digest.t
+  x |> marshal_bytes |> Bytes.to_string |> digest_of_string
+let digest_of_marshal marshal =
+  digest_of_marshal_bytes (marshal_bytes_of_marshal marshal)
 
 (** Special magic digest for None. A bit ugly. *)
 let null_digest = Digest.zero
 
 module type DigestibleS = sig
-  include MarshalableS
-  val marshal_bytes: t -> Bytes.t
-  val unmarshal_bytes: Bytes.t -> t
-  val marshal_string: t -> string
-  val unmarshal_string: string -> t
-  val digest: t -> t digest
+  type t
+  val digest: t -> digest
 end
 
-module DigestibleOfMarshalable (T : MarshalableS) = struct
-  include T
-  let marshal_bytes = marshal_bytes_of_marshal marshal
-  let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
-  let marshal_string = marshal_string_of_marshal marshal
-  let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
-  let digest = digest_of_marshal_bytes marshal_bytes
+module DigestibleOfMarshalable (M : MarshalableS) = struct
+  type t = M.t
+  let digest = digest_of_marshal_bytes M.marshal_bytes
 end
 
-module type IntS = sig
-  include Integer.IntS
-  include DigestibleS with type t := t
-end
-
-module UInt64 = struct
-  include Integer.UInt64
-  let of_big_endian_bits b = of_z (nat_of_big_endian_bits 64 b)
-  let to_big_endian_bits u = big_endian_bits_of_nat 64 (z_of u)
-  let marshal = marshal_of_sized_string_of 8 to_big_endian_bits
-  let unmarshal = unmarshal_of_sized_of_string 8 of_big_endian_bits
-  let marshal_bytes = marshal_bytes_of_marshal marshal
-  let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
-  let marshal_string = marshal_string_of_marshal marshal
-  let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
-  let digest = digest_of_marshal_bytes marshal_bytes
-end
-
-module Revision = UInt64
-module Duration = UInt64
-module Timestamp = UInt64
-
-module StringT = struct
-  include String
-  module Marshalable = struct
-    type t = string
-    let marshal x = Buffer.add_string x
-    let unmarshal ?start:(start=0) b =
-      let len = Bytes.length b - start in (Bytes.sub_string b start len, len)
-  end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+module DigestibleOfPreMarshalable (P : PreMarshalableS) = struct
+  type t = P.t
+  let digest = digest_of_marshal_bytes (marshal_bytes_of_marshal P.marshaling.marshal)
 end
 
 module Address = struct
-  (* an address identifies a party (user, facilitator)
-     per Ethereum, use the last 20 bytes of the Keccak256 hash of the party's public key *)
-
-  include UInt256
-
+  include UInt256_z
   let address_size = 20
-
   let of_hex_string = sized_nat_of_hex_string 160
   let to_hex_string = hex_string_of_sized_nat 160
   let of_big_endian_bits = nat_of_big_endian_bits 160
   let to_big_endian_bits = big_endian_bits_of_nat 160
-
+  let marshaling = marshaling_sized_string address_size to_big_endian_bits of_big_endian_bits
+  let pp formatter x = Format.fprintf formatter "0x%s" (to_hex_string x)
+  let show x = Format.asprintf "%a" pp x
   let of_public_key public_key =
     let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
     (* uncompressed public key has an extra byte at the beginning, which we remove:
@@ -117,26 +58,7 @@ module Address = struct
     let pubkey_string = Cstruct.to_string (Cstruct.of_bigarray ~off:1 buffer) in
     let hash = keccak256_string pubkey_string in
     let hash_len = String.length hash in
-    Nat.of_bits (String.init address_size (fun ndx -> hash.[hash_len - ndx - 1]))
-
-  let compare address1 address2 = Pervasives.compare address1 address2
-
-  let equal address1 address2 = compare address1 address2 = 0
-
-  let pp formatter x = Format.fprintf formatter "0x%s" (to_hex_string x)
-  let show x = Format.asprintf "%a" pp x
-end
-
-module Unit = struct
-  type t = unit
-  module Marshalable = struct
-    type t = unit
-    let marshal _ _ = ()
-    let unmarshal ?start:(start=0) _ = ((), start)
-  end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
-  let pp formatter _ = Format.fprintf formatter "%s" "()"
-  let show x = Format.asprintf "%a" pp x
+    of_bits (String.init address_size (fun ndx -> hash.[hash_len - ndx - 1]))
 end
 
 type signature = Secp256k1.Sign.recoverable Secp256k1.Sign.t
@@ -175,12 +97,12 @@ let string_of_signature signature =
   *)
   let bytes, recid = Secp256k1.Sign.to_bytes_recid secp256k1_ctx signature in
   let buffer = Buffer.create 8 in
-  UInt64.marshal buffer (UInt64.of_int recid);
+  UInt64.marshaling.marshal buffer (UInt64.of_int recid);
   (Buffer.contents buffer) ^ (Cstruct.to_string (Cstruct.of_bigarray bytes))
 
 let [@warning "-32"] signature_of_string string =
   let recid_bytes = Bytes.of_string (String.sub string 0 8) in
-  let recid64,_ = UInt64.unmarshal recid_bytes in
+  let recid64,_ = UInt64.marshaling.unmarshal recid_bytes in
   let recid = UInt64.to_int recid64 in
   let signature_string = String.sub string 8 (String.length string - 8) in
   match Secp256k1.Sign.read_recoverable ~recid secp256k1_ctx
@@ -193,23 +115,26 @@ module Signature = struct
   type t = signature
   (* 8 bytes for the recovery id + 64 bytes for the signature proper *)
   let width = 72
-  let marshal = marshal_of_sized_string_of width string_of_signature
-  let unmarshal = unmarshal_of_sized_of_string width signature_of_string
+  let marshaling = marshaling_sized_string width string_of_signature signature_of_string
 end
 
 type 'a signed = {payload: 'a; signature: signature}
 
 let marshal_signed marshal buffer {payload; signature} =
-  marshal buffer payload; Signature.marshal buffer signature
+  marshal buffer payload; Signature.marshaling.marshal buffer signature
 
 let unmarshal_signed (unmarshal:'a unmarshaler) ?(start=0) bytes : 'a signed * int =
   let payload,payload_offset = unmarshal ~start bytes in
-  let signature,final_offset = Signature.unmarshal ~start:payload_offset bytes in
+  let signature,final_offset = Signature.marshaling.unmarshal ~start:payload_offset bytes in
   ( { payload
     ; signature
     }
   , final_offset
   )
+
+let marshaling_signed marshaling =
+  { marshal = marshal_signed marshaling.marshal
+  ; unmarshal = unmarshal_signed marshaling.unmarshal }
 
 (* digital signature is encrypted hash *)
 let make_signature make_digest private_key data =

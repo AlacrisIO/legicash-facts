@@ -4,6 +4,8 @@ open Lib
 open Action
 open Marshaling
 open Crypto
+open Db
+open Db_types
 open Merkle_trie
 
 module TokenAmount = Main_chain.TokenAmount
@@ -12,22 +14,33 @@ type fraud_proof
 
 module KnowledgeStage = struct
   type t = Unknown | Pending | Confirmed | Rejected
-  module Marshalable = struct
+  let to_char = function Unknown -> 'U' | Pending -> 'P' | Confirmed -> 'C' | Rejected -> 'R'
+  let of_char = function | 'U' -> Unknown | 'P' -> Pending | 'C' -> Confirmed | 'R' -> Rejected
+                         | _ -> raise (Internal_error "Invalid KnowledgeStage character")
+  module PrePersistable = struct
     type nonrec t = t
-    let to_char = function Unknown -> 'U' | Pending -> 'P' | Confirmed -> 'C' | Rejected -> 'R'
-    let marshal b x = Buffer.add_char b (to_char x)
-    let unmarshal = unmarshal_not_implemented
+    let marshaling = marshaling_map to_char of_char char_marshaling
+    let make_persistent = already_persistent
+    let walk_dependencies = no_dependencies
   end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
-type memo = string option
-
 module Invoice = struct
-  type t = {recipient: Address.t; amount: TokenAmount.t; memo: memo}
+  type t = {recipient: Address.t; amount: TokenAmount.t; memo: string}
   [@@deriving lens { prefix=true } ]
-  module Marshalable = OCamlMarshaling (struct type nonrec t = t end)
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling_tagged Tag.side_chain_invoice
+        (marshaling3
+           (fun {recipient; amount; memo} -> (recipient, amount, memo))
+           (fun recipient amount memo -> {recipient; amount; memo})
+           Address.marshaling TokenAmount.marshaling string63_marshaling)
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
+  end
+  include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
 
 module Operation = struct
@@ -52,74 +65,62 @@ module Operation = struct
     | Payment of payment_details
     | Withdrawal of withdrawal_details
 
-  module Marshalable = struct
-    type nonrec t = t
-    let marshal buffer = function
-      | Deposit { deposit_amount
-                ; deposit_fee
-                ; main_chain_deposit_signed
-                ; main_chain_deposit_confirmation
-                ; deposit_expedited } ->
-        Marshaling.marshal_char buffer 'D' ;
-        TokenAmount.marshal buffer deposit_amount ;
-        TokenAmount.marshal buffer deposit_fee ;
-        marshal_signed Main_chain.Transaction.marshal buffer main_chain_deposit_signed ;
-        Main_chain.Confirmation.marshal buffer main_chain_deposit_confirmation ;
-        marshal_bool buffer deposit_expedited
-      | Payment {payment_invoice; payment_fee; payment_expedited} ->
-        Marshaling.marshal_char buffer 'P' ;
-        Invoice.marshal buffer payment_invoice;
-        TokenAmount.marshal buffer payment_fee;
-        marshal_bool buffer payment_expedited
-      | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-        Marshaling.marshal_char buffer 'W' ;
-        TokenAmount.marshal buffer withdrawal_amount;
-        TokenAmount.marshal buffer withdrawal_fee
-    let unmarshal_deposit start bytes =
-      let deposit_amount,deposit_amount_offset = TokenAmount.unmarshal ~start bytes in
-      let deposit_fee,deposit_fee_offset = TokenAmount.unmarshal ~start:deposit_amount_offset bytes in
-      let main_chain_deposit_signed,main_chain_deposit_signed_offset =
-        unmarshal_signed Main_chain.Transaction.unmarshal ~start:deposit_fee_offset bytes in
-      let main_chain_deposit_confirmation,main_chain_deposit_confirmation_offset =
-        Main_chain.Confirmation.unmarshal ~start:main_chain_deposit_signed_offset bytes in
-      let deposit_expedited, final_offset =
-        unmarshal_bool ~start:main_chain_deposit_confirmation_offset bytes in
-      ( Deposit { deposit_amount
-                ; deposit_fee
-                ; main_chain_deposit_signed
-                ; main_chain_deposit_confirmation
-                ; deposit_expedited
-                }
-      , final_offset
-      )
-    let unmarshal_payment start bytes =
-      let payment_invoice,payment_invoice_offset = Invoice.unmarshal ~start bytes in
-      let payment_fee,payment_fee_offset = TokenAmount.unmarshal ~start:payment_invoice_offset bytes in
-      let payment_expedited,final_offset = unmarshal_bool ~start:payment_fee_offset bytes in
-      ( Payment { payment_invoice
-                ; payment_fee
-                ; payment_expedited
-                }
-      , final_offset
-      )
-    let unmarshal_withdrawal start bytes =
-      let withdrawal_amount,withdrawal_amount_offset = TokenAmount.unmarshal ~start bytes in
-      let withdrawal_fee,final_offset = TokenAmount.unmarshal ~start:withdrawal_amount_offset bytes in
-      ( Withdrawal { withdrawal_amount
-                   ; withdrawal_fee
-                   }
-      , final_offset
-      )
-    let unmarshal ?(start=0) bytes =
-      let tag,next = unmarshal_char ~start bytes in
-      match tag with
-      | 'D' -> unmarshal_deposit next bytes
-      | 'P' -> unmarshal_payment next bytes
-      | 'W' -> unmarshal_withdrawal next bytes
-      | _ -> raise (Internal_error (Format.sprintf "Unknown tag %c when unmarshaling operation" tag))
+  let operation_tag = function
+    | Deposit _ -> Tag.side_chain_deposit
+    | Payment _ -> Tag.side_chain_payment
+    | Withdrawal _ -> Tag.side_chain_payment
 
+  module PrePersistable = struct
+    type nonrec t = t
+    let case_table =
+      [| marshaling5
+           (function
+             | Deposit
+                 { deposit_amount
+                 ; deposit_fee
+                 ; main_chain_deposit_signed
+                 ; main_chain_deposit_confirmation
+                 ; deposit_expedited } ->
+               (deposit_amount, deposit_fee, main_chain_deposit_signed,
+                main_chain_deposit_confirmation, deposit_expedited)
+             | _ -> bottom ())
+           (fun deposit_amount deposit_fee main_chain_deposit_signed
+             main_chain_deposit_confirmation deposit_expedited ->
+             Deposit
+               { deposit_amount
+               ; deposit_fee
+               ; main_chain_deposit_signed
+               ; main_chain_deposit_confirmation
+               ; deposit_expedited })
+           TokenAmount.marshaling
+           TokenAmount.marshaling
+           Main_chain.TransactionSigned.marshaling
+           Main_chain.Confirmation.marshaling
+           bool_marshaling
+       ; marshaling3
+           (function
+             | Payment {payment_invoice; payment_fee; payment_expedited} ->
+               (payment_invoice, payment_fee, payment_expedited)
+             | _ -> bottom ())
+           (fun payment_invoice payment_fee payment_expedited ->
+              Payment {payment_invoice; payment_fee; payment_expedited})
+           Invoice.marshaling TokenAmount.marshaling bool_marshaling
+       ; marshaling2
+           (function
+             | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+               (withdrawal_amount, withdrawal_fee)
+             | _ -> bottom ())
+           (fun withdrawal_amount withdrawal_fee ->
+              Withdrawal {withdrawal_amount; withdrawal_fee})
+           TokenAmount.marshaling TokenAmount.marshaling |]
+
+    let marshaling =
+      marshaling_cases operation_tag Tag.base_side_chain_operation case_table
+
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
   end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
 
 module RxHeader = struct
@@ -127,120 +128,114 @@ module RxHeader = struct
     { facilitator: Address.t
     ; requester: Address.t
     ; requester_revision: Revision.t
-    ; confirmed_main_chain_state_digest: Main_chain.State.t digest
+    ; confirmed_main_chain_state_digest: digest
     ; confirmed_main_chain_state_revision: Revision.t
-    ; confirmed_side_chain_state_digest: Digest.t
+    ; confirmed_side_chain_state_digest: digest
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
   [@@deriving lens {prefix=true}]
-  let marshal buffer { facilitator
-                     ; requester
-                     ; requester_revision
-                     ; confirmed_main_chain_state_digest
-                     ; confirmed_main_chain_state_revision
-                     ; confirmed_side_chain_state_digest
-                     ; confirmed_side_chain_state_revision
-                     ; validity_within } =
-    Address.marshal buffer facilitator ;
-    Address.marshal buffer requester ;
-    Revision.marshal buffer requester_revision ;
-    Digest.marshal buffer confirmed_main_chain_state_digest ;
-    Revision.marshal buffer confirmed_main_chain_state_revision ;
-    Digest.marshal buffer confirmed_side_chain_state_digest ;
-    Revision.marshal buffer confirmed_side_chain_state_revision ;
-    Duration.marshal buffer validity_within
-  let unmarshal ?(start=0) bytes =
-    let facilitator,facilitator_offset = Address.unmarshal ~start bytes in
-    let requester,requester_offset = Address.unmarshal ~start:facilitator_offset bytes in
-    let requester_revision,requester_revision_offset = Revision.unmarshal ~start:requester_offset bytes in
-    let confirmed_main_chain_state_digest,confirmed_main_chain_state_digest_offset =
-      Digest.unmarshal ~start:requester_revision_offset bytes in
-    let confirmed_main_chain_state_revision,confirmed_main_chain_state_revision_offset =
-      Revision.unmarshal ~start:confirmed_main_chain_state_digest_offset bytes in
-    let confirmed_side_chain_state_digest,confirmed_side_chain_state_digest_offset =
-      Digest.unmarshal ~start:confirmed_main_chain_state_revision_offset bytes in
-    let confirmed_side_chain_state_revision,confirmed_side_chain_state_revision_offset =
-      Revision.unmarshal ~start:confirmed_side_chain_state_digest_offset bytes in
-    let validity_within,final_offset = Duration.unmarshal ~start:confirmed_side_chain_state_revision_offset bytes in
-    ( { facilitator
-      ; requester
-      ; requester_revision
-      ; confirmed_main_chain_state_digest
-      ; confirmed_main_chain_state_revision
-      ; confirmed_side_chain_state_digest
-      ; confirmed_side_chain_state_revision
-      ; validity_within
-      }
-    , final_offset
-    )
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling_tagged Tag.side_chain_rx_header
+        (marshaling8
+           (fun { facilitator
+                ; requester
+                ; requester_revision
+                ; confirmed_main_chain_state_digest
+                ; confirmed_main_chain_state_revision
+                ; confirmed_side_chain_state_digest
+                ; confirmed_side_chain_state_revision
+                ; validity_within } ->
+             facilitator, requester, requester_revision,
+             confirmed_main_chain_state_digest, confirmed_main_chain_state_revision,
+             confirmed_side_chain_state_digest, confirmed_side_chain_state_revision,
+             validity_within)
+           (fun facilitator requester requester_revision
+             confirmed_main_chain_state_digest confirmed_main_chain_state_revision
+             confirmed_side_chain_state_digest confirmed_side_chain_state_revision
+             validity_within ->
+             { facilitator
+             ; requester
+             ; requester_revision
+             ; confirmed_main_chain_state_digest
+             ; confirmed_main_chain_state_revision
+             ; confirmed_side_chain_state_digest
+             ; confirmed_side_chain_state_revision
+             ; validity_within })
+           Address.marshaling Address.marshaling Revision.marshaling
+           Digest.marshaling Revision.marshaling
+           Digest.marshaling Revision.marshaling
+           Duration.marshaling)
+    let walk_dependencies = no_dependencies
+    let make_persistent = normal_persistent
+  end
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 module Request = struct
   type t = {rx_header: RxHeader.t; operation: Operation.t}
   [@@deriving lens { prefix=true } ]
-  module Marshalable = struct
+  module PrePersistable = struct
     type nonrec t = t
-    let marshal buffer {rx_header; operation} =
-      RxHeader.marshal buffer rx_header ; Operation.marshal buffer operation
-    let unmarshal ?(start=0) bytes =
-      let rx_header,rx_header_offset = RxHeader.unmarshal ~start bytes in
-      let operation,final_offset = Operation.unmarshal ~start:rx_header_offset bytes in
-      ( { rx_header; operation }
-      , final_offset
-      )
+    let marshaling =
+      marshaling2
+        (fun {rx_header; operation} -> rx_header, operation)
+        (fun rx_header operation -> {rx_header; operation})
+        RxHeader.marshaling Operation.marshaling
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
   end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 module TxHeader = struct
   type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t}
   [@@deriving lens { prefix=true } ]
-  let marshal buffer {tx_revision; updated_limit} =
-    Revision.marshal buffer tx_revision ; TokenAmount.marshal buffer updated_limit
-  let unmarshal ?(start=0) bytes =
-    let tx_revision,tx_revision_offset = Revision.unmarshal ~start bytes in
-    let updated_limit,final_offset = TokenAmount.unmarshal ~start:tx_revision_offset bytes in
-    ( { tx_revision; updated_limit }
-    , final_offset
-    )
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling2
+        (fun {tx_revision; updated_limit} -> tx_revision, updated_limit)
+        (fun tx_revision updated_limit -> {tx_revision; updated_limit})
+        Revision.marshaling TokenAmount.marshaling
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
+  end
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 module Confirmation = struct
   type t = {tx_header: TxHeader.t; signed_request: Request.t signed}
   [@@deriving lens { prefix=true } ]
-  module Marshalable = struct
+  module PrePersistable = struct
     type nonrec t = t
-    let marshal buffer {tx_header; signed_request} =
-      TxHeader.marshal buffer tx_header ; marshal_signed Request.marshal buffer signed_request
-    let unmarshal ?(start=0) bytes =
-      let tx_header,tx_header_offset = TxHeader.unmarshal ~start bytes in
-      let signed_request,final_offset = unmarshal_signed Request.unmarshal ~start:tx_header_offset bytes in
-      ( { tx_header; signed_request }
-      , final_offset
-      )
+    let marshaling =
+      marshaling_tagged Tag.side_chain_confirmation
+        (marshaling2
+           (fun {tx_header; signed_request} -> tx_header, signed_request)
+           (fun tx_header signed_request -> {tx_header; signed_request})
+           TxHeader.marshaling (marshaling_signed Request.marshaling))
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
   end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 module AccountState = struct
   type t = {balance: TokenAmount.t; account_revision: Revision.t}
   [@@deriving lens { prefix=true } ]
-  module Marshalable = struct
+  module PrePersistable = struct
     type nonrec t = t
-    let marshal buffer {balance; account_revision} =
-      TokenAmount.marshal buffer balance;
-      Revision.marshal buffer account_revision
-    let unmarshal ?(start=0) bytes =
-      let balance,balance_offset = TokenAmount.unmarshal ~start bytes in
-      let account_revision,final_offset = Revision.unmarshal ~start:balance_offset bytes in
-      ( { balance
-        ; account_revision
-        }
-        ,
-        final_offset
-      )
+    let marshaling =
+      marshaling2
+        (fun {balance; account_revision} -> balance, account_revision)
+        (fun balance account_revision -> {balance; account_revision})
+        TokenAmount.marshaling Revision.marshaling
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
   end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 (* Module for Maps from Side_chain.TxHeader.tx_revision to (unsigned) Confirmation *)
@@ -249,8 +244,8 @@ module ConfirmationMap = MerkleTrie (Revision) (Confirmation)
 module AccountMap = MerkleTrie (Address) (AccountState)
 
 module State = struct
-  type t = { previous_main_chain_state: Main_chain.State.t digest
-           ; previous_side_chain_state: t digest
+  type t = { previous_main_chain_state: digest
+           ; previous_side_chain_state: digest
            ; facilitator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            ; bond_posted: TokenAmount.t
@@ -259,220 +254,90 @@ module State = struct
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens { prefix=true } ]
 
-  module type DbNameS = sig val db_name : string end
-
-  module Persistence (Trie : MerkleTrieS) (DbName : DbNameS) = struct
-    open Trie
-    open MarshalNode
-
-    let get_db =
-      let db = ref None in
-      function () ->
-        (* open database on first use; finalizer closes it automatically *)
-        if !db == None then
-          db := Some (LevelDB.open_db DbName.db_name);
-        option_get !db
-
-    let node_saved synth =
-      let db = get_db () in
-      LevelDB.mem db synth
-
-    let save_node synth data =
-      let db = get_db () in
-      LevelDB.put db synth data
-
-    let save root_key tree =
-
-      let branchk ~i:_ ~height ~leftr ~rightr ~synth ~k =
-        let node_key = Synth.marshal_string synth in
-        if not (node_saved node_key ) then (
-          let buffer = Buffer.create 256 in
-          marshal_branch buffer leftr rightr height synth;
-          save_node node_key (Buffer.contents buffer);
-        );
-        k synth
-      in
-
-      let skipk ~i:_ ~height ~length ~bits ~childr ~synth ~k =
-        let node_key = Synth.marshal_string synth in
-        if not (node_saved node_key) then (
-          let buffer = Buffer.create 256 in
-          marshal_skip buffer childr bits length height synth;
-          save_node node_key (Buffer.contents buffer)
-        );
-        k synth
-      in
-
-      let leafk ~i:_ ~value ~synth ~k =
-        let node_key = Synth.marshal_string synth in
-        if not (node_saved node_key) then (
-          let buffer = Buffer.create 256 in
-          marshal_leaf buffer value synth;
-          save_node node_key (Buffer.contents buffer)
-        );
-        k synth
-      in
-
-      let emptyk ~k =
-        let node_key = Synth.marshal_string Synth.empty in
-        if not (node_saved node_key) then (
-          let buffer = Buffer.create 10 in
-          marshal_empty buffer;
-          save_node node_key (Buffer.contents buffer)
-        );
-        k Synth.empty
-      in
-
-      let rec save_trie ~i ~tree ~k =
-        (* this needs to be closed under save_tree, unlike the others *)
-        let recursek ~i ~tree ~k =
-          let synth = get_synth tree in
-          let node_key = Synth.marshal_string synth in
-          if node_saved node_key then
-            k synth
-          else
-            save_trie ~i ~tree ~k
-        in
-        iterate_over_tree
-          ~recursek  ~branchk ~skipk ~leafk ~emptyk
-          ~i ~tree ~k
-      in
-      let root_synth = save_trie ~i:empty_key ~tree ~k:identity in
-      let db = get_db () in
-      LevelDB.put db root_key (Synth.marshal_string root_synth)
-
-    let retrieve_node key =
-      let db = get_db () in
-      match LevelDB.get db key with
-      | Some data ->
-        let node,_ = unmarshal_to_node (Bytes.of_string data) in
-        node
-      | None -> raise (Internal_error
-                         (Format.sprintf "Could not retrieve node from database %s with key: %s"
-                            DbName.db_name (unparse_hex_string key)))
-
-    let retrieve root_key =
-      let db = get_db () in
-      let root_synth =
-        match LevelDB.get db root_key with
-        | Some s -> s
-        | None -> raise (Internal_error (Format.sprintf "Could not get trie root in database %s" DbName.db_name))
-      in
-      let rec find_node key =
-        match retrieve_node key with
-        | NodeEmpty -> Empty
-        | NodeLeaf {value; synth} -> Leaf {value; synth}
-        | NodeBranch { left; right; height; synth } ->
-          (* TODO: will recursion blow the stack here? *)
-          let left_trie = find_node (Synth.marshal_string left) in
-          let right_trie = find_node (Synth.marshal_string right) in
-          Branch { left=left_trie; right=right_trie; height; synth }
-        | NodeSkip { child; bits; length; height; synth } ->
-          let child_trie = find_node (Synth.marshal_string child) in
-          Skip { child=child_trie; bits; length; height; synth }
-      in
-      find_node root_synth
-  end
-
-  module Marshalable = struct
+  module PrePersistable = struct
     type nonrec t = t
-
-    module AccountsDb = struct let db_name = "accounts" end
-    module AccountMapPersist = Persistence (AccountMap) (AccountsDb)
-
-    module ConfirmationsDb = struct let db_name = "confirmations" end
-    module ConfirmationMapPersist = Persistence (ConfirmationMap) (ConfirmationsDb)
-
-    let marshal buffer t =
-      let start_length = Buffer.length buffer in
-      Digest.marshal buffer t.previous_main_chain_state;
-      Digest.marshal buffer t.previous_side_chain_state;
-      Revision.marshal buffer t.facilitator_revision;
-      TokenAmount.marshal buffer t.spending_limit;
-      TokenAmount.marshal buffer t.bond_posted;
-      let num_elements = DigestSet.cardinal t.main_chain_transactions_posted in
-      UInt64.marshal buffer (UInt64.of_int num_elements);
-      DigestSet.iter
-        (fun elt ->
-           Digest.marshal buffer elt)
-        t.main_chain_transactions_posted;
-      let end_length = Buffer.length buffer in
-      (* use hash of the non-trie contents as root key *)
-      let non_trie_state = String.sub (Buffer.contents buffer)
-                             start_length (end_length - start_length)
-      in
-      (* save trie nodes to database *)
-      AccountMapPersist.save non_trie_state t.accounts;
-      ConfirmationMapPersist.save non_trie_state t.operations
-
-    let unmarshal ?(start=0) bytes =
-      let previous_main_chain_state,previous_main_chain_state_offset =
-        Digest.unmarshal ~start bytes in
-      let previous_side_chain_state,previous_side_chain_state_offset =
-        Digest.unmarshal ~start:previous_main_chain_state_offset bytes in
-      let facilitator_revision,facilitator_revision_offset =
-        Revision.unmarshal ~start:previous_side_chain_state_offset bytes in
-      let spending_limit,spending_limit_offset =
-        TokenAmount.unmarshal ~start:facilitator_revision_offset bytes in
-      let bond_posted,bond_posted_offset =
-        TokenAmount.unmarshal ~start:spending_limit_offset bytes in
-      let num_elements64,num_elements64_offset =
-        UInt64.unmarshal ~start:bond_posted_offset bytes in
-      let num_elements = UInt64.to_int num_elements64 in
-      let rec get_digest_set_elements count set offset =
-        if count >= num_elements then
-          set, offset
-        else
-          let digest,new_offset = Digest.unmarshal ~start:offset bytes in
-          get_digest_set_elements (count + 1) (DigestSet.add digest set) new_offset
-      in
-      let main_chain_transactions_posted,final_offset =
-        get_digest_set_elements 0 DigestSet.empty num_elements64_offset
-      in
-      (* use non_trie_state as root key *)
-      let non_trie_state = String.sub (Bytes.to_string bytes) start (final_offset - start) in
-      (* restore nodes from database *)
-      let accounts = AccountMapPersist.retrieve non_trie_state in
-      let operations = ConfirmationMapPersist.retrieve non_trie_state in
-      ( { previous_main_chain_state
-        ; previous_side_chain_state
-        ; facilitator_revision
-        ; spending_limit
-        ; bond_posted
-        ; accounts
-        ; operations
-        ; main_chain_transactions_posted
-        }
-        ,
-        final_offset
-      )
+    let marshaling =
+      marshaling_tagged Tag.side_chain_state
+        (marshaling8
+           (fun { previous_main_chain_state
+                ; previous_side_chain_state
+                ; facilitator_revision
+                ; spending_limit
+                ; bond_posted
+                ; accounts
+                ; operations
+                ; main_chain_transactions_posted } ->
+             (previous_main_chain_state, previous_side_chain_state, facilitator_revision,
+              spending_limit, bond_posted, accounts, operations, main_chain_transactions_posted))
+           (fun previous_main_chain_state previous_side_chain_state facilitator_revision
+             spending_limit bond_posted accounts operations main_chain_transactions_posted ->
+             { previous_main_chain_state
+             ; previous_side_chain_state
+             ; facilitator_revision
+             ; spending_limit
+             ; bond_posted
+             ; accounts
+             ; operations
+             ; main_chain_transactions_posted })
+           Digest.marshaling Digest.marshaling Revision.marshaling
+           TokenAmount.marshaling TokenAmount.marshaling
+           AccountMap.marshaling ConfirmationMap.marshaling DigestSet.marshaling)
+    let walk_dependencies _methods context {accounts; operations; main_chain_transactions_posted} =
+      walk_dependency AccountMap.dependency_walking context accounts;
+      walk_dependency ConfirmationMap.dependency_walking context operations;
+      walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted
+    let make_persistent = normal_persistent
   end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
-type episteme =
-  { request: Request.t signed
-  ; confirmation_option: Confirmation.t signed option
-  ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
-[@@deriving lens]
+module Episteme = struct
+  type t =
+    { request: Request.t signed
+    ; confirmation_option: Confirmation.t signed option
+    ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
+  [@@deriving lens]
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling3
+        (fun { request; confirmation_option; main_chain_confirmation_option } ->
+           request, confirmation_option, main_chain_confirmation_option)
+        (fun request confirmation_option main_chain_confirmation_option ->
+           { request; confirmation_option; main_chain_confirmation_option })
+        (marshaling_signed Request.marshaling)
+        (option_marshaling (marshaling_signed Confirmation.marshaling))
+        (option_marshaling Main_chain.Confirmation.marshaling)
+    let walk_dependencies = no_dependencies
+    let make_persistent = normal_persistent
+  end
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
+end
 
 module UserAccountStatePerFacilitator = struct
   type t =
     { facilitator_validity: KnowledgeStage.t
     ; confirmed_state: AccountState.t
-    ; pending_operations: episteme list }
+    ; pending_operations: Episteme.t list }
   [@@deriving lens { prefix=true } ]
-  module Marshalable = struct
+  module PrePersistable = struct
     type nonrec t = t
-    let marshal buffer { facilitator_validity
-                       ; confirmed_state
-                       ; pending_operations=_ } =
-      KnowledgeStage.marshal buffer facilitator_validity ;
-      AccountState.marshal buffer confirmed_state ;
-      () (* TODO: handle the list pending_operation *)
-    let unmarshal = unmarshal_not_implemented
+    let marshaling =
+      marshaling3
+        (fun { facilitator_validity
+             ; confirmed_state
+             ; pending_operations } ->
+          facilitator_validity, confirmed_state, pending_operations)
+        (fun facilitator_validity confirmed_state pending_operations ->
+           { facilitator_validity
+           ; confirmed_state
+           ; pending_operations })
+        KnowledgeStage.marshaling AccountState.marshaling
+        (list_marshaling Episteme.marshaling)
+    let walk_dependencies = no_dependencies
+    let make_persistent = normal_persistent
   end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 module UserAccountStateMap = MerkleTrie (Address) (UserAccountStatePerFacilitator)
@@ -497,34 +362,19 @@ module FacilitatorFeeSchedule = struct
     ; per_account_limit: TokenAmount.t
     ; fee_per_billion: TokenAmount.t }
   [@@deriving lens { prefix=true} ]
-  module Marshalable = struct
+  module PrePersistable = struct
     type nonrec t = t
-
-    let marshal buffer t =
-      TokenAmount.marshal buffer t.deposit_fee;
-      TokenAmount.marshal buffer t.withdrawal_fee;
-      TokenAmount.marshal buffer t.per_account_limit;
-      TokenAmount.marshal buffer t.fee_per_billion
-
-    let unmarshal ?(start = 0) bytes =
-      let deposit_fee,deposit_fee_offset =
-        TokenAmount.unmarshal ~start bytes in
-      let withdrawal_fee,withdrawal_fee_offset =
-        TokenAmount.unmarshal ~start:deposit_fee_offset bytes in
-      let per_account_limit,per_account_limit_offset =
-        TokenAmount.unmarshal ~start:withdrawal_fee_offset bytes in
-      let fee_per_billion,final_offset =
-        TokenAmount.unmarshal ~start:per_account_limit_offset bytes in
-      ( { deposit_fee
-        ; withdrawal_fee
-        ; per_account_limit
-        ; fee_per_billion
-        }
-        ,
-        final_offset
-      )
+    let marshaling =
+      marshaling4
+        (fun { deposit_fee ; withdrawal_fee ; per_account_limit ; fee_per_billion } ->
+           deposit_fee, withdrawal_fee, per_account_limit, fee_per_billion)
+        (fun deposit_fee withdrawal_fee per_account_limit fee_per_billion ->
+           { deposit_fee ; withdrawal_fee ; per_account_limit ; fee_per_billion })
+        TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling
+    let make_persistent = normal_persistent
+    let walk_dependencies = no_dependencies
   end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 module FacilitatorState = struct
@@ -535,91 +385,41 @@ module FacilitatorState = struct
            }
   [@@deriving lens { prefix=true} ]
 
-  module Marshalable = struct
+  module PrePersistable = struct
     type nonrec t = t
-
-    let marshal buffer t =
-      Keypair.marshal buffer t.keypair;
-      (* use tag to mark option *)
-      begin
-        match t.previous with
-        | None -> Marshaling.marshal_char buffer 'N'
-        | Some state ->
-          Marshaling.marshal_char buffer 'S';
-          State.marshal buffer state
-      end;
-      State.marshal buffer t.current;
-      FacilitatorFeeSchedule.marshal buffer t.fee_schedule
-
-    let unmarshal ?(start=0) bytes =
-      let keypair,keypair_offset = Keypair.unmarshal ~start:start bytes in
-      let option_tag,option_tag_offset = unmarshal_char ~start:keypair_offset bytes in
-      let previous,previous_offset =
-        match option_tag with
-        | 'N' -> None,option_tag_offset
-        | 'S' ->
-          let prev,offs = State.unmarshal ~start:option_tag_offset bytes in
-          Some prev,offs
-        | _ -> raise (Internal_error "Unexpected tag for State within FacilitatorState")
-      in
-      let current,current_offset = State.unmarshal ~start:previous_offset bytes in
-      let fee_schedule,final_offset =
-        FacilitatorFeeSchedule.unmarshal ~start:current_offset bytes in
-      ({ keypair
-       ; previous
-       ; current
-       ; fee_schedule
-       },
-       final_offset)
+    let marshaling =
+      marshaling4
+        (fun { keypair ; previous ; current ; fee_schedule } ->
+           keypair, previous, current, fee_schedule)
+        (fun keypair previous current fee_schedule ->
+           { keypair ; previous ; current ; fee_schedule })
+        Keypair.marshaling (option_marshaling State.marshaling)
+        State.marshaling FacilitatorFeeSchedule.marshaling
+    let walk_dependencies _methods context {previous ; current} =
+      let walk = walk_dependency State.dependency_walking context in
+      option_iter walk previous ; walk current
+    let make_persistent = normal_persistent
   end
-
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
-
-  module Persistence = struct
-    open LevelDB
-
-    let db_key_of_facilitator_address address =
-      Format.sprintf "facilitator-0x%s" (Address.to_hex_string address)
-
-    let db_name = "facilitator_state"
-
-    let get_db =
-      let db = ref None in
-      function () ->
-        (* open database on first use; finalizer closes it automatically *)
-        if !db == None then
-          db := Some (open_db db_name);
-        option_get !db
-
-    let save facilitator_state =
-      let db = get_db () in
-      let db_key = db_key_of_facilitator_address facilitator_state.keypair.address in
-      (* side effect of marshaling facilitator state: the tries within the State
-         components are written to databases; there is a database for each
-         trie type; the tries are likewise read from the databases when
-         the facilitator state is unmarshaled
-      *)
-      put db db_key (marshal_string facilitator_state)
-
-    let retrieve facilitator_address =
-      let db = get_db () in
-      let db_key = db_key_of_facilitator_address facilitator_address in
-      let bytes =
-        match get db db_key with
-        | Some s -> Bytes.of_string s (* TODO: can we avoid copying? *)
-        | None -> raise (Internal_error
-                           (Format.sprintf "No facilitator state saved for address 0x%s"
-                              (Address.to_hex_string facilitator_address)))
-      in
-      unmarshal_bytes bytes
-  end
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
+  let facilitator_state_key facilitator_address =
+    "LCFS0001" ^ (Address.to_big_endian_bits facilitator_address)
+  let save facilitator_state =
+    save facilitator_state; (* <-- use inherited binding *)
+    let address = facilitator_state.keypair.address in
+    let key = facilitator_state_key address in
+    put_db key (Digest.to_big_endian_bits (digest facilitator_state))
+  let load facilitator_address =
+    facilitator_address |> facilitator_state_key |> get_db |> option_get |> Digest.of_string |>
+    db_value_of_digest unmarshal_string
 end
+
 
 type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t) action
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 
-type update = {current_state: State.t digest; availability_proof: court_clerk_confirmation list}
+type update = { current_state: digest (* State.t *)
+              ; availability_proof: court_clerk_confirmation list}
 
 type user_to_user_message
 
@@ -681,8 +481,7 @@ module Test = struct
        in Side_chain_action.Test, the "deposit_and_payment_valid" test does
        a save and retrieval with nonempty such maps
     *)
-    FacilitatorState.Persistence.save trent_state;
-    let retrieved_state = FacilitatorState.Persistence.retrieve trent_address in
+    FacilitatorState.save trent_state;
+    let retrieved_state = FacilitatorState.load trent_address in
     retrieved_state = trent_state
-
 end

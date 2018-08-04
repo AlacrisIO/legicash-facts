@@ -1,8 +1,8 @@
 (* Types for LegiCash Facilitator side-chains *)
 open Action
 open Crypto
+open Db
 open Merkle_trie
-open Marshaling
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -40,21 +40,22 @@ module KnowledgeStage : sig
     | Rejected
     (* of operation_rejection *)
   (* 3. that actor rejected it, timed out, or lied, etc. *)
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
-
-(** memo identifying the invoice
-    The merchant chooses this memo to match payments to invoices on his side;
-    the customer must include the proper memo on its payment *)
-type memo = string option
 
 (** invoice sent from payee to payer
     TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
+
+    The memo identifies the invoice
+    The merchant chooses this memo to match payments to invoices on his side;
+    the customer must include the proper memo on its payment
+    A memo is up to 63 characters max.
 *)
+
 module Invoice : sig
-  type t = {recipient: Address.t; amount: TokenAmount.t; memo: memo}
+  type t = {recipient: Address.t; amount: TokenAmount.t; memo: string}
   [@@deriving lens { prefix=true } ]
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
 
 (** an operation on a facilitator side-chain *)
@@ -80,7 +81,7 @@ module Operation : sig
     | Payment of payment_details
     | Withdrawal of withdrawal_details
 
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
 
 (*
@@ -113,9 +114,9 @@ module RxHeader : sig
     { facilitator: Address.t
     ; requester: Address.t
     ; requester_revision: Revision.t
-    ; confirmed_main_chain_state_digest: Main_chain.State.t digest
+    ; confirmed_main_chain_state_digest: digest (* Main_chain.State.t *)
     ; confirmed_main_chain_state_revision: Revision.t
-    ; confirmed_side_chain_state_digest: Digest.t (* State.t digest *)
+    ; confirmed_side_chain_state_digest: digest (* State.t *)
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
   [@@deriving lens { prefix=true } ]
@@ -127,7 +128,7 @@ end
 module Request : sig
   type t = {rx_header: RxHeader.t; operation: Operation.t}
   [@@deriving lens { prefix=true } ]
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
 
 (** header for a confirmation from a facilitator:
@@ -152,7 +153,7 @@ end
 module Confirmation : sig
   type t = {tx_header: TxHeader.t; signed_request: Request.t signed}
   [@@deriving lens { prefix=true } ]
-  val digest: t -> t digest
+  val digest: t -> digest
 end
 
 (* TODO: actually maintain the user_revision;
@@ -161,7 +162,7 @@ end
 module AccountState : sig
   type t = {balance: TokenAmount.t; account_revision: Revision.t}
   [@@deriving lens { prefix=true } ]
-  val digest : t -> t digest
+  val digest : t -> digest
 end
 
 module ConfirmationMap : (MerkleTrieS with type key = Revision.t and type value = Confirmation.t)
@@ -171,8 +172,8 @@ module AccountMap : (MerkleTrieS with type key = Address.t and type value = Acco
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
 *)
 module State : sig
-  type t = { previous_main_chain_state: Main_chain.State.t digest
-           ; previous_side_chain_state: t digest (* state previously posted on the above *)
+  type t = { previous_main_chain_state: digest (* Main_chain.State.t *)
+           ; previous_side_chain_state: digest (* state previously posted on the above *)
            ; facilitator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
@@ -181,15 +182,18 @@ module State : sig
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens { prefix=true } ]
-  include DigestibleS with type t := t
+  include PersistableS with type t := t
 end
 
 (** side chain operation + knowledge about the operation *)
-type episteme =
-  { request: Request.t signed
-  ; confirmation_option: Confirmation.t signed option
-  ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
-[@@deriving lens]
+module Episteme : sig
+  type t =
+    { request: Request.t signed
+    ; confirmation_option: Confirmation.t signed option
+    ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
+  [@@deriving lens]
+  include PersistableS with type t := t
+end
 
 (** private state a user keeps for his account with a facilitator *)
 module UserAccountStatePerFacilitator : sig
@@ -197,9 +201,9 @@ module UserAccountStatePerFacilitator : sig
     { facilitator_validity: KnowledgeStage.t
     (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
     ; confirmed_state: AccountState.t
-    ; pending_operations: episteme list }
+    ; pending_operations: Episteme.t list }
   [@@deriving lens { prefix=true } ]
-  val digest : t -> t digest
+  val digest : t -> digest
 end
 
 module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type value = UserAccountStatePerFacilitator.t)
@@ -284,12 +288,8 @@ module FacilitatorState : sig
            ; fee_schedule: FacilitatorFeeSchedule.t
            }
   [@@deriving lens { prefix=true } ]
-  module Marshalable : MarshalableS
-  include DigestibleS with type t := t
-  module Persistence : sig
-    val save : t -> unit
-    val retrieve : Address.t -> t
-  end
+  include PersistableS with type t := t
+  val load : Address.t -> t
 end
 
 (** function from 'a to 'b that acts on a facilitator_state *)
@@ -298,8 +298,9 @@ type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 
 (** Side chain update to be posted on the main chain, including signatures by court registry clerks.
-    The update itself has to be signed by the facilitator *)
-type update = {current_state: State.t digest; availability_proof: court_clerk_confirmation list}
+    The update itself has to be signed by the facilitator
+    current_state is a digest of State.t *)
+type update = {current_state: digest; availability_proof: court_clerk_confirmation list}
 (*[@@deriving lens { prefix = true }]*)
 
 (** message from user to user *)

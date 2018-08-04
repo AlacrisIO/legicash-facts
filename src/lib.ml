@@ -21,6 +21,8 @@ let transpose x y z = x z y
 
 let zcompose x y z = x (y z)
 
+let (>>) x y z = y (x z)
+
 
 (** Options *)
 let defaulting default = function None -> default () | Some x -> x
@@ -37,6 +39,9 @@ let list_of_option = function None -> [] | Some x -> [x]
 *)
 let option_map f = function Some x -> Some (f x) | None -> None
 
+let option_iter f = function Some x -> (f x) | None -> ()
+
+let map_fst f (x, y) = (f x, y)
 
 (* Hexadecimal *)
 
@@ -251,12 +256,29 @@ let string_reverse s =
   let len = String.length s in
   String.init len (fun i -> s.[len - i - 1])
 
-module type RefS = sig
+module type WrapTypeS = sig
+  type +'a t
+end
+
+module type WrapS = sig
   type t
   type value
   val get : t -> value
   val make : value -> t
 end
+
+module IdWrapType = struct
+  type +'a t = 'a
+end
+
+module IdWrap (Type: T) = struct
+  type t = Type.t
+  type value = Type.t
+  let get = identity
+  let make = identity
+end
+
+type digest = Z.t
 
 module Test = struct
   let%test "hex_string" =

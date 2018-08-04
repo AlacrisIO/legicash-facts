@@ -3,7 +3,7 @@
 (library
  (name legicash_lib)
  (modules
-  lib integer trie merkle_trie legibase marshaling crypto db keypair action
+  lib marshaling integer crypto db tag db_types keypair trie merkle_trie legibase action
   ethereum_rlp ethereum_patricia_merkle ethereum_transaction ethereum_abi
   ethereum_util ethereum_rlp ethereum_json_rpc
   main_chain main_chain_action side_chain side_chain_action

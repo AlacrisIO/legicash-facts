@@ -6,61 +6,63 @@
 (* A big endian patricia tree maps non-negative integers to values.
 *)
 open Lib
-open Crypto
 open Lazy
-open Integer
 open Yojson.Basic.Util
 open Marshaling
+open Crypto
 open Db
+open Db_types
 open Trie
 
-let _ = get_db "foo"
-
 module type TrieSynthMerkleS = sig
-  include TrieSynthS with type t = Digest.t
-  val leaf_digest : t -> t
-  module Marshalable : MarshalableS
-  include DigestibleS with type t := t
+  include TrieSynthS with type t = digest
+  val leaf_digest : digest -> t
+  val marshal_empty : unit marshaler
+  val marshal_leaf : digest marshaler
+  val marshal_branch : (int*digest*digest) marshaler
+  val marshal_skip : (int*int*key*digest) marshaler
 end
 
-module TrieSynthMerkle (Key : IntS) (Value : DigestibleS) =
-struct
+module TrieSynthMerkle (Key : IntS) (Value : DigestibleS) = struct
   type key = Key.t
   type value = Value.t
-  type t = Digest.t
-  let empty = Digest.zero
-  (* TODO: have a global table of non-clashing constants instead of all these numbers.
-     Or better: make sure these constants are actually themselves the digests of a descriptor
-     for the type of data being digested.
-  *)
-  let leaf_digest digest = digest_of_string ("\001" ^ Digest.to_big_endian_bits digest)
-  let leaf v = leaf_digest (Value.digest v)
-  let branch h x y =
-    digest_of_string ("\002" ^ big_endian_bits_of_nat 16 (Nat.of_int h)
-                      ^ Digest.to_big_endian_bits x
-                      ^ Digest.to_big_endian_bits y)
-  let skip height length bits child =
-    digest_of_string ("\002" ^ big_endian_bits_of_nat 16 (Nat.of_int height)
-                      ^ big_endian_bits_of_nat 16 (Nat.of_int length)
-                      ^ Key.to_big_endian_bits bits
-                      ^ Digest.to_big_endian_bits child)
-  module Marshalable = struct
-    type nonrec t = t
+  type t = digest
+  let marshal_empty buffer _ =
+    Tag.marshal buffer Tag.empty
+  let marshal_leaf buffer value =
+    Tag.marshal buffer Tag.leaf;
+    Digest.marshal buffer value
+  let marshal_branch buffer (height, left, right) =
+    Tag.marshal buffer Tag.branch;
+    UInt16int.marshal buffer height;
+    Digest.marshal buffer left;
+    Digest.marshal buffer right
+  let marshal_skip buffer (height, length, bits, child) =
+    Tag.marshal buffer Tag.skip;
+    UInt16int.marshal buffer height;
+    UInt16int.marshal buffer length;
+    Key.marshal buffer bits;
+    Digest.marshal buffer child
 
-    let marshal buffer t = Digest.marshal buffer t
-    let unmarshal ?(start=0) bytes = Digest.unmarshal ~start bytes
-  end
-  include (DigestibleOfMarshalable (Marshalable) : DigestibleS with type t := t)
+  let empty = digest_of_marshal marshal_empty ()
+  let leaf_digest value_digest = digest_of_marshal marshal_leaf value_digest
+  let leaf value = leaf_digest (Value.digest value)
+  let branch height left right = digest_of_marshal marshal_branch (height, left, right)
+  let skip height length key child = digest_of_marshal marshal_skip (height, length, key, child)
 end
 
 module type MerkleTrieS = sig
   type key
   type value
-  module Synth : TrieSynthMerkleS with type key = key and type value = value and type t = Digest.t
+  module Synth : TrieSynthMerkleS with type key = key and type value = value
+  module Type : TrieTypeS with type key = key and type value = value
   include TrieS
     with type key := key
      and type value := value
-     and type synth = Synth.t
+     and type 'a wrap = 'a dv
+  module Wrap : WrapS with type value = trie and type t = t
+  include PersistableS
+    with type t := t
 
   type proof =
     { key : key
@@ -69,38 +71,92 @@ module type MerkleTrieS = sig
     ; steps : (Digest.t step) list
     }
 
-  val empty_key : key
-  val trie_digest : t -> Digest.t
-  val path_digest : t path -> Digest.t path
+  val trie_digest : t -> digest
+  val path_digest : t path -> digest path
   val get_proof : key -> t -> proof option
   val check_proof_consistency : proof -> bool
   val json_of_proof : proof -> Yojson.Basic.json
-
-  module type MarshalNodeS = sig
-    type trie = t
-
-    (* like TrieS.t, except subtrees are of type synth *)
-    type t =
-      | NodeEmpty
-      | NodeLeaf of { value: value; synth: synth }
-      | NodeBranch of { left: synth; right: synth; height: int; synth: synth }
-      | NodeSkip of { child: synth; bits: key; length: int; height: int; synth: synth }
-
-    val marshal_empty : Buffer.t -> unit
-    val marshal_leaf : Buffer.t -> value -> synth -> unit
-    val marshal_branch : Buffer.t -> synth -> synth -> int -> synth -> unit
-    val marshal_skip : Buffer.t -> synth -> key -> int -> int -> synth -> unit
-    val marshal_trie : Buffer.t -> trie -> unit
-    val unmarshal_to_node : ?start:int -> Bytes.t -> t * int
-  end
-  module MarshalNode : MarshalNodeS
 end
 
-module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
-  module Synth = TrieSynthMerkle (Key) (Value)
-  include Trie (Key) (Value) (Synth)
+module type MerkleTrieTypeS = sig
+  include TrieTypeS
+  module T : PersistableS with type t = t
+  module Trie : PersistableS with type t = trie
+  include T with type t := t
+end
 
-  let empty_key = Key.zero
+module MerkleTrieType (Key : IntS) (Value : PersistableS)
+    (Synth : TrieSynthMerkleS with type key = Key.t and type value = Value.t) = struct
+  include TrieType (Key) (Value) (DigestValueType) (Synth)
+
+  let trie_tag = function
+    | Leaf _ -> Tag.leaf
+    | Branch _ -> Tag.branch
+    | Skip _ -> Tag.skip
+    | Empty -> Tag.empty
+
+  (* Ugly: to achieve mutual definition between marshaling or trie and t,
+     we side-effects that array to close the loop. *)
+  let marshaling_case_table = new_marshaling_cases 4
+  let t_dependency_walking = ref dependency_walking_not_implemented
+
+  module PreTrie = struct
+    type t = trie
+    let marshaling = marshaling_cases trie_tag Tag.base_trie marshaling_case_table
+    let make_persistent x y = normal_persistent x y
+    let walk_dependencies _methods context = function
+      | Leaf {value} ->
+        walk_dependency Value.dependency_walking context value
+      | Empty -> ()
+      | Branch {left; right} ->
+        walk_dependency !t_dependency_walking context left;
+        walk_dependency !t_dependency_walking context right
+      | Skip {child} ->
+        walk_dependency !t_dependency_walking context child
+  end
+  module Trie = Persistable(PreTrie)
+  module T = DigestValue(Trie)
+
+  let _init = (* close the fixpoints *)
+    init_marshaling_cases Tag.base_trie marshaling_case_table
+      [(Tag.leaf,
+        marshaling_map
+          (function
+            | Leaf {value} -> value
+            | _ -> bottom ())
+          trie_leaf
+          Value.marshaling);
+       (Tag.branch,
+        marshaling3
+          (function
+            | Branch {left; right; height} -> (height, left, right)
+            | _ -> bottom ())
+          (trie_branch dv_get)
+          UInt16int.marshaling T.marshaling T.marshaling);
+       (Tag.skip,
+        marshaling4
+          (function
+            | Skip {height; length; bits; child} -> (height, length, bits, child)
+            | _ -> bottom ())
+          (trie_skip dv_get)
+          UInt16int.marshaling UInt16int.marshaling Key.marshaling T.marshaling);
+       (Tag.empty,
+        marshaling_map
+          (fun _ -> ())
+          (fun () -> Empty)
+          Unit.marshaling)];
+    t_dependency_walking := T.dependency_walking
+
+  include (T : PersistableS with type t := t)
+end
+
+module MerkleTrie (Key : IntS) (Value : PersistableS) = struct
+  module Synth = TrieSynthMerkle (Key) (Value)
+  module Type = MerkleTrieType (Key) (Value) (Synth)
+  module Wrap = DigestValue (Type.Trie)
+  include Trie (Key) (Value) (DigestValueType) (Synth) (Type) (Wrap)
+  include (Type.T : PersistableS with type t := t)
+
   let trie_digest = get_synth
 
   let path_digest = path_map trie_digest
@@ -112,10 +168,10 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
     ; steps : (Digest.t step) list
     }
 
-  let get_proof (key: key) (trie: t) : proof option =
-    match find_path key trie with
+  let get_proof (key: key) (t: t) : proof option =
+    match map_fst Wrap.get (find_path key t) with
     | Leaf {value}, up -> Some { key
-                               ; trie = trie_digest trie
+                               ; trie = digest t
                                ; value = Value.digest value
                                ; steps = (path_digest up).steps
                                }
@@ -205,130 +261,12 @@ module MerkleTrie (Key : IntS) (Value : DigestibleS) = struct
       ]
 
   (* let proof_of_json_string = zcompose proof_of_json Yojson.Basic.from_string *)
-
-  module type MarshalNodeS = sig
-    type trie = t
-
-    (* like TrieS.t, except subtrees are of type synth *)
-    type t =
-      | NodeEmpty
-      | NodeLeaf of { value: value; synth: synth }
-      | NodeBranch of { left: synth; right: synth; height: int; synth: synth }
-      | NodeSkip of { child: synth; bits: key; length: int; height: int; synth: synth }
-
-    val marshal_empty : Buffer.t -> unit
-    val marshal_leaf : Buffer.t -> value -> synth -> unit
-    val marshal_branch : Buffer.t -> synth -> synth -> int -> synth -> unit
-    val marshal_skip : Buffer.t -> synth -> key -> int -> int -> synth -> unit
-    val marshal_trie : Buffer.t -> trie -> unit
-    val unmarshal_to_node : ?start:int -> Bytes.t -> t * int
-  end
-
-  module MarshalNode = struct
-    type trie = t
-
-    type t =
-      | NodeEmpty
-      | NodeLeaf of {value: value; synth: synth}
-      | NodeBranch of {left: synth; right: synth; height: int; synth: synth}
-      | NodeSkip of { child: synth; bits: key; length: int; height: int; synth: synth }
-
-    module UInt64 = Crypto.UInt64 (* not Integer.UInt64, which lacks marshaling *)
-
-    let empty_tag = 'E'
-    let leaf_tag = 'L'
-    let branch_tag = 'B'
-    let skip_tag = 'S'
-
-    let marshal_empty buffer =
-      Marshaling.marshal_char buffer empty_tag
-
-    let marshal_leaf buffer value synth =
-      Marshaling.marshal_char buffer leaf_tag;
-      Value.marshal buffer value;
-      Synth.marshal buffer synth
-
-    let marshal_branch buffer left right height synth =
-      Marshaling.marshal_char buffer branch_tag;
-      Synth.marshal buffer left;
-      Synth.marshal buffer right;
-      UInt64.marshal buffer (UInt64.of_int height);
-      Synth.marshal buffer synth
-
-    let marshal_skip buffer child bits length height synth =
-      Marshaling.marshal_char buffer skip_tag;
-      Synth.marshal buffer child;
-      let bits_string = Key.to_big_endian_bits bits in
-      (* we don't know statically the length of bits here, so record it *)
-      UInt64.marshal buffer (UInt64.of_int (String.length bits_string));
-      Buffer.add_string buffer bits_string;
-      UInt64.marshal buffer (UInt64.of_int length);
-      UInt64.marshal buffer (UInt64.of_int height);
-      Synth.marshal buffer synth
-
-    let marshal_trie buffer t =
-      match t with
-      | Empty -> marshal_empty buffer
-      | Leaf {value; synth} -> marshal_leaf buffer value synth
-      | Branch {left; right; height; synth} ->
-        let synth_left = get_synth left in
-        let synth_right = get_synth right in
-        marshal_branch buffer synth_left synth_right height synth
-      | Skip {child; bits; length; height; synth} ->
-        let synth_child = get_synth child in
-        marshal_skip buffer synth_child bits length height synth
-
-    let unmarshal_leaf start bytes =
-      let value,value_offset = Value.unmarshal ~start bytes in
-      let synth,final_offset = Synth.unmarshal ~start:value_offset bytes in
-      ( NodeLeaf { value; synth }
-      , final_offset
-      )
-
-    let unmarshal_branch start bytes =
-      let left,left_offset = Synth.unmarshal ~start bytes in
-      let right,right_offset = Synth.unmarshal ~start:left_offset bytes in
-      let height64, height64_offset = UInt64.unmarshal ~start:right_offset bytes in
-      let height = UInt64.to_int height64 in
-      let synth,final_offset = Synth.unmarshal ~start:height64_offset bytes in
-      ( NodeBranch { left; right; height; synth }
-      , final_offset
-      )
-
-    let unmarshal_skip start bytes =
-      let child,child_offset = Synth.unmarshal ~start bytes in
-      let bits_length64,bits_length64_offset = UInt64.unmarshal ~start:child_offset bytes in
-      let bits_len = UInt64.to_int bits_length64 in
-      let bits_string = Bytes.sub_string bytes bits_length64_offset bits_len in
-      let bits = Key.of_big_endian_bits bits_string in
-      let length64, length64_offset = UInt64.unmarshal ~start:(bits_length64_offset + bits_len) bytes in
-      let length = UInt64.to_int length64 in
-      let height64, height64_offset = UInt64.unmarshal ~start:length64_offset bytes in
-      let height = UInt64.to_int height64 in
-      let synth,final_offset = Synth.unmarshal ~start:height64_offset bytes in
-      ( NodeSkip { child; bits; length; height; synth }
-      , final_offset
-      )
-
-    let unmarshal_to_node ?(start=0) bytes =
-      let node_tag,next = unmarshal_char ~start bytes in
-      if node_tag == empty_tag then
-        (NodeEmpty,next)
-      else if node_tag == leaf_tag then
-        unmarshal_leaf next bytes
-      else if node_tag == branch_tag then
-        unmarshal_branch next bytes
-      else if node_tag == skip_tag then
-        unmarshal_skip next bytes
-      else
-        raise (Internal_error "Unexpected tag when unmarshaling node")
-  end
 end
 
 module type MerkleTrieSetS = sig
   type elt
   module T : MerkleTrieS with type key = elt and type value = unit
-  type t = T.t
+  include PersistableS with type t = T.t
   include Set.S with type elt := elt and type t := t
 
   type proof =
@@ -347,7 +285,7 @@ end
 module MerkleTrieSet (Elt : IntS) = struct
   type elt = Elt.t
   module T = MerkleTrie (Elt) (Unit)
-  type t = T.t
+  include (T : PersistableS with type t = T.t)
 
   let wrap f elt _ = f elt
 
@@ -431,13 +369,15 @@ module DigestSet = MerkleTrieSet (Digest)
 
 module Test = struct
   let generic_compare = compare
-  module SimpleTrie = Trie (UInt256) (StringT) (TrieSynthCardinal (UInt256) (StringT))
+  module SimpleTrieSynthCardinal = TrieSynthCardinal (UInt256) (StringT)
+  module SimpleTrie = Trie (UInt256) (StringT) (DigestValueType) (SimpleTrieSynthCardinal)
+      (TrieType (UInt256) (StringT) (DigestValueType) (SimpleTrieSynthCardinal))
   module MyTrie = MerkleTrie (UInt256) (StringT)
   open MyTrie
-  let [@warning "-32"] nat_of_key : MyTrie.key -> Crypto.UInt256.t = fun x -> x
-  let [@warning "-32"] key_of_nat : Crypto.UInt256.t -> MyTrie.key = fun x -> x
+  let [@warning "-32"] nat_of_key : MyTrie.key -> UInt256.t = fun x -> x
+  let [@warning "-32"] key_of_nat : UInt256.t -> MyTrie.key = fun x -> x
 
-  let [@warning "-32"] rec print_trie out_channel = function
+  let [@warning "-32"] rec print_trie out_channel t = match Wrap.get t with
     | Empty ->
       Printf.fprintf out_channel "Empty"
     | Leaf {value} ->
@@ -529,7 +469,7 @@ module Test = struct
     true
 
   let%test "empty" =
-    (bindings empty = []) && (of_bindings [] = Empty)
+    (bindings empty = []) && is_empty (of_bindings [])
 
   let%test "find_opt_some" =
     Some "12" = find_opt (n 12) (force trie_10_12_57)

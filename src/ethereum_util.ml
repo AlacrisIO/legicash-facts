@@ -1,14 +1,12 @@
 (* ethereum_util.ml -- utility code for Ethereum main chain *)
 
 open Lib
-open Crypto
+open Db
 
 let hash s = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
 let hash_bytes bytes = hash (Bytes.to_string bytes)
 
 (* Hexadecimal support. See https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding *)
-
-let hex_string_of_number nat = "0x" ^ UInt256.to_hex_string nat
 
 let validate_0x_prefix hs =
   let len = String.length hs in
@@ -18,7 +16,7 @@ let validate_0x_prefix hs =
     raise (Internal_error "Hex string has no digits") ;
   ()
 
-let number_of_hex_string hs =
+let uint256_of_hex_string hs =
   validate_0x_prefix hs ;
   let len = String.length hs in
   if hs.[2] != '0' then
@@ -27,6 +25,8 @@ let number_of_hex_string hs =
     UInt256.zero
   else
     raise (Internal_error "Hex number starts with 0")
+
+let hex_string_of_uint256 u = "0x" ^ UInt256.to_hex_string u
 
 let hex_string_of_address address =
   "0x" ^ Address.to_hex_string address
@@ -44,15 +44,15 @@ let hex_string_of_address_with_checksum address =
   let uppercase_difference = 32 in
   let hashed_digits = hash hex_digits in
   "0x" ^ String.init (2 * Address.address_size)
-    (fun i ->
-       let ch = hex_digits.[i] in
-       match ch with
-       | '0'..'9' -> ch
-       | 'a'..'f' -> if hex_digit_of_string hashed_digits 0 i < 8 then
-           ch
-         else
-           Char.chr (Char.code ch - uppercase_difference)
-       | _ -> raise (Internal_error "Unexpected digit in hex string"))
+           (fun i ->
+              let ch = hex_digits.[i] in
+              match ch with
+              | '0'..'9' -> ch
+              | 'a'..'f' -> if hex_digit_of_string hashed_digits 0 i < 8 then
+                  ch
+                else
+                  Char.chr (Char.code ch - uppercase_difference)
+              | _ -> raise (Internal_error "Unexpected digit in hex string"))
 
 let validate_address_checksum hs =
   (* see https://www.quora.com/How-can-we-do-Ethereum-address-validation *)
@@ -100,28 +100,31 @@ let bytes_of_address address = Bytes.of_string (Address.to_big_endian_bits addre
 let bits_of_token_amount token_amount =
   Main_chain.TokenAmount.to_big_endian_bits token_amount
 
-let hex_string_of_nonce nonce = hex_string_of_number (Main_chain.Nonce.z_of nonce)
+let hex_string_of_nonce nonce =
+  "0x" ^ (Main_chain.Nonce.to_hex_string nonce)
 
 let bits_of_nonce nonce = Main_chain.Nonce.to_big_endian_bits nonce
 
 let hex_string_of_token_amount token_amount =
-  hex_string_of_number (Main_chain.TokenAmount.z_of token_amount)
+  "0x" ^ (Main_chain.TokenAmount.to_hex_string token_amount)
 
 (* TokenAmount.of_string doesn't grok hex strings *)
-let token_amount_of_hex_string s = Main_chain.TokenAmount.of_z (number_of_hex_string s)
+let token_amount_of_hex_string s =
+  Main_chain.TokenAmount.of_z
+    (UInt256.z_of (uint256_of_hex_string s))
 
 module Test = struct
 
-  let%test "hex_string_of_number" =
+  let%test "hex_string_of_uint256" =
     List.for_all
       (fun (n, hex) -> let num = UInt256.of_int n in
-        hex_string_of_number num = hex
-        && UInt256.equal num (number_of_hex_string hex))
+        hex_string_of_uint256 num = hex
+        && UInt256.equal num (uint256_of_hex_string hex))
       [(0,"0x0");(1,"0x1");(10,"0xa");(291,"0x123");(61453,"0xf00d");(0xabcde,"0xabcde")]
 
-  let%test "number_of_hex_string error" =
+  let%test "uint256_of_hex_string error" =
     List.for_all
-      (fun (hex, err) -> try ignore (number_of_hex_string hex) ; false with
+      (fun (hex, err) -> try ignore (uint256_of_hex_string hex) ; false with
            Internal_error x -> x = err)
       [("0x", "Hex string has no digits");
        ("0x0400","Hex number starts with 0");
