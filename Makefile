@@ -89,4 +89,4 @@ contract: src/facilitator_contract_binary.ml
 
 src/facilitator_contract_binary.ml : contracts/deposit-withdraw.sol
 	$(SHOW) "Compiling facilitator contract"
-	$(HIDE) solc --bin $< | tail -n +4 | awk '{ printf ("let facilitator_contract = Bytes.of_string \"%s\"\n",$$1); }' > $@.tmp && mv -f $@.tmp $@
+	$(HIDE) solc --bin $< | tail -n +4 | awk '{ printf ("let facilitator_contract = Bytes.of_string \"%s\"\n",$$1); }' > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
