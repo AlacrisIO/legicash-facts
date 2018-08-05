@@ -6,6 +6,7 @@
 *)
 open Lib
 open Marshaling
+open Integer
 open Crypto
 
 type db = LevelDB.db
@@ -234,22 +235,20 @@ module DigestValueType = struct
   type +'a t = 'a dv
 end
 
-
 module DigestValue (Value : PersistableS) = struct
   type value = Value.t
   type digest = Digest.t
   let get = dv_get
   let make = dv_make Value.digest
+  let of_digest = dv_of_digest Value.unmarshal_string
   include Persistable(struct
       type t = value dv
-      let marshaling = { marshal= marshal_map get Value.marshal
-                       ; unmarshal= unmarshal_map make Value.unmarshal }
+      let marshaling = { marshal= marshal_map dv_digest Digest.marshal
+                       ; unmarshal= unmarshal_map of_digest Digest.unmarshal }
       let walk_dependencies _methods context x =
         walk_dependency Value.dependency_walking context (dv_get x)
       let make_persistent f dv = if not dv.persisted then (dv.persisted <- true; f dv)
     end)
-  let of_digest = dv_of_digest Value.unmarshal_string
-  let digest = dv_digest
 end
 
 module StringT = struct
@@ -257,9 +256,15 @@ module StringT = struct
   module PrePersistable = struct
     type t = string
     let marshaling =
-      { marshal = (fun buffer x -> Buffer.add_string buffer x)
+      { marshal = (fun buffer x ->
+          let len = Nat.of_int (String.length x) in
+          assert (Nat.compare len (Nat.shift_left Nat.one 32) < 0);
+          Buffer.add_string buffer (big_endian_bits_of_nat 32 len);
+          Buffer.add_string buffer x)
       ; unmarshal = (fun ?start:(start=0) b ->
-          let len = Bytes.length b - start in (Bytes.sub_string b start len, len)) }
+          let (l, p) = unmarshal_map UInt32.to_int UInt32.unmarshal ~start b in
+          assert (l >= 0);
+          Bytes.sub_string b p l, p + l) }
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end

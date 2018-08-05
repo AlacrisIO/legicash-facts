@@ -3,6 +3,11 @@
    http://www.eecs.usma.edu/webs/people/okasaki/ml98maps.ps
 *)
 
+(* TODO:
+   1- don't use Synth for digest anymore, since we use a Wrap-per instead.
+   2- if we use Synth for anything else, it should be marshaled in and out.
+*)
+
 (* A big endian patricia tree maps non-negative integers to values.
 *)
 open Lib
@@ -16,14 +21,13 @@ open Trie
 
 module type TrieSynthMerkleS = sig
   include TrieSynthS with type t = digest
-  val leaf_digest : digest -> t
   val marshal_empty : unit marshaler
-  val marshal_leaf : digest marshaler
+  val marshal_leaf : value marshaler
   val marshal_branch : (int*digest*digest) marshaler
   val marshal_skip : (int*int*key*digest) marshaler
 end
 
-module TrieSynthMerkle (Key : IntS) (Value : DigestibleS) = struct
+module TrieSynthMerkle (Key : IntS) (Value : PersistableS) = struct
   type key = Key.t
   type value = Value.t
   type t = digest
@@ -31,7 +35,7 @@ module TrieSynthMerkle (Key : IntS) (Value : DigestibleS) = struct
     Tag.marshal buffer Tag.empty
   let marshal_leaf buffer value =
     Tag.marshal buffer Tag.leaf;
-    Digest.marshal buffer value
+    Value.marshal buffer value
   let marshal_branch buffer (height, left, right) =
     Tag.marshal buffer Tag.branch;
     UInt16int.marshal buffer height;
@@ -45,8 +49,7 @@ module TrieSynthMerkle (Key : IntS) (Value : DigestibleS) = struct
     Digest.marshal buffer child
 
   let empty = digest_of_marshal marshal_empty ()
-  let leaf_digest value_digest = digest_of_marshal marshal_leaf value_digest
-  let leaf value = leaf_digest (Value.digest value)
+  let leaf value = digest_of_marshal marshal_leaf value
   let branch height left right = digest_of_marshal marshal_branch (height, left, right)
   let skip height length key child = digest_of_marshal marshal_skip (height, length, key, child)
 end
@@ -67,21 +70,21 @@ module type MerkleTrieS = sig
   type proof =
     { key : key
     ; trie : Digest.t
-    ; value : Digest.t
+    ; leaf : Digest.t
     ; steps : (Digest.t step) list
     }
 
   val trie_digest : t -> digest
   val path_digest : t path -> digest path
   val get_proof : key -> t -> proof option
-  val check_proof_consistency : proof -> bool
+  val check_proof : proof -> t -> key -> value -> bool
   val json_of_proof : proof -> Yojson.Basic.json
 end
 
 module type MerkleTrieTypeS = sig
   include TrieTypeS
-  module T : PersistableS with type t = t
   module Trie : PersistableS with type t = trie
+  module T : PersistableS with type t = t
   include T with type t := t
 end
 
@@ -153,46 +156,90 @@ end
 module MerkleTrie (Key : IntS) (Value : PersistableS) = struct
   module Synth = TrieSynthMerkle (Key) (Value)
   module Type = MerkleTrieType (Key) (Value) (Synth)
-  module Wrap = DigestValue (Type.Trie)
+  module Wrap = struct
+    include DigestValue (Type.Trie)
+      (* TODO: get rid of synth for digest, then remove this disabled debugging code:
+         let make trie =
+         let d1 = Type.Trie.digest trie in
+         let d2 = Type.trie_synth trie in
+         if not (d1 = d2) then
+         raise (Internal_error (Printf.sprintf "Bad digest height=%d digest=%s synth=%s"
+         (match trie with
+         | Empty -> -1
+         | Leaf _ -> 0
+         | Branch {height} -> height
+         | Skip {height} -> height)
+         (Digest.to_hex_string d1)
+         (Digest.to_hex_string d2)));
+         make trie *)
+  end
   include Trie (Key) (Value) (DigestValueType) (Synth) (Type) (Wrap)
   include (Type.T : PersistableS with type t := t)
 
-  let trie_digest = get_synth
+  let check_invariant t =
+    check_invariant t &&
+    let c t =
+      iterate_over_tree
+        ~recursek:(fun ~i ~tree:t ~k ->
+          if not (dv_digest t = get_synth t && dv_digest t = digest t) then
+            raise (Internal_error (Printf.sprintf "Bad digest at key %s height %d digest=%s dv_digest=%s get_synth=%s"
+                                     (Key.to_hex_string i)
+                                     (trie_height t)
+                                     (Digest.to_hex_string (digest t))
+                                     (Digest.to_hex_string (dv_digest t))
+                                     (Digest.to_hex_string (get_synth t))))
+          else k())
+        ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~synth:_ ~k -> k())
+        ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~synth:_ ~k -> k())
+        ~leafk:(fun ~i:_ ~value:_ ~synth:_ ~k -> k())
+        ~emptyk:(fun ~k -> k())
+        ~i:Key.zero ~tree:t ~k:identity in
+    c t; true
+
+  let trie_digest = dv_digest
 
   let path_digest = path_map trie_digest
 
   type proof =
     { key : key
     ; trie : Digest.t
-    ; value : Digest.t
+    ; leaf : Digest.t
     ; steps : (Digest.t step) list
     }
 
   let get_proof (key: key) (t: t) : proof option =
     match map_fst Wrap.get (find_path key t) with
     | Leaf {value}, up -> Some { key
-                               ; trie = digest t
-                               ; value = Value.digest value
+                               ; trie = dv_digest t
+                               ; leaf = Synth.leaf value
                                ; steps = (path_digest up).steps
                                }
     | _ -> None
 
-  (** Check the consistency of a Proof.
-      1- starting from the leaf_digest of the value's digest and applying the path,
+  (** Check a proof.
+      1- starting from the digest of the leaf and applying the path,
       we should arrive at the top trie's hash.
       2- starting from the key, the path should follow the key's bits.
   *)
-  let check_proof_consistency proof =
-    let path_d = {costep={index=proof.key;height=0};steps=proof.steps} in
-    check_path_consistency path_d
+  let check_proof proof t key value =
+    (proof.leaf = Synth.leaf value (* ||
+                                      spf "foo10 %s %s" (Digest.to_hex_string proof.leaf) (Digest.to_hex_string (Synth.leaf value)) |> bork*))
+    && (proof.trie = dv_digest t (*||
+                                   spf "foo15 %s %s" (Digest.to_hex_string proof.trie) (Digest.to_hex_string (dv_digest t))
+                                   |> bork*))
+    && (Key.compare key proof.key = 0 (*|| raise (Internal_error "foo20")*))
+    && let path_d = {costep={index=proof.key;height=0};steps=proof.steps} in
+    (check_path_consistency path_d (* || raise (Internal_error "foo25")*))
     && let (top_d, {height; index}) =
          path_apply
            (symmetric_unstep ~branch:(konstant Synth.branch) ~skip:(konstant Synth.skip))
-           (Synth.leaf_digest proof.value)
+           proof.leaf
            path_d in
-    proof.trie = top_d
-    && height >= Key.numbits proof.key
-    && Key.sign index = 0
+    (proof.trie = top_d (*||
+                          raise (Internal_error (Printf.sprintf "foo30 %s %s"
+                          (Digest.to_hex_string proof.trie) (Digest.to_hex_string top_d)))*))
+    && (height >= Key.numbits proof.key (* || raise (Internal_error "foo35")*))
+    && (Key.sign index = 0 (*|| raise (Internal_error "foo40")*))
 
   let skip_bit_string length bits =
     String.concat "" (List.init length (fun i -> if Key.has_bit bits i then "1" else "0"))
@@ -208,11 +255,11 @@ module MerkleTrie (Key : IntS) (Value : PersistableS) = struct
       `Assoc [ ("type", `String "Skip")
              ; ("bits", `String (skip_bit_string length bits)) ]
 
-  let [@warning "-32"] proof_to_json {key; trie; value; steps} =
+  let [@warning "-32"] proof_to_json {key; trie; leaf; steps} =
     `Assoc
       [ ("key", `String (Key.to_hex_string key))
       ; ("trie", `String (Digest.to_hex_string trie))
-      ; ("value", `String (Digest.to_hex_string value))
+      ; ("leaf", `String (Digest.to_hex_string leaf))
       ; ("steps", `List (List.map step_to_json steps)) ]
 
   let [@warning "-32"] proof_to_json_string = zcompose Yojson.to_string proof_to_json
@@ -248,7 +295,7 @@ module MerkleTrie (Key : IntS) (Value : PersistableS) = struct
   let proof_of_json json =
     { key = json |> member "key" |> to_string |> Key.of_hex_string
     ; trie = json |> member "trie" |> to_string |> Digest.of_hex_string
-    ; value = json |> member "value" |> to_string |> Digest.of_hex_string
+    ; leaf = json |> member "leaf" |> to_string |> Digest.of_hex_string
     ; steps = json |> member "steps" |> to_list |> List.map step_of_json
     }
 
@@ -256,7 +303,7 @@ module MerkleTrie (Key : IntS) (Value : PersistableS) = struct
     `Assoc
       [ ("key",`String ("0x" ^ (Key.to_hex_string proof.key)))
       ; ("trie",`String ("0x" ^ (Digest.to_hex_string proof.trie)))
-      ; ("value",`String ("0x" ^ (Digest.to_hex_string proof.value)))
+      ; ("leaf",`String ("0x" ^ (Digest.to_hex_string proof.leaf)))
       ; ("steps",`List (List.map json_of_step proof.steps))
       ]
 
@@ -277,7 +324,7 @@ module type MerkleTrieSetS = sig
 
   val trie_digest : t -> Digest.t
   val get_proof : elt -> t -> proof option
-  val check_proof_consistency : proof -> bool
+  val check_proof : proof -> t -> elt -> bool
 
   val lens : elt -> (t, bool) Lens.t
 end
@@ -359,8 +406,8 @@ module MerkleTrieSet (Elt : IntS) = struct
   let get_proof elt t =
     option_map (fun {T.key; T.trie; T.steps} -> {elt=key; trie; steps}) (T.get_proof elt t)
 
-  let check_proof_consistency {elt; trie; steps} =
-    T.check_proof_consistency {key=elt; value=Unit.digest (); trie; steps}
+  let check_proof {elt; trie; steps} t l =
+    T.check_proof {key=elt; trie; leaf=T.Synth.leaf (); steps} t l ()
 
   let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
 end
@@ -382,10 +429,10 @@ module Test = struct
       Printf.fprintf out_channel "Empty"
     | Leaf {value} ->
       Printf.fprintf out_channel "Leaf{value=%S}" value
-    | Branch {height; left; right} ->
-      Printf.fprintf out_channel "Branch{height=%d;left=" height ;
+    | Branch {left; right; height} ->
+      Printf.fprintf out_channel "Branch{left=" ;
       print_trie out_channel left ; Printf.fprintf out_channel ";right=" ;
-      print_trie out_channel right ; Printf.fprintf out_channel "}"
+      print_trie out_channel right ; Printf.fprintf out_channel ";height=%d}" height
     | Skip {height; length; bits; child} ->
       Printf.fprintf
         out_channel "Skip{height=%d;length=%d;bits=%s;child="
@@ -467,6 +514,16 @@ module Test = struct
     timeit "trie_3" trie_3 ;
     timeit "trie_5" trie_5 ;
     true
+
+  let%test "simple_proof_consistent_100" =
+    let (k, v) = (n 100), "100" in
+    let t = singleton k v in
+    check_proof (option_get (get_proof k t)) t k v
+
+  let%test "simple_proof_consistent_1" =
+    let (k, v) = (n 0), "0" in
+    let t = add (n 1) "1" (singleton k v) in
+    check_proof (option_get (get_proof k t)) t k v
 
   let%test "empty" =
     (bindings empty = []) && is_empty (of_bindings [])
@@ -563,7 +620,7 @@ module Test = struct
 
   let%test "remove_all" =
     for_all_bindings "remove_all"
-      (fun (b, trie) -> empty = List.fold_right remove (List.map fst b) trie)
+      (fun (b, trie) -> is_empty (List.fold_right remove (List.map fst b) trie))
 
   let%test "equal shuffle" =
     for_all_bindings "equal shuffle"
@@ -582,39 +639,62 @@ module Test = struct
   let proof_42_in_trie_100 =
     lazy (proof_of_json
             (`Assoc [ ("key",`String "2a")
-                    ; ("trie",`String "1fac8e232b535a615c42d929507b86e5c5869e3ead1cdd25441c56deb2dd5c51")
-                    ; ("value", `String "ccb1f717aa77602faf03a594761a36956b1c4cf44c6b336d1db57da799b331b8")
+                    ; ("trie",`String "cc01591e96bdca2eb2510ccf74be5a7fe096bb3cdda73ec5880fbd6f0326184a")
+                    ; ("leaf", `String "c2f64e3c9a94699bc29349597513917805ab15a894de4c816207f13c5ee913dc")
                     ; ("steps",
-                       `List [ make_left_step "f2d009d08b6ccf098f0144bd6c60deb2e2f90c1d535081fe8583e84f0a57648c"
-                             ; make_right_step "040bce26cfff0c2a04a53d601105c74340136630178b6ba3068646dadd04b463"
-                             ; make_left_step "0ebcfde2bc1f1dbd006b1c61c0db408331d0a9c7f2e64624f42d0f9d573438ba"
-                             ; make_right_step "7e82d31d9aa3e780051bef9c72851e03293c13d2dea72f8180e543f7d1c0a864"
-                             ; make_left_step "7e4f446333427a39e10841f29f88aeab908225a90b1d12e396124ca94992774f"
-                             ; make_right_step "5afc63f18942c3d103b1517efd60cd053cd744031c9bf56756038af6ad728a2c"
-                             ; make_left_step "22c05957bb11ec9ac4b41662a658e560c2a32a3b70ea47a2bc182f4a2522ca05"
+                       `List [ make_left_step "3d7939f72e6b6999c38047dd2df5abd627afbf195c7c7fa64c4268253a00d79a"
+                             ; make_right_step "8df081a3ab9866b9c144345e55b1e911920f1b09637e888f2c28d721884e8722"
+                             ; make_left_step "36158648cfc7578e443f442d9c034bef0420ed92a10c5c58cb949c7cb58e2d63"
+                             ; make_right_step "59ae1683e18b2ca8173273b9b93fa1029feb2aea51982749a2992f52f176ce5c"
+                             ; make_left_step "e796ba487541955b1a782f099e1485dfca89f8480940ec6184fa58d6959ddf09"
+                             ; make_right_step "991d1c3e8d0cdc8476fd8e74679bc8583d46f79d13b46fb2fdbfe512a221176b"
+                             ; make_left_step "abd6323da1934061765cdce805821f278ff06f143a7e76f53e6b6fb5a8cac7e2"
                              ])
                     ]))
 
   let bad_proof = lazy (match force proof_42_in_trie_100 with
-    | { key
-      ; trie
-      ; value
-      ; steps = [s1;s2;s3;s4;s5;s6;s7]
-      } ->
-      { key
-      ; trie
-      ; value
-      ; steps = [s1;s2;s5;s4;s3;s6;s7] (* steps 3 and 5 are swapped *)
-      }
+    | { key ; trie ; leaf ; steps = [s1;s2;s3;s4;s5;s6;s7] } ->
+      { key ; trie ; leaf ; steps = [s1;s2;s5;s4;s3;s6;s7] } (* steps 3 and 5 are swapped *)
     | _ -> raise (Internal_error "Bad proof"))
 
   let%test "proof" =
     get_proof (n 42) (force trie_100) = Some (force proof_42_in_trie_100)
+    || (Printf.printf "%s\n%!"
+          (get_proof (n 42) (force trie_100) |> option_get |> json_of_proof |> Yojson.Basic.to_string) ;
+        false)
+
+  let%test "simple_proof_consistent" =
+    check_proof
+      (option_get (get_proof (n 0) (singleton (n 0) "0")))
+      (singleton (n 0) "0")
+      (n 0)
+      "0"
+
+  let%test "simple_proof_consistent_4" =
+    check_proof
+      (option_get (get_proof (n 4) (singleton (n 4) "4")))
+      (singleton (n 4) "4")
+      (n 4)
+      "4"
+
+  let%test "simple_proof_consistent_10" =
+    check_proof
+      (option_get (get_proof (n 57) (force trie_10_12_57)))
+      (force trie_10_12_57)
+      (n 57)
+      "57"
+
+  let%test "simple_proof_consistent_24" =
+    check_proof
+      (option_get (get_proof (n 2) (force trie_4)))
+      (force trie_4)
+      (n 2)
+      "2"
 
   let%test "proof_consistent" =
-    check_proof_consistency (force proof_42_in_trie_100)
+    check_proof (force proof_42_in_trie_100) (force trie_100) (n 42) "42"
 
   let%test "proof_inconsistent" =
-    not (check_proof_consistency (force bad_proof))
+    not (check_proof (force bad_proof) (force trie_100) (n 42) "42")
 
 end

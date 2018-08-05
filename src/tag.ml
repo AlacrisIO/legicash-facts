@@ -13,10 +13,10 @@ let uint512 = 0x26
 let address = 0x2a
 
 let base_trie = 0x80
-let leaf = 0x80
-let branch = 0x81
-let skip = 0x82
-let empty = 0x83
+let empty = 0x80
+let leaf = 0x81
+let branch = 0x82
+let skip = 0x83
 
 let some = 0x84
 let none = 0x85

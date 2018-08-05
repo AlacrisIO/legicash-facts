@@ -482,6 +482,7 @@ module Test = struct
        a save and retrieval with nonempty such maps
     *)
     FacilitatorState.save trent_state;
+    Event.sync (Event.receive (post_db_transaction ()));
     let retrieved_state = FacilitatorState.load trent_address in
     retrieved_state = trent_state
 end

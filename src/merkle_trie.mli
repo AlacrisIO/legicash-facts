@@ -7,21 +7,20 @@ open Trie
 
 module type TrieSynthMerkleS = sig
   include TrieSynthS with type t = digest
-  val leaf_digest : digest -> t
   val marshal_empty : unit marshaler
-  val marshal_leaf : digest marshaler
+  val marshal_leaf : value marshaler
   val marshal_branch : (int*digest*digest) marshaler
   val marshal_skip : (int*int*key*digest) marshaler
 end
 
-module TrieSynthMerkle (Key : IntS) (Value : DigestibleS)
+module TrieSynthMerkle (Key : IntS) (Value : PersistableS)
   : TrieSynthMerkleS with type key = Key.t
                       and type value = Value.t
 
 module type MerkleTrieTypeS = sig
   include TrieTypeS
-  module T : PersistableS with type t = t
   module Trie : PersistableS with type t = trie
+  module T : PersistableS with type t = t
   include T with type t := t
 end
 
@@ -47,14 +46,14 @@ module type MerkleTrieS = sig
   type proof =
     { key : key
     ; trie : Digest.t
-    ; value : Digest.t
+    ; leaf : Digest.t
     ; steps : (Digest.t step) list
     }
 
   val trie_digest : t -> Digest.t
   val path_digest : t path -> Digest.t path
   val get_proof : key -> t -> proof option
-  val check_proof_consistency : proof -> bool
+  val check_proof : proof -> t -> key -> value -> bool
   val json_of_proof : proof -> Yojson.Basic.json
 end
 
@@ -75,7 +74,7 @@ module type MerkleTrieSetS = sig
 
   val trie_digest : t -> Digest.t
   val get_proof : elt -> t -> proof option
-  val check_proof_consistency : proof -> bool
+  val check_proof : proof -> t -> elt -> bool
   val lens : elt -> (t, bool) Lens.t
 end
 

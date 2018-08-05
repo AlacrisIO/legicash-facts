@@ -2,6 +2,11 @@
 open Lib
 open Marshaling
 
+(** TODO: before we go to production, robustify the shit out of all
+    the type conversions, arithmetic operations, etc.,
+    least it be used as an attack surface.
+*)
+
 module type IntS = sig
   include Unsigned.S
   include PreMarshalableS with type t := t
@@ -20,9 +25,9 @@ module type IntS = sig
   val to_big_endian_bits : t -> string
 end
 
-module Int : IntS (* with type t = Z.t *)
+module Int : IntS with type t = Z.t
 
-module Nat : IntS (* with type t = Z.t *)
+module Nat : IntS with type t = Z.t
 
 module UInt16 : IntS (* with type t = Unsigned.UInt16.t *)
 

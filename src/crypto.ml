@@ -4,7 +4,9 @@ open Integer
 
 let keccak256_string s =
   Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
-(* NB: reusing the (Cryptokit.Hash.keccak 256) object causes a segfault *)
+(* To debug encoding issues in small problems, you can uncomment the following line:
+   |> fun h -> Printf.printf "hash %s <= %s\n%!" (unparse_hex_string h) (unparse_hex_string s); h *)
+(* NB: trying to reuse (Cryptokit.Hash.keccak 256) object across calls results in a segfault *)
 
 (* Create context just once, because it's an expensive operation.
    This assumes single instantiation of this module.

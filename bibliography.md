@@ -70,7 +70,8 @@
   [the Parity Light Protocol](https://wiki.parity.io/The-Parity-Light-Protocol-%28PIP%29)
   (PR for similar light client functionality [in geth](https://github.com/ethereum/go-ethereum/pull/16534/files)),
   [Consensys Labs' Ethereum developer tools list](https://github.com/ConsenSysLabs/ethereum-developer-tools-list),
-  [Solium, linter and formatter for Solidity](https://github.com/duaraghav8/solium).
+  [Solium, linter and formatter for Solidity](https://github.com/duaraghav8/solium),
+  [Ethertrust, analysis tool for smart contracts](https://www.netidee.at/ethertrust).
 
 * Compiling to the EVM:
   [Pirapira's Bamboo](https://github.com/pirapira/bamboo).

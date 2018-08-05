@@ -23,6 +23,16 @@ module type TrieSynthS = sig
   val skip : int -> int -> key -> t -> t
 end
 
+module TrieSynthUnit (Key : IntS) (Value : T) = struct
+  type key = Key.t
+  type value = Value.t
+  type t = unit
+  let empty = ()
+  let leaf _ = ()
+  let branch _ _ _ = ()
+  let skip _ _ _ _ = ()
+end
+
 module TrieSynthCardinal (Key : IntS) (Value : T) = struct
   type key = Key.t
   type value = Value.t
@@ -644,15 +654,15 @@ module Trie
 
   let check_path_consistency {costep={index;height};steps} =
     Key.sign index >= 0 &&
-    let rec c index height = function
+    let rec c height = function
       | [] -> true
       | step :: steps ->
         (match step with
          | LeftBranch _ -> not (Key.has_bit index height)
          | RightBranch _ -> Key.has_bit index height
          | SkipChild {bits; length} -> Key.equal bits (Key.extract index height length))
-        && c index (height + step_length step) steps in
-    c index height steps
+        && c (height + step_length step) steps in
+    c height steps
 
   type zipper = t * (t path)
 

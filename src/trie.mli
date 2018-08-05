@@ -23,16 +23,13 @@ module type TrieSynthS = sig
   val skip : int -> int -> key -> t -> t
 end
 
+(** A module to synthesize nothing *)
+module TrieSynthUnit (Key : IntS) (Value : T)
+  : TrieSynthS with type t = unit and type key = Key.t and type value = Value.t
+
 (** A module to synthesize the cardinal of a trie as an attribute of said trie *)
-module TrieSynthCardinal (Key : IntS) (Value : T) : sig
-  type key = Key.t
-  type value = Value.t
-  type t = Z.t
-  val empty : t
-  val leaf : value -> t
-  val branch : int -> t -> t -> t
-  val skip : int -> int -> key -> t -> t
-end
+module TrieSynthCardinal (Key : IntS) (Value : T)
+  : TrieSynthS with type t = Z.t and type key = Key.t and type value = Value.t
 
 (** A module to synthesize attributes for Skip by reducing it to Branch and Leaf. *)
 module TrieSynthComputeSkip (Key : IntS) (Synth: TrieSynthS) : sig

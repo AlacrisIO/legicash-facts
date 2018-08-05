@@ -9,10 +9,16 @@
 (** exception raised when we haven't implemented the damn thing yet *)
 exception Not_implemented
 
-(** internal_error, which should never happen in production, with explanation *)
+(** Internal_error, which should never happen in production, with explanation *)
 exception Internal_error of string
 
-(** the bottom function turns anything into anything, by raising an exception *)
+(** bork raises an Internal_error with the given string *)
+val bork : string -> 'a
+
+(** spf is short for Printf.sprintf. Only use spf as shorthand while debugging *)
+val spf : ('a, unit, string) format -> 'a
+
+(** the bottom function turns anything into anything, by raising a Not_implemented exception *)
 val bottom : 'a -> 'b
 
 (** Check that calling a thunk indeed causes exception exn. A useful function for tests. *)
