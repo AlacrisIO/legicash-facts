@@ -11,3 +11,5 @@ type conversation
     TODO: Tezos must have something we should use.
     probably Tezos_crypto.S.MERKLE_TREE or Tezos_crypto.Blake2B.Make_merkle_tree
 *)
+
+let db_name = "legicash"

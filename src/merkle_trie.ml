@@ -18,6 +18,7 @@ open Crypto
 open Db
 open Db_types
 open Trie
+open Lwt.Infix
 
 module type TrieSynthMerkleS = sig
   include TrieSynthS with type t = digest
@@ -110,10 +111,10 @@ module MerkleTrieType (Key : IntS) (Value : PersistableS)
     let walk_dependencies _methods context = function
       | Leaf {value} ->
         walk_dependency Value.dependency_walking context value
-      | Empty -> ()
+      | Empty -> Lwt.return_unit
       | Branch {left; right} ->
-        walk_dependency !t_dependency_walking context left;
-        walk_dependency !t_dependency_walking context right
+        walk_dependency !t_dependency_walking context left
+        >>= (fun () -> walk_dependency !t_dependency_walking context right)
       | Skip {child} ->
         walk_dependency !t_dependency_walking context child
   end

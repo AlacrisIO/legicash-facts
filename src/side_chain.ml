@@ -7,6 +7,7 @@ open Crypto
 open Db
 open Db_types
 open Merkle_trie
+open Lwt.Infix
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -283,9 +284,9 @@ module State = struct
            TokenAmount.marshaling TokenAmount.marshaling
            AccountMap.marshaling ConfirmationMap.marshaling DigestSet.marshaling)
     let walk_dependencies _methods context {accounts; operations; main_chain_transactions_posted} =
-      walk_dependency AccountMap.dependency_walking context accounts;
-      walk_dependency ConfirmationMap.dependency_walking context operations;
-      walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted
+      walk_dependency AccountMap.dependency_walking context accounts
+      >>= (fun () -> walk_dependency ConfirmationMap.dependency_walking context operations)
+      >>= (fun () -> walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted)
     let make_persistent = normal_persistent
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
@@ -397,17 +398,18 @@ module FacilitatorState = struct
         State.marshaling FacilitatorFeeSchedule.marshaling
     let walk_dependencies _methods context {previous ; current} =
       let walk = walk_dependency State.dependency_walking context in
-      option_iter walk previous ; walk current
+      option_iter_lwt walk previous >>= (fun () -> walk current)
     let make_persistent = normal_persistent
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
   let facilitator_state_key facilitator_address =
     "LCFS0001" ^ (Address.to_big_endian_bits facilitator_address)
   let save facilitator_state =
-    save facilitator_state; (* <-- use inherited binding *)
-    let address = facilitator_state.keypair.address in
-    let key = facilitator_state_key address in
-    put_db key (Digest.to_big_endian_bits (digest facilitator_state))
+    save facilitator_state (* <-- use inherited binding *)
+    >>= (fun () ->
+      let address = facilitator_state.keypair.address in
+      let key = facilitator_state_key address in
+      put_db key (Digest.to_big_endian_bits (digest facilitator_state)))
   let load facilitator_address =
     facilitator_address |> facilitator_state_key |> get_db |> option_get |> Digest.of_string |>
     db_value_of_digest unmarshal_string
@@ -415,6 +417,8 @@ end
 
 
 type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t) action
+
+type ('input, 'output) facilitator_async_action = ('input, 'output, FacilitatorState.t) async_action
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 
@@ -481,8 +485,12 @@ module Test = struct
        in Side_chain_action.Test, the "deposit_and_payment_valid" test does
        a save and retrieval with nonempty such maps
     *)
-    FacilitatorState.save trent_state;
-    Event.sync (Event.receive (post_db_transaction ()));
-    let retrieved_state = FacilitatorState.load trent_address in
-    retrieved_state = trent_state
+    Db.run ~db_name:Legibase.db_name
+      (fun () ->
+         FacilitatorState.save trent_state
+         >>= commit
+         >>= (fun () ->
+           let retrieved_state = FacilitatorState.load trent_address in
+           Lwt.return (retrieved_state = trent_state)))
 end
+

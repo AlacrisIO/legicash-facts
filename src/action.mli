@@ -1,4 +1,8 @@
-(** 'output or exception *)
+(** TODO: break this file in multiple files, so we can reuse the same standard names
+    for standard operators on each kind of action
+*)
+
+(** 'output or exception -- TODO: if we use Lwt, we should just use Lwt.result for that. *)
 type 'output legi_result = ('output, exn) result
 
 (** function from 'input to 'output that acts on a 'state and may return an exception *)
@@ -6,6 +10,8 @@ type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output legi
 
 (** asychronous function from 'input to 'output that acts on a 'state and may return an exception *)
 type ('input, 'output, 'state) async_action = 'state * 'input -> ('state * 'output legi_result) Lwt.t
+
+val make_action_async : ('input, 'output, 'state) action -> ('input, 'output, 'state) async_action
 
 val effect_action : ('input, 'output, 'state) action -> 'state ref -> 'input -> 'output
 (** run the action, with side-effects and all *)

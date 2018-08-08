@@ -53,7 +53,7 @@ endif
 
 test : legicash_lib
 	$(SHOW) "Running Legicash tests"
-	$(HIDE) $(BUILDER) runtest --root=src
+	$(HIDE) $(BUILDER) runtest --root=src -j 1
 
 toplevel : legicash_lib
 	$(SHOW) "Building custom OCaml toplevel"

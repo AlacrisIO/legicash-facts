@@ -292,8 +292,11 @@ module FacilitatorState : sig
   val load : Address.t -> t
 end
 
-(** function from 'a to 'b that acts on a facilitator_state *)
+(** function from 'a to 'b that acts on a facilitator_state and has some side-effects *)
 type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t) action
+
+(** function from 'a to 'b that acts on a facilitator_state and has some side-effects *)
+type ('input, 'output) facilitator_async_action = ('input, 'output, FacilitatorState.t) async_action
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 

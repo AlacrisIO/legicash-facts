@@ -3,55 +3,126 @@
     Note that we assume that there are global objects used in a single-threaded way.
     Otherwise, we would want thread-local objects, dynamically bound objects, or lexical objects,
     instead of global objects, to communicate with the database, and/or we would want locks around access.
+
+    WARNING: Ugly pure-functional-ish interface!
+
+    Our interface assumes that database reads of content-addressed data is "not a side-effect"
+    and can be written in direct style, whereas database writes are side-effects that require monadic
+    style, except that flagging an object as persisted for walk optimization can be done directly.
+    A conceptual mess? Yes it is! All because OCaml's type system can't deal with this kind of abstraction.
 *)
 open Lib
 open Marshaling
 open Integer
 open Crypto
+open Lwt.Infix
 
 type db = LevelDB.db
-
 type transaction = LevelDB.writebatch
 
-let db_name = "legicash_state"
+(* type snapshot = LevelDB.snapshot *)
 
-let the_global ?(ref=ref None) make_foo =
+(* Move that to lib ? *)
+let the_global ref maker =
   fun () ->
-    if !ref == None then
-      ref := Some (make_foo ());
-    option_get !ref
+    match !ref with
+    | Some x -> x
+    | None ->
+      let x = maker () in
+      ref := Some x;
+      x
 
-let the_db : unit -> db =
-  the_global (fun () -> LevelDB.open_db db_name)
+type db_request =
+  | Put of {key: string; data: string}
+  | Remove of string
+  | Commit of unit Lwt.u
+  | Flush of int
 
-let the_db_batching_channel : unit -> (transaction * unit Event.channel) Event.channel =
-  the_global Event.new_channel
+type connection =
+  { db_name : string
+  ; db : db
+  ; mailbox : db_request Lwt_mvar.t }
 
-let run_db_batching_thread () =
-  let db = the_db () in
-  let channel = the_db_batching_channel () in
-  while true do
-    let (transaction, continuation) = Event.sync (Event.receive channel) in
-    LevelDB.Batch.write db ~sync:true transaction ;
-    ignore (Event.send continuation ()) ;
-  done
+let the_connection_ref : (connection option ref) = ref None
 
-let the_db_batching_thread =
-  the_global (Thread.create run_db_batching_thread)
+(* timeout for batching, in seconds *)
+let transaction_timeout_trigger = 0.01
 
-let the_db_transaction_ref : (transaction option ref) =
-  ref None
+(* overflow size for batching, in seconds *)
+let transaction_size_trigger = 4*1024*1024
 
-let the_db_transaction =
-  the_global ~ref:the_db_transaction_ref LevelDB.Batch.make
+let start_server ~db_name ~db ~mailbox () =
+  Lwt_io.printf "Opening LevelDB connection to db %s\n%!" db_name >>=
+  (let rec outer_loop count previous () =
+     let transaction = LevelDB.Batch.make () in
+     let (size_trigger, trigger_size) = Lwt.task () in
+     let timeout = Lwt_unix.sleep transaction_timeout_trigger in
+     Lwt.async (fun () -> Lwt.join [previous; Lwt.pick [timeout; size_trigger]]
+                 >>= (fun () -> Lwt_mvar.put mailbox (Flush count)));
+     let rec inner_loop triggered size tinuations =
+       if (not triggered) && (size >= transaction_size_trigger) then
+         begin
+           Lwt.wakeup_later trigger_size ();
+           inner_loop true size tinuations
+         end
+       else
+         Lwt_mvar.take mailbox
+         >>= function
+         | Put {key;data} ->
+           LevelDB.Batch.put transaction key data;
+           (* TODO: check sizes for overflow *)
+           inner_loop triggered (size + String.length key + String.length data) tinuations
+         | Remove key ->
+           LevelDB.Batch.delete transaction key;
+           (* TODO: check sizes for overflow *)
+           inner_loop triggered (size + String.length key) tinuations
+         | Commit tinuation ->
+           inner_loop triggered size (tinuation::tinuations)
+         | Flush n ->
+           if n = count then
+             outer_loop
+               (count + 1)
+               (Lwt_preemptive.detach
+                  (fun () ->
+                     if size != 0 then
+                       LevelDB.Batch.write db ~sync:true transaction) ()
+                >>= (fun () ->
+                  List.iter (fun tinuation -> Lwt.wakeup_later tinuation ()) tinuations;
+                  Lwt.return_unit))
+               ()
+           else
+             (* ignore timeout for  *)
+             inner_loop triggered size tinuations in
+     inner_loop false 0 [] in
+   outer_loop 0 Lwt.return_unit)
 
-let post_db_transaction () =
-  let channel = the_db_batching_channel () in
-  let _ = the_db_batching_thread () in
-  let transaction = the_db_transaction () in
-  let continuation = Event.new_channel () in
-  the_db_transaction_ref := None ;
-  ignore (Event.send channel (transaction, continuation)) ;
+let open_connection db_name =
+  match !the_connection_ref with
+  | Some x ->
+    bork (Printf.sprintf "Process already has a LevelDB connection to db %s, won't start %s"
+            x.db_name (if x.db_name = db_name then "another one" else "one for db " ^ db_name))
+  | None ->
+    let db = LevelDB.open_db db_name in
+    let mailbox = Lwt_mvar.create_empty () in
+    the_connection_ref := Some { db_name ; db ; mailbox };
+    Lwt.async (start_server ~db_name ~db ~mailbox);
+    Lwt.return_unit
+
+let the_connection =
+  the_global the_connection_ref
+    (fun () -> bork (Printf.sprintf "no db connection for pid %d\n%!" (Unix.getpid ())))
+
+let the_db () = (the_connection ()).db
+
+let request r =
+  Lwt_mvar.put (the_connection ()).mailbox r
+
+let run ~db_name thunk =
+  Lwt_main.run (open_connection db_name >>= thunk)
+
+let commit () =
+  let (continuation, tinuation) = Lwt.task () in
+  Lwt.async (fun () -> request (Commit tinuation));
   continuation
 
 let has_db_key key =
@@ -61,29 +132,28 @@ let get_db key =
   LevelDB.get (the_db ()) key
 
 let put_db key data =
-  let transaction = the_db_transaction () in
-  LevelDB.Batch.put transaction key data
+  request (Put {key; data})
 
 let remove_db key =
-  let transaction = the_db_transaction () in
-  LevelDB.Batch.delete transaction key
+  request (Remove key)
+
 
 
 (** Walking across the dependencies of an object *)
 type 'a dependency_walking_methods =
   { digest: 'a -> digest
   ; marshal_string: 'a -> string
-  ; make_persistent: ('a -> unit) -> 'a -> unit
+  ; make_persistent: ('a -> unit Lwt.t) -> 'a -> unit Lwt.t
   ; walk_dependencies: 'a dependency_walker }
 and dependency_walking_context =
   { walk: 'a. 'a dependency_walker }
-and 'a dependency_walker = 'a dependency_walking_methods -> dependency_walking_context -> 'a -> unit
+and 'a dependency_walker = 'a dependency_walking_methods -> dependency_walking_context -> 'a -> unit Lwt.t
 
 let normal_persistent f x = f x
 
-let already_persistent _fun _x = ()
+let already_persistent _fun _x = Lwt.return_unit
 
-let no_dependencies _methods _context _x = ()
+let no_dependencies _methods _context _x = Lwt.return_unit
 
 let walk_dependency methods context x =
   context.walk methods context x
@@ -91,7 +161,8 @@ let walk_dependency methods context x =
 let one_dependency f methods _methods context x =
   walk_dependency methods context (f x)
 
-let seq_dependencies dep1 dep2 methods context x = dep1 methods context x ; dep2 methods context x
+let seq_dependencies dep1 dep2 methods context x =
+  dep1 methods context x >>= (fun () -> dep2 methods context x)
 
 let dependency_walking_not_implemented =
   { digest= bottom; marshal_string= bottom; make_persistent= bottom; walk_dependencies= bottom }
@@ -107,11 +178,13 @@ let db_value_of_digest unmarshal_string digest =
 (** TODO: have a version that computes the digest from the marshal_string *)
 let saving_walker methods context x =
   methods.make_persistent
-    (fun _ ->
+    (fun x ->
        let key = x |> methods.digest |> content_addressed_storage_key in
-       if not (has_db_key key) then
-         (methods.walk_dependencies methods context x;
-          put_db key (methods.marshal_string x)))
+       if has_db_key key then
+         Lwt.return_unit
+       else
+         (methods.walk_dependencies methods context x >>=
+          (fun () -> put_db key (methods.marshal_string x))))
     x
 
 let saving_context = { walk = saving_walker }
@@ -120,7 +193,7 @@ let save_of_dependency_walking methods x = walk_dependency methods saving_contex
 
 module type PrePersistableDependencyS = sig
   type t
-  val make_persistent: (t -> unit) -> t -> unit
+  val make_persistent: (t -> unit Lwt.t) -> t -> unit Lwt.t
   val walk_dependencies : t dependency_walker
 end
 
@@ -134,7 +207,7 @@ module type PersistableS = sig
   include MarshalableS with type t := t
   include DigestibleS with type t := t
   val dependency_walking : t dependency_walking_methods
-  val save : t -> unit
+  val save : t -> unit Lwt.t
 end
 
 module Persistable (P : PrePersistableS) = struct
@@ -247,7 +320,8 @@ module DigestValue (Value : PersistableS) = struct
                        ; unmarshal= unmarshal_map of_digest Digest.unmarshal }
       let walk_dependencies _methods context x =
         walk_dependency Value.dependency_walking context (dv_get x)
-      let make_persistent f dv = if not dv.persisted then (dv.persisted <- true; f dv)
+      let make_persistent f dv =
+        if dv.persisted then Lwt.return_unit else (dv.persisted <- true; f dv)
     end)
 end
 

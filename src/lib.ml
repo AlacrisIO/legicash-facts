@@ -45,6 +45,8 @@ let option_map f = function Some x -> Some (f x) | None -> None
 
 let option_iter f = function Some x -> (f x) | None -> ()
 
+let option_iter_lwt f = function Some x -> (f x) | None -> Lwt.return_unit
+
 let map_fst f (x, y) = (f x, y)
 
 (* Hexadecimal *)

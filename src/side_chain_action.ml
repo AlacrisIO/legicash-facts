@@ -8,6 +8,7 @@ open Main_chain
 open Side_chain
 open Main_chain_action
 open Lens.Infix
+open Lwt.Infix
 
 (** Default (empty) state for a new facilitator *)
 let new_account_state = AccountState.{balance= TokenAmount.zero; account_revision= Revision.zero}
@@ -190,22 +191,17 @@ let effect_request :
  * commit the confirmation to disk and remote replicas before to return it
  * parallelize, batch, etc., to have decent performance
 *)
-let confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action =
-  function ((facilitator_state,_signed_request) as input) ->
-    input |>
-    ensure_user_account
-    ^>> check_side_chain_request_well_formed
-    ^>> effect_request
-    ^>> make_request_confirmation
-    ^>> fun (updated_facilitator_state, signed_confirmation) ->
-      try
-        Side_chain.FacilitatorState.save updated_facilitator_state;
-        (updated_facilitator_state,Ok signed_confirmation)
-      with exn ->
-        (* if logging failed, return input facilitator state, error *)
-        (facilitator_state,
-         Error (Internal_error
-                  (Format.sprintf "Could not log request confirmation: %s" (Printexc.to_string exn))))
+let confirm_request : (Request.t signed, Confirmation.t signed) facilitator_async_action =
+  fun (facilitator_state, signed_request) ->
+    (facilitator_state, signed_request) |>
+    (make_action_async
+       (ensure_user_account
+        ^>> check_side_chain_request_well_formed
+        ^>> effect_request
+        ^>> make_request_confirmation))
+    ^>>+ fun (updated_facilitator_state, signed_confirmation) ->
+    Side_chain.FacilitatorState.save updated_facilitator_state
+    >>= (fun () -> Lwt.return (updated_facilitator_state, Ok signed_confirmation))
 
 let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
 
@@ -614,8 +610,8 @@ module Test = struct
       (alice_state, (trent_address, amount_to_deposit))
       |^>>+ deposit
       >>= fun (alice_state1, signed_request1) ->
-      (trent_state, signed_request1) |^>> confirm_request
-      |> fun (trent_state1, _signed_confirmation1) ->
+      (trent_state, signed_request1) |> confirm_request
+      >>= fun (trent_state1, _signed_confirmation1) ->
       (* TODO: maybe examine the log for the contract call *)
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
@@ -627,8 +623,8 @@ module Test = struct
       (alice_state1, (trent_address, bob_address, payment_amount))
       |^>> payment
       |> fun (_alice_state2, signed_request2) ->
-      (trent_state1, signed_request2) |^>> confirm_request
-      |> fun (trent_state2, _signed_confirmation2) ->
+      (trent_state1, signed_request2) |> confirm_request
+      >>= fun (trent_state2, _signed_confirmation2) ->
       (* verify the payment to Bob's account on Trent *)
       let trent_accounts_after_payment = trent_state2.current.accounts in
       let get_trent_account name address =
@@ -644,9 +640,10 @@ module Test = struct
       assert (bob_account.balance = bob_expected_balance) ;
       (* test whether retrieving saved facilitator state yields the same state
          like similar test in Side_chain.Test; here we have nonempty account, confirmation maps *)
-      Side_chain.FacilitatorState.save trent_state2;
-      let retrieved_state = Side_chain.FacilitatorState.load trent_address in
-      return (retrieved_state = trent_state2)
+      Side_chain.FacilitatorState.save trent_state2 >>=
+      (fun () ->
+         let retrieved_state = Side_chain.FacilitatorState.load trent_address in
+         return (retrieved_state = trent_state2))
     )
 
   (* deposit and withdrawal test *)
@@ -661,8 +658,8 @@ module Test = struct
       (alice_state, (trent_address, amount_to_deposit))
       |^>>+ deposit
       >>= fun (alice_state1, signed_request1) ->
-      (trent_state, signed_request1) |^>> confirm_request
-      |> fun (trent_state1, _signed_confirmation1) ->
+      (trent_state, signed_request1) |> confirm_request
+      >>= fun (trent_state1, _signed_confirmation1) ->
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
       let alice_account = AccountMap.find alice_address trent_accounts in
@@ -673,18 +670,21 @@ module Test = struct
       (alice_state1, (trent_address, amount_to_withdraw))
       |^>>+ withdrawal
       >>= fun (alice_state2, signed_request2) ->
-      (trent_state1, signed_request2) |^>> confirm_request
-      |> fun (trent_state2, signed_confirmation2) ->
-      let trent_accounts_after_withdrawal = trent_state2.current.accounts in
-      let alice_account_after_withdrawal = AccountMap.find alice_address trent_accounts_after_withdrawal in
-      let alice_expected_withdrawal = TokenAmount.sub alice_expected_deposit amount_to_withdraw in
-      assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
-      push_side_chain_action_to_main_chain trent_state2 (alice_state2,signed_confirmation2)
-      (* TODO: get actual transaction receipt from main chain, check receipt
-         maybe this test belongs in Ethereum_transactions
-      *)
-      >>= fun _ ->
-      return true
+      (trent_state1, signed_request2) |> confirm_request
+      >>= function
+      | (_, Error x) -> raise x
+      | (trent_state2, Ok signed_confirmation2) ->
+        let trent_accounts_after_withdrawal = trent_state2.current.accounts in
+        let alice_account_after_withdrawal = AccountMap.find alice_address trent_accounts_after_withdrawal in
+        let alice_expected_withdrawal = TokenAmount.sub alice_expected_deposit amount_to_withdraw in
+        assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
+        (alice_state2, signed_confirmation2) |>
+        (push_side_chain_action_to_main_chain trent_state2)
+        (* TODO: get actual transaction receipt from main chain, check receipt
+           maybe this t est belongs in Ethereum_transactions
+        *)
+        >>= fun _ ->
+        return true
     )
 
 end

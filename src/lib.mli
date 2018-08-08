@@ -64,6 +64,9 @@ val option_map : ('a -> 'b) -> 'a option -> 'b option
 (** Iterate (at most once) over option, if any *)
 val option_iter : ('a -> unit) -> 'a option -> unit
 
+(** Iterate (at most once) over option, if any, Lwt style *)
+val option_iter_lwt : ('a -> unit Lwt.t) -> 'a option -> unit Lwt.t
+
 (** map for list as left functor *)
 val map_fst : ('a -> 'b) -> 'a * 'c -> 'b * 'c
 

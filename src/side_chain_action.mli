@@ -10,7 +10,6 @@ val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
 
 val issue_user_request : (Operation.t, Request.t signed) user_action
 
-val [@warning "-32"] confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action
 (** Flow 1 Step 2: Confirm account status for facilitator *)
 
 val deposit : (Address.t * TokenAmount.t, Request.t signed) user_async_action
@@ -24,7 +23,7 @@ val push_side_chain_action_to_main_chain : FacilitatorState.t -> (Confirmation.t
 
 (* Flow 1 Step 4: user pays entry fee on the side chain *)
 
-val confirm_request : (Request.t signed, Confirmation.t signed) facilitator_action
+val confirm_request : (Request.t signed, Confirmation.t signed) facilitator_async_action
 (** Flow 1 Step 5: facilitator acknowledges deposit, stores it and sends it to user *)
 
 (* Flow 2: Payment

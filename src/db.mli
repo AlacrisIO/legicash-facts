@@ -5,23 +5,25 @@ open Crypto
 type db
 type transaction
 
-val the_db : unit -> db
-val the_db_transaction : unit -> transaction
-val post_db_transaction : unit -> unit Event.channel
+val open_connection : string -> unit Lwt.t
+val run : db_name:string -> (unit -> 'a Lwt.t) -> 'a
+val commit : unit -> unit Lwt.t
+
 val has_db_key : string -> bool
 val get_db : string -> string option
-val put_db : string -> string -> unit
-val remove_db : string -> unit
+val put_db : string -> string -> unit Lwt.t
+val remove_db : string -> unit Lwt.t
+
 
 (** Walking across the dependencies of an object *)
 type 'a dependency_walking_methods =
   { digest: 'a -> digest
   ; marshal_string: 'a -> string
-  ; make_persistent: ('a -> unit) -> 'a -> unit
+  ; make_persistent: ('a -> unit Lwt.t) -> 'a -> unit Lwt.t
   ; walk_dependencies: 'a dependency_walker }
 and dependency_walking_context =
   { walk: 'a. 'a dependency_walker }
-and 'a dependency_walker = 'a dependency_walking_methods -> dependency_walking_context -> 'a -> unit
+and 'a dependency_walker = 'a dependency_walking_methods -> dependency_walking_context -> 'a -> unit Lwt.t
 
 val no_dependencies : 'a dependency_walker
 
@@ -31,15 +33,15 @@ val one_dependency : ('a -> 'b) -> 'b dependency_walking_methods -> 'a dependenc
 
 val seq_dependencies : 'a dependency_walker -> 'a dependency_walker -> 'a dependency_walker
 
-val normal_persistent : ('a -> unit) -> 'a -> unit
+val normal_persistent : ('a -> unit Lwt.t) -> 'a -> unit Lwt.t
 
-val already_persistent : ('a -> unit) -> 'a -> unit
+val already_persistent : ('a -> unit Lwt.t) -> 'a -> unit Lwt.t
 
 val dependency_walking_not_implemented : 'a dependency_walking_methods
 
 module type PrePersistableDependencyS = sig
   type t
-  val make_persistent: (t -> unit) -> t -> unit
+  val make_persistent: (t -> unit Lwt.t) -> t -> unit Lwt.t
   val walk_dependencies : t dependency_walker
 end
 
@@ -53,7 +55,7 @@ module type PersistableS = sig
   include MarshalableS with type t := t
   include DigestibleS with type t := t
   val dependency_walking : t dependency_walking_methods
-  val save : t -> unit
+  val save : t -> unit Lwt.t
 end
 
 module Persistable (P : PrePersistableS) : PersistableS with type t = P.t

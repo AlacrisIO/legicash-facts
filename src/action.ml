@@ -4,6 +4,8 @@ type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output legi
 
 type ('input, 'output, 'state) async_action = 'state * 'input -> ('state * 'output legi_result) Lwt.t
 
+let make_action_async action (state, input) = Lwt.return (action (state, input))
+
 (** run the action, with side-effects and all *)
 let effect_action action state_ref x =
   match action (!state_ref, x) with

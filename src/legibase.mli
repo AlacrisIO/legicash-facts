@@ -12,3 +12,4 @@ exception Double_spend of string
 *)
 type conversation
 
+val db_name : string
