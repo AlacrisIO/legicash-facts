@@ -638,12 +638,12 @@ module Test = struct
       assert (bob_account.balance = bob_expected_balance) ;
       (* test whether retrieving saved facilitator state yields the same state
          like similar test in Side_chain.Test; here we have nonempty account, confirmation maps *)
-      Side_chain.FacilitatorState.save trent_state2 >>=
-      (fun () ->
-         let retrieved_state = Side_chain.FacilitatorState.load trent_address in
-         return (FacilitatorState.to_json_string retrieved_state
-                 = FacilitatorState.to_json_string trent_state2))
-    )
+      Side_chain.FacilitatorState.save trent_state2
+      >>= commit
+      >>= (fun () ->
+        let retrieved_state = Side_chain.FacilitatorState.load trent_address in
+        return (FacilitatorState.to_json_string retrieved_state
+                = FacilitatorState.to_json_string trent_state2)))
 
   (* deposit and withdrawal test *)
   let%test "withdrawal_valid" =

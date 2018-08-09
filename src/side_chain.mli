@@ -4,7 +4,6 @@ open Crypto
 open Db
 open Merkle_trie
 open Yojson.Basic
-open Yojson.Basic.Util
 
 module TokenAmount = Main_chain.TokenAmount
 
