@@ -671,19 +671,19 @@ module Test = struct
       >>= fun (alice_state2, signed_request2) ->
       (trent_state1, signed_request2) |> confirm_request
       >>= function
-      | (_, Error x) -> raise x
-      | (trent_state2, Ok signed_confirmation2) ->
+      | _, Error x -> raise x
+      | trent_state2, Ok signed_confirmation2 ->
         let trent_accounts_after_withdrawal = trent_state2.current.accounts in
-        let alice_account_after_withdrawal = AccountMap.find alice_address trent_accounts_after_withdrawal in
-        let alice_expected_withdrawal = TokenAmount.sub alice_expected_deposit amount_to_withdraw in
+        let alice_account_after_withdrawal =
+          AccountMap.find alice_address trent_accounts_after_withdrawal in
+        let alice_expected_withdrawal =
+          TokenAmount.sub alice_expected_deposit amount_to_withdraw in
         assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
-        (alice_state2, signed_confirmation2) |>
-        (push_side_chain_action_to_main_chain trent_state2)
+        (alice_state2, signed_confirmation2)
+        |> (push_side_chain_action_to_main_chain trent_state2)
         (* TODO: get actual transaction receipt from main chain, check receipt
            maybe this t est belongs in Ethereum_transactions
         *)
-        >>= fun _ ->
-        return true
-    )
+        >>= fun _ -> return true)
 
 end

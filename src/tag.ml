@@ -2,24 +2,14 @@
 open Marshaling
 open Db
 
-let uint8 = 0x20
-let uint16 = 0x21
-let uint32 = 0x22
-let uint64 = 0x23
-let uint128 = 0x24
-let uint256 = 0x25
-let uint512 = 0x26
-
-let address = 0x2a
-
 let base_trie = 0x80
 let empty = 0x80
 let leaf = 0x81
 let branch = 0x82
 let skip = 0x83
 
-let some = 0x84
-let none = 0x85
+let none = 0x84
+let some = 0x85
 
 let side_chain_state = 0xC0
 let side_chain_invoice = 0xC1

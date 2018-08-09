@@ -6,16 +6,6 @@ open Db
 
 include PersistableS with type t = int
 
-val uint8 : t
-val uint16 : t
-val uint32 : t
-val uint64 : t
-val uint128 : t
-val uint256 : t
-val uint512 : t
-
-val address : t
-
 val base_trie : t
 val empty : t
 val leaf : t

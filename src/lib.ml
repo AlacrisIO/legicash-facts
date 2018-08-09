@@ -298,6 +298,20 @@ module NotJsonable (Type : T) = struct
   let of_json = bottom
 end
 
+let option_to_json to_json = function
+  | None -> `Null
+  | Some x -> to_json x
+
+let option_of_json of_json = function
+  | `Null -> None
+  | x -> Some (of_json x)
+
+let list_to_json to_json l = `List (List.map to_json l)
+
+let list_of_json of_json = function
+  | `List l -> (List.map of_json l)
+  | _ -> Yojson.json_error "bad json list"
+
 module Test = struct
   let%test "hex_string" =
     List.for_all

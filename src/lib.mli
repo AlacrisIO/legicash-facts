@@ -439,3 +439,10 @@ module type JsonableS = sig
 end
 
 module NotJsonable (Type : T) : JsonableS with type t := Type.t
+
+val option_to_json : ('a -> Yojson.Basic.json) -> ('a option -> Yojson.Basic.json)
+val option_of_json : (Yojson.Basic.json -> 'a) -> (Yojson.Basic.json -> 'a option)
+
+val list_to_json : ('a -> Yojson.Basic.json) -> ('a list -> Yojson.Basic.json)
+val list_of_json : (Yojson.Basic.json -> 'a) -> (Yojson.Basic.json -> 'a list)
+

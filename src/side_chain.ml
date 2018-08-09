@@ -80,7 +80,7 @@ module Operation = struct
   let operation_tag = function
     | Deposit _ -> Tag.side_chain_deposit
     | Payment _ -> Tag.side_chain_payment
-    | Withdrawal _ -> Tag.side_chain_payment
+    | Withdrawal _ -> Tag.side_chain_withdrawal
 
   module PrePersistable = struct
     module M = struct
@@ -353,7 +353,13 @@ module Episteme = struct
         (option_marshaling Main_chain.Confirmation.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
-    let to_json = bottom
+    let to_json { request ; confirmation_option ; main_chain_confirmation_option } =
+      `Assoc [ ("request",
+                signed_to_json Request.to_json request)
+             ; ("confirmation_option",
+                option_to_json (signed_to_json Confirmation.to_json) confirmation_option)
+             ; ("main_chain_confirmation_option",
+                option_to_json Main_chain.Confirmation.to_json main_chain_confirmation_option) ]
     let of_json = bottom
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
@@ -381,7 +387,10 @@ module UserAccountStatePerFacilitator = struct
         (list_marshaling Episteme.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
-    let to_json = bottom
+    let to_json { facilitator_validity; confirmed_state; pending_operations } =
+      `Assoc [ ("facilitator_validity", KnowledgeStage.to_json facilitator_validity)
+             ; ("confirmed_state", AccountState.to_json confirmed_state)
+             ; ("pending_operations", list_to_json Episteme.to_json pending_operations) ]
     let of_json = bottom
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)

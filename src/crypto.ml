@@ -141,6 +141,15 @@ let marshaling_signed marshaling =
   { marshal = marshal_signed marshaling.marshal
   ; unmarshal = unmarshal_signed marshaling.unmarshal }
 
+let signed_to_json to_json { payload ; signature } =
+  `Assoc [ ("payload", to_json payload)
+         ; ("signature", Signature.to_json signature) ]
+
+let signed_of_json of_json = function
+  | `Assoc [ ("payload", p); ("signature", s) ] -> {payload=of_json p;signature=Signature.of_json s}
+  | _ -> Yojson.json_error "bad json for signed data"
+
+
 (* digital signature is encrypted hash *)
 let make_signature make_digest private_key data =
   (* change representation of data to use Secp256k1 signing *)

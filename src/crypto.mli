@@ -61,3 +61,5 @@ val unmarshal_signed : 'a unmarshaler -> 'a signed unmarshaler
 
 val marshaling_signed : 'a marshaling -> 'a signed marshaling
 
+val signed_to_json : ('a -> Yojson.Basic.json) -> ('a signed -> Yojson.Basic.json)
+val signed_of_json : (Yojson.Basic.json -> 'a) -> (Yojson.Basic.json -> 'a signed)
