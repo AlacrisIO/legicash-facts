@@ -114,10 +114,13 @@ let [@warning "-32"] signature_of_string string =
     raise (Internal_error (Format.sprintf "Could not get signature from string: %s" msg))
 
 module Signature = struct
-  type t = signature
   (* 8 bytes for the recovery id + 64 bytes for the signature proper *)
   let width = 72
-  let marshaling = marshaling_sized_string width string_of_signature signature_of_string
+  module S = struct
+    type t = signature
+    let marshaling = marshaling_sized_string width string_of_signature signature_of_string
+  end
+  include JsonableOfMarshalable(Marshalable(S))
 end
 
 type 'a signed = {payload: 'a; signature: signature}

@@ -48,17 +48,15 @@ module SignaturePrefix = struct
 end
 
 module Tag = struct
-  type t = int
+  include UInt16int
   let marshaling =
-    { marshal = marshal_map UInt16.of_int UInt16.marshal
-    ; unmarshal =
-        fun ?(start=0) bytes ->
-          let (u, p) = unmarshal_map UInt16.to_int UInt16.unmarshal ~start bytes in
-          if u < tag_limit then
-            u, p
-          else
-            bad_tag_error start bytes }
-
+    { marshal = marshal
+    ; unmarshal = fun ?(start=0) bytes ->
+        unmarshal_map
+          (fun u -> if u < tag_limit then u else
+              raise (Unmarshaling_error
+                       (Printf.sprintf "bad tag %d" u, start, bytes)))
+          unmarshal ~start bytes }
   let make_persistent = already_persistent
   let walk_dependencies = no_dependencies
 end

@@ -429,3 +429,13 @@ module IdWrapType : WrapTypeS with type +'a t = 'a
 
 module IdWrap (Type: T) : WrapS with type t = Type.t and type value = Type.t
 
+
+(* TODO: more JsonableS in its own module like MarshalableS, with combinators, too,
+   then combine the two sets of combinators, and more? *)
+module type JsonableS = sig
+  type t
+  val to_json : t -> Yojson.Basic.json
+  val of_json : Yojson.Basic.json -> t
+end
+
+module NotJsonable (Type : T) : JsonableS with type t := Type.t

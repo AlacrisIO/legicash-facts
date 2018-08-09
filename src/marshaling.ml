@@ -277,3 +277,36 @@ module OCamlMarshaling (Type: T) = struct
         let size = Marshal.total_size buffer start in
         value, start + size }
 end
+
+module type JsonMarshalableS = sig
+  include JsonableS
+  include MarshalableS with type t := t
+end
+
+module MarshalableOfJsonable (Type : JsonableS) = struct
+  include Type
+  let marshal_string x = x |> to_json |> Yojson.Basic.to_string
+  let marshal buffer x = Buffer.add_string buffer (marshal_string x)
+  let unmarshal_string_unchecked x = of_json (Yojson.Basic.from_string x)
+  let unmarshal ?(start=0) bytes =
+    let x = unmarshal_string_unchecked (Bytes.sub_string bytes start (Bytes.length bytes - start)) in
+    (* gross hack to get the length assuming the marshaling was made through marshal *)
+    let m = marshal_string x in
+    let l = String.length m in
+    if m = Bytes.sub_string bytes start l then
+      (x, start + l)
+    else
+      raise (Unmarshaling_error ("bad json marshaling", start, bytes))
+  let marshaling = {marshal;unmarshal}
+  let marshal_bytes = marshal_bytes_of_marshal marshal
+  let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
+  let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
+end
+
+module JsonableOfMarshalable (Type : MarshalableS) = struct
+  include Type
+  let to_json x = `String (marshal_string x)
+  let of_json = function
+    | `String a -> unmarshal_string a
+    | _ -> Yojson.json_error "bad json"
+end

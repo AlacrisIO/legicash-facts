@@ -5,6 +5,7 @@ module type IntS = sig
   include Unsigned.S
   include PreMarshalableS with type t := t
   include ShowableS with type t := t
+  include JsonableS with type t := t
   val z_of: t -> Z.t
   val of_z: Z.t -> t
   val equal : t -> t -> bool
@@ -76,6 +77,10 @@ module Int = struct
   let marshaling = marshaling_not_implemented
   let pp formatter x = Format.fprintf formatter "%s" (to_string x)
   let show x = Format.asprintf "%a" pp x
+  let to_json x = `String (to_string x)
+  let of_json = function
+    | `String s -> (of_string s)
+    | _ -> (Yojson.json_error "bad Integer")
   module Infix = struct
     let (+) = Z.add
     let (-) = Z.sub
@@ -115,6 +120,8 @@ module OurUInt (UInt: __IntS_Zable) = struct
       let to_big_endian_bits u = Nat.to_big_endian_bits (z_of u) *)
   let pp formatter x = Format.fprintf formatter "%s" (to_string x)
   let show x = Format.asprintf "%a" pp x
+  let to_json x = Int.to_json (z_of x)
+  let of_json j = of_z (Int.of_json j)
 end
 
 module UInt16 = struct
@@ -127,6 +134,10 @@ module UInt16 = struct
   let of_big_endian_bits b = of_z (nat_of_big_endian_bits 16 b)
   let to_big_endian_bits u = big_endian_bits_of_nat 16 (z_of u)
   let marshaling = marshaling_sized_string 2 to_big_endian_bits of_big_endian_bits
+  let to_json x = `Int (to_int x)
+  let of_json = function
+    | `Int i -> of_int i
+    | _ -> (Yojson.json_error "bad integer")
 end
 
 module UInt32 = struct

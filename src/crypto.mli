@@ -38,7 +38,7 @@ end
 (** a signature for an object of type 'a *)
 type signature
 
-module Signature : PreMarshalableS with type t = signature
+module Signature : JsonMarshalableS with type t = signature
 
 (** an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: signature}

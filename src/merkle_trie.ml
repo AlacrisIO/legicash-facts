@@ -117,6 +117,7 @@ module MerkleTrieType (Key : IntS) (Value : PersistableS)
         >>= (fun () -> walk_dependency !t_dependency_walking context right)
       | Skip {child} ->
         walk_dependency !t_dependency_walking context child
+    include NotJsonable (struct type nonrec t = t end)
   end
   module Trie = Persistable(PreTrie)
   module T = DigestValue(Trie)
@@ -174,8 +175,11 @@ module MerkleTrie (Key : IntS) (Value : PersistableS) = struct
          (Digest.to_hex_string d2)));
          make trie *)
   end
-  include Trie (Key) (Value) (DigestValueType) (Synth) (Type) (Wrap)
+  module Trie = Trie (Key) (Value) (DigestValueType) (Synth) (Type) (Wrap)
+  include Trie
   include (Type.T : PersistableS with type t := t)
+  let to_json = Trie.to_json
+  let of_json = Trie.of_json
 
   let check_invariant t =
     check_invariant t &&

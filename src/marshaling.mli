@@ -152,3 +152,13 @@ val marshaling_not_implemented : 'a marshaling
 
 (** Do NOT use this module in production. Only for demos and temporary cut-throughs *)
 module OCamlMarshaling (Type: T) : PreMarshalableS with type t = Type.t
+
+module type JsonMarshalableS = sig
+  include JsonableS
+  include MarshalableS with type t := t
+end
+
+module MarshalableOfJsonable (Type : JsonableS) : JsonMarshalableS with type t = Type.t
+
+module JsonableOfMarshalable (Type : MarshalableS) : JsonMarshalableS with type t = Type.t
+

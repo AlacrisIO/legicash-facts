@@ -162,12 +162,14 @@ module type TrieS = sig
     onlyak:(i:key -> anode:t -> k:('r -> 'o) -> 'o) ->
     onlybk:(i:key -> bnode:t -> k:('r -> 'o) -> 'o) ->
     i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o
+
+  include JsonableS with type t := t
 end
 
 (* TODO: an interface to nodes in batch that reduces the amount of unnecessary hashing?
    Or simply make hashing lazy? *)
 module Trie
-    (Key : IntS) (Value : T) (WrapType : WrapTypeS)
+    (Key : IntS) (Value : JsonableS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
     (TrieType : TrieTypeS with type key = Key.t
                            and type value = Value.t
@@ -876,5 +878,17 @@ module Trie
   let lens k = Lens.{get= find k; set= add k}
 
   let find_defaulting default k m = defaulting default (find_opt k m)
-end
 
+  let to_json t =
+    foldrk (fun i v l k -> k (`List [Key.to_json i; Value.to_json v] :: l)) t [] (fun x -> `List x)
+
+  let of_json = function
+    | `List l ->
+      List.fold_left
+        (fun t -> function
+           | `List [i; v] -> add (Key.of_json i) (Value.of_json v) t
+           | _ -> Yojson.json_error "bad trie json")
+        empty
+        l
+    | _ -> (Yojson.json_error "bad trie json")
+end

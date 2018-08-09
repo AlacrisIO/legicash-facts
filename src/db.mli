@@ -45,8 +45,13 @@ module type PrePersistableDependencyS = sig
   val walk_dependencies : t dependency_walker
 end
 
-module type PrePersistableS = sig
+module type PreTrivialPersistableS = sig
   include PreMarshalableS
+  include JsonableS with type t := t
+end
+
+module type PrePersistableS = sig
+  include PreTrivialPersistableS
   include PrePersistableDependencyS with type t := t
 end
 
@@ -56,11 +61,16 @@ module type PersistableS = sig
   include DigestibleS with type t := t
   val dependency_walking : t dependency_walking_methods
   val save : t -> unit Lwt.t
+  val to_json_string : t -> string
+  val of_json_string : string -> t
 end
 
 module Persistable (P : PrePersistableS) : PersistableS with type t = P.t
 
-module TrivialPersistable (P : PreMarshalableS) : PersistableS with type t = P.t
+module TrivialPersistable (J : PreTrivialPersistableS) : PersistableS with type t = J.t
+
+module JsonPersistable (J: JsonableS) : PersistableS with type t = J.t
+
 
 module type IntS = sig
   include Integer.IntS
@@ -170,7 +180,7 @@ module DigestValue (Value : PersistableS) : sig
   include PersistableS with type t := t
 end
 
-module UInt16int : MarshalableS with type t = int
+module UInt16int : PersistableS with type t = int
 
 (** Do NOT use this module in production. Only for demos and temporary cut-throughs *)
 module OCamlPersistable (Type: T) : PersistableS with type t = Type.t

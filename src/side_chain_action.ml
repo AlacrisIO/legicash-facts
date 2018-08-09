@@ -430,8 +430,6 @@ type facilitator_to_facilitator_message
 
 type user_to_user_message
 
-let [@warning "-32"] send_certified_check _check _conv = bottom
-
 let commit_facilitator_state = bottom
 
 let send_message = bottom
@@ -643,7 +641,8 @@ module Test = struct
       Side_chain.FacilitatorState.save trent_state2 >>=
       (fun () ->
          let retrieved_state = Side_chain.FacilitatorState.load trent_address in
-         return (retrieved_state = trent_state2))
+         return (FacilitatorState.to_json_string retrieved_state
+                 = FacilitatorState.to_json_string trent_state2))
     )
 
   (* deposit and withdrawal test *)

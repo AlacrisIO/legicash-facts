@@ -286,6 +286,18 @@ end
 
 type digest = Z.t
 
+module type JsonableS = sig
+  type t
+  val to_json : t -> Yojson.Basic.json
+  val of_json : Yojson.Basic.json -> t
+end
+
+module NotJsonable (Type : T) = struct
+  type t = Type.t
+  let to_json = bottom
+  let of_json = bottom
+end
+
 module Test = struct
   let%test "hex_string" =
     List.for_all

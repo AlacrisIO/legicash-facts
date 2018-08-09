@@ -200,11 +200,12 @@ module type TrieS = sig
     onlybk:(i:key -> bnode:t -> k:('r -> 'o) -> 'o) ->
     i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o
 
+  include JsonableS with type t := t
 end
 
 (** A module for Big-Endian Patricia Tree, a.k.a. Trie. *)
 module Trie
-    (Key : IntS) (Value : T) (WrapType : WrapTypeS)
+    (Key : IntS) (Value : JsonableS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
     (TrieType : TrieTypeS with type key = Key.t
                            and type value = Value.t

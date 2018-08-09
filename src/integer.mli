@@ -11,6 +11,7 @@ module type IntS = sig
   include Unsigned.S
   include PreMarshalableS with type t := t
   include ShowableS with type t := t
+  include JsonableS with type t := t
   val z_of: t -> Z.t
   val of_z: Z.t -> t
   val equal : t -> t -> bool

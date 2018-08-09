@@ -37,8 +37,9 @@ let marshal_cases tag_of base_tag (cases : 'a marshaling array) buffer x =
   cases.(tag - base_tag).marshal buffer x
 let unmarshal_cases base_tag (cases : 'a marshaling array) ?(start=0) bytes =
   let (tag, p) = Tag.unmarshal ~start:start bytes in
-  if tag >= Array.length cases then Tag.bad_tag_error start bytes;
-  cases.(tag - base_tag).unmarshal ~start:p bytes
+  let i = tag - base_tag in
+  if i >= Array.length cases then Tag.bad_tag_error start bytes;
+  cases.(i).unmarshal ~start:p bytes
 let marshaling_cases tag_of base_tag (cases : 'a marshaling array) =
   { marshal = marshal_cases tag_of base_tag cases
   ; unmarshal = unmarshal_cases base_tag cases }

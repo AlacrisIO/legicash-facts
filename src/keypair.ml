@@ -87,6 +87,10 @@ module PrePersistable = struct
            ({ private_key; public_key; address }, final_offset)) }
   let make_persistent = normal_persistent
   let walk_dependencies = no_dependencies
+  let to_json x = `String (Address.to_hex_string x.address)
+  let of_json = function
+    | `String a -> keypair_of_address (Address.of_hex_string a)
+    | _ -> Yojson.json_error "bad keypair address"
 end
 
 include (Persistable (PrePersistable) : PersistableS with type t := t)
