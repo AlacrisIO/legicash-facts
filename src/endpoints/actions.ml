@@ -6,6 +6,7 @@ open Legicash_lib
 
 open Lib
 open Crypto
+open Db
 open Side_chain
 open Side_chain_action
 
@@ -19,7 +20,7 @@ type user_account_state =
   ; user_name : string
   ; balance : int
   }
-  [@@deriving yojson]
+[@@deriving yojson]
 
 (* confirmed transaction on main chain *)
 type main_chain_confirmation =
@@ -36,7 +37,7 @@ type transaction_result =
   ; side_chain_tx_revision : int64
   ; main_chain_confirmation : main_chain_confirmation
   }
-  [@@deriving yojson]
+[@@deriving yojson]
 
 type payment_result =
   { sender_account : user_account_state
@@ -44,18 +45,20 @@ type payment_result =
   ; amount_transferred : int
   ; side_chain_tx_revision : int64
   }
-  [@@deriving yojson]
+[@@deriving yojson]
 
 type tps_result =
   { transactions_per_second : int
   ; time : string
   }
-  [@@deriving yojson]
+[@@deriving yojson]
 
 
-let ( |^>> ) v f = v |> f |> function state, Ok x -> (state, x) | _state, Error y -> raise y
+let ensure_ok = function state, Ok x -> (state, x) | _state, Error y -> raise y
+
+let ( |^>> ) v f = v |> f |> ensure_ok
 (* Lwt-monadic version of |^>> *)
-let ( |^>>+ ) v f = v |> f >>= function (state, Ok x) -> return (state, x) | _state, Error y -> raise y
+let ( |^>>+ ) v f = v |> f >>= Lwt.map ensure_ok
 
 (* table of id's to Lwt threads *)
 let id_to_thread_tbl = Hashtbl.create 1031
@@ -111,11 +114,11 @@ let user_state_from_address address_t =
 
 (* convert main chain confirmation to JSON-friendly types *)
 let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmation.t) =
-        { transaction_hash = "0x" ^ (confirmation.transaction_hash |> Digest.to_hex_string)
-        ; transaction_index = confirmation.transaction_index |> Unsigned.UInt64.to_int
-        ; block_number = confirmation.block_number |> Revision.to_int
-        ; block_hash = "0x" ^ (confirmation.block_hash |> Digest.to_hex_string)
-        }
+  { transaction_hash = "0x" ^ (confirmation.transaction_hash |> Digest.to_hex_string)
+  ; transaction_index = confirmation.transaction_index |> UInt64.to_int
+  ; block_number = confirmation.block_number |> Revision.to_int
+  ; block_hash = "0x" ^ (confirmation.block_hash |> Digest.to_hex_string)
+  }
 
 let json_of_exn exn = `Assoc [("error",`String (Printexc.to_string exn))]
 
@@ -128,11 +131,11 @@ let deposit_to_trent address amount =
     unlock_account address_t
     >>= fun _unlock_json ->
     (user_state, (trent_address,TokenAmount.of_int amount))
-    |^>>+ deposit
+    |> deposit |> Lwt.map ensure_ok
     >>= fun (user_state1, signed_request) ->
-    (!trent_state,signed_request)
-    |^>> confirm_request
-    |> fun (trent_state1,signed_confirmation) ->
+    (!trent_state, signed_request)
+    |> confirm_request |> Lwt.map ensure_ok
+    >>= fun (trent_state1,signed_confirmation) ->
     let confirmation = signed_confirmation.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
     Hashtbl.replace address_to_user_state_tbl address_t user_state1;
@@ -141,7 +144,7 @@ let deposit_to_trent address amount =
     let operation = signed_request.payload.operation in
     let main_chain_confirmation =
       match operation with
-        Deposit details -> jsonable_confirmation_of_confirmation details.main_chain_deposit_confirmation
+      | Deposit details -> jsonable_confirmation_of_confirmation details.main_chain_deposit_confirmation
       | _ -> raise (Internal_error "Expected deposit request")
     in
     (* get user account info on Trent *)
@@ -176,19 +179,17 @@ let withdrawal_from_trent address amount =
     unlock_account address_t
     >>= fun _unlock_json ->
     (user_state, (trent_address,TokenAmount.of_int amount))
-    |^>>+
-    withdrawal
+    |> withdrawal |> Lwt.map ensure_ok
     >>= fun (user_state1, signed_request1) ->
     (!trent_state,signed_request1)
-    |^>>
-    confirm_request
-    |> fun (trent_state2, signed_confirmation2) ->
+    |> confirm_request |> Lwt.map ensure_ok
+    >>= fun (trent_state2, signed_confirmation2) ->
     let confirmation = signed_confirmation2.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
     (* update trent state *)
     set_trent_state trent_state2;
     push_side_chain_action_to_main_chain trent_state2 (user_state1,signed_confirmation2)
-    >>= fun (user_state2,maybe_main_chain_confirmation) ->
+    >>= fun (user_state2, maybe_main_chain_confirmation) ->
     (* update user state, which refers to main chain state *)
     Hashtbl.replace address_to_user_state_tbl address_t user_state2;
     let main_chain_confirmation =
@@ -329,8 +330,8 @@ let payment_on_trent sender recipient amount =
   |> fun (sender_state_after_payment, signed_request) ->
   Hashtbl.replace address_to_user_state_tbl sender_address_t sender_state_after_payment ;
   (!trent_state, signed_request)
-  |^>> confirm_request
-  |> fun (trent_state_after_confirmation, signed_confirmation) ->
+  |> confirm_request |> Lwt.map ensure_ok
+  >>= fun (trent_state_after_confirmation, signed_confirmation) ->
   set_trent_state trent_state_after_confirmation;
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
@@ -358,7 +359,7 @@ let payment_on_trent sender recipient amount =
     ; side_chain_tx_revision
     }
   in
-  payment_result_to_yojson payment_result
+  return (payment_result_to_yojson payment_result)
 
 let get_transaction_rate_on_trent () =
   (* start search from last timestamp *)

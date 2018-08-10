@@ -4,6 +4,7 @@ open Legicash_lib
 
 open Lib
 open Crypto
+open Db
 open Main_chain
 open Side_chain
 open Side_chain_action.Test
@@ -215,7 +216,7 @@ let (confirmed_trent_state : Side_chain.State.t) =
   ; bond_posted= TokenAmount.of_int 5000000
   ; accounts= AccountMap.empty
   ; operations= ConfirmationMap.empty
-  ; main_chain_transactions_posted= Trie.DigestSet.empty }
+  ; main_chain_transactions_posted= Merkle_trie.DigestSet.empty }
 
 let trent_genesis_state : FacilitatorState.t =
   { keypair= trent_keys
@@ -244,7 +245,7 @@ let user_accounts_from_trent_state address =
 let load_trent_state () =
   Printf.printf "Loading facilitator state...%!";
   try
-    let facilitator_state = Side_chain.FacilitatorState.Persistence.retrieve trent_address in
+    let facilitator_state = Side_chain.FacilitatorState.load trent_address in
     Printf.printf "done\n%!";
     set_trent_state facilitator_state;
     (* update user states with retrieved trent state *)

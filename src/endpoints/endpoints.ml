@@ -51,7 +51,7 @@ let make_post_service name =
     ()
 
 let make_get_service name =
-    Eliom_service.create
+  Eliom_service.create
     ~path
     ~meth:(Eliom_service.Get (make_params name))
     ()
@@ -75,7 +75,7 @@ let recent_transactions_service =
     ~meth:(Eliom_service.Post (Eliom_parameter.(suffix_prod
                                                   (suffix_const "recent_transactions")
                                                   (opt (int "limit"))),
-                                                Eliom_parameter.raw_post_data))
+                               Eliom_parameter.raw_post_data))
     ()
 
 (* a proof is obtained with api/proof?tx-revision=nnn *)
@@ -189,7 +189,8 @@ let payment_handler () (content_type,raw_content_opt) =
         let maybe_payment = payment_json_of_yojson json in
         match maybe_payment with
         | Ok payment ->
-          let result_json = Actions.payment_on_trent payment.sender payment.recipient payment.amount in
+          Actions.payment_on_trent payment.sender payment.recipient payment.amount
+          >>= fun result_json ->
           send_json ~code:200 (Yojson.Safe.to_string result_json)
         | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
@@ -202,16 +203,16 @@ let balance_handler () (content_type,raw_content_opt) =
   if is_json_content content_type then
     try
       match raw_content_opt with
-    | None -> missing_content_error "balance"
-    | Some raw_content ->
-      read_raw_content raw_content >>= fun json_string ->
-      let json = from_string json_string in
-      let maybe_address = address_json_of_yojson json in
-      match maybe_address with
-      | Ok address_record ->
-        let result_json = Actions.get_balance_on_trent address_record.address in
-        send_json ~code:200 (Yojson.Safe.to_string result_json)
-      | Error msg -> bad_response msg
+      | None -> missing_content_error "balance"
+      | Some raw_content ->
+        read_raw_content raw_content >>= fun json_string ->
+        let json = from_string json_string in
+        let maybe_address = address_json_of_yojson json in
+        match maybe_address with
+        | Ok address_record ->
+          let result_json = Actions.get_balance_on_trent address_record.address in
+          send_json ~code:200 (Yojson.Safe.to_string result_json)
+        | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
        | exn -> bad_response (Printexc.to_string exn)
   else
@@ -222,16 +223,16 @@ let recent_transactions_handler ((),maybe_limit) (content_type,raw_content_opt) 
   if is_json_content content_type then
     try
       match raw_content_opt with
-    | None -> missing_content_error "balance"
-    | Some raw_content ->
-      read_raw_content raw_content >>= fun json_string ->
-      let json = from_string json_string in
-      let maybe_address = address_json_of_yojson json in
-      match maybe_address with
-      | Ok address_record ->
-        let result_json = Actions.get_recent_transactions_on_trent address_record.address maybe_limit in
-        send_json ~code:200 (Yojson.Safe.to_string result_json)
-      | Error msg -> bad_response msg
+      | None -> missing_content_error "balance"
+      | Some raw_content ->
+        read_raw_content raw_content >>= fun json_string ->
+        let json = from_string json_string in
+        let maybe_address = address_json_of_yojson json in
+        match maybe_address with
+        | Ok address_record ->
+          let result_json = Actions.get_recent_transactions_on_trent address_record.address maybe_limit in
+          send_json ~code:200 (Yojson.Safe.to_string result_json)
+        | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
        | exn -> bad_response (Printexc.to_string exn)
   else

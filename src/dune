@@ -27,7 +27,7 @@
 
 ;; custom toplevel
 (executable
- (name       legicaml)
+ (name legicaml)
  (modules legicaml)
  (libraries  compiler-libs.toplevel legicash_lib)
  (link_flags -linkall -cclib -lintegers -I +threads)
