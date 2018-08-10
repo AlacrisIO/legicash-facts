@@ -9,7 +9,7 @@
   main_chain main_chain_action side_chain side_chain_action
   court_registry facilitator_contract facilitator_contract_binary
   version)
- (preprocess (pps ppx_deriving.std ppx_inline_test lens.ppx_deriving lwt.ppx))
+ (preprocess (pps ppx_deriving.std ppx_inline_test lens.ppx_deriving lwt_ppx))
  ;; -9 : all fields mentioned in a pattern
  ;; -27 : unused variable
  ;; -32 : unused value
@@ -21,7 +21,7 @@
 ;; main executable
 (executable
  (name hello_legicash)
- (preprocess (pps ppx_deriving.std lens.ppx_deriving ppx_inline_test lwt.ppx))
+ (preprocess (pps ppx_deriving.std lens.ppx_deriving ppx_inline_test lwt_ppx))
  (modules hello_legicash)
  (libraries legicash_lib))
 
