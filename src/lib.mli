@@ -114,7 +114,7 @@ val unparse_coloned_hex_string : string -> string
 
 (** Base interface for a type
     NB: same as JaneStreet's Core_kernel.T.T *)
-module type T = sig
+module type TypeS = sig
   type t
 end
 
@@ -427,7 +427,7 @@ end
 
 module IdWrapType : WrapTypeS with type +'a t = 'a
 
-module IdWrap (Type: T) : WrapS with type t = Type.t and type value = Type.t
+module IdWrap (T: TypeS) : WrapS with type t = T.t and type value = T.t
 
 
 (* TODO: more JsonableS in its own module like MarshalableS, with combinators, too,
@@ -438,7 +438,7 @@ module type JsonableS = sig
   val of_json : Yojson.Basic.json -> t
 end
 
-module NotJsonable (Type : T) : JsonableS with type t := Type.t
+module NotJsonable (T : TypeS) : JsonableS with type t := T.t
 
 val option_to_json : ('a -> Yojson.Basic.json) -> ('a option -> Yojson.Basic.json)
 val option_of_json : (Yojson.Basic.json -> 'a) -> (Yojson.Basic.json -> 'a option)

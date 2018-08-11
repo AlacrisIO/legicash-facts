@@ -24,11 +24,11 @@ module type TrieSynthS = sig
 end
 
 (** A module to synthesize nothing *)
-module TrieSynthUnit (Key : IntS) (Value : T)
+module TrieSynthUnit (Key : IntS) (Value : TypeS)
   : TrieSynthS with type t = unit and type key = Key.t and type value = Value.t
 
 (** A module to synthesize the cardinal of a trie as an attribute of said trie *)
-module TrieSynthCardinal (Key : IntS) (Value : T)
+module TrieSynthCardinal (Key : IntS) (Value : TypeS)
   : TrieSynthS with type t = Z.t and type key = Key.t and type value = Value.t
 
 (** A module to synthesize attributes for Skip by reducing it to Branch and Leaf. *)
@@ -54,7 +54,7 @@ module type TrieTypeS = sig
 end
 
 module TrieType
-    (Key : IntS) (Value : T) (WrapType : WrapTypeS)
+    (Key : IntS) (Value : TypeS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
   : TrieTypeS with type key = Key.t
                and type value = Value.t

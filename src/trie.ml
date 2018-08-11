@@ -23,7 +23,7 @@ module type TrieSynthS = sig
   val skip : int -> int -> key -> t -> t
 end
 
-module TrieSynthUnit (Key : IntS) (Value : T) = struct
+module TrieSynthUnit (Key : IntS) (Value : TypeS) = struct
   type key = Key.t
   type value = Value.t
   type t = unit
@@ -33,7 +33,7 @@ module TrieSynthUnit (Key : IntS) (Value : T) = struct
   let skip _ _ _ _ = ()
 end
 
-module TrieSynthCardinal (Key : IntS) (Value : T) = struct
+module TrieSynthCardinal (Key : IntS) (Value : TypeS) = struct
   type key = Key.t
   type value = Value.t
   type t = Z.t
@@ -76,7 +76,7 @@ module type TrieTypeS = sig
 end
 
 module TrieType
-    (Key : IntS) (Value : T) (WrapType : WrapTypeS)
+    (Key : IntS) (Value : TypeS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   type key = Key.t
   type value = Value.t

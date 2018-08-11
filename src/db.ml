@@ -235,9 +235,9 @@ module TrivialPersistable (P : PreTrivialPersistableS) =
     let walk_dependencies = no_dependencies
   end)
 
-module OCamlPersistable (Type: T) =
+module OCamlPersistable (T: TypeS) =
   Persistable(struct
-    include Marshalable(OCamlMarshaling (Type))
+    include Marshalable(OCamlMarshaling (T))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
     let to_json x = `String (marshal_string x)
@@ -246,14 +246,14 @@ module OCamlPersistable (Type: T) =
       | _ -> Yojson.json_error "bad ocaml json"
   end)
 
-module JsonPersistable (Type: JsonableS) = struct
-  module J = struct
-    include MarshalableOfJsonable (Type)
+module JsonPersistable (J: JsonableS) = struct
+  module MJ = struct
+    include MarshalableOfJsonable (J)
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
-  include Persistable(J)
-  let marshal_string = J.marshal_string
+  include Persistable(MJ)
+  let marshal_string = MJ.marshal_string
 end
 
 module type IntS = sig

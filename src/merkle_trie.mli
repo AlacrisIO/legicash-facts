@@ -21,7 +21,6 @@ module type MerkleTrieTypeS = sig
   include TrieTypeS
   module Trie : PersistableS with type t = trie
   module T : PersistableS with type t = t
-  include T with type t := t
 end
 
 module MerkleTrieType (Key : IntS) (Value : PersistableS)

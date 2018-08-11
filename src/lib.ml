@@ -127,7 +127,7 @@ let unparse_coloned_hex_string string =
   String.concat ":" (List.init (String.length string) (fun i -> unparse_hex_substring string i 1))
 
 
-module type T = sig
+module type TypeS = sig
   type t
 end
 
@@ -277,9 +277,9 @@ module IdWrapType = struct
   type +'a t = 'a
 end
 
-module IdWrap (Type: T) = struct
-  type t = Type.t
-  type value = Type.t
+module IdWrap (T: TypeS) = struct
+  type t = T.t
+  type value = T.t
   let get = identity
   let make = identity
 end
@@ -292,8 +292,8 @@ module type JsonableS = sig
   val of_json : Yojson.Basic.json -> t
 end
 
-module NotJsonable (Type : T) = struct
-  type t = Type.t
+module NotJsonable (T : TypeS) = struct
+  type t = T.t
   let to_json = bottom
   let of_json = bottom
 end

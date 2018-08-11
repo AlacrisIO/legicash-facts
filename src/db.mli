@@ -183,4 +183,4 @@ end
 module UInt16int : PersistableS with type t = int
 
 (** Do NOT use this module in production. Only for demos and temporary cut-throughs *)
-module OCamlPersistable (Type: T) : PersistableS with type t = Type.t
+module OCamlPersistable (T: TypeS) : PersistableS with type t = T.t

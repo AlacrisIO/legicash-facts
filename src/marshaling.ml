@@ -268,8 +268,8 @@ module Marshalable (P : PreMarshalableS) = struct
   let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
 end
 
-module OCamlMarshaling (Type: T) = struct
-  include Type
+module OCamlMarshaling (T: TypeS) = struct
+  include T
   let marshaling =
     { marshal = (fun buffer value -> Buffer.add_string buffer (marshal_string_of_any value))
     ; unmarshal = fun ?(start=0) buffer ->
