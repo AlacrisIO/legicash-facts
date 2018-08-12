@@ -277,8 +277,8 @@ let get_recent_transactions_on_trent address maybe_limit =
   let address_t = Ethereum_util.address_of_hex_string address in
   let all_operations = !trent_state.current.operations in
   let get_operation_for_address _rev (confirmation:Confirmation.t) ((count,operations) as accum) =
-    if is_option_some maybe_limit &&
-       count >= option_get maybe_limit then
+    if Option.is_some maybe_limit &&
+       count >= Option.get maybe_limit then
       raise (Reached_limit operations);
     let request = (confirmation.signed_request).payload in
     let requester = request.rx_header.requester in

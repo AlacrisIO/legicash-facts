@@ -1,4 +1,5 @@
 open Lib
+open Yojsoning
 
 exception Marshaling_error of string
 exception Unmarshaling_error of string*int*Bytes.t
@@ -278,20 +279,23 @@ module OCamlMarshaling (T: TypeS) = struct
         value, start + size }
 end
 
-module type JsonMarshalableS = sig
-  include JsonableS
-  include MarshalableS with type t := t
+module type PreYojsonMarshalableS = sig
+  include PreMarshalableS
+  include PreYojsonableS with type t := t
 end
 
-module MarshalableOfJsonable (Type : JsonableS) = struct
-  include Type
-  let marshal_string x = x |> to_json |> Yojson.Basic.to_string
-  let marshal buffer x = Buffer.add_string buffer (marshal_string x)
-  let unmarshal_string_unchecked x = of_json (Yojson.Basic.from_string x)
+module type YojsonMarshalableS = sig
+  include MarshalableS
+  include YojsonableS with type t := t
+end
+
+module MarshalableOfYojsonable (Y : YojsonableS) = struct
+  include Y
+  let marshal buffer x = Buffer.add_string buffer (to_yojson_string x)
   let unmarshal ?(start=0) bytes =
-    let x = unmarshal_string_unchecked (Bytes.sub_string bytes start (Bytes.length bytes - start)) in
+    let x = of_yojson_string_exn (Bytes.sub_string bytes start (Bytes.length bytes - start)) in
     (* gross hack to get the length assuming the marshaling was made through marshal *)
-    let m = marshal_string x in
+    let m = to_yojson_string x in
     let l = String.length m in
     if m = Bytes.sub_string bytes start l then
       (x, start + l)
@@ -300,13 +304,18 @@ module MarshalableOfJsonable (Type : JsonableS) = struct
   let marshaling = {marshal;unmarshal}
   let marshal_bytes = marshal_bytes_of_marshal marshal
   let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
+  let marshal_string = to_yojson_string
   let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
 end
 
-module JsonableOfMarshalable (Type : MarshalableS) = struct
+module YojsonableOfMarshalable (Type : MarshalableS) = struct
   include Type
-  let to_json x = `String (marshal_string x)
-  let of_json = function
-    | `String a -> unmarshal_string a
-    | _ -> Yojson.json_error "bad json"
+  let to_yojson x = `String (marshal_string x)
+  let of_yojson = function
+    | `String a -> Ok (unmarshal_string a)
+    | _ -> Error "bad json"
+  include (Yojsonable(struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : YojsonableS with type t := t)
 end

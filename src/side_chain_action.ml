@@ -484,12 +484,12 @@ module Test = struct
     let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
     send_rpc_call_to_net json
     >>= fun result_json ->
-    let json_keys = Basic.Util.keys result_json in
+    let json_keys = Safe.Util.keys result_json in
     let _ =
       (* OK if we successfully added account, or it existed already *)
       List.mem "result" json_keys ||
-      let error_json = Basic.Util.member "error" result_json in
-      let error_message = Basic.Util.member "message" error_json |> Basic.Util.to_string in
+      let error_json = Safe.Util.member "error" result_json in
+      let error_message = Safe.Util.member "message" error_json |> Safe.Util.to_string in
       error_message = "account already exists" ||
       raise (Internal_error error_message)
     in
@@ -498,7 +498,7 @@ module Test = struct
   let get_prefunded_address () =
     get_first_account ()
     >>= fun first_account ->
-    Yojson.Basic.Util.to_string first_account
+    Yojson.Safe.Util.to_string first_account
     |> Ethereum_util.address_of_hex_string
     |> Lwt.return
 
@@ -508,12 +508,12 @@ module Test = struct
     let open Ethereum_transaction in
     send_balance_request_to_net keys.address
     >>= fun json ->
-    let json_keys = Basic.Util.keys json in
+    let json_keys = Safe.Util.keys json in
     if List.mem "error" json_keys then (
-      let error = Basic.Util.member "error" json |> Basic.to_string in
+      let error = Safe.Util.member "error" json |> Safe.to_string in
       raise (Internal_error error)
     );
-    let balance = Basic.Util.member "result" json |> Basic.Util.to_string |> int_of_string in
+    let balance = Safe.Util.member "result" json |> Safe.Util.to_string |> int_of_string in
     let deficit = min_balance - balance in
     if deficit > 0 then (
       let tx_header =
@@ -529,9 +529,9 @@ module Test = struct
       let signed_transaction = Ethereum_transaction.sign_transaction trent_keys transaction in
       send_transaction_to_net signed_transaction
       >>= fun json ->
-      let json_keys = Yojson.Basic.Util.keys json in
+      let json_keys = Yojson.Safe.Util.keys json in
       if List.mem "error" json_keys then (
-        let error = Basic.Util.member "error" json |> Basic.to_string in
+        let error = Safe.Util.member "error" json |> Safe.to_string in
         raise (Internal_error error))
       else (
         return ())
@@ -560,7 +560,7 @@ module Test = struct
     let open Ethereum_transaction in
     Test.get_first_account ()
     >>= fun contract_account_json ->
-    let contract_account = Basic.Util.to_string contract_account_json in
+    let contract_account = Safe.Util.to_string contract_account_json in
     let contract_address = Ethereum_util.address_of_hex_string contract_account in
     Test.unlock_account contract_address
     >>= fun unlock_contract_json ->
@@ -578,17 +578,17 @@ module Test = struct
     send_transaction_to_net signed_transaction
     >>= fun output ->
     assert (not (Test.json_contains_error output)) ;
-    let result_json = Basic.Util.member "result" output in
-    let transaction_hash = Basic.Util.to_string result_json in
+    let result_json = Safe.Util.member "result" output in
+    let transaction_hash = Safe.Util.to_string result_json in
     Test.wait_for_contract_execution transaction_hash
     >>= fun () ->
     get_transaction_receipt transaction_hash
     >>= fun receipt_json ->
     assert (not (Test.json_contains_error receipt_json)) ;
-    let receipt_result_json = Basic.Util.member "result" receipt_json in
+    let receipt_result_json = Safe.Util.member "result" receipt_json in
     let contract_address =
-      Basic.Util.member "contractAddress" receipt_result_json
-      |> Basic.Util.to_string
+      Safe.Util.member "contractAddress" receipt_result_json
+      |> Safe.Util.to_string
       |> Ethereum_util.address_of_hex_string
     in
     Facilitator_contract.set_contract_address contract_address;
@@ -642,8 +642,8 @@ module Test = struct
       >>= commit
       >>= (fun () ->
         let retrieved_state = Side_chain.FacilitatorState.load trent_address in
-        return (FacilitatorState.to_json_string retrieved_state
-                = FacilitatorState.to_json_string trent_state2)))
+        return (FacilitatorState.to_yojson_string retrieved_state
+                = FacilitatorState.to_yojson_string trent_state2)))
 
   (* deposit and withdrawal test *)
   let%test "withdrawal_valid" =

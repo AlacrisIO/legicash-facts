@@ -3,19 +3,19 @@
 (library
  (name legicash_lib)
  (modules
-  lib marshaling integer crypto db tag db_types keypair trie merkle_trie legibase action
+  lib yojsoning marshaling integer crypto db tag db_types keypair trie merkle_trie legibase action
   ethereum_rlp ethereum_patricia_merkle ethereum_transaction ethereum_abi
   ethereum_util ethereum_rlp ethereum_json_rpc
   main_chain main_chain_action side_chain side_chain_action
   court_registry facilitator_contract facilitator_contract_binary
   version)
- (preprocess (pps ppx_deriving.std ppx_inline_test lens.ppx_deriving lwt_ppx))
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  ;; -9 : all fields mentioned in a pattern
  ;; -27 : unused variable
  ;; -32 : unused value
  ;; -34 : unused type
  (flags (:standard -w -9-34 -warn-error -27-32-33 -thread -I +threads))
- (libraries cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt secp256k1 threads yojson)
+ (libraries cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
  (inline_tests))
 
 ;; main executable

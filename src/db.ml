@@ -12,6 +12,7 @@
     A conceptual mess? Yes it is! All because OCaml's type system can't deal with this kind of abstraction.
 *)
 open Lib
+open Yojsoning
 open Marshaling
 open Integer
 open Crypto
@@ -173,7 +174,7 @@ let content_addressed_storage_key digest =
   content_addressed_storage_prefix ^ Digest.to_big_endian_bits digest
 
 let db_value_of_digest unmarshal_string digest =
-  digest |> content_addressed_storage_key |> get_db |> option_get |> unmarshal_string
+  digest |> content_addressed_storage_key |> get_db |> Option.get |> unmarshal_string
 
 (** TODO: have a version that computes the digest from the marshal_string *)
 let saving_walker methods context x =
@@ -197,13 +198,8 @@ module type PrePersistableDependencyS = sig
   val walk_dependencies : t dependency_walker
 end
 
-module type PreTrivialPersistableS = sig
-  include PreMarshalableS
-  include JsonableS with type t := t
-end
-
 module type PrePersistableS = sig
-  include PreTrivialPersistableS
+  include PreYojsonMarshalableS
   include PrePersistableDependencyS with type t := t
 end
 
@@ -211,24 +207,20 @@ module type PersistableS = sig
   include PrePersistableS
   include MarshalableS with type t := t
   include DigestibleS with type t := t
+  include YojsonableS with type t := t
   val dependency_walking : t dependency_walking_methods
   val save : t -> unit Lwt.t
-  val to_json_string : t -> string
-  val of_json_string : string -> t
 end
 
 module Persistable (P : PrePersistableS) = struct
   include P
-  module M = Marshalable(P)
-  include (M : MarshalableS with type t := t)
-  include (DigestibleOfMarshalable(M) : DigestibleS with type t := t)
+  include (Yojsonable(P) : YojsonableS with type t := t)
+  include (DigestibleOfPreMarshalable(P) : DigestibleS with type t := t)
   let dependency_walking = { digest; marshal_string; walk_dependencies; make_persistent }
   let save = save_of_dependency_walking dependency_walking
-  let to_json_string x = x |> to_json |> Yojson.Basic.to_string
-  let of_json_string x = of_json (Yojson.Basic.from_string x)
 end
 
-module TrivialPersistable (P : PreTrivialPersistableS) =
+module TrivialPersistable (P : PreYojsonMarshalableS) =
   Persistable(struct
     include P
     let make_persistent = normal_persistent
@@ -240,15 +232,19 @@ module OCamlPersistable (T: TypeS) =
     include Marshalable(OCamlMarshaling (T))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
-    let to_json x = `String (marshal_string x)
-    let of_json = function
-      | `String s -> (unmarshal_string s)
-      | _ -> Yojson.json_error "bad ocaml json"
+    let to_yojson x = `String (marshal_string x)
+    let of_yojson = function
+      | `String s -> Ok (unmarshal_string s)
+      | _ -> Error "bad ocaml json"
+    include (Yojsonable(struct
+               type nonrec t = t
+               let yojsoning = {to_yojson;of_yojson}
+             end) : YojsonableS with type t := t)
   end)
 
-module JsonPersistable (J: JsonableS) = struct
+module YojsonPersistable (J: YojsonableS) = struct
   module MJ = struct
-    include MarshalableOfJsonable (J)
+    include MarshalableOfYojsonable (J)
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -339,14 +335,12 @@ module DigestValue (Value : PersistableS) = struct
   let of_digest = dv_of_digest Value.unmarshal_string
   include Persistable(struct
       type t = value dv
-      let marshaling = { marshal= marshal_map dv_digest Digest.marshal
-                       ; unmarshal= unmarshal_map of_digest Digest.unmarshal }
+      let marshaling = marshaling_map dv_digest of_digest Digest.marshaling
+      let yojsoning = yojsoning_map get make Value.yojsoning
       let walk_dependencies _methods context x =
         walk_dependency Value.dependency_walking context (dv_get x)
       let make_persistent f dv =
         if dv.persisted then Lwt.return_unit else (dv.persisted <- true; f dv)
-      let to_json x = x |> get |> Value.to_json
-      let of_json j = make (Value.of_json j)
     end)
 end
 
@@ -366,8 +360,10 @@ module StringT = struct
           Bytes.sub_string b p l, p + l) }
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
-    let to_json x = `String x
-    let of_json = function `String x -> x | _ -> Yojson.json_error "not a json string"
+    include (Yojsonable(struct
+               type nonrec t = t
+               let yojsoning = string_yojsoning
+             end) : YojsonableS with type t := t)
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
@@ -380,8 +376,9 @@ module Unit = struct
                      ; unmarshal = (fun ?(start=0) _bytes -> ((), start)) }
     let make_persistent = already_persistent
     let walk_dependencies = no_dependencies
-    let to_json _x = `Null
-    let of_json = function `Null -> () | _ -> Yojson.json_error "not a json null"
+    let yojsoning =
+      { to_yojson = konstant `Null
+      ; of_yojson = function `Null -> Ok () | _ -> Error "not a json null" }
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
   let pp formatter _ = Format.fprintf formatter "%s" "()"
@@ -396,10 +393,11 @@ module UInt16int = struct
     let marshaling = marshaling_map UInt16.of_int UInt16.to_int UInt16.marshaling
     let make_persistent = already_persistent
     let walk_dependencies = no_dependencies
-    let to_json x = `Int x
-    let of_json = function
-      | `Int x -> verify x
-      | _ -> Yojson.json_error "not a json null"
+    let yojsoning =
+      { to_yojson = (fun x -> `Int x)
+      ; of_yojson = function
+          | `Int x -> Ok (verify x)
+          | _ -> Error "not a json Integer" }
   end
   include Persistable(U)
 end

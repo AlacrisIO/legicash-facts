@@ -2,13 +2,14 @@
 (* NB: Comments are in the .mli file *)
 open Lib
 open Action
+open Yojsoning
 open Marshaling
 open Crypto
 open Db
 open Db_types
 open Merkle_trie
 open Lwt.Infix
-open Yojson.Basic.Util
+open Yojson.Safe.Util
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -24,13 +25,7 @@ module KnowledgeStage = struct
     let marshaling = marshaling_map to_char of_char char_marshaling
     let make_persistent = already_persistent
     let walk_dependencies = no_dependencies
-    let to_json x = `String (String.make 1 (to_char x))
-    let of_json = function
-      | `String x -> if String.length x = 1 then
-          of_char (String.get x 0)
-        else
-          Yojson.json_error "bad KnowledgeStage"
-      | _ -> Yojson.json_error "bad KnowledgeStage"
+    let yojsoning = yojsoning_map to_char of_char char_yojsoning
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
@@ -48,7 +43,7 @@ module Invoice = struct
              (fun recipient amount memo -> {recipient; amount; memo})
              Address.marshaling TokenAmount.marshaling string63_marshaling)
     end
-    include JsonableOfMarshalable (Marshalable (M))
+    include YojsonableOfMarshalable (Marshalable (M))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -129,7 +124,7 @@ module Operation = struct
       let marshaling =
         marshaling_cases operation_tag Tag.base_side_chain_operation case_table
     end
-    include JsonableOfMarshalable (Marshalable (M))
+    include YojsonableOfMarshalable (Marshalable (M))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -182,7 +177,7 @@ module RxHeader = struct
              Digest.marshaling Revision.marshaling
              Duration.marshaling)
     end
-    include JsonableOfMarshalable (Marshalable (M))
+    include YojsonableOfMarshalable (Marshalable (M))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -201,7 +196,7 @@ module Request = struct
           (fun rx_header operation -> {rx_header; operation})
           RxHeader.marshaling Operation.marshaling
     end
-    include JsonableOfMarshalable (Marshalable (M))
+    include YojsonableOfMarshalable (Marshalable (M))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -220,7 +215,7 @@ module TxHeader = struct
           (fun tx_revision updated_limit -> {tx_revision; updated_limit})
           Revision.marshaling TokenAmount.marshaling
     end
-    include JsonableOfMarshalable (Marshalable (M))
+    include YojsonableOfMarshalable (Marshalable (M))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -240,7 +235,7 @@ module Confirmation = struct
              (fun tx_header signed_request -> {tx_header; signed_request})
              TxHeader.marshaling (marshaling_signed Request.marshaling))
     end
-    include JsonableOfMarshalable (Marshalable (M))
+    include YojsonableOfMarshalable (Marshalable (M))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -259,7 +254,7 @@ module AccountState = struct
           (fun balance account_revision -> {balance; account_revision})
           TokenAmount.marshaling Revision.marshaling
     end
-    include JsonableOfMarshalable (Marshalable (M))
+    include YojsonableOfMarshalable (Marshalable (M))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -320,16 +315,16 @@ module State = struct
       >>= (fun () -> walk_dependency ConfirmationMap.dependency_walking context operations)
       >>= (fun () -> walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted)
     let make_persistent = normal_persistent
-    let to_json x =
+    let to_yojson x =
       `Assoc [ ("previous_main_chain_state", `String (Digest.to_hex_string x.previous_main_chain_state))
              ; ("previous_side_chain_state", `String (Digest.to_hex_string x.previous_side_chain_state))
              ; ("facilitator_revision", `String (Revision.to_string x.facilitator_revision))
              ; ("spending_limit", `String (TokenAmount.to_string x.spending_limit))
              ; ("bond_posted", `String (TokenAmount.to_string x.bond_posted))
-             ; ("accounts", AccountMap.to_json x.accounts)
-             ; ("operations", ConfirmationMap.to_json x.operations)
-             ; ("main_chain_transactions_posted", DigestSet.to_json x.main_chain_transactions_posted) ]
-    let of_json = bottom
+             ; ("accounts", AccountMap.to_yojson x.accounts)
+             ; ("operations", ConfirmationMap.to_yojson x.operations)
+             ; ("main_chain_transactions_posted", DigestSet.to_yojson x.main_chain_transactions_posted) ]
+    let yojsoning = {to_yojson; of_yojson = bottom}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
@@ -353,14 +348,14 @@ module Episteme = struct
         (option_marshaling Main_chain.Confirmation.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
-    let to_json { request ; confirmation_option ; main_chain_confirmation_option } =
+    let to_yojson { request ; confirmation_option ; main_chain_confirmation_option } =
       `Assoc [ ("request",
-                signed_to_json Request.to_json request)
+                signed_to_yojson Request.to_yojson request)
              ; ("confirmation_option",
-                option_to_json (signed_to_json Confirmation.to_json) confirmation_option)
+                option_to_yojson (signed_to_yojson Confirmation.to_yojson) confirmation_option)
              ; ("main_chain_confirmation_option",
-                option_to_json Main_chain.Confirmation.to_json main_chain_confirmation_option) ]
-    let of_json = bottom
+                option_to_yojson Main_chain.Confirmation.to_yojson main_chain_confirmation_option) ]
+    let yojsoning = {to_yojson; of_yojson = bottom}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
@@ -387,11 +382,11 @@ module UserAccountStatePerFacilitator = struct
         (list_marshaling Episteme.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
-    let to_json { facilitator_validity; confirmed_state; pending_operations } =
-      `Assoc [ ("facilitator_validity", KnowledgeStage.to_json facilitator_validity)
-             ; ("confirmed_state", AccountState.to_json confirmed_state)
-             ; ("pending_operations", list_to_json Episteme.to_json pending_operations) ]
-    let of_json = bottom
+    let to_yojson { facilitator_validity; confirmed_state; pending_operations } =
+      `Assoc [ ("facilitator_validity", KnowledgeStage.to_yojson facilitator_validity)
+             ; ("confirmed_state", AccountState.to_yojson confirmed_state)
+             ; ("pending_operations", list_to_yojson Episteme.to_yojson pending_operations) ]
+    let yojsoning = {to_yojson; of_yojson = bottom}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
@@ -429,12 +424,12 @@ module FacilitatorFeeSchedule = struct
         TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
-    let to_json { deposit_fee; withdrawal_fee; per_account_limit; fee_per_billion } =
-      `Assoc [ ("deposit_fee", TokenAmount.to_json deposit_fee)
-             ; ("withdrawal_fee", TokenAmount.to_json withdrawal_fee)
-             ; ("per_account_limit", TokenAmount.to_json per_account_limit)
-             ; ("fee_per_billion", TokenAmount.to_json fee_per_billion) ]
-    let of_json = bottom
+    let to_yojson { deposit_fee; withdrawal_fee; per_account_limit; fee_per_billion } =
+      `Assoc [ ("deposit_fee", TokenAmount.to_yojson deposit_fee)
+             ; ("withdrawal_fee", TokenAmount.to_yojson withdrawal_fee)
+             ; ("per_account_limit", TokenAmount.to_yojson per_account_limit)
+             ; ("fee_per_billion", TokenAmount.to_yojson fee_per_billion) ]
+    let yojsoning = {to_yojson; of_yojson = bottom}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
@@ -459,16 +454,16 @@ module FacilitatorState = struct
         State.marshaling FacilitatorFeeSchedule.marshaling
     let walk_dependencies _methods context {previous ; current} =
       let walk = walk_dependency State.dependency_walking context in
-      option_iter_lwt walk previous >>= (fun () -> walk current)
+      Option.iter_lwt walk previous >>= (fun () -> walk current)
     let make_persistent = normal_persistent
-    let to_json x =
+    let to_yojson x =
       `Assoc [ ("keypair", `String (Address.to_hex_string x.keypair.address))
              ; ("previous", match x.previous with
                 | None -> `Null
                 | Some s -> `String (s |> State.digest |> Digest.to_hex_string))
-             ; ("current", State.to_json x.current)
-             ; ("fee_schedule", FacilitatorFeeSchedule.to_json x.fee_schedule) ]
-    let of_json = bottom
+             ; ("current", State.to_yojson x.current)
+             ; ("fee_schedule", FacilitatorFeeSchedule.to_yojson x.fee_schedule) ]
+    let yojsoning = {to_yojson; of_yojson = bottom}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
   let facilitator_state_key facilitator_address =
@@ -480,7 +475,7 @@ module FacilitatorState = struct
       let key = facilitator_state_key address in
       put_db key (Digest.to_big_endian_bits (digest facilitator_state)))
   let load facilitator_address =
-    facilitator_address |> facilitator_state_key |> get_db |> option_get |> Digest.unmarshal_string |>
+    facilitator_address |> facilitator_state_key |> get_db |> Option.get |> Digest.unmarshal_string |>
     db_value_of_digest unmarshal_string
 end
 
@@ -560,6 +555,6 @@ module Test = struct
          >>= commit
          >>= (fun () ->
            let retrieved_state = FacilitatorState.load trent_address in
-           Lwt.return (FacilitatorState.to_json_string retrieved_state
-                       = FacilitatorState.to_json_string trent_state)))
+           Lwt.return (FacilitatorState.to_yojson_string retrieved_state
+                       = FacilitatorState.to_yojson_string trent_state)))
 end

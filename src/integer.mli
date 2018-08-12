@@ -1,5 +1,6 @@
 (* integer.mli -- various integer modules with common interface *)
 open Lib
+open Yojsoning
 open Marshaling
 
 (** TODO: before we go to production, robustify the shit out of all
@@ -11,7 +12,7 @@ module type IntS = sig
   include Unsigned.S
   include PreMarshalableS with type t := t
   include ShowableS with type t := t
-  include JsonableS with type t := t
+  include YojsonableS with type t := t
   val z_of: t -> Z.t
   val of_z: Z.t -> t
   val equal : t -> t -> bool

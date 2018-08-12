@@ -6,6 +6,7 @@
 (* A big endian patricia tree maps non-negative integers to values.
 *)
 open Lib
+open Yojsoning
 open Integer
 
 
@@ -163,13 +164,13 @@ module type TrieS = sig
     onlybk:(i:key -> bnode:t -> k:('r -> 'o) -> 'o) ->
     i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o
 
-  include JsonableS with type t := t
+  include YojsonableS with type t := t
 end
 
 (* TODO: an interface to nodes in batch that reduces the amount of unnecessary hashing?
    Or simply make hashing lazy? *)
 module Trie
-    (Key : IntS) (Value : JsonableS) (WrapType : WrapTypeS)
+    (Key : IntS) (Value : YojsonableS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
     (TrieType : TrieTypeS with type key = Key.t
                            and type value = Value.t
@@ -257,9 +258,9 @@ module Trie
       in
       f height trie
 
-  let find key trie = option_get (find_opt key trie)
+  let find key trie = Option.get (find_opt key trie)
 
-  let mem key trie = is_option_some (find_opt key trie)
+  let mem key trie = Option.is_some (find_opt key trie)
 
   (* Lower-level trie constructors, synthesizing the synth attribute *)
   let mk_leaf value = trie_leaf value |> Wrap.make
@@ -503,12 +504,12 @@ module Trie
   let min_binding_opt t =
     foldlk (fun i v _acc _k -> Some (i, v)) t None identity
 
-  let min_binding t = option_get (min_binding_opt t)
+  let min_binding t = Option.get (min_binding_opt t)
 
   let max_binding_opt t =
     foldrk (fun i v _acc _k -> Some (i, v)) t None identity
 
-  let max_binding t = option_get (max_binding_opt t)
+  let max_binding t = Option.get (max_binding_opt t)
 
   let choose_opt t = min_binding_opt t
 
@@ -536,7 +537,7 @@ module Trie
     in
     divide Key.zero None [] [] trie
 
-  let find_first f t = option_get (find_first_opt f t)
+  let find_first f t = Option.get (find_first_opt f t)
 
   let find_last_opt f trie =
     let rec flo index default trie = match Wrap.get trie with
@@ -553,7 +554,7 @@ module Trie
     in
     flo Key.zero None trie
 
-  let find_last f t = option_get (find_last_opt f t)
+  let find_last f t = Option.get (find_last_opt f t)
 
   let partition p t =
     let rec prec index trie = match Wrap.get trie with
@@ -877,18 +878,27 @@ module Trie
 
   let lens k = Lens.{get= find k; set= add k}
 
-  let find_defaulting default k m = defaulting default (find_opt k m)
+  let find_defaulting default k m = Option.defaulting default (find_opt k m)
 
-  let to_json t =
-    foldrk (fun i v l k -> k (`List [Key.to_json i; Value.to_json v] :: l)) t [] (fun x -> `List x)
+  let to_yojson t =
+    foldrk (fun i v l k -> k (`List [Key.to_yojson i; Value.to_yojson v] :: l)) t [] (fun x -> `List x)
 
-  let of_json = function
+  let of_yojson = function
     | `List l ->
-      List.fold_left
-        (fun t -> function
-           | `List [i; v] -> add (Key.of_json i) (Value.of_json v) t
-           | _ -> Yojson.json_error "bad trie json")
+      list_foldlk (fun t x k ->
+        match x with
+        | `List [ij; vj] ->
+          Result.bind (Key.of_yojson ij)
+            (fun i -> Result.bind (Value.of_yojson vj)
+                        (fun v -> k (add i v t)))
+        | _ -> Error "bad trie json")
         empty
         l
-    | _ -> (Yojson.json_error "bad trie json")
+        (fun r -> Ok r)
+    | _ -> Error "bad trie json"
+
+  include (Yojsonable(struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : YojsonableS with type t := t)
 end

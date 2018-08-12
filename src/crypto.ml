@@ -28,19 +28,16 @@ let digest_of_marshal marshal =
 let null_digest = Digest.zero
 
 module type DigestibleS = sig
-  type t
+  include MarshalableS
   val digest: t -> digest
 end
 
-module DigestibleOfMarshalable (M : MarshalableS) = struct
-  type t = M.t
+module Digestible (M : MarshalableS) = struct
+  include M
   let digest = digest_of_marshal_bytes M.marshal_bytes
 end
 
-module DigestibleOfPreMarshalable (P : PreMarshalableS) = struct
-  type t = P.t
-  let digest = digest_of_marshal_bytes (marshal_bytes_of_marshal P.marshaling.marshal)
-end
+module DigestibleOfPreMarshalable (P : PreMarshalableS) = Digestible(Marshalable(P))
 
 module Address = struct
   include UInt256_z
@@ -120,7 +117,7 @@ module Signature = struct
     type t = signature
     let marshaling = marshaling_sized_string width string_of_signature signature_of_string
   end
-  include JsonableOfMarshalable(Marshalable(S))
+  include YojsonableOfMarshalable(Marshalable(S))
 end
 
 type 'a signed = {payload: 'a; signature: signature}
@@ -141,12 +138,21 @@ let marshaling_signed marshaling =
   { marshal = marshal_signed marshaling.marshal
   ; unmarshal = unmarshal_signed marshaling.unmarshal }
 
-let signed_to_json to_json { payload ; signature } =
-  `Assoc [ ("payload", to_json payload)
-         ; ("signature", Signature.to_json signature) ]
+let signed_to_yojson to_yojson { payload ; signature } =
+  `Assoc [ ("payload", to_yojson payload)
+         ; ("signature", Signature.to_yojson signature) ]
 
-let signed_of_json of_json = function
-  | `Assoc [ ("payload", p); ("signature", s) ] -> {payload=of_json p;signature=Signature.of_json s}
+let signed_of_yojson of_yojson = function
+  | `Assoc [ ("payload", pj); ("signature", sj) ] ->
+    Result.bind (of_yojson pj)
+      (fun payload ->
+         Result.bind (Signature.of_yojson sj)
+           (fun signature -> Ok {payload;signature}))
+  | _ -> Error "bad json for signed data"
+
+let signed_of_yojson_exn of_yojson_exn = function
+  | `Assoc [ ("payload", p); ("signature", s) ] ->
+    {payload=of_yojson_exn p;signature=Signature.of_yojson_exn s}
   | _ -> Yojson.json_error "bad json for signed data"
 
 

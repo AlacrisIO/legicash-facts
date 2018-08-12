@@ -13,9 +13,9 @@ type ethereum_rpc_call =
   | Personal_listAccounts
   | Personal_newAccount
   | Personal_unlockAccount
-  [@@deriving show]
+[@@deriving show]
 
-val send_rpc_call_to_net : Yojson.json -> Yojson.Basic.json Lwt.t
+val send_rpc_call_to_net : Yojson.json -> Yojson.Safe.json Lwt.t
 (** run the call given by the JSON *)
 
 val build_json_rpc_call : ethereum_rpc_call -> string list -> Yojson.json

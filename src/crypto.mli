@@ -1,3 +1,4 @@
+open Yojsoning
 open Marshaling
 open Integer
 
@@ -14,11 +15,11 @@ module Digest : IntS
 type digest = Digest.t
 
 module type DigestibleS = sig
-  type t
+  include MarshalableS
   val digest: t -> digest
 end
 
-module DigestibleOfMarshalable (M : MarshalableS) : DigestibleS with type t = M.t
+module Digestible (M : MarshalableS) : DigestibleS with type t = M.t
 
 module DigestibleOfPreMarshalable (P : PreMarshalableS) : DigestibleS with type t = P.t
 
@@ -38,7 +39,7 @@ end
 (** a signature for an object of type 'a *)
 type signature
 
-module Signature : JsonMarshalableS with type t = signature
+module Signature : YojsonMarshalableS with type t = signature
 
 (** an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: signature}
@@ -61,5 +62,6 @@ val unmarshal_signed : 'a unmarshaler -> 'a signed unmarshaler
 
 val marshaling_signed : 'a marshaling -> 'a signed marshaling
 
-val signed_to_json : ('a -> Yojson.Basic.json) -> ('a signed -> Yojson.Basic.json)
-val signed_of_json : (Yojson.Basic.json -> 'a) -> (Yojson.Basic.json -> 'a signed)
+val signed_to_yojson : 'a to_yojson -> 'a signed to_yojson
+val signed_of_yojson : 'a of_yojson -> 'a signed of_yojson
+val signed_of_yojson_exn : 'a of_yojson_exn -> 'a signed of_yojson_exn

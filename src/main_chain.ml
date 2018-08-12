@@ -25,7 +25,7 @@ module State = struct
           (fun revision accounts -> {revision; accounts})
           Revision.marshaling AccountMap.marshaling
     end
-    include JsonableOfMarshalable(Marshalable(M))
+    include YojsonableOfMarshalable(Marshalable(M))
     let make_persistent = normal_persistent
     let walk_dependencies =
       one_dependency (fun x -> x.accounts) AccountMap.dependency_walking
@@ -49,7 +49,7 @@ module Confirmation = struct
              {transaction_hash; transaction_index; block_number; block_hash})
           Digest.marshaling UInt64.marshaling Revision.marshaling Digest.marshaling
     end
-    include JsonableOfMarshalable(Marshalable(M))
+    include YojsonableOfMarshalable(Marshalable(M))
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
   end
@@ -83,7 +83,7 @@ module TxHeader = struct
           Address.marshaling Nonce.marshaling
           TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling
     end
-    include JsonableOfMarshalable(Marshalable(M))
+    include YojsonableOfMarshalable(Marshalable(M))
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
   end

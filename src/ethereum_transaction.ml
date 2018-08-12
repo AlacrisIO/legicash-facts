@@ -120,20 +120,20 @@ let transaction_executed transaction_hash =
   let open Yojson in
   get_transaction_receipt transaction_hash
   >>= fun receipt_json ->
-  let keys = Basic.Util.keys receipt_json in
+  let keys = Safe.Util.keys receipt_json in
   let retval =
     not (List.mem "error" keys) && List.mem "result" keys
     &&
-    let result_json = Basic.Util.member "result" receipt_json in
+    let result_json = Safe.Util.member "result" receipt_json in
     result_json != `Null
     &&
-    let result_keys = Basic.Util.keys result_json in
+    let result_keys = Safe.Util.keys result_json in
     List.mem "blockHash" result_keys && List.mem "blockNumber" result_keys
   in
   return retval
 
 let transaction_execution_matches_transaction transaction_hash
-    (signed_transaction: TransactionSigned.t) =
+      (signed_transaction: TransactionSigned.t) =
   let open Lwt in
   let open Yojson in
   transaction_executed transaction_hash
@@ -143,15 +143,15 @@ let transaction_execution_matches_transaction transaction_hash
   else
     get_transaction_by_hash transaction_hash
     >>= fun transaction_json ->
-    let keys = Basic.Util.keys transaction_json in
+    let keys = Safe.Util.keys transaction_json in
     let retval =
       not (List.mem "error" keys)
       &&
       let transaction = signed_transaction.payload in
-      let result_json = Basic.Util.member "result" transaction_json in
+      let result_json = Safe.Util.member "result" transaction_json in
       (* for all operations, check these fields *)
       let get_result_json key =
-        Basic.Util.to_string (Basic.Util.member key result_json) in
+        Safe.Util.to_string (Safe.Util.member key result_json) in
       let actual_sender = get_result_json "from" in
       let actual_nonce = get_result_json "nonce" in
       let actual_gas_price = Ethereum_util.token_amount_of_hex_string (get_result_json "gasPrice") in
@@ -261,10 +261,10 @@ module Test = struct
   open Keypair.Test
 
   let json_contains_error json =
-    match Basic.Util.member "error" json with `Null -> false | _ -> true
+    match Safe.Util.member "error" json with `Null -> false | _ -> true
 
   let json_result_to_int json =
-    int_of_string (Basic.Util.to_string (Basic.Util.member "result" json))
+    int_of_string (Safe.Util.to_string (Safe.Util.member "result" json))
 
   let list_accounts () =
     let params = [] in
@@ -289,7 +289,7 @@ module Test = struct
     list_accounts ()
     >>= fun accounts_json ->
     assert (not (json_contains_error accounts_json)) ;
-    let accounts = Basic.Util.to_list (Basic.Util.member "result" accounts_json) in
+    let accounts = Safe.Util.to_list (Safe.Util.member "result" accounts_json) in
     assert (not (accounts = [])) ;
     return (List.hd accounts)
 
@@ -312,8 +312,8 @@ module Test = struct
     get_transaction_count address
     >>= fun contract_count_json ->
     assert (not (json_contains_error contract_count_json)) ;
-    let result = Basic.Util.member "result" contract_count_json
-                 |> Basic.Util.to_string
+    let result = Safe.Util.member "result" contract_count_json
+                 |> Safe.Util.to_string
     in
     return (Nonce.of_int64 (Int64.of_string result))
 
@@ -341,12 +341,12 @@ module Test = struct
     Lwt_main.run (
       get_first_account ()
       >>= fun account_json ->
-      let sender_account = Basic.Util.to_string account_json in
+      let sender_account = Safe.Util.to_string account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       new_account ()
       >>= fun new_account_json ->
       assert (not (json_contains_error new_account_json)) ;
-      let new_account = Basic.Util.to_string (Basic.Util.member "result" new_account_json) in
+      let new_account = Safe.Util.to_string (Safe.Util.member "result" new_account_json) in
       let recipient_address = Ethereum_util.address_of_hex_string new_account in
       (* unlock accounts *)
       unlock_account sender_address
@@ -373,8 +373,8 @@ module Test = struct
       send_transaction_to_net signed_transaction
       >>= fun output ->
       assert (not (json_contains_error output)) ;
-      let result_json = Basic.Util.member "result" output in
-      let transaction_hash = Basic.Util.to_string result_json in
+      let result_json = Safe.Util.member "result" output in
+      let transaction_hash = Safe.Util.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
       transaction_execution_matches_transaction transaction_hash signed_transaction)
@@ -383,7 +383,7 @@ module Test = struct
     Lwt_main.run (
       get_first_account ()
       >>= fun first_account ->
-      let sender_account =  Basic.Util.to_string first_account in
+      let sender_account =  Safe.Util.to_string first_account in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
@@ -407,8 +407,8 @@ module Test = struct
       send_transaction_to_net signed_transaction
       >>= fun output ->
       assert (not (json_contains_error output)) ;
-      let result_json = Basic.Util.member "result" output in
-      let transaction_hash = Basic.Util.to_string result_json in
+      let result_json = Safe.Util.member "result" output in
+      let transaction_hash = Safe.Util.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
       let signed_transaction = sign_transaction alice_keys transaction in
@@ -419,7 +419,7 @@ module Test = struct
     Lwt_main.run (
       get_first_account ()
       >>= fun sender_account_json ->
-      let sender_account = Basic.Util.to_string sender_account_json in
+      let sender_account = Safe.Util.to_string sender_account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
@@ -458,8 +458,8 @@ module Test = struct
       send_transaction_to_net signed_transaction
       >>= fun output ->
       assert (not (json_contains_error output)) ;
-      let result_json = Basic.Util.member "result" output in
-      let transaction_hash = Basic.Util.to_string result_json in
+      let result_json = Safe.Util.member "result" output in
+      let transaction_hash = Safe.Util.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
       let signed_transaction = sign_transaction alice_keys transaction in
@@ -473,7 +473,7 @@ module Test = struct
       let private_key = Keypair.make_private_key private_key_string in
       get_first_account ()
       >>= fun account_json ->
-      let sender_account = Basic.Util.to_string account_json in
+      let sender_account = Safe.Util.to_string account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       let tx_header =
         TxHeader.{ sender= sender_address (* doesn't matter for transaction hash *)
@@ -504,7 +504,7 @@ module Test = struct
       (* create a contract using "hello, world" EVM code *)
       get_first_account ()
       >>= fun account_json ->
-      let sender_account = Basic.Util.to_string account_json in
+      let sender_account = Safe.Util.to_string account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
@@ -528,16 +528,16 @@ module Test = struct
       send_transaction_to_net signed_transaction
       >>= fun output ->
       assert (not (json_contains_error output)) ;
-      let result_json = Basic.Util.member "result" output in
-      let transaction_hash = Basic.Util.to_string result_json in
+      let result_json = Safe.Util.member "result" output in
+      let transaction_hash = Safe.Util.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
       get_transaction_receipt transaction_hash
       >>= fun receipt_json ->
       assert (not (json_contains_error receipt_json)) ;
-      let receipt_result_json = Basic.Util.member "result" receipt_json in
+      let receipt_result_json = Safe.Util.member "result" receipt_json in
       let contract_address =
-        Basic.Util.to_string (Basic.Util.member "contractAddress" receipt_result_json)
+        Safe.Util.to_string (Safe.Util.member "contractAddress" receipt_result_json)
       in
       let signed_transaction = sign_transaction alice_keys transaction in
       transaction_execution_matches_transaction transaction_hash signed_transaction
@@ -563,28 +563,28 @@ module Test = struct
       send_transaction_to_net signed_transaction1
       >>= fun output1 ->
       assert (not (json_contains_error output1)) ;
-      let result_json1 = Basic.Util.member "result" output1 in
-      let transaction_hash1 = Basic.Util.to_string result_json1 in
+      let result_json1 = Safe.Util.member "result" output1 in
+      let transaction_hash1 = Safe.Util.to_string result_json1 in
       wait_for_contract_execution transaction_hash1
       >>= fun () ->
       get_transaction_receipt transaction_hash1
       >>= fun receipt_json1 ->
       (* verify that we called "printHelloWorld" *)
-      let receipt_result1_json = Basic.Util.member "result" receipt_json1 in
-      let log_json = List.hd (Basic.Util.to_list (Basic.Util.member "logs" receipt_result1_json)) in
+      let receipt_result1_json = Safe.Util.member "result" receipt_json1 in
+      let log_json = List.hd (Safe.Util.to_list (Safe.Util.member "logs" receipt_result1_json)) in
       (* we called the right contract *)
-      let log_contract_address = Basic.Util.to_string (Basic.Util.member "address" log_json) in
+      let log_contract_address = Safe.Util.to_string (Safe.Util.member "address" log_json) in
       assert (log_contract_address = contract_address) ;
       (* we called the right function within the contract *)
-      let log_topics = Basic.Util.to_list (Basic.Util.member "topics" log_json) in
+      let log_topics = Safe.Util.to_list (Safe.Util.member "topics" log_json) in
       assert (List.length log_topics = 1) ;
-      let topic_event = Basic.Util.to_string (List.hd log_topics) in
+      let topic_event = Safe.Util.to_string (List.hd log_topics) in
       let hello_world = (String_value "Hello, world!", String) in
       let signature = make_signature_bytes {function_name= "showResult"; parameters= [hello_world]} in
       let signature_hash = Ethereum_util.hex_string_of_string (Ethereum_util.hash_bytes signature) in
       assert (topic_event = signature_hash) ;
       (* the log data is the encoding of the parameter passed to the event *)
-      let data = Basic.Util.to_string (Basic.Util.member "data" log_json) in
+      let data = Safe.Util.to_string (Safe.Util.member "data" log_json) in
       let hello_encoding =
         let tuple_value, tuple_ty = abi_tuple_of_abi_values [hello_world] in
         Ethereum_util.hex_string_of_bytes (encode_abi_value tuple_value tuple_ty)
@@ -604,7 +604,7 @@ module Test = struct
       (* create the contract *)
       get_first_account ()
       >>= fun account_json ->
-      let sender_account = Basic.Util.to_string account_json in
+      let sender_account = Safe.Util.to_string account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
@@ -624,23 +624,23 @@ module Test = struct
       send_transaction_to_net signed_transaction
       >>= fun output ->
       assert (not (json_contains_error output)) ;
-      let result_json = Basic.Util.member "result" output in
-      let transaction_hash = Basic.Util.to_string result_json in
+      let result_json = Safe.Util.member "result" output in
+      let transaction_hash = Safe.Util.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
       get_transaction_receipt transaction_hash
       >>= fun receipt_json ->
       assert (not (json_contains_error receipt_json)) ;
-      let receipt_result_json = Basic.Util.member "result" receipt_json in
+      let receipt_result_json = Safe.Util.member "result" receipt_json in
       let contract_address =
-        Basic.Util.to_string (Basic.Util.member "contractAddress" receipt_result_json)
+        Safe.Util.to_string (Safe.Util.member "contractAddress" receipt_result_json)
       in
       (* check balance of new contract *)
       send_balance_request_to_net (Ethereum_util.address_of_hex_string contract_address)
       >>= fun starting_balance_json ->
       assert (not (json_contains_error starting_balance_json)) ;
       let starting_balance =
-        int_of_string (Basic.Util.to_string (Basic.Util.member "result" starting_balance_json))
+        int_of_string (Safe.Util.to_string (Safe.Util.member "result" starting_balance_json))
       in
       assert (starting_balance = 0) ;
       let signed_transaction = sign_transaction alice_keys transaction in
@@ -671,25 +671,25 @@ module Test = struct
       send_transaction_to_net signed_transaction1
       >>= fun output1 ->
       assert (not (json_contains_error output1)) ;
-      let result_json1 = Basic.Util.member "result" output1 in
-      let transaction_hash1 = Basic.Util.to_string result_json1 in
+      let result_json1 = Safe.Util.member "result" output1 in
+      let transaction_hash1 = Safe.Util.to_string result_json1 in
       wait_for_contract_execution transaction_hash1
       >>= fun () ->
       get_transaction_receipt transaction_hash1
       >>= fun receipt_json1 ->
       (* verify that we called the fallback *)
-      let receipt_result1_json = Basic.Util.member "result" receipt_json1 in
-      let logs = Basic.Util.to_list (Basic.Util.member "logs" receipt_result1_json) in
+      let receipt_result1_json = Safe.Util.member "result" receipt_json1 in
+      let logs = Safe.Util.to_list (Safe.Util.member "logs" receipt_result1_json) in
       assert (List.length logs = 1) ;
       let log_json = List.hd logs in
       (* the log is for this contract *)
-      let receipt_address = Basic.Util.to_string (Basic.Util.member "address" log_json) in
+      let receipt_address = Safe.Util.to_string (Safe.Util.member "address" log_json) in
       assert (receipt_address = contract_address) ;
       (* we saw the expected event *)
-      let topics = Basic.Util.to_list (Basic.Util.member "topics" log_json) in
+      let topics = Safe.Util.to_list (Safe.Util.member "topics" log_json) in
       assert (List.length topics = 1) ;
       let topic = List.hd topics in
-      let logged_event = Basic.Util.to_string topic in
+      let logged_event = Safe.Util.to_string topic in
       let event_parameters =
         [(Address_value facilitator_address, Address); abi_uint_of_int amount_to_transfer]
       in
@@ -700,7 +700,7 @@ module Test = struct
       in
       assert (logged_event = event_signature) ;
       (* the facilitator address is visible as data *)
-      let data = Basic.Util.to_string (Basic.Util.member "data" log_json) in
+      let data = Safe.Util.to_string (Safe.Util.member "data" log_json) in
       let logged_encoding =
         let tuple_value, tuple_ty = abi_tuple_of_abi_values event_parameters in
         Ethereum_util.hex_string_of_bytes (encode_abi_value tuple_value tuple_ty)
@@ -711,7 +711,7 @@ module Test = struct
       >>= fun ending_balance_json ->
       assert (not (json_contains_error ending_balance_json)) ;
       let ending_balance =
-        int_of_string (Basic.Util.to_string (Basic.Util.member "result" ending_balance_json))
+        int_of_string (Safe.Util.to_string (Safe.Util.member "result" ending_balance_json))
       in
       assert (ending_balance = amount_to_transfer) ;
       (* now try invalid address, make sure it's not logged *)
@@ -726,13 +726,13 @@ module Test = struct
       send_transaction_to_net signed_transaction2
       >>= fun output2 ->
       assert (not (json_contains_error output2)) ;
-      let result_json2 = Basic.Util.member "result" output2 in
-      let transaction_hash2 = Basic.Util.to_string result_json2 in
+      let result_json2 = Safe.Util.member "result" output2 in
+      let transaction_hash2 = Safe.Util.to_string result_json2 in
       wait_for_contract_execution transaction_hash2
       >>= fun () ->
       get_transaction_receipt transaction_hash2
       >>= fun receipt_json2 ->
-      let receipt_result2_json = Basic.Util.member "result" receipt_json2 in
-      let logs2 = Basic.Util.to_list (Basic.Util.member "logs" receipt_result2_json) in
+      let receipt_result2_json = Safe.Util.member "result" receipt_json2 in
+      let logs2 = Safe.Util.to_list (Safe.Util.member "logs" receipt_result2_json) in
       return (List.length logs2 = 0))
 end

@@ -29,25 +29,51 @@ let (>>) x y z = y (x z)
 
 
 (** Options *)
-let defaulting default = function None -> default () | Some x -> x
+module Option = struct
+  type 'a t = 'a option
 
-let option_get = function None -> raise Not_found | Some x -> x
+  let defaulting default = function None -> default () | Some x -> x
 
-let is_option_some = function None -> false | Some _ -> true
+  let get = function None -> raise Not_found | Some x -> x
 
-let list_of_option = function None -> [] | Some x -> [x]
+  let is_some = function None -> false | Some _ -> true
 
-(** TODO: find which is canonical according to the style guide between this and
-    let list_of_option x = match x with None -> [] | Some x -> [x]
-    and/or define a new style guide rule with motivation.
-*)
-let option_map f = function Some x -> Some (f x) | None -> None
+  let to_list = function None -> [] | Some x -> [x]
 
-let option_iter f = function Some x -> (f x) | None -> ()
+  (** TODO: find which is canonical according to the style guide between this and
+      let list_of_option x = match x with None -> [] | Some x -> [x]
+      and/or define a new style guide rule with motivation.
+  *)
+  let map f = function Some x -> Some (f x) | None -> None
 
-let option_iter_lwt f = function Some x -> (f x) | None -> Lwt.return_unit
+  let iter f = function Some x -> (f x) | None -> ()
+
+  let iter_lwt f = function Some x -> (f x) | None -> Lwt.return_unit
+end
 
 let map_fst f (x, y) = (f x, y)
+
+let rec list_foldlk f a l k = match l with
+  | [] -> k a
+  | h::t -> f a h (fun r -> list_foldlk f r t k)
+
+module Result = struct
+  let return x = Ok x
+
+  let bind mx fm = match mx with
+    | Ok x -> fm x
+    | Error e -> Error e
+
+  let map f = function
+    | Ok x -> Ok (f x)
+    | Error e -> Error e
+
+  let rec list_map f = function
+    | [] -> Ok []
+    | x::t -> match f x with
+      | Ok y -> map (fun r -> y :: r) (list_map f t)
+      | Error e -> Error e
+end
 
 (* Hexadecimal *)
 
@@ -285,32 +311,6 @@ module IdWrap (T: TypeS) = struct
 end
 
 type digest = Z.t
-
-module type JsonableS = sig
-  type t
-  val to_json : t -> Yojson.Basic.json
-  val of_json : Yojson.Basic.json -> t
-end
-
-module NotJsonable (T : TypeS) = struct
-  type t = T.t
-  let to_json = bottom
-  let of_json = bottom
-end
-
-let option_to_json to_json = function
-  | None -> `Null
-  | Some x -> to_json x
-
-let option_of_json of_json = function
-  | `Null -> None
-  | x -> Some (of_json x)
-
-let list_to_json to_json l = `List (List.map to_json l)
-
-let list_of_json of_json = function
-  | `List l -> (List.map of_json l)
-  | _ -> Yojson.json_error "bad json list"
 
 module Test = struct
   let%test "hex_string" =

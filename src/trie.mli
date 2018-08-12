@@ -5,6 +5,7 @@
 
 (* A big endian patricia tree maps non-negative integers to values. *)
 open Lib
+open Yojsoning
 open Db
 
 (** A signature for the computation of a synthesized attribute from a binary tree *)
@@ -200,12 +201,12 @@ module type TrieS = sig
     onlybk:(i:key -> bnode:t -> k:('r -> 'o) -> 'o) ->
     i:key -> treea:t -> treeb:t -> k:('r -> 'o) -> 'o
 
-  include JsonableS with type t := t
+  include YojsonableS with type t := t
 end
 
 (** A module for Big-Endian Patricia Tree, a.k.a. Trie. *)
 module Trie
-    (Key : IntS) (Value : JsonableS) (WrapType : WrapTypeS)
+    (Key : IntS) (Value : YojsonableS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
     (TrieType : TrieTypeS with type key = Key.t
                            and type value = Value.t

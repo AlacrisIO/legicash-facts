@@ -44,31 +44,50 @@ val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
 val (>>) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
 
-(* Options *)
+(** Options *)
+module Option : sig
+  type 'a t = 'a option
 
-(** Unwrap an option with a default if None *)
-val defaulting : (unit -> 'a) -> 'a option -> 'a
+  (** Unwrap an option with a default if None *)
+  val defaulting : (unit -> 'a) -> 'a t -> 'a
 
-(** Unwrap an option, throwing Not_found if None *)
-val option_get : 'a option -> 'a
+  (** Unwrap an option, throwing Not_found if None *)
+  val get : 'a t -> 'a
 
-(** Return true if the option is Some _ *)
-val is_option_some : 'a option -> bool
+  (** Return true if the option is Some _ *)
+  val is_some : 'a t -> bool
 
-(** Trivial functor from option to list *)
-val list_of_option : 'a option -> 'a list
+  (** Trivial functor from option to list *)
+  val to_list : 'a t -> 'a list
 
-(** Map a function to the content of the option, if any *)
-val option_map : ('a -> 'b) -> 'a option -> 'b option
+  (** Map a function to the content of the option, if any *)
+  val map : ('a -> 'b) -> 'a t -> 'b t
 
-(** Iterate (at most once) over option, if any *)
-val option_iter : ('a -> unit) -> 'a option -> unit
+  (** Iterate (at most once) over option, if any *)
+  val iter : ('a -> unit) -> 'a t -> unit
 
-(** Iterate (at most once) over option, if any, Lwt style *)
-val option_iter_lwt : ('a -> unit Lwt.t) -> 'a option -> unit Lwt.t
+  (** Iterate (at most once) over option, if any, Lwt style *)
+  val iter_lwt : ('a -> unit Lwt.t) -> 'a t -> unit Lwt.t
+end
 
 (** map for list as left functor *)
 val map_fst : ('a -> 'b) -> 'a * 'c -> 'b * 'c
+
+module Result : sig
+  (** Result as the error monad, applicative, etc., over the Ok clause *)
+  val return : 'a -> ('a, 'b) result
+
+  val bind : ('a, 'err) result -> ('a -> ('b, 'err) result) -> ('b, 'err) result
+
+  (** map *)
+  val map : ('a -> 'b) -> ('a, 'err) result -> ('b, 'err) result
+
+  (** list map over result *)
+  val list_map : ('a -> ('b, 'err) result) -> 'a list -> ('b list, 'err) result
+end
+
+(** list fold left in CPS *)
+val list_foldlk : ('a -> 'b -> ('a -> 'r) -> 'r) -> 'a -> 'b list -> ('a -> 'r) -> 'r
 
 (** Parse one hex char into an integer *)
 val int_of_hex_char : char -> int
@@ -429,20 +448,4 @@ module IdWrapType : WrapTypeS with type +'a t = 'a
 
 module IdWrap (T: TypeS) : WrapS with type t = T.t and type value = T.t
 
-
-(* TODO: more JsonableS in its own module like MarshalableS, with combinators, too,
-   then combine the two sets of combinators, and more? *)
-module type JsonableS = sig
-  type t
-  val to_json : t -> Yojson.Basic.json
-  val of_json : Yojson.Basic.json -> t
-end
-
-module NotJsonable (T : TypeS) : JsonableS with type t := T.t
-
-val option_to_json : ('a -> Yojson.Basic.json) -> ('a option -> Yojson.Basic.json)
-val option_of_json : (Yojson.Basic.json -> 'a) -> (Yojson.Basic.json -> 'a option)
-
-val list_to_json : ('a -> Yojson.Basic.json) -> ('a list -> Yojson.Basic.json)
-val list_of_json : (Yojson.Basic.json -> 'a) -> (Yojson.Basic.json -> 'a list)
 

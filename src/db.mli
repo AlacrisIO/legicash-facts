@@ -1,4 +1,5 @@
 open Lib
+open Yojsoning
 open Marshaling
 open Crypto
 
@@ -45,13 +46,8 @@ module type PrePersistableDependencyS = sig
   val walk_dependencies : t dependency_walker
 end
 
-module type PreTrivialPersistableS = sig
-  include PreMarshalableS
-  include JsonableS with type t := t
-end
-
 module type PrePersistableS = sig
-  include PreTrivialPersistableS
+  include PreYojsonMarshalableS
   include PrePersistableDependencyS with type t := t
 end
 
@@ -59,18 +55,16 @@ module type PersistableS = sig
   include PrePersistableS
   include MarshalableS with type t := t
   include DigestibleS with type t := t
+  include YojsonableS with type t := t
   val dependency_walking : t dependency_walking_methods
   val save : t -> unit Lwt.t
-  val to_json_string : t -> string
-  val of_json_string : string -> t
 end
 
 module Persistable (P : PrePersistableS) : PersistableS with type t = P.t
 
-module TrivialPersistable (J : PreTrivialPersistableS) : PersistableS with type t = J.t
+module TrivialPersistable (P : PreYojsonMarshalableS) : PersistableS with type t = P.t
 
-module JsonPersistable (J: JsonableS) : PersistableS with type t = J.t
-
+module YojsonPersistable (Y: YojsonableS) : PersistableS with type t = Y.t
 
 module type IntS = sig
   include Integer.IntS

@@ -3,7 +3,7 @@ open Action
 open Crypto
 open Db
 open Merkle_trie
-open Yojson.Basic
+open Yojson.Safe
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -184,7 +184,7 @@ module State : sig
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens { prefix=true } ]
   include PersistableS with type t := t
-  val to_json : t -> json
+  val to_yojson : t -> json
 end
 
 (** side chain operation + knowledge about the operation *)
@@ -279,7 +279,7 @@ module FacilitatorFeeSchedule : sig
     (* function TokenAmount.t -> TokenAmount.t ? *) }
   [@@deriving lens { prefix=true } ]
   include PersistableS with type t := t
-  val to_json : t -> json
+  val to_yojson : t -> json
 end
 
 (** Private state of a facilitator (as opposed to what's public in the side-chain)
@@ -294,7 +294,7 @@ module FacilitatorState : sig
   [@@deriving lens { prefix=true } ]
   include PersistableS with type t := t
   val load : Address.t -> t
-  val to_json : t -> json
+  val to_yojson : t -> json
 end
 
 (** function from 'a to 'b that acts on a facilitator_state and has some side-effects *)

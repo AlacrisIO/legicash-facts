@@ -1,4 +1,5 @@
 open Lib
+open Yojsoning
 
 exception Marshaling_error of string
 exception Unmarshaling_error of string*int*Bytes.t
@@ -52,7 +53,7 @@ val unmarshal_string63 : string unmarshaler
 val string63_marshaling : string marshaling
 
 val marshal_map : ('x -> 'a) -> 'a marshaler -> 'x marshaler
-val unmarshal_map  : ('a -> 'x) -> 'a unmarshaler -> 'x unmarshaler
+val unmarshal_map : ('a -> 'x) -> 'a unmarshaler -> 'x unmarshaler
 val marshaling_map : ('x -> 'a) -> ('a -> 'x) -> 'a marshaling -> 'x marshaling
 
 val marshal2 : ('x -> 'a*'b) -> 'a marshaler -> 'b marshaler
@@ -153,12 +154,17 @@ val marshaling_not_implemented : 'a marshaling
 (** Do NOT use this module in production. Only for demos and temporary cut-throughs *)
 module OCamlMarshaling (T: TypeS) : PreMarshalableS with type t = T.t
 
-module type JsonMarshalableS = sig
-  include JsonableS
-  include MarshalableS with type t := t
+module type PreYojsonMarshalableS = sig
+  include PreMarshalableS
+  include PreYojsonableS with type t := t
 end
 
-module MarshalableOfJsonable (J : JsonableS) : JsonMarshalableS with type t = J.t
+module type YojsonMarshalableS = sig
+  include MarshalableS
+  include YojsonableS with type t := t
+end
 
-module JsonableOfMarshalable (M : MarshalableS) : JsonMarshalableS with type t = M.t
+module MarshalableOfYojsonable (J : YojsonableS) : YojsonMarshalableS with type t = J.t
+
+module YojsonableOfMarshalable (M : MarshalableS) : YojsonMarshalableS with type t = M.t
 

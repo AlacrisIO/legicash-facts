@@ -63,12 +63,12 @@ let rec get_confirmation transaction_hash =
   Ethereum_transaction.get_transaction_receipt transaction_hash
   >>=
   fun receipt_json ->
-  let keys = Basic.Util.keys receipt_json in
+  let keys = Safe.Util.keys receipt_json in
   if (List.mem "error" keys) then
-    let error = Basic.to_string (Basic.Util.member "error" receipt_json) in
+    let error = Safe.to_string (Safe.Util.member "error" receipt_json) in
     return (Error (Internal_error error))
   else
-    let result_json = Basic.Util.member "result" receipt_json in
+    let result_json = Safe.Util.member "result" receipt_json in
     if result_json == `Null then
       Lwt_unix.sleep retry_interval_seconds
       >>= fun () ->
@@ -76,11 +76,11 @@ let rec get_confirmation transaction_hash =
     else
       (* remove leading 0x; shouldn't need to validate that the prefix exists, should always be well-formed *)
       let remove_0x hex_string = String.sub hex_string 2 (String.length hex_string - 2) in
-      let transaction_hash = Basic.Util.member "transactionHash" result_json |> Basic.Util.to_string |> remove_0x |> Digest.of_hex_string in
+      let transaction_hash = Safe.Util.member "transactionHash" result_json |> Safe.Util.to_string |> remove_0x |> Digest.of_hex_string in
       (* Revision, UInt64 "of_string" reads hex numbers as 0, so convert to OCaml int *)
-      let transaction_index = Basic.Util.member "transactionIndex" result_json |> Basic.Util.to_string |> int_of_string |> UInt64.of_int in
-      let block_number = Basic.Util.member "blockNumber" result_json |> Basic.Util.to_string |> int_of_string |> Revision.of_int in
-      let block_hash = Basic.Util.member "blockHash" result_json |> Basic.Util.to_string |> remove_0x |> Digest.of_hex_string in
+      let transaction_index = Safe.Util.member "transactionIndex" result_json |> Safe.Util.to_string |> int_of_string |> UInt64.of_int in
+      let block_number = Safe.Util.member "blockNumber" result_json |> Safe.Util.to_string |> int_of_string |> Revision.of_int in
+      let block_hash = Safe.Util.member "blockHash" result_json |> Safe.Util.to_string |> remove_0x |> Digest.of_hex_string in
       let confirmation =
         Confirmation.{transaction_hash; transaction_index; block_number; block_hash}
       in
@@ -91,12 +91,12 @@ let wait_for_confirmation ((user_state: user_state), (signed_transaction: Transa
   let open Yojson in
   Ethereum_transaction.send_transaction_to_net signed_transaction
   >>= fun transaction_json ->
-  let keys = Basic.Util.keys transaction_json in
+  let keys = Safe.Util.keys transaction_json in
   if (List.mem "error" keys) then
-    let error = Basic.to_string (Basic.Util.member "error" transaction_json) in
+    let error = Safe.to_string (Safe.Util.member "error" transaction_json) in
     return (user_state, Error (Internal_error error))
   else
-    let transaction_hash_string = Basic.Util.member "result" transaction_json |> Basic.Util.to_string in
+    let transaction_hash_string = Safe.Util.member "result" transaction_json |> Safe.Util.to_string in
     get_confirmation transaction_hash_string
     >>= fun confirmation ->
     (* TODO: update user state, e.g., with confirmed balance *)
