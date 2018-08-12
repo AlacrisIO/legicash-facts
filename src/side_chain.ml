@@ -50,9 +50,10 @@ module Invoice = struct
 end
 
 module Operation = struct
+  [@warning "-39"]
   type payment_details =
     {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
-  [@@deriving lens]
+  [@@deriving lens, yojson]
 
   type deposit_details =
     { deposit_amount: TokenAmount.t
@@ -60,16 +61,17 @@ module Operation = struct
     ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
     ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
     ; deposit_expedited: bool }
-  [@@deriving lens]
+  [@@deriving lens, yojson]
 
   type withdrawal_details =
     {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
-  [@@deriving lens]
+  [@@deriving lens, yojson]
 
   type t =
     | Deposit of deposit_details
     | Payment of payment_details
     | Withdrawal of withdrawal_details
+  [@@deriving yojson]
 
   let operation_tag = function
     | Deposit _ -> Tag.side_chain_deposit
@@ -77,53 +79,51 @@ module Operation = struct
     | Withdrawal _ -> Tag.side_chain_withdrawal
 
   module PrePersistable = struct
-    module M = struct
-      type nonrec t = t
-      let case_table =
-        [| marshaling5
-             (function
-               | Deposit
-                   { deposit_amount
-                   ; deposit_fee
-                   ; main_chain_deposit_signed
-                   ; main_chain_deposit_confirmation
-                   ; deposit_expedited } ->
-                 (deposit_amount, deposit_fee, main_chain_deposit_signed,
-                  main_chain_deposit_confirmation, deposit_expedited)
-               | _ -> bottom ())
-             (fun deposit_amount deposit_fee main_chain_deposit_signed
-               main_chain_deposit_confirmation deposit_expedited ->
-               Deposit
+    type nonrec t = t
+    let case_table =
+      [| marshaling5
+           (function
+             | Deposit
                  { deposit_amount
                  ; deposit_fee
                  ; main_chain_deposit_signed
                  ; main_chain_deposit_confirmation
-                 ; deposit_expedited })
-             TokenAmount.marshaling
-             TokenAmount.marshaling
-             Main_chain.TransactionSigned.marshaling
-             Main_chain.Confirmation.marshaling
-             bool_marshaling
-         ; marshaling3
-             (function
-               | Payment {payment_invoice; payment_fee; payment_expedited} ->
-                 (payment_invoice, payment_fee, payment_expedited)
-               | _ -> bottom ())
-             (fun payment_invoice payment_fee payment_expedited ->
-                Payment {payment_invoice; payment_fee; payment_expedited})
-             Invoice.marshaling TokenAmount.marshaling bool_marshaling
-         ; marshaling2
-             (function
-               | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-                 (withdrawal_amount, withdrawal_fee)
-               | _ -> bottom ())
-             (fun withdrawal_amount withdrawal_fee ->
-                Withdrawal {withdrawal_amount; withdrawal_fee})
-             TokenAmount.marshaling TokenAmount.marshaling |]
-      let marshaling =
-        marshaling_cases operation_tag Tag.base_side_chain_operation case_table
-    end
-    include YojsonableOfMarshalable (Marshalable (M))
+                 ; deposit_expedited } ->
+               (deposit_amount, deposit_fee, main_chain_deposit_signed,
+                main_chain_deposit_confirmation, deposit_expedited)
+             | _ -> bottom ())
+           (fun deposit_amount deposit_fee main_chain_deposit_signed
+             main_chain_deposit_confirmation deposit_expedited ->
+             Deposit
+               { deposit_amount
+               ; deposit_fee
+               ; main_chain_deposit_signed
+               ; main_chain_deposit_confirmation
+               ; deposit_expedited })
+           TokenAmount.marshaling
+           TokenAmount.marshaling
+           Main_chain.TransactionSigned.marshaling
+           Main_chain.Confirmation.marshaling
+           bool_marshaling
+       ; marshaling3
+           (function
+             | Payment {payment_invoice; payment_fee; payment_expedited} ->
+               (payment_invoice, payment_fee, payment_expedited)
+             | _ -> bottom ())
+           (fun payment_invoice payment_fee payment_expedited ->
+              Payment {payment_invoice; payment_fee; payment_expedited})
+           Invoice.marshaling TokenAmount.marshaling bool_marshaling
+       ; marshaling2
+           (function
+             | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+               (withdrawal_amount, withdrawal_fee)
+             | _ -> bottom ())
+           (fun withdrawal_amount withdrawal_fee ->
+              Withdrawal {withdrawal_amount; withdrawal_fee})
+           TokenAmount.marshaling TokenAmount.marshaling |]
+    let marshaling =
+      marshaling_cases operation_tag Tag.base_side_chain_operation case_table
+    let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -131,52 +131,51 @@ module Operation = struct
 end
 
 module RxHeader = struct
+  [@warning "-39"]
   type t =
     { facilitator: Address.t
     ; requester: Address.t
     ; requester_revision: Revision.t
-    ; confirmed_main_chain_state_digest: digest
+    ; confirmed_main_chain_state_digest: Digest.t
     ; confirmed_main_chain_state_revision: Revision.t
-    ; confirmed_side_chain_state_digest: digest
+    ; confirmed_side_chain_state_digest: Digest.t
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
-  [@@deriving lens {prefix=true}]
+  [@@deriving lens {prefix=true}, yojson]
   module PrePersistable = struct
-    module M = struct
-      type nonrec t = t
-      let marshaling =
-        marshaling_tagged Tag.side_chain_rx_header
-          (marshaling8
-             (fun { facilitator
-                  ; requester
-                  ; requester_revision
-                  ; confirmed_main_chain_state_digest
-                  ; confirmed_main_chain_state_revision
-                  ; confirmed_side_chain_state_digest
-                  ; confirmed_side_chain_state_revision
-                  ; validity_within } ->
-               facilitator, requester, requester_revision,
-               confirmed_main_chain_state_digest, confirmed_main_chain_state_revision,
-               confirmed_side_chain_state_digest, confirmed_side_chain_state_revision,
-               validity_within)
-             (fun facilitator requester requester_revision
-               confirmed_main_chain_state_digest confirmed_main_chain_state_revision
-               confirmed_side_chain_state_digest confirmed_side_chain_state_revision
-               validity_within ->
-               { facilitator
-               ; requester
-               ; requester_revision
-               ; confirmed_main_chain_state_digest
-               ; confirmed_main_chain_state_revision
-               ; confirmed_side_chain_state_digest
-               ; confirmed_side_chain_state_revision
-               ; validity_within })
-             Address.marshaling Address.marshaling Revision.marshaling
-             Digest.marshaling Revision.marshaling
-             Digest.marshaling Revision.marshaling
-             Duration.marshaling)
-    end
-    include YojsonableOfMarshalable (Marshalable (M))
+    type nonrec t = t
+    let marshaling =
+      marshaling_tagged Tag.side_chain_rx_header
+        (marshaling8
+           (fun { facilitator
+                ; requester
+                ; requester_revision
+                ; confirmed_main_chain_state_digest
+                ; confirmed_main_chain_state_revision
+                ; confirmed_side_chain_state_digest
+                ; confirmed_side_chain_state_revision
+                ; validity_within } ->
+             facilitator, requester, requester_revision,
+             confirmed_main_chain_state_digest, confirmed_main_chain_state_revision,
+             confirmed_side_chain_state_digest, confirmed_side_chain_state_revision,
+             validity_within)
+           (fun facilitator requester requester_revision
+             confirmed_main_chain_state_digest confirmed_main_chain_state_revision
+             confirmed_side_chain_state_digest confirmed_side_chain_state_revision
+             validity_within ->
+             { facilitator
+             ; requester
+             ; requester_revision
+             ; confirmed_main_chain_state_digest
+             ; confirmed_main_chain_state_revision
+             ; confirmed_side_chain_state_digest
+             ; confirmed_side_chain_state_revision
+             ; validity_within })
+           Address.marshaling Address.marshaling Revision.marshaling
+           Digest.marshaling Revision.marshaling
+           Digest.marshaling Revision.marshaling
+           Duration.marshaling)
+    let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -184,18 +183,17 @@ module RxHeader = struct
 end
 
 module Request = struct
+  [@warning "-39"]
   type t = {rx_header: RxHeader.t; operation: Operation.t}
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
-    module M = struct
-      type nonrec t = t
-      let marshaling =
-        marshaling2
-          (fun {rx_header; operation} -> rx_header, operation)
-          (fun rx_header operation -> {rx_header; operation})
-          RxHeader.marshaling Operation.marshaling
-    end
-    include YojsonableOfMarshalable (Marshalable (M))
+    type nonrec t = t
+    let marshaling =
+      marshaling2
+        (fun {rx_header; operation} -> rx_header, operation)
+        (fun rx_header operation -> {rx_header; operation})
+        RxHeader.marshaling Operation.marshaling
+    let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -203,18 +201,17 @@ module Request = struct
 end
 
 module TxHeader = struct
+  [@warning "-39"]
   type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t}
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
-    module M = struct
-      type nonrec t = t
-      let marshaling =
-        marshaling2
-          (fun {tx_revision; updated_limit} -> tx_revision, updated_limit)
-          (fun tx_revision updated_limit -> {tx_revision; updated_limit})
-          Revision.marshaling TokenAmount.marshaling
-    end
-    include YojsonableOfMarshalable (Marshalable (M))
+    type nonrec t = t
+    let marshaling =
+      marshaling2
+        (fun {tx_revision; updated_limit} -> tx_revision, updated_limit)
+        (fun tx_revision updated_limit -> {tx_revision; updated_limit})
+        Revision.marshaling TokenAmount.marshaling
+    let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -222,19 +219,18 @@ module TxHeader = struct
 end
 
 module Confirmation = struct
+  [@warning "-39"]
   type t = {tx_header: TxHeader.t; signed_request: Request.t signed}
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }, yojson ]
   module PrePersistable = struct
-    module M = struct
-      type nonrec t = t
-      let marshaling =
-        marshaling_tagged Tag.side_chain_confirmation
-          (marshaling2
-             (fun {tx_header; signed_request} -> tx_header, signed_request)
-             (fun tx_header signed_request -> {tx_header; signed_request})
-             TxHeader.marshaling (marshaling_signed Request.marshaling))
-    end
-    include YojsonableOfMarshalable (Marshalable (M))
+    type nonrec t = t
+    let marshaling =
+      marshaling_tagged Tag.side_chain_confirmation
+        (marshaling2
+           (fun {tx_header; signed_request} -> tx_header, signed_request)
+           (fun tx_header signed_request -> {tx_header; signed_request})
+           TxHeader.marshaling (marshaling_signed Request.marshaling))
+    let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -242,18 +238,17 @@ module Confirmation = struct
 end
 
 module AccountState = struct
+  [@warning "-39"]
   type t = {balance: TokenAmount.t; account_revision: Revision.t}
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
-    module M = struct
-      type nonrec t = t
-      let marshaling =
-        marshaling2
-          (fun {balance; account_revision} -> balance, account_revision)
-          (fun balance account_revision -> {balance; account_revision})
-          TokenAmount.marshaling Revision.marshaling
-    end
-    include YojsonableOfMarshalable (Marshalable (M))
+    type nonrec t = t
+    let marshaling =
+      marshaling2
+        (fun {balance; account_revision} -> balance, account_revision)
+        (fun balance account_revision -> {balance; account_revision})
+        TokenAmount.marshaling Revision.marshaling
+    let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -271,15 +266,16 @@ module AccountMap = struct
 end
 
 module State = struct
-  type t = { previous_main_chain_state: digest
-           ; previous_side_chain_state: digest
+  [@warning "-39"]
+  type t = { previous_main_chain_state: Digest.t
+           ; previous_side_chain_state: Digest.t
            ; facilitator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            ; bond_posted: TokenAmount.t
            ; accounts: AccountMap.t
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }, yojson]
 
   module PrePersistable = struct
     type nonrec t = t
@@ -314,26 +310,18 @@ module State = struct
       >>= (fun () -> walk_dependency ConfirmationMap.dependency_walking context operations)
       >>= (fun () -> walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted)
     let make_persistent = normal_persistent
-    let to_yojson x =
-      `Assoc [ ("previous_main_chain_state", `String (Digest.to_hex_string x.previous_main_chain_state))
-             ; ("previous_side_chain_state", `String (Digest.to_hex_string x.previous_side_chain_state))
-             ; ("facilitator_revision", `String (Revision.to_string x.facilitator_revision))
-             ; ("spending_limit", `String (TokenAmount.to_string x.spending_limit))
-             ; ("bond_posted", `String (TokenAmount.to_string x.bond_posted))
-             ; ("accounts", AccountMap.to_yojson x.accounts)
-             ; ("operations", ConfirmationMap.to_yojson x.operations)
-             ; ("main_chain_transactions_posted", DigestSet.to_yojson x.main_chain_transactions_posted) ]
-    let yojsoning = {to_yojson; of_yojson = bottom}
+    let yojsoning = {to_yojson;of_yojson}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 module Episteme = struct
+  [@warning "-39"]
   type t =
     { request: Request.t signed
     ; confirmation_option: Confirmation.t signed option
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
-  [@@deriving lens]
+  [@@deriving lens, yojson]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
@@ -347,24 +335,18 @@ module Episteme = struct
         (option_marshaling Main_chain.Confirmation.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
-    let to_yojson { request ; confirmation_option ; main_chain_confirmation_option } =
-      `Assoc [ ("request",
-                signed_to_yojson Request.to_yojson request)
-             ; ("confirmation_option",
-                option_to_yojson (signed_to_yojson Confirmation.to_yojson) confirmation_option)
-             ; ("main_chain_confirmation_option",
-                option_to_yojson Main_chain.Confirmation.to_yojson main_chain_confirmation_option) ]
-    let yojsoning = {to_yojson; of_yojson = bottom}
+    let yojsoning = {to_yojson;of_yojson}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 module UserAccountStatePerFacilitator = struct
+  [@warning "-39"]
   type t =
     { facilitator_validity: KnowledgeStage.t
     ; confirmed_state: AccountState.t
     ; pending_operations: Episteme.t list }
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }, yojson ]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
@@ -381,11 +363,7 @@ module UserAccountStatePerFacilitator = struct
         (list_marshaling Episteme.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
-    let to_yojson { facilitator_validity; confirmed_state; pending_operations } =
-      `Assoc [ ("facilitator_validity", KnowledgeStage.to_yojson facilitator_validity)
-             ; ("confirmed_state", AccountState.to_yojson confirmed_state)
-             ; ("pending_operations", list_to_yojson Episteme.to_yojson pending_operations) ]
-    let yojsoning = {to_yojson; of_yojson = bottom}
+    let yojsoning = {to_yojson;of_yojson}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
@@ -406,12 +384,13 @@ type verifier_state
 type ('input, 'output) verifier_action = ('input, 'output, verifier_state) action
 
 module FacilitatorFeeSchedule = struct
+  [@warning "-39"]
   type t =
     { deposit_fee: TokenAmount.t
     ; withdrawal_fee: TokenAmount.t
     ; per_account_limit: TokenAmount.t
     ; fee_per_billion: TokenAmount.t }
-  [@@deriving lens { prefix=true} ]
+  [@@deriving lens { prefix=true}, yojson]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
@@ -423,23 +402,19 @@ module FacilitatorFeeSchedule = struct
         TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
-    let to_yojson { deposit_fee; withdrawal_fee; per_account_limit; fee_per_billion } =
-      `Assoc [ ("deposit_fee", TokenAmount.to_yojson deposit_fee)
-             ; ("withdrawal_fee", TokenAmount.to_yojson withdrawal_fee)
-             ; ("per_account_limit", TokenAmount.to_yojson per_account_limit)
-             ; ("fee_per_billion", TokenAmount.to_yojson fee_per_billion) ]
-    let yojsoning = {to_yojson; of_yojson = bottom}
+    let yojsoning = {to_yojson;of_yojson}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
 module FacilitatorState = struct
+  [@warning "-39"]
   type t = { keypair: Keypair.t
            ; previous: State.t option
            ; current: State.t
            ; fee_schedule: FacilitatorFeeSchedule.t
            }
-  [@@deriving lens { prefix=true} ]
+  [@@deriving lens { prefix=true}, yojson]
 
   module PrePersistable = struct
     type nonrec t = t
@@ -455,14 +430,7 @@ module FacilitatorState = struct
       let walk = walk_dependency State.dependency_walking context in
       Option.iter_lwt walk previous >>= (fun () -> walk current)
     let make_persistent = normal_persistent
-    let to_yojson x =
-      `Assoc [ ("keypair", `String (Address.to_hex_string x.keypair.address))
-             ; ("previous", match x.previous with
-                | None -> `Null
-                | Some s -> `String (s |> State.digest |> Digest.to_hex_string))
-             ; ("current", State.to_yojson x.current)
-             ; ("fee_schedule", FacilitatorFeeSchedule.to_yojson x.fee_schedule) ]
-    let yojsoning = {to_yojson; of_yojson = bottom}
+    let yojsoning = {to_yojson;of_yojson}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
   let facilitator_state_key facilitator_address =
@@ -485,7 +453,7 @@ type ('input, 'output) facilitator_async_action = ('input, 'output, FacilitatorS
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 
-type update = { current_state: digest (* State.t *)
+type update = { current_state: Digest.t (* State.t *)
               ; availability_proof: court_clerk_confirmation list}
 
 type user_to_user_message
