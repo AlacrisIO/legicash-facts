@@ -90,7 +90,7 @@ let get_proof tx_revision : Yojson.Safe.json =
   | Some proof ->
     let open Yojson in
     ConfirmationMap.json_of_proof proof
-    |> Basic.to_string
+    |> Safe.to_string
     |> Safe.from_string
 
 (* lookup id in thread table; if completed, return result, else return boilerplate *)

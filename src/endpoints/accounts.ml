@@ -169,11 +169,11 @@ let store_keys_on_testnet (name,keys) =
   let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
   send_rpc_call_to_net json
   >>= fun result_json ->
-  let result_keys = Basic.Util.keys result_json in
+  let result_keys = Safe.Util.keys result_json in
   if List.mem "result" result_keys then (
-    let result = Basic.Util.member "result" result_json in
+    let result = Safe.Util.member "result" result_json in
     Printf.eprintf "Succesfully created account for %s on test net with address: %s\n%!"
-      name (Basic.to_string result));
+      name (Safe.to_string result));
   return ()
 
 (* prepare test network with accounts, contract *)
