@@ -31,19 +31,18 @@ module KnowledgeStage = struct
 end
 
 module Invoice = struct
+  [@warning "-39"]
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: string}
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
-    module M = struct
-      type nonrec t = t
-      let marshaling =
-        marshaling_tagged Tag.side_chain_invoice
-          (marshaling3
-             (fun {recipient; amount; memo} -> (recipient, amount, memo))
-             (fun recipient amount memo -> {recipient; amount; memo})
-             Address.marshaling TokenAmount.marshaling string63_marshaling)
-    end
-    include YojsonableOfMarshalable (Marshalable (M))
+    type nonrec t = t
+    let marshaling =
+      marshaling_tagged Tag.side_chain_invoice
+        (marshaling3
+           (fun {recipient; amount; memo} -> (recipient, amount, memo))
+           (fun recipient amount memo -> {recipient; amount; memo})
+           Address.marshaling TokenAmount.marshaling string63_marshaling)
+    let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
