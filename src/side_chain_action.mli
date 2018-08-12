@@ -62,16 +62,16 @@ val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) user_act
 
 (** message-sending operations *)
 
-val send_message : 'a -> conversation -> unit legi_result
+val send_message : 'a -> conversation -> unit or_exn
 (** Send a message
     TODO: somehow use bounded polymorphism to restrict 'a to marshallizable classes?
     TODO: To be implemented but not exposed
 *)
 
-val send_user_request : user_state -> Request.t signed -> conversation -> unit legi_result
+val send_user_request : user_state -> Request.t signed -> conversation -> unit or_exn
 
 val send_facilitator_confirmation :
-  FacilitatorState.t -> Confirmation.t signed -> conversation -> unit legi_result
+  FacilitatorState.t -> Confirmation.t signed -> conversation -> unit or_exn
 
 val commit_facilitator_state : (unit, unit) facilitator_action
 (** For a facilitator, commit the state of the side-chain to the main-chain *)

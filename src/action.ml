@@ -1,8 +1,8 @@
-type 'output legi_result = ('output, exn) result
+type 'output or_exn = ('output, exn) result
 
-type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output legi_result
+type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output or_exn
 
-type ('input, 'output, 'state) async_action = 'state * 'input -> ('state * 'output legi_result) Lwt.t
+type ('input, 'output, 'state) async_action = 'state * 'input -> ('state * 'output or_exn) Lwt.t
 
 let make_action_async action (state, input) = Lwt.return (action (state, input))
 

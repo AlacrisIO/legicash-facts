@@ -3,13 +3,13 @@
 *)
 
 (** 'output or exception -- TODO: if we use Lwt, we should just use Lwt.result for that. *)
-type 'output legi_result = ('output, exn) result
+type 'output or_exn = ('output, exn) result
 
 (** function from 'input to 'output that acts on a 'state and may return an exception *)
-type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output legi_result
+type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output or_exn
 
 (** asychronous function from 'input to 'output that acts on a 'state and may return an exception *)
-type ('input, 'output, 'state) async_action = 'state * 'input -> ('state * 'output legi_result) Lwt.t
+type ('input, 'output, 'state) async_action = 'state * 'input -> ('state * 'output or_exn) Lwt.t
 
 val make_action_async : ('input, 'output, 'state) action -> ('input, 'output, 'state) async_action
 
@@ -20,10 +20,10 @@ val no_action : ('passthrough, 'passthrough, 'state) action
 
 val fail_action : exn -> ('input, 'bottom, 'state) action
 
-val do_action : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 'output legi_result
+val do_action : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 'output or_exn
 (** apply an action, left to right *)
 
-val ( ^|> ) : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 'output legi_result
+val ( ^|> ) : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 'output or_exn
 
 val compose_actions :
   ('intermediate, 'output, 'state) action
