@@ -78,13 +78,10 @@ module Int = struct
   let marshaling = marshaling_not_implemented
   let pp formatter x = Format.fprintf formatter "%s" (to_string x)
   let show x = Format.asprintf "%a" pp x
-  let to_yojson x = `String (to_string x)
-  let of_yojson = function
-    | `String s -> Ok (of_string s)
-    | _ -> Error "bad Integer"
+  (* TODO: Use ethereum-style json everywhere *)
   include (Yojsonable(struct
              type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
+             let yojsoning = yojsoning_map to_string of_string string_yojsoning
            end) : YojsonableS with type t := t)
   module Infix = struct
     let (+) = Z.add

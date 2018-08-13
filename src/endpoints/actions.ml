@@ -1,4 +1,9 @@
 (* actions.eliom -- actions behind the endpoints *)
+(* TODO: actually separate actions between client-side actions and facilitator-side actions,
+   running in two different sets of threads,
+   if possible on two different processes on two different machines,
+   with access to different credentials.
+*)
 
 open Lwt
 
@@ -80,7 +85,7 @@ let add_main_chain_thread thread =
   in
   find_thread_id 0
 
-(* get Merkle proof for side chain transaction identified by tx_revsion *)
+(* get Merkle proof for side chain transaction identified by tx_revision *)
 let get_proof tx_revision : Yojson.Safe.json =
   let tx_revision_t = Revision.of_int tx_revision in
   let operations = !trent_state.current.operations in
