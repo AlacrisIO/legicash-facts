@@ -153,6 +153,7 @@ module State : sig
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens { prefix=true }, yojson]
   include PersistableS with type t := t
+  val empty : t
 end
 
 (** state stored by a verifier *)

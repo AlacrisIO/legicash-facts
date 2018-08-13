@@ -113,3 +113,37 @@ type ('input, 'action) user_action = ('input, 'action, user_state) action
 (** asynchronous function from 'input to 'output that acts on a user_state *)
 type ('input, 'action) user_async_action = ('input, 'action, user_state) async_action
 
+val issue_user_request : (Operation.t, Request.t signed) user_action
+
+(** Flow 1 Step 2: Confirm account status for facilitator *)
+
+val deposit : (Address.t * TokenAmount.t, Request.t signed) user_async_action
+(** Flow 1 Step 3: user sends money on the main chain to the side chain *)
+
+val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) user_action
+(** deposit request *)
+
+val push_side_chain_action_to_main_chain : FacilitatorState.t -> (Confirmation.t signed,Main_chain.Confirmation.t) user_async_action
+(** reflect action on side chain on main chain *)
+
+val withdrawal : (Address.t * TokenAmount.t, Request.t signed) user_async_action
+(** Flow 3 Step 3: user sends money from the side chain to the main chain *)
+
+val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) user_action
+
+(* Flow 3: Individual Adversarial Exit *)
+
+val initiate_individual_exit : (unit, Main_chain.TransactionSigned.t) user_action
+(** Flow 3 Step 1: Alice posts an account_activity_status request for closing the account
+    on the *main chain*.
+*)
+
+val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) user_action
+(** Flow 3 Step 3: Alice, who can see the final state of her account,
+    posts on the main chain a demand for the final funds.
+    This is signed then posted on the *main chain* by invoking the contract.
+    This puts Trent and all verifiers on notice to check that Alice isn't lying,
+    and post a lawsuit within a timeout window.
+*)
+
+val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) user_action

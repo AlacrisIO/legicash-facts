@@ -9,7 +9,6 @@ open Db
 open Db_types
 open Merkle_trie
 open Lwt.Infix
-open Yojson.Safe.Util
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -298,6 +297,15 @@ module State = struct
     let yojsoning = {to_yojson;of_yojson}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
+  let empty =
+    { previous_main_chain_state= null_digest
+    ; previous_side_chain_state= null_digest
+    ; facilitator_revision= Revision.zero
+    ; spending_limit= TokenAmount.zero
+    ; bond_posted= TokenAmount.zero
+    ; accounts= AccountMap.empty
+    ; operations= ConfirmationMap.empty
+    ; main_chain_transactions_posted= DigestSet.empty }
 end
 
 type verifier_state
