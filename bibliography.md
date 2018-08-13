@@ -88,3 +88,7 @@
   [AltCoin](https://github.com/AltCoinExchange/ethatomicswap/),
   [RepublicProtocol](https://github.com/republicprotocol/eth-atomic-swap),
   [Komodo BarterDEX](https://komodoplatform.com/decentralized-exchange/)
+
+* Building secure software:
+  [Some thoughts on security after ten years of qmail 1.0 (2007)](https://cr.yp.to/qmail/qmailsec-20071101.pdf),
+  ...

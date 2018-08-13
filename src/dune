@@ -9,7 +9,8 @@
   ethereum_rlp ethereum_patricia_merkle ethereum_transaction ethereum_abi
   ethereum_util ethereum_rlp ethereum_json_rpc
   ;; These are the legicash files proper
-  legibase main_chain main_chain_action side_chain side_chain_action
+  legibase main_chain main_chain_action
+  side_chain side_chain_facilitator side_chain_user side_chain_action
   court_registry facilitator_contract facilitator_contract_binary
   version)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))

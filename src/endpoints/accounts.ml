@@ -188,9 +188,8 @@ let create_side_chain_user_state user_keys =
     ; pending_transactions= []
     ; nonce= Nonce.zero }
   in
-  let (new_account_state : AccountState.t) = {balance= TokenAmount.zero; account_revision= Revision.zero} in
   let (user_account_state : UserAccountStatePerFacilitator.t) =
-    {facilitator_validity= Confirmed; confirmed_state= new_account_state; pending_operations= []}
+    {facilitator_validity= Confirmed; confirmed_state= AccountState.empty; pending_operations= []}
   in
   let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
   {main_chain_user_state; facilitators}

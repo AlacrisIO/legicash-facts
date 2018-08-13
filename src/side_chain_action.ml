@@ -5,24 +5,17 @@ open Db
 open Keypair
 open Merkle_trie
 open Main_chain
-open Side_chain
 open Main_chain_action
+open Side_chain
+open Side_chain_user
 open Lens.Infix
 open Lwt.Infix
-
-(** Default (empty) state for a new facilitator *)
-let new_account_state = AccountState.{balance= TokenAmount.zero; account_revision= Revision.zero}
-
-(** User's view of the default (empty) state for a new facilitator *)
-let new_user_account_state_per_facilitator =
-  UserAccountStatePerFacilitator.{
-    facilitator_validity= Confirmed; confirmed_state= new_account_state; pending_operations= []}
 
 type account_lens = (FacilitatorState.t, AccountState.t) Lens.t
 
 let facilitator_account_lens address =
   FacilitatorState.lens_current |-- State.lens_accounts
-  |-- defaulting_lens (konstant new_account_state) (AccountMap.lens address)
+  |-- defaulting_lens (konstant AccountState.empty) (AccountMap.lens address)
 
 (** Given a signed request, handle the special case of opening an account, and return
     the request, the account state (new or old), the lens to set the account back at the end, and
@@ -267,7 +260,7 @@ let add_user_episteme user_state episteme =
   let facilitator = episteme.Episteme.request.payload.rx_header.facilitator in
   let account_state =
     UserAccountStateMap.find_defaulting
-      (konstant new_user_account_state_per_facilitator)
+      (konstant UserAccountStatePerFacilitator.empty)
       facilitator user_state.facilitators
   in
   ( user_state_facilitators |-- UserAccountStateMap.lens facilitator
@@ -318,7 +311,7 @@ let update_account_state_with_trusted_operations trusted_operations account_stat
 
 let [@warning "-32"] optimistic_facilitator_account_state (user_state, facilitator_address) =
   match UserAccountStateMap.find_opt facilitator_address user_state.facilitators with
-  | None -> new_account_state
+  | None -> AccountState.empty
   | Some {facilitator_validity; confirmed_state; pending_operations} ->
     match facilitator_validity with
     | Rejected -> confirmed_state
@@ -394,7 +387,7 @@ let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operat
   Ethereum_transaction.sign_transaction facilitator_keys transaction
 
 (* an action made on the side chain may need a corresponding action on the main chain *)
-let push_side_chain_action_to_main_chain (facilitator_state : FacilitatorState.t) ((user_state : Side_chain.user_state), (signed_confirmation : Confirmation.t signed)) =
+let push_side_chain_action_to_main_chain (facilitator_state : FacilitatorState.t) ((user_state : Side_chain_user.user_state), (signed_confirmation : Confirmation.t signed)) =
   let confirmation = signed_confirmation.payload in
   let facilitator_address = facilitator_state.keypair.address in
   if not (is_signature_valid Confirmation.digest facilitator_address signed_confirmation.signature confirmation) then
@@ -458,7 +451,7 @@ module Test = struct
       ; pending_transactions= []
       ; nonce= Nonce.zero }
     in
-    let user_account_state = new_user_account_state_per_facilitator in
+    let user_account_state = UserAccountStatePerFacilitator.empty in
     let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
     {main_chain_user_state; facilitators}
 
