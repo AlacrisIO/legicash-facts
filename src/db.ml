@@ -23,22 +23,20 @@ type transaction = LevelDB.writebatch
 
 (* type snapshot = LevelDB.snapshot *)
 
-(* Move that to lib ? *)
-let the_global ref maker =
-  fun () ->
-    match !ref with
-    | Some x -> x
-    | None ->
-      let x = maker () in
-      ref := Some x;
-      x
-
 type db_request =
   | Put of {key: string; data: string}
   | Remove of string
   | Commit of unit Lwt.u
   | Flush of int
 
+(* One might be tempted to use Lwt.task instead of an option ref to define
+   the db_name, db. Unhappily, at least as far as the db goes,
+   we can't rely on it, because we use the db read-only through implicit
+   side-effects to preserve a pure-functional interface to our merkle trees
+   (one man's explicit side-effects are another man's implicit infrastructure).
+   On the other hand, we could make the mailbox its own global binding,
+   initialized as it is defined as the regular binding it is.
+*)
 type connection =
   { db_name : string
   ; db : db

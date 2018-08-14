@@ -137,6 +137,7 @@ let check_against_double_accounting main_chain_transaction_signed (state, x) =
   in
   if lens.get state then (state, Error Already_posted) else (lens.set true state, Ok x)
 
+
 (** compute the effects of a request on the account state *)
 let effect_request :
   ( Request.t signed * AccountState.t * account_lens * Address.t
@@ -176,20 +177,26 @@ let effect_request :
                          (TokenAmount.add withdrawal_amount withdrawal_fee) }
           , account_lens ) )
 
+
+(** TODO: have a server do all the effect_requests sequentially, after they have been validated in parallel *)
+let post_validated_request :
+  ( Request.t signed * AccountState.t * account_lens * Address.t
+  , Request.t signed * AccountState.t * account_lens ) facilitator_async_action =
+  make_action_async effect_request
+
+
 (** TODO:
  * save this initial state, and only use the new state if the confirmation was committed to disk,
     i.e. implement a try-catch in our monad
  * commit the confirmation to disk and remote replicas before to return it
  * parallelize, batch, etc., to have decent performance
 *)
-let confirm_request : (Request.t signed, Confirmation.t signed) facilitator_async_action =
+let process_request : (Request.t signed, Confirmation.t signed) facilitator_async_action =
   fun (facilitator_state, signed_request) ->
     (facilitator_state, signed_request) |>
-    (make_action_async
-       (ensure_user_account
-        ^>> check_side_chain_request_well_formed
-        ^>> effect_request
-        ^>> make_request_confirmation))
+    (make_action_async (ensure_user_account ^>> check_side_chain_request_well_formed))
+    ^>>+ post_validated_request
+    ^>>+ (make_action_async make_request_confirmation)
     ^>>+ fun (updated_facilitator_state, signed_confirmation) ->
     Side_chain.FacilitatorState.save updated_facilitator_state
     >>= (fun () -> Lwt.return (updated_facilitator_state, Ok signed_confirmation))

@@ -7,6 +7,7 @@ open Crypto
 open Db
 open Main_chain
 open Side_chain
+open Side_chain_user
 open Side_chain_action.Test
 
 (* users *)
@@ -178,7 +179,7 @@ let store_keys_on_testnet (name,keys) =
 
 (* prepare test network with accounts, contract *)
 
-let (address_to_user_state_tbl : (Address.t,Side_chain.user_state) Hashtbl.t) = Hashtbl.create number_of_accounts
+let (address_to_user_state_tbl : (Address.t,Side_chain_user.user_state) Hashtbl.t) = Hashtbl.create number_of_accounts
 
 let create_side_chain_user_state user_keys =
   let main_chain_user_state =

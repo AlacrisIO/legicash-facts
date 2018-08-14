@@ -3,7 +3,6 @@ open Action
 open Crypto
 open Db
 open Merkle_trie
-open Yojson.Safe
 
 module TokenAmount = Main_chain.TokenAmount
 
@@ -18,7 +17,7 @@ module TokenAmount = Main_chain.TokenAmount
 
 module Invoice : sig
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: string}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
 
@@ -44,7 +43,6 @@ module Operation : sig
     | Deposit of deposit_details
     | Payment of payment_details
     | Withdrawal of withdrawal_details
-  [@@deriving yojson]
 
   include PersistableS with type t := t
 end
@@ -84,7 +82,7 @@ module RxHeader : sig
     ; confirmed_side_chain_state_digest: digest (* State.t *)
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
 
@@ -93,7 +91,7 @@ end
 *)
 module Request : sig
   type t = {rx_header: RxHeader.t; operation: Operation.t}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
 
@@ -110,7 +108,7 @@ end
 *)
 module TxHeader : sig
   type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
 
@@ -119,7 +117,7 @@ end
 *)
 module Confirmation : sig
   type t = {tx_header: TxHeader.t; signed_request: Request.t signed}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
 
@@ -128,7 +126,7 @@ end
 (** public state of the account of a user with a facilitator as visible in the public side-chain *)
 module AccountState : sig
   type t = {balance: TokenAmount.t; account_revision: Revision.t}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 
   (** Default (empty) state for a new facilitator *)
@@ -151,7 +149,7 @@ module State : sig
            ; accounts: AccountMap.t
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
   val empty : t
 end
@@ -174,7 +172,7 @@ module FacilitatorFeeSchedule : sig
     ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
     ; fee_per_billion: TokenAmount.t
     (* function TokenAmount.t -> TokenAmount.t ? *) }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
 
@@ -187,7 +185,7 @@ module FacilitatorState : sig
            ; current: State.t
            ; fee_schedule: FacilitatorFeeSchedule.t
            }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
   val load : Address.t -> t
 end

@@ -2,7 +2,6 @@ open Legibase
 open Action
 open Crypto
 open Side_chain
-open Side_chain_facilitator
 open Side_chain_user
 
 (* the "flows" mentioned here are those mentioned in the file "demo.md" *)

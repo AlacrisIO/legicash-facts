@@ -3,7 +3,6 @@ open Action
 open Crypto
 open Db
 open Merkle_trie
-open Yojson.Safe
 open Side_chain
 
 (** Stage of knowledge of one actor about an operation
@@ -45,7 +44,7 @@ module Episteme : sig
     { request: Request.t signed
     ; confirmation_option: Confirmation.t signed option
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
-  [@@deriving lens, yojson]
+  [@@deriving lens]
   include PersistableS with type t := t
 end
 
@@ -56,7 +55,7 @@ module UserAccountStatePerFacilitator : sig
     (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
     ; confirmed_state: AccountState.t
     ; pending_operations: Episteme.t list }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
   (** User's view of the default (empty) state for a new facilitator *)
   val empty : t

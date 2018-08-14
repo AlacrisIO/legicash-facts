@@ -188,7 +188,7 @@ module Test = struct
       (alice_state, (trent_address, amount_to_deposit))
       |^>>+ deposit
       >>= fun (alice_state1, signed_request1) ->
-      (trent_state, signed_request1) |> confirm_request
+      (trent_state, signed_request1) |> process_request
       >>= fun (trent_state1, _signed_confirmation1) ->
       (* TODO: maybe examine the log for the contract call *)
       (* verify the deposit to Alice's account on Trent *)
@@ -202,7 +202,7 @@ module Test = struct
       (alice_state1, (trent_address, bob_address, payment_amount))
       |^>> payment
       |> fun (_alice_state2, signed_request2) ->
-      (trent_state1, signed_request2) |> confirm_request
+      (trent_state1, signed_request2) |> process_request
       >>= fun (trent_state2, _signed_confirmation2) ->
       (* verify the payment to Bob's account on Trent *)
       let trent_accounts_after_payment = trent_state2.current.accounts in
@@ -238,7 +238,7 @@ module Test = struct
       (alice_state, (trent_address, amount_to_deposit))
       |^>>+ deposit
       >>= fun (alice_state1, signed_request1) ->
-      (trent_state, signed_request1) |> confirm_request
+      (trent_state, signed_request1) |> process_request
       >>= fun (trent_state1, _signed_confirmation1) ->
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
@@ -251,7 +251,7 @@ module Test = struct
       (alice_state1, (trent_address, amount_to_withdraw))
       |^>>+ withdrawal
       >>= fun (alice_state2, signed_request2) ->
-      (trent_state1, signed_request2) |> confirm_request
+      (trent_state1, signed_request2) |> process_request
       >>= function
       | _, Error x -> raise x
       | trent_state2, Ok signed_confirmation2 ->

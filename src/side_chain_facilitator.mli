@@ -1,7 +1,7 @@
 open Crypto
 open Side_chain
 
-val confirm_request : (Request.t signed, Confirmation.t signed) facilitator_async_action
+val process_request : (Request.t signed, Confirmation.t signed) facilitator_async_action
 (** Flow 1 Step 5: facilitator acknowledges deposit, stores it and sends it to user *)
 
 val commit_facilitator_state : (unit, unit) facilitator_action

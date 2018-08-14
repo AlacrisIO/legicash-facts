@@ -310,7 +310,14 @@ module IdWrap (T: TypeS) = struct
   let make = identity
 end
 
-type digest = Z.t
+let the_global ref maker =
+  fun () ->
+    match !ref with
+    | Some x -> x
+    | None ->
+      let x = maker () in
+      ref := Some x;
+      x
 
 module Test = struct
   let%test "hex_string" =

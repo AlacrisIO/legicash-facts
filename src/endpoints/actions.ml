@@ -13,7 +13,8 @@ open Lib
 open Crypto
 open Db
 open Side_chain
-open Side_chain_action
+open Side_chain_facilitator
+open Side_chain_user
 
 open Accounts
 
@@ -128,7 +129,6 @@ let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmatio
 let json_of_exn exn = `Assoc [("error",`String (Printexc.to_string exn))]
 
 let deposit_to_trent address amount =
-  let open Side_chain_action in
   let open Ethereum_transaction.Test in
   let address_t = Ethereum_util.address_of_hex_string address in
   let user_state = user_state_from_address address_t in
@@ -139,7 +139,7 @@ let deposit_to_trent address amount =
     |> deposit |> Lwt.map ensure_ok
     >>= fun (user_state1, signed_request) ->
     (!trent_state, signed_request)
-    |> confirm_request |> Lwt.map ensure_ok
+    |> process_request |> Lwt.map ensure_ok
     >>= fun (trent_state1,signed_confirmation) ->
     let confirmation = signed_confirmation.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
@@ -172,7 +172,6 @@ let deposit_to_trent address amount =
   add_main_chain_thread thread
 
 let withdrawal_from_trent address amount =
-  let open Side_chain_action in
   let open Ethereum_transaction.Test in
   let address_t = Ethereum_util.address_of_hex_string address in
   let user_state = user_state_from_address address_t in
@@ -187,7 +186,7 @@ let withdrawal_from_trent address amount =
     |> withdrawal |> Lwt.map ensure_ok
     >>= fun (user_state1, signed_request1) ->
     (!trent_state,signed_request1)
-    |> confirm_request |> Lwt.map ensure_ok
+    |> process_request |> Lwt.map ensure_ok
     >>= fun (trent_state2, signed_confirmation2) ->
     let confirmation = signed_confirmation2.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
@@ -335,7 +334,7 @@ let payment_on_trent sender recipient amount =
   |> fun (sender_state_after_payment, signed_request) ->
   Hashtbl.replace address_to_user_state_tbl sender_address_t sender_state_after_payment ;
   (!trent_state, signed_request)
-  |> confirm_request |> Lwt.map ensure_ok
+  |> process_request |> Lwt.map ensure_ok
   >>= fun (trent_state_after_confirmation, signed_confirmation) ->
   set_trent_state trent_state_after_confirmation;
   (* set timestamp, now that all processing on Trent is done *)
