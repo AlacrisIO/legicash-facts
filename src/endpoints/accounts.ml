@@ -265,26 +265,25 @@ let _ =
   (* for top-level operations, don't use Lwt_main.run
      not needed, may cause deadlock *)
   Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
-  create_user_states ();
-  load_trent_state ();
-  Lwt_list.iter_s store_keys_on_testnet account_key_list
-  >>= fun () ->
-  store_keys_on_testnet ("Trent",trent_keys)
-  >>= fun () ->
-  Printf.eprintf "Funding account: Trent\n%!";
-  (* dev mode provides prefunded address with a very large balance *)
-  get_prefunded_address ()
-  >>= fun prefunded_address ->
-  fund_account prefunded_address trent_keys
-  >>= fun () ->
-  Lwt_list.iter_s
-    (fun (name,keys) ->
-       Printf.eprintf "Funding account: %s\n%!" name;
-       fund_account prefunded_address keys)
-    account_key_list
-  >>= fun () ->
-  Printf.eprintf "Installing facilitator contract\n%!";
-  install_contract ()
-  >>= fun () ->
-  Printf.printf "*** READY ***\n%!";
-  return ()
+  Db.run ~db_name:Legibase.db_name
+    (fun () ->
+       create_user_states ();
+       load_trent_state ();
+       Lwt_list.iter_s store_keys_on_testnet account_key_list
+       >>= fun () ->
+       store_keys_on_testnet ("Trent",trent_keys)
+       >>= fun () -> Lwt_io.printf "Funding account: Trent\n%!"
+       >>= fun () ->
+       (* dev mode provides prefunded address with a very large balance *)
+       get_prefunded_address ()
+       >>= fun prefunded_address ->
+       fund_account prefunded_address trent_keys
+       >>= fun () ->
+       Lwt_list.iter_s
+         (fun (name,keys) ->
+            Lwt_io.printf "Funding account: %s\n%!" name
+            >>= (fun () -> fund_account prefunded_address keys))
+         account_key_list
+       >>= fun () -> Lwt_io.printf "Installing facilitator contract\n%!"
+       >>= install_contract
+       >>= fun () -> Lwt_io.printf "*** READY ***\n%!")
