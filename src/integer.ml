@@ -76,13 +76,16 @@ module type UIntS = sig
   module Infix : UIntInfixS with type t := t
 end
 
-let validate_nat_non_negative nat =
-  if Z.sign nat < 0 then
-    raise (Internal_error (Printf.sprintf "Expected natural number is negative: %s" (Z.to_string nat)))
-let validate_sized_nat bits nat =
-  validate_nat_non_negative nat ;
-  if (Z.numbits nat > bits) then
-    raise (Internal_error (Printf.sprintf "Natural natural number %s won't fit in %d bits" (Z.to_string nat) bits))
+let is_nat z = Z.sign z >= 0
+let is_sized_nat bits z = Z.sign z >= 0 && Z.numbits z <= bits
+
+let validate_nat z =
+  if not (is_nat z) then
+    raise (Internal_error (Printf.sprintf "Expected natural number is negative: %s" (Z.to_string z)))
+let validate_sized_nat bits z =
+  validate_nat z ;
+  if (Z.numbits z > bits) then
+    raise (Internal_error (Printf.sprintf "Natural natural number %s won't fit in %d bits" (Z.to_string z) bits))
 
 let hex_string_of_sized_nat bits nat =
   validate_sized_nat bits nat ;
@@ -283,9 +286,12 @@ module type PreUIntZableS = sig
 end
 
 module UIntZable (P: PreUIntZableS) = struct
-  include P
+  include (P : UIntBaseS with type t = P.t)
+  let size_in_bits = P.size_in_bits
   let module_name = "UInt" ^ (string_of_int size_in_bits)
   let size_in_bytes = (size_in_bits + 7) / 8
+  let of_z = unary_pre_op_check P.of_z (is_sized_nat size_in_bits) (module_name, "of_z", Z.to_string)
+  let z_of = P.z_of
   let check_invariant _ = true
   let equal x y = compare x y = 0
   let sign x = compare x zero
@@ -303,6 +309,36 @@ module UIntZable (P: PreUIntZableS) = struct
   let show x = Format.asprintf "%a" pp x
   let yojsoning = yojsoning_map to_hex_string of_hex_string string_yojsoning
   let marshaling = marshaling_sized_string size_in_bytes to_big_endian_bits of_big_endian_bits
+  (*let is_add_carry x y = compare x (lognot y) > 0*)
+  let add =
+    binary_pre_op_check add (fun x y -> compare x (lognot y) <= 0)
+      (module_name, "add", to_string, to_string)
+  let sub =
+    binary_pre_op_check sub (fun x y -> compare x y >= 0)
+      (module_name, "sub", to_string, to_string)
+  let mul x y = of_z (Z.mul (z_of x) (z_of y))
+  let shift_left =
+    binary_pre_op_check shift_left
+      (fun x s -> s = 0 || (s > 0 && s <= size_in_bits && shift_right x (size_in_bits - s) = zero))
+      (module_name, "shift_left", to_string, string_of_int)
+  let succ =
+    unary_pre_op_check succ (fun x -> lognot x != zero) (module_name, "succ", to_string)
+  let pred =
+    unary_pre_op_check pred (fun x -> x != zero) (module_name, "succ", to_string)
+  let of_big_endian_bits b = of_z (nat_of_big_endian_bits size_in_bits b)
+  let to_big_endian_bits u = big_endian_bits_of_nat size_in_bits (z_of u)
+  let of_string = Z.of_string >> of_z
+  let of_int = Z.of_int >> of_z
+  let of_int64 = Z.of_int64 >> of_z
+
+  module Infix = struct
+    type nonrec t = t
+    include P.Infix
+    let (+) = add
+    let (-) = sub
+    let ( * ) = mul
+    let (lsl) = shift_left
+  end
 end
 
 module UInt16 = struct
