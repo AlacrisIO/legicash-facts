@@ -66,7 +66,8 @@ let is_side_chain_request_well_formed :
            main_chain_deposit_signed
       && TokenAmount.equal deposit_fee state.fee_schedule.deposit_fee
     | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
-      TokenAmount.is_sum balance payment_invoice.amount payment_fee
+      TokenAmount.is_valid_add payment_invoice.amount payment_fee
+      && TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee) >= 0
       (* TODO: make per_account_limit work on the entire floating thing *)
       && TokenAmount.compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
       (* TODO: make sure the fee multiplication cannot overflow! *)
