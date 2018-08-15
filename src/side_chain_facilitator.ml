@@ -59,24 +59,23 @@ let is_side_chain_request_well_formed :
             } as main_chain_deposit_signed
         ; main_chain_deposit_confirmation
         ; deposit_expedited=_deposit_expedited } ->
-      TokenAmount.compare value (TokenAmount.add deposit_amount deposit_fee) >= 0
+      TokenAmount.is_sum value deposit_amount deposit_fee
       (* TODO: delegate the same signature checking protocol to the main chain *)
       && is_signature_valid Transaction.digest requester signature payload
       && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
            main_chain_deposit_signed
-      && TokenAmount.compare deposit_fee state.fee_schedule.deposit_fee >= 0
+      && TokenAmount.equal deposit_fee state.fee_schedule.deposit_fee
     | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
-      TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee) >= 0
+      TokenAmount.is_sum balance payment_invoice.amount payment_fee
       (* TODO: make per_account_limit work on the entire floating thing *)
       && TokenAmount.compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
       (* TODO: make sure the fee multiplication cannot overflow! *)
-      && TokenAmount.compare payment_fee
-           (TokenAmount.mul state.fee_schedule.fee_per_billion
-              (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000)))
-         >= 0
+      && TokenAmount.is_product payment_fee
+           state.fee_schedule.fee_per_billion
+           (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000))
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-      TokenAmount.compare balance (TokenAmount.add withdrawal_amount withdrawal_fee) >= 0
-      && TokenAmount.compare withdrawal_fee state.fee_schedule.withdrawal_fee >= 0
+      TokenAmount.is_sum balance withdrawal_amount withdrawal_fee
+      && TokenAmount.equal withdrawal_fee state.fee_schedule.withdrawal_fee
 
 (** Check that the request is basically well-formed, or else fail *)
 let check_side_chain_request_well_formed = action_assert __LOC__ is_side_chain_request_well_formed

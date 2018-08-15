@@ -51,6 +51,10 @@ module type UIntMoreS = sig
   val to_hex_string : t -> string
   val of_big_endian_bits : string -> t
   val to_big_endian_bits : t -> string
+  val is_add_valid : t -> t -> bool
+  val is_sum : t -> t -> t -> bool
+  val is_mul_valid : t -> t -> bool
+  val is_product : t -> t -> t -> bool
   include PreYojsonableS with type t := t
   include PreMarshalableS with type t := t
   include ShowableS with type t := t
@@ -158,6 +162,10 @@ module Int = struct
   let has_bit key position = equal one (extract key position 1)
   let is_numbits n z = numbits z <= n
   let is_non_negative z = sign z >= 0
+  let is_add_valid _ _ = true
+  let is_mul_valid _ _ = true
+  let is_sum x y z = equal x (add y z)
+  let is_product x y z = equal x (mul y z)
   let max_int = Z.of_int (-1)
   let of_hex_string = nat_of_hex_string
   let to_hex_string = hex_string_of_nat
@@ -221,6 +229,7 @@ module UIntZ (P : PreUIntZS) = struct
   let check_overflow = is_numbits size_in_bits
   let check_underflow = is_non_negative
   let check_invariant z = check_underflow z && check_overflow z
+  (* NB: included is_sum and is_product use pre-overflow-check add and mul -- good *)
   let add =
     binary_post_op_check add check_overflow
       (module_name, "add", to_string, to_string)
@@ -309,14 +318,15 @@ module UIntZable (P: PreUIntZableS) = struct
   let show x = Format.asprintf "%a" pp x
   let yojsoning = yojsoning_map to_hex_string of_hex_string string_yojsoning
   let marshaling = marshaling_sized_string size_in_bytes to_big_endian_bits of_big_endian_bits
-  (*let is_add_carry x y = compare x (lognot y) > 0*)
-  let add =
-    binary_pre_op_check add (fun x y -> compare x (lognot y) <= 0)
-      (module_name, "add", to_string, to_string)
-  let sub =
-    binary_pre_op_check sub (fun x y -> compare x y >= 0)
-      (module_name, "sub", to_string, to_string)
-  let mul x y = of_z (Z.mul (z_of x) (z_of y))
+  let is_add_carry x y = compare x (lognot y) > 0
+  let is_add_valid x y = not (is_add_carry x y)
+  let is_mul_valid x y = is_sized_nat size_in_bits (Z.mul (z_of x) (z_of y))
+  let is_sum x y z = is_add_valid y z && equal x (add y z) (* NB: pre-check add *)
+  let is_product x y z = is_mul_valid y z && equal x (mul y z) (* NB: pre-check mul *)
+  let add = binary_pre_op_check add is_add_valid (module_name, "add", to_string, to_string)
+  let sub = binary_pre_op_check sub (fun x y -> compare x y >= 0)
+              (module_name, "sub", to_string, to_string)
+  let mul = binary_pre_op_check mul is_mul_valid (module_name, "sub", to_string, to_string)
   let shift_left =
     binary_pre_op_check shift_left
       (fun x s -> s = 0 || (s > 0 && s <= size_in_bits && shift_right x (size_in_bits - s) = zero))
