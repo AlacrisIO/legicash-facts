@@ -90,14 +90,11 @@ let add_main_chain_thread thread =
 let get_proof tx_revision : Yojson.Safe.json =
   let tx_revision_t = Revision.of_int tx_revision in
   let operations = !trent_state.current.operations in
-  match ConfirmationMap.get_proof tx_revision_t operations with
+  match ConfirmationMap.Proof.get tx_revision_t operations with
   | None ->
     `Assoc [("error",`String (Format.sprintf "Cannot provide proof for tx-revision: %d" tx_revision))]
   | Some proof ->
-    let open Yojson in
-    ConfirmationMap.json_of_proof proof
-    |> Safe.to_string
-    |> Safe.from_string
+    ConfirmationMap.Proof.to_yojson proof
 
 (* lookup id in thread table; if completed, return result, else return boilerplate *)
 let apply_main_chain_thread id : Yojson.Safe.json =
