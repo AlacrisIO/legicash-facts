@@ -8,11 +8,41 @@ open Marshaling
     least it be used as an attack surface.
 *)
 
-module type IntS = sig
-  include Unsigned.S
-  include PreMarshalableS with type t := t
-  include ShowableS with type t := t
-  include YojsonableS with type t := t
+(* Same as Unsigned.S from the integers library, minus the Infix module *)
+module type UIntBaseS = sig
+  type t
+  val add : t -> t -> t
+  val sub : t -> t -> t
+  val mul : t -> t -> t
+  val div : t -> t -> t
+  val rem : t -> t -> t
+  val max_int : t
+  val logand : t -> t -> t
+  val logor : t -> t -> t
+  val logxor : t -> t -> t
+  val shift_left : t -> int -> t
+  val shift_right : t -> int -> t
+  val of_int : int -> t
+  val to_int : t -> int
+  val of_int64 : int64 -> t
+  val to_int64 : t -> int64
+  val of_string : string -> t
+  val to_string : t -> string
+  val zero : t
+  val one : t
+  val lognot : t -> t
+  val succ : t -> t
+  val pred : t -> t
+  val compare : t -> t -> int
+  val max : t -> t -> t
+  val min : t -> t -> t
+end
+
+module type UIntMoreS = sig
+  include UIntBaseS
+  val module_name : string
+  val check_invariant : t -> bool
+  val is_non_negative : t -> bool
   val z_of: t -> Z.t
   val of_z: Z.t -> t
   val equal : t -> t -> bool
@@ -20,28 +50,52 @@ module type IntS = sig
   val extract : t -> int -> int -> t
   val numbits : t -> int
   val has_bit : t -> int -> bool
+  val is_numbits : int -> t -> bool
   val of_bits : string -> t
   val of_hex_string : string -> t
   val to_hex_string : t -> string
   val of_big_endian_bits : string -> t
   val to_big_endian_bits : t -> string
+  include PreYojsonableS with type t := t
+  include PreMarshalableS with type t := t
+  include ShowableS with type t := t
 end
 
-module Int : IntS with type t = Z.t
+(* Same as the Infix sub-module of Unsigned.S from the integers library, plus the type t *)
+module type UIntInfixS = sig
+  type t
+  val (+) : t -> t -> t
+  val (-) : t -> t -> t
+  val ( * ) : t -> t -> t
+  val (/) : t -> t -> t
+  val (mod) : t -> t -> t
+  val (land) : t -> t -> t
+  val (lor) : t -> t -> t
+  val (lxor) : t -> t -> t
+  val (lsl) : t -> int -> t
+  val (lsr) : t -> int -> t
+end
 
-module Nat : IntS with type t = Z.t
+module type UIntS = sig
+  include UIntMoreS
+  module Infix : UIntInfixS with type t := t
+end
 
-module UInt16 : IntS (* with type t = Unsigned.UInt16.t *)
+module Int : UIntS with type t = Z.t
 
-module UInt32 : IntS (* with type t = Unsigned.UInt32.t *)
+module Nat : UIntS with type t = Z.t
 
-module UInt64 : IntS (* with type t = Unsigned.UInt64.t *)
+module UInt16 : UIntS (* with type t = Unsigned.UInt16.t *)
 
-module UInt256_z : IntS with type t = Z.t
+module UInt32 : UIntS (* with type t = Unsigned.UInt32.t *)
 
-module UInt256 : IntS (* with type t = Z.t *)
+module UInt64 : UIntS (* with type t = Unsigned.UInt64.t *)
 
-module Data256 : IntS (* with type t = Z.t *)
+module UInt256_z : UIntS with type t = Z.t
+
+module UInt256 : UIntS (* with type t = Z.t *)
+
+module Data256 : UIntS (* with type t = Z.t *)
 
 
 (** convert a n-bit natural number to a big-endian string of bytes *)
@@ -61,3 +115,21 @@ val hex_string_of_sized_nat : int -> Z.t -> string
 
 (** convert a big-endian string of hex characters to a n-bit natural number *)
 val sized_nat_of_hex_string : int -> string -> Z.t
+
+(** check that a unary op's output is valid, assuming the inputs were already validated
+    but otherwise arbitrary elements of the type *)
+val unary_post_op_check : ('a -> 'b) -> ('b -> bool) ->
+  string * string * ('a -> string) ->
+  'a -> 'b
+
+val binary_post_op_check : ('a -> 'b -> 'c) -> ('c -> bool) ->
+  string * string * ('a -> string) * ('b -> string) ->
+  'a -> 'b -> 'c
+
+val unary_pre_op_check : ('a -> 'b) -> ('a -> bool) ->
+  string * string * ('a -> string) ->
+  'a -> 'b
+
+val binary_pre_op_check : ('a -> 'b -> 'c) -> ('a -> 'b -> bool) ->
+  string * string * ('a -> string) * ('b -> string) ->
+  'a -> 'b -> 'c

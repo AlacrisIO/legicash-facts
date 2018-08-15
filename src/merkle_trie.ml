@@ -29,7 +29,7 @@ module type TrieSynthMerkleS = sig
   val marshal_skip : (int*int*key*digest) marshaler
 end
 
-module TrieSynthMerkle (Key : IntS) (Value : PersistableS) = struct
+module TrieSynthMerkle (Key : UIntS) (Value : PersistableS) = struct
   type key = Key.t
   type value = Value.t
   type t = digest
@@ -56,6 +56,22 @@ module TrieSynthMerkle (Key : IntS) (Value : PersistableS) = struct
   let skip height length key child = digest_of_marshal marshal_skip (height, length, key, child)
 end
 
+module type MerkleTrieProofS = sig
+  type key
+  type value
+  type mtrie
+  type 'a pstep
+  type t =
+    { key : key
+    ; trie : Digest.t
+    ; leaf : Digest.t
+    ; steps : (Digest.t pstep) list
+    }
+  val get : key -> mtrie -> t option
+  val check : t -> mtrie -> key -> value -> bool
+  include YojsonableS with type t := t
+end
+
 module type MerkleTrieS = sig
   type key
   type value
@@ -69,18 +85,11 @@ module type MerkleTrieS = sig
   include PersistableS
     with type t := t
 
-  type proof =
-    { key : key
-    ; trie : Digest.t
-    ; leaf : Digest.t
-    ; steps : (Digest.t step) list
-    }
-
   val trie_digest : t -> digest
   val path_digest : t path -> digest path
-  val get_proof : key -> t -> proof option
-  val check_proof : proof -> t -> key -> value -> bool
-  val json_of_proof : proof -> Yojson.Safe.json
+
+  module Proof : MerkleTrieProofS
+    with type key = key and type value = value and type mtrie = t and type 'a pstep = 'a step
 end
 
 module type MerkleTrieTypeS = sig
@@ -89,7 +98,7 @@ module type MerkleTrieTypeS = sig
   module T : PersistableS with type t = t
 end
 
-module MerkleTrieType (Key : IntS) (Value : PersistableS)
+module MerkleTrieType (Key : UIntS) (Value : PersistableS)
     (Synth : TrieSynthMerkleS with type key = Key.t and type value = Value.t) = struct
   include TrieType (Key) (Value) (DigestValueType) (Synth)
 
@@ -155,7 +164,7 @@ module MerkleTrieType (Key : IntS) (Value : PersistableS)
   include (T : PersistableS with type t := t)
 end
 
-module MerkleTrie (Key : IntS) (Value : PersistableS) = struct
+module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
   module Synth = TrieSynthMerkle (Key) (Value)
   module Type = MerkleTrieType (Key) (Value) (Synth)
   module Wrap = struct
@@ -205,114 +214,100 @@ module MerkleTrie (Key : IntS) (Value : PersistableS) = struct
 
   let path_digest = path_map trie_digest
 
-  type proof =
-    { key : key
-    ; trie : Digest.t
-    ; leaf : Digest.t
-    ; steps : (Digest.t step) list
-    }
-
-  let get_proof (key: key) (t: t) : proof option =
-    match map_fst Wrap.get (find_path key t) with
-    | Leaf {value}, up -> Some { key
-                               ; trie = dv_digest t
-                               ; leaf = Synth.leaf value
-                               ; steps = (path_digest up).steps
-                               }
-    | _ -> None
-
-  (** Check a proof.
-      1- starting from the digest of the leaf and applying the path,
-      we should arrive at the top trie's hash.
-      2- starting from the key, the path should follow the key's bits.
-  *)
-  let check_proof proof t key value =
-    (proof.leaf = Synth.leaf value (* ||
-                                      spf "foo10 %s %s" (Digest.to_hex_string proof.leaf) (Digest.to_hex_string (Synth.leaf value)) |> bork*))
-    && (proof.trie = dv_digest t (*||
-                                   spf "foo15 %s %s" (Digest.to_hex_string proof.trie) (Digest.to_hex_string (dv_digest t))
-                                   |> bork*))
-    && (Key.compare key proof.key = 0 (*|| raise (Internal_error "foo20")*))
-    && let path_d = {costep={index=proof.key;height=0};steps=proof.steps} in
-    (check_path_consistency path_d (* || raise (Internal_error "foo25")*))
-    && let (top_d, {height; index}) =
-         path_apply
-           (symmetric_unstep ~branch:(konstant Synth.branch) ~skip:(konstant Synth.skip))
-           proof.leaf
-           path_d in
-    (proof.trie = top_d (*||
-                          raise (Internal_error (Printf.sprintf "foo30 %s %s"
-                          (Digest.to_hex_string proof.trie) (Digest.to_hex_string top_d)))*))
-    && (height >= Key.numbits proof.key (* || raise (Internal_error "foo35")*))
-    && (Key.sign index = 0 (*|| raise (Internal_error "foo40")*))
-
-  let skip_bit_string length bits =
-    String.concat "" (List.init length (fun i -> if Key.has_bit bits i then "1" else "0"))
-
-  let step_to_yojson = function
+  let step_to_yojson to_yojson = function
     | LeftBranch {right} ->
       `Assoc [ ("type", `String "Left")
-             ; ("digest", `String (Digest.to_hex_string right)) ]
+             ; ("right", to_yojson right) ]
     | RightBranch {left} ->
       `Assoc [ ("type", `String "Right")
-             ; ("digest", `String (Digest.to_hex_string left)) ]
+             ; ("left", to_yojson left) ]
     | SkipChild {bits; length} ->
       `Assoc [ ("type", `String "Skip")
-             ; ("bits", `String (skip_bit_string length bits)) ]
+             ; ("bits", Key.to_yojson bits)
+             ; ("length", UInt16int.to_yojson length) ]
 
-  let [@warning "-32"] proof_to_yojson {key; trie; leaf; steps} =
-    `Assoc
-      [ ("key", `String (Key.to_hex_string key))
-      ; ("trie", `String (Digest.to_hex_string trie))
-      ; ("leaf", `String (Digest.to_hex_string leaf))
-      ; ("steps", `List (List.map step_to_yojson steps)) ]
-
-  let [@warning "-32"] proof_to_yojson_string = zcompose Yojson.to_string proof_to_yojson
-
-  let bit_string_to_skip s =
-    let length = String.length s in
-    let f i bits =
-      if i < length then
-        Key.logor bits (Key.shift_left Key.one i)
-      else
-        bits
-    in
-    SkipChild {bits=f 0 Key.zero; length}
-
-  let step_of_yojson json =
-    let t = json |> member "type" |> to_string in
+  let step_of_yojson_exn of_yojson_exn yojson =
+    let t = yojson |> member "type" |> to_string in
     if t = "Left" then
-      LeftBranch {right=json |> member "digest" |> to_string |> Digest.of_hex_string}
+      LeftBranch {right= yojson |> member "right" |> of_yojson_exn}
     else if t = "Right" then
-      RightBranch {left=json |> member "digest" |> to_string |> Digest.of_hex_string}
+      RightBranch {left= yojson |> member "left" |> of_yojson_exn}
     else if t = "Skip" then
-      json |> member "bits" |> to_string |> bit_string_to_skip
+      let bits = yojson |> member "bits" |> Key.of_yojson_exn in
+      let length = yojson |> member "length" |> UInt16int.of_yojson_exn in
+      SkipChild {bits; length}
     else raise (Internal_error "Bad json")
 
-  let json_of_step step =
-    match step with
-    | LeftBranch { right } -> `Assoc [("left",`String ("0x" ^ (Digest.to_hex_string right)))]
-    | RightBranch { left } -> `Assoc [("right",`String ("0x" ^ (Digest.to_hex_string left)))]
-    | SkipChild { bits; length } -> `Assoc [ ("bits",`String ("0x" ^ (Key.to_hex_string bits)))
-                                           ; ("length",`Int length)
-                                           ]
+  module Proof = struct
+    type nonrec key = key
+    type nonrec value = value
+    type mtrie = t
+    type 'a pstep = 'a step
+    type t =
+      { key : key
+      ; trie : Digest.t
+      ; leaf : Digest.t
+      ; steps : (Digest.t pstep) list }
 
-  let proof_of_yojson json =
-    { key = json |> member "key" |> to_string |> Key.of_hex_string
-    ; trie = json |> member "trie" |> to_string |> Digest.of_hex_string
-    ; leaf = json |> member "leaf" |> to_string |> Digest.of_hex_string
-    ; steps = json |> member "steps" |> to_list |> List.map step_of_yojson
-    }
+    let get (key: key) (mt: mtrie) : t option =
+      match map_fst Wrap.get (find_path key mt) with
+      | Leaf {value}, up -> Some { key
+                                 ; trie = dv_digest mt
+                                 ; leaf = Synth.leaf value
+                                 ; steps = (path_digest up).steps }
+      | _ -> None
 
-  let json_of_proof proof =
-    `Assoc
-      [ ("key",`String ("0x" ^ (Key.to_hex_string proof.key)))
-      ; ("trie",`String ("0x" ^ (Digest.to_hex_string proof.trie)))
-      ; ("leaf",`String ("0x" ^ (Digest.to_hex_string proof.leaf)))
-      ; ("steps",`List (List.map json_of_step proof.steps))
-      ]
+    (** Check a proof.
+        1- starting from the digest of the leaf and applying the path,
+        we    should arrive at the top trie's hash.
+        2- st arting from the key, the path should follow the key's bits.
+    *)
+    let check proof mtrie key value =
+      (proof.leaf = Synth.leaf value)
+      && (proof.trie = dv_digest mtrie)
+      && (Key.compare key proof.key = 0)
+      && let path_d = {costep={index=proof.key;height=0};steps=proof.steps} in
+      (check_path_consistency path_d)
+      && let (top_d, {height; index}) =
+           path_apply
+             (symmetric_unstep ~branch:(konstant Synth.branch) ~skip:(konstant Synth.skip))
+             proof.leaf
+             path_d in
+      (proof.trie = top_d)
+      && (height >= Key.numbits proof.key)
+      && (Key.sign index = 0)
 
-  (* let proof_of_yojson_string = zcompose proof_of_yojson Yojson.Safe.from_string *)
+    include (Yojsonable(struct
+               type nonrec t = t
+               let to_yojson {key; trie; leaf; steps} =
+                 `Assoc
+                   [ ("key", Key.to_yojson key)
+                   ; ("trie", Digest.to_yojson trie)
+                   ; ("leaf", Digest.to_yojson leaf)
+                   ; ("steps", `List (List.map (step_to_yojson Digest.to_yojson) steps)) ]
+               let of_yojson_exn yojson =
+                 { key = yojson |> member "key" |> Key.of_yojson_exn
+                 ; trie = yojson |> member "trie" |> Digest.of_yojson_exn
+                 ; leaf = yojson |> member "leaf" |> Digest.of_yojson_exn
+                 ; steps = yojson |> member "steps" |> to_list |>
+                           List.map (step_of_yojson_exn Digest.of_yojson_exn) }
+               let of_yojson = of_yojson_of_of_yojson_exn of_yojson_exn
+               let yojsoning = {to_yojson;of_yojson}
+             end) : YojsonableS with type t := t)
+  end
+end
+
+module type MerkleTrieSetProofS = sig
+  type elt
+  type mts
+  type 'a pstep
+  type t =
+    { elt : elt
+    ; trie : Digest.t
+    ; steps : (Digest.t pstep) list }
+  val get : elt -> mts -> t option
+  val check : t -> mts -> elt -> bool
+  include YojsonableS with type t := t
 end
 
 module type MerkleTrieSetS = sig
@@ -320,21 +315,13 @@ module type MerkleTrieSetS = sig
   module T : MerkleTrieS with type key = elt and type value = unit
   include PersistableS with type t = T.t
   include Set.S with type elt := elt and type t := t
-
-  type proof =
-    { elt : elt
-    ; trie : Digest.t
-    ; steps : (Digest.t T.step) list
-    }
-
+  module Proof : MerkleTrieSetProofS
+    with type elt = elt and type mts = t and type 'a pstep = 'a T.step
   val trie_digest : t -> Digest.t
-  val get_proof : elt -> t -> proof option
-  val check_proof : proof -> t -> elt -> bool
-
   val lens : elt -> (t, bool) Lens.t
 end
 
-module MerkleTrieSet (Elt : IntS) = struct
+module MerkleTrieSet (Elt : UIntS) = struct
   type elt = Elt.t
   module T = MerkleTrie (Elt) (Unit)
   include (T : PersistableS with type t = T.t)
@@ -403,18 +390,35 @@ module MerkleTrieSet (Elt : IntS) = struct
           ~i ~treea:a ~treeb:b ~k in
     m ~i:Elt.zero ~treea:a ~treeb:b ~k:(konstant true)
 
-  type proof =
-    { elt : elt
-    ; trie : Digest.t
-    ; steps : (Digest.t T.step) list
-    }
-  let get_proof elt t =
-    Option.map (fun {T.key; T.trie; T.steps} -> {elt=key; trie; steps}) (T.get_proof elt t)
-
-  let check_proof {elt; trie; steps} t l =
-    T.check_proof {key=elt; trie; leaf=T.Synth.leaf (); steps} t l ()
-
   let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
+
+  module Proof = struct
+    type nonrec elt = elt
+    type mts = t
+    type 'a pstep = 'a T.step
+    type t = { elt : elt
+             ; trie : Digest.t
+             ; steps : (Digest.t pstep) list }
+    let get elt t =
+      Option.map (fun T.Proof.{key; trie; steps} -> {elt=key; trie; steps}) (T.Proof.get elt t)
+    let check {elt; trie; steps} t l =
+      T.Proof.check {key=elt; trie; leaf=T.Synth.leaf (); steps} t l ()
+    include (Yojsonable(struct
+               type nonrec t = t
+               let to_yojson {elt; trie; steps} =
+                 `Assoc
+                   [ ("elt", Elt.to_yojson elt)
+                   ; ("trie", Digest.to_yojson trie)
+                   ; ("steps", `List (List.map (T.step_to_yojson Digest.to_yojson) steps)) ]
+               let of_yojson_exn yojson =
+                 { elt = yojson |> member "elt" |> Elt.of_yojson_exn
+                 ; trie = yojson |> member "trie" |> Digest.of_yojson_exn
+                 ; steps = yojson |> member "steps" |> to_list |>
+                           List.map (T.step_of_yojson_exn Digest.of_yojson_exn) }
+               let of_yojson = of_yojson_of_of_yojson_exn of_yojson_exn
+               let yojsoning = {to_yojson;of_yojson}
+             end) : YojsonableS with type t := t)
+  end
 end
 
 module DigestSet = MerkleTrieSet (Digest)
@@ -523,12 +527,12 @@ module Test = struct
   let%test "simple_proof_consistent_100" =
     let (k, v) = (n 100), "100" in
     let t = singleton k v in
-    check_proof (Option.get (get_proof k t)) t k v
+    Proof.check (Option.get (Proof.get k t)) t k v
 
   let%test "simple_proof_consistent_1" =
     let (k, v) = (n 0), "0" in
     let t = add (n 1) "1" (singleton k v) in
-    check_proof (Option.get (get_proof k t)) t k v
+    Proof.check (Option.get (Proof.get k t)) t k v
 
   let%test "empty" =
     (bindings empty = []) && is_empty (of_bindings [])
@@ -634,15 +638,15 @@ module Test = struct
   let%test "unequal" =
     not (equal (=) (force trie_4) (force trie_1))
 
-  let make_step direction digest =
+  let make_step direction other_direction digest =
     `Assoc [ ("type",`String direction)
-           ; ("digest",`String digest)
+           ; (other_direction,`String digest)
            ]
-  let make_left_step = make_step "Left"
-  let make_right_step = make_step "Right"
+  let make_left_step = make_step "Left" "right"
+  let make_right_step = make_step "Right" "left"
 
   let proof_42_in_trie_100 =
-    lazy (proof_of_yojson
+    lazy (Proof.of_yojson_exn
             (`Assoc [ ("key",`String "2a")
                     ; ("trie",`String "cc01591e96bdca2eb2510ccf74be5a7fe096bb3cdda73ec5880fbd6f0326184a")
                     ; ("leaf", `String "c2f64e3c9a94699bc29349597513917805ab15a894de4c816207f13c5ee913dc")
@@ -658,48 +662,48 @@ module Test = struct
                     ]))
 
   let bad_proof = lazy (match force proof_42_in_trie_100 with
-    | { key ; trie ; leaf ; steps = [s1;s2;s3;s4;s5;s6;s7] } ->
-      { key ; trie ; leaf ; steps = [s1;s2;s5;s4;s3;s6;s7] } (* steps 3 and 5 are swapped *)
+    | Proof.{ key ; trie ; leaf ; steps = [s1;s2;s3;s4;s5;s6;s7] } ->
+      Proof.{ key ; trie ; leaf ; steps = [s1;s2;s5;s4;s3;s6;s7] } (* steps 3 and 5 are swapped *)
     | _ -> raise (Internal_error "Bad proof"))
 
   let%test "proof" =
-    get_proof (n 42) (force trie_100) = Some (force proof_42_in_trie_100)
+    Proof.get (n 42) (force trie_100) = Some (force proof_42_in_trie_100)
     || (Printf.printf "%s\n%!"
-          (get_proof (n 42) (force trie_100) |> Option.get |> json_of_proof |> Yojson.Safe.to_string) ;
+          (Proof.get (n 42) (force trie_100) |> Option.get |> Proof.to_yojson_string) ;
         false)
 
   let%test "simple_proof_consistent" =
-    check_proof
-      (Option.get (get_proof (n 0) (singleton (n 0) "0")))
+    Proof.check
+      (Option.get (Proof.get (n 0) (singleton (n 0) "0")))
       (singleton (n 0) "0")
       (n 0)
       "0"
 
   let%test "simple_proof_consistent_4" =
-    check_proof
-      (Option.get (get_proof (n 4) (singleton (n 4) "4")))
+    Proof.check
+      (Option.get (Proof.get (n 4) (singleton (n 4) "4")))
       (singleton (n 4) "4")
       (n 4)
       "4"
 
   let%test "simple_proof_consistent_10" =
-    check_proof
-      (Option.get (get_proof (n 57) (force trie_10_12_57)))
+    Proof.check
+      (Option.get (Proof.get (n 57) (force trie_10_12_57)))
       (force trie_10_12_57)
       (n 57)
       "57"
 
   let%test "simple_proof_consistent_24" =
-    check_proof
-      (Option.get (get_proof (n 2) (force trie_4)))
+    Proof.check
+      (Option.get (Proof.get (n 2) (force trie_4)))
       (force trie_4)
       (n 2)
       "2"
 
   let%test "proof_consistent" =
-    check_proof (force proof_42_in_trie_100) (force trie_100) (n 42) "42"
+    Proof.check (force proof_42_in_trie_100) (force trie_100) (n 42) "42"
 
   let%test "proof_inconsistent" =
-    not (check_proof (force bad_proof) (force trie_100) (n 42) "42")
+    not (Proof.check (force bad_proof) (force trie_100) (n 42) "42")
 
 end

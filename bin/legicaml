@@ -12,4 +12,5 @@ fi
 
 echo "Starting Legicash OCaml toplevel..."
 echo
-$LEGICAMLEXE -I $CMOSDIR -open Legicash_lib
+$LEGICAMLEXE -I $CMOSDIR \
+             -open Legicash_lib $@

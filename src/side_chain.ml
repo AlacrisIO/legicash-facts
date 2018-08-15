@@ -23,7 +23,7 @@ module Invoice = struct
         (marshaling3
            (fun {recipient; amount; memo} -> (recipient, amount, memo))
            (fun recipient amount memo -> {recipient; amount; memo})
-           Address.marshaling TokenAmount.marshaling string63_marshaling)
+           Address.marshaling TokenAmount.marshaling String63.marshaling)
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies

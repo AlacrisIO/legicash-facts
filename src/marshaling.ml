@@ -70,21 +70,6 @@ let marshal_bool = marshal_map char_of_bool marshal_char
 let unmarshal_bool = unmarshal_map bool_of_char unmarshal_char
 let bool_marshaling={marshal=marshal_bool;unmarshal=unmarshal_bool}
 
-let marshal_string63 buffer string =
-  let len = String.length string in
-  if len <= 63 then
-    (marshal_char buffer (Char.chr len);
-     Buffer.add_string buffer string)
-  else
-    raise (Marshaling_error (Printf.sprintf "string %S too long" string))
-let unmarshal_string63 ?(start=0) bytes =
-  let len = Char.code (Bytes.get bytes start) in
-  if len <= 63 then
-    (Bytes.sub_string bytes (start + 1) len, start + 1 + len)
-  else
-    raise (Unmarshaling_error ("string length too long", start, bytes))
-let string63_marshaling={marshal=marshal_string63;unmarshal=unmarshal_string63}
-
 let marshal_not_implemented _buffer _x = bottom ()
 let unmarshal_not_implemented ?start:(_start=0) _bytes = bottom ()
 let marshaling_not_implemented = {marshal=marshal_not_implemented;unmarshal=unmarshal_not_implemented}
@@ -268,6 +253,24 @@ module Marshalable (P : PreMarshalableS) = struct
   let marshal_string = marshal_string_of_marshal marshal
   let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
 end
+
+module String63 = Marshalable(struct
+    type t = string
+    let marshal buffer string =
+      let len = String.length string in
+      if len <= 63 then
+        (marshal_char buffer (Char.chr len);
+         Buffer.add_string buffer string)
+      else
+        raise (Marshaling_error (Printf.sprintf "string %S too long" string))
+    let unmarshal ?(start=0) bytes =
+      let len = Char.code (Bytes.get bytes start) in
+      if len <= 63 then
+        (Bytes.sub_string bytes (start + 1) len, start + 1 + len)
+      else
+        raise (Unmarshaling_error ("string length too long", start, bytes))
+    let marshaling={marshal;unmarshal}
+  end)
 
 module OCamlMarshaling (T: TypeS) = struct
   include T

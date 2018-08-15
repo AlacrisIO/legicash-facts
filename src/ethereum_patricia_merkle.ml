@@ -10,6 +10,7 @@
 *)
 
 open Lib
+open Hex
 open Crypto
 
 (* keys are sequences of nybbles, which can be packed into two-nybbles-per-byte form *)
@@ -261,7 +262,7 @@ module Test = struct
   (* tests of hashing of RLP-encoded data *)
 
   let make_hash_test s hex =
-    Lib.unparse_coloned_hex_string (Digest.to_big_endian_bits (hash_encoded_string s)) = hex
+    unparse_coloned_hex_string (Digest.to_big_endian_bits (hash_encoded_string s)) = hex
 
   let%test "hash_test_1" =
     make_hash_test ""

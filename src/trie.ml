@@ -24,7 +24,7 @@ module type TrieSynthS = sig
   val skip : int -> int -> key -> t -> t
 end
 
-module TrieSynthUnit (Key : IntS) (Value : TypeS) = struct
+module TrieSynthUnit (Key : UIntS) (Value : TypeS) = struct
   type key = Key.t
   type value = Value.t
   type t = unit
@@ -34,7 +34,7 @@ module TrieSynthUnit (Key : IntS) (Value : TypeS) = struct
   let skip _ _ _ _ = ()
 end
 
-module TrieSynthCardinal (Key : IntS) (Value : TypeS) = struct
+module TrieSynthCardinal (Key : UIntS) (Value : TypeS) = struct
   type key = Key.t
   type value = Value.t
   type t = Z.t
@@ -44,7 +44,7 @@ module TrieSynthCardinal (Key : IntS) (Value : TypeS) = struct
   let skip _ _ _ child = child
 end
 
-module TrieSynthComputeSkip (Key : IntS) (Synth: TreeSynthS) = struct
+module TrieSynthComputeSkip (Key : UIntS) (Synth: TreeSynthS) = struct
   include Synth
   type key = Key.t
   let [@warning "-32"] skip height length bits synth =
@@ -77,7 +77,7 @@ module type TrieTypeS = sig
 end
 
 module TrieType
-    (Key : IntS) (Value : TypeS) (WrapType : WrapTypeS)
+    (Key : UIntS) (Value : TypeS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   type key = Key.t
   type value = Value.t
@@ -170,7 +170,7 @@ end
 (* TODO: an interface to nodes in batch that reduces the amount of unnecessary hashing?
    Or simply make hashing lazy? *)
 module Trie
-    (Key : IntS) (Value : YojsonableS) (WrapType : WrapTypeS)
+    (Key : UIntS) (Value : YojsonableS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
     (TrieType : TrieTypeS with type key = Key.t
                            and type value = Value.t
@@ -881,15 +881,17 @@ module Trie
   let find_defaulting default k m = Option.defaulting default (find_opt k m)
 
   let to_yojson t =
-    foldrk (fun i v l k -> k (`List [Key.to_yojson i; Value.to_yojson v] :: l)) t [] (fun x -> `List x)
+    foldrk
+      (fun i v l k -> k (`List [Key.yojsoning.to_yojson i; Value.yojsoning.to_yojson v] :: l))
+      t [] (fun x -> `List x)
 
   let of_yojson = function
     | `List l ->
       list_foldlk (fun t x k ->
         match x with
         | `List [ij; vj] ->
-          Result.bind (Key.of_yojson ij)
-            (fun i -> Result.bind (Value.of_yojson vj)
+          Result.bind (Key.yojsoning.of_yojson ij)
+            (fun i -> Result.bind (Value.yojsoning.of_yojson vj)
                         (fun v -> k (add i v t)))
         | _ -> Error "bad trie json")
         empty

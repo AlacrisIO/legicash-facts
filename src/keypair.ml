@@ -1,6 +1,7 @@
 (* keypair.ml -- Secp256k1 key pairs *)
 
 open Lib
+open Hex
 open Yojsoning
 open Marshaling
 open Crypto

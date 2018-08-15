@@ -2,6 +2,8 @@ open Yojsoning
 open Marshaling
 open Integer
 
+val keccak256_string : string -> string
+
 val secp256k1_ctx : Secp256k1.Context.t
 (** Secp256k1 context for signing and validation *)
 
@@ -10,7 +12,7 @@ type public_key = Secp256k1.Key.public Secp256k1.Key.t
 (** private counterpart to public key *)
 type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 
-module Digest : IntS
+module Digest : UIntS
 
 type digest = Digest.t
 
@@ -31,7 +33,7 @@ val null_digest : digest
 (** An Address identifies a party (user, facilitator)
     per Ethereum, use the last 20 bytes of the Keccak256 hash of the party's public key *)
 module Address : sig
-  include IntS (* with type t = Z.t *)
+  include UIntS (* with type t = Z.t *)
   val address_size : int
   val of_public_key : Secp256k1.Key.public Secp256k1.Key.t -> t
 end

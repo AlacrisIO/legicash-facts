@@ -7,6 +7,7 @@ type 'a of_yojson_exn = Yojson.Safe.json -> 'a
 type 'a yojsoning = { to_yojson: 'a to_yojson; of_yojson: 'a of_yojson }
 
 val of_yojson_exn_of_of_yojson : 'a of_yojson -> 'a of_yojson_exn
+val of_yojson_of_of_yojson_exn : 'a of_yojson_exn -> 'a of_yojson
 val to_yojson_string_of_to_yojson : 'a to_yojson -> ('a -> string)
 val of_yojson_string_exn_of_of_yojson_exn : 'a of_yojson_exn -> (string -> 'a)
 

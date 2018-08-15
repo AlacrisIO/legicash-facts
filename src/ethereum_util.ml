@@ -1,20 +1,14 @@
 (* ethereum_util.ml -- utility code for Ethereum main chain *)
 
 open Lib
-open Db
+open Hex
+open Integer
+open Crypto
 
-let hash s = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
+let hash = keccak256_string
 let hash_bytes bytes = hash (Bytes.to_string bytes)
 
 (* Hexadecimal support. See https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding *)
-
-let validate_0x_prefix hs =
-  let len = String.length hs in
-  if not (len >= 2 && hs.[0] = '0' && hs.[1] = 'x') then
-    raise (Internal_error "Hex string does not strictly begin with 0x") ;
-  if len = 2 then
-    raise (Internal_error "Hex string has no digits") ;
-  ()
 
 let uint256_of_hex_string hs =
   validate_0x_prefix hs ;
@@ -27,6 +21,15 @@ let uint256_of_hex_string hs =
     raise (Internal_error "Hex number starts with 0")
 
 let hex_string_of_uint256 u = "0x" ^ UInt256.to_hex_string u
+
+let data256_of_hex_string hs =
+  validate_0x_prefix hs ;
+  if String.length hs = 66 then
+    Data256.of_hex_string (String.sub hs 2 64)
+  else
+    raise (Internal_error "wrong length for data256 hex")
+
+let hex_string_of_data256 u = "0x" ^ Data256.to_hex_string u
 
 let hex_string_of_address address =
   "0x" ^ Address.to_hex_string address

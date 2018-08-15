@@ -3,9 +3,9 @@ open Crypto
 open Db
 open Merkle_trie
 
-module TokenAmount : IntS
+module TokenAmount : UIntS
 
-module Nonce : IntS
+module Nonce : UIntS
 
 module AccountMap : (MerkleTrieS with type key = Address.t and type value = TokenAmount.t)
 

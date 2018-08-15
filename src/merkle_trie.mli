@@ -1,7 +1,8 @@
 (* A big endian patricia tree maps non-negative integers to values. *)
 open Lib
-open Crypto
+open Yojsoning
 open Marshaling
+open Crypto
 open Db
 open Trie
 
@@ -13,7 +14,7 @@ module type TrieSynthMerkleS = sig
   val marshal_skip : (int*int*key*digest) marshaler
 end
 
-module TrieSynthMerkle (Key : IntS) (Value : PersistableS)
+module TrieSynthMerkle (Key : UIntS) (Value : PersistableS)
   : TrieSynthMerkleS with type key = Key.t
                       and type value = Value.t
 
@@ -23,10 +24,26 @@ module type MerkleTrieTypeS = sig
   module T : PersistableS with type t = t
 end
 
-module MerkleTrieType (Key : IntS) (Value : PersistableS)
+module MerkleTrieType (Key : UIntS) (Value : PersistableS)
     (Synth : TrieSynthMerkleS with type key = Key.t and type value = Value.t)
   : MerkleTrieTypeS with type key = Key.t
                      and type value = Value.t
+
+module type MerkleTrieProofS = sig
+  type key
+  type value
+  type mtrie
+  type 'a pstep
+  type t =
+    { key : key
+    ; trie : Digest.t
+    ; leaf : Digest.t
+    ; steps : (Digest.t pstep) list
+    }
+  val get : key -> mtrie -> t option
+  val check : t -> mtrie -> key -> value -> bool
+  include YojsonableS with type t := t
+end
 
 (** Merkle Trie *)
 module type MerkleTrieS = sig
@@ -42,41 +59,40 @@ module type MerkleTrieS = sig
   include PersistableS
     with type t := t
 
-  type proof =
-    { key : key
-    ; trie : Digest.t
-    ; leaf : Digest.t
-    ; steps : (Digest.t step) list
-    }
-
   val trie_digest : t -> Digest.t
   val path_digest : t path -> Digest.t path
-  val get_proof : key -> t -> proof option
-  val check_proof : proof -> t -> key -> value -> bool
-  val json_of_proof : proof -> Yojson.Safe.json
+
+  module Proof : MerkleTrieProofS
+    with type key = key and type value = value and type mtrie = t and type 'a pstep = 'a step
 end
 
-module MerkleTrie (Key : IntS) (Value : PersistableS)
+module MerkleTrie (Key : UIntS) (Value : PersistableS)
   : MerkleTrieS with type key = Key.t and type value = Value.t
+
+module type MerkleTrieSetProofS = sig
+  type elt
+  type mts
+  type 'a pstep
+  type t =
+    { elt : elt
+    ; trie : Digest.t
+    ; steps : (Digest.t pstep) list }
+  val get : elt -> mts -> t option
+  val check : t -> mts -> elt -> bool
+  include YojsonableS with type t := t
+end
 
 module type MerkleTrieSetS = sig
   type elt
   module T : MerkleTrieS with type key = elt and type value = unit
   include PersistableS with type t = T.t
   include Set.S with type elt := elt and type t := t
-
-  type proof =
-    { elt : elt
-    ; trie : Digest.t
-    ; steps : (Digest.t T.step) list
-    }
-
+  module Proof : MerkleTrieSetProofS
+    with type elt = elt and type mts = t and type 'a pstep = 'a T.step
   val trie_digest : t -> Digest.t
-  val get_proof : elt -> t -> proof option
-  val check_proof : proof -> t -> elt -> bool
   val lens : elt -> (t, bool) Lens.t
 end
 
-module MerkleTrieSet (Elt : IntS) : (MerkleTrieSetS with type elt = Elt.t)
+module MerkleTrieSet (Elt : UIntS) : (MerkleTrieSetS with type elt = Elt.t)
 
 module DigestSet : (MerkleTrieSetS with type elt = Digest.t)

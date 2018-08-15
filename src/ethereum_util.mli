@@ -16,6 +16,13 @@ val hex_string_of_uint256 : UInt256.t -> string
 (** Validate and convert Ethereum format hexadecimal back into a number. *)
 val uint256_of_hex_string : string -> UInt256.t
 
+(** Convert 256-bit data to Ethereum format hexadecimal: 0x followed by hex-digits,
+    the first of which isn't 0 unless it's the only hex-digit. *)
+val hex_string_of_data256 : Data256.t -> string
+
+(** Validate and convert Ethereum format hexadecimal back into fixed-sized 256-bit data. *)
+val data256_of_hex_string : string -> Data256.t
+
 (** Convert string to Ethereum format hexadecimal, 0x followed by hex-digit pairs
     (or single 0 for the empty string) *)
 val hex_string_of_string : string -> string

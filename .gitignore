@@ -13,3 +13,4 @@ src/endpoints/accounts/
 src/endpoints/confirmations/
 src/endpoints/facilitator_state/
 src/endpoints/local/
+src/endpoints/legicash/

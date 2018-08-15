@@ -250,16 +250,16 @@ module YojsonPersistable (J: YojsonableS) = struct
   let marshal_string = MJ.marshal_string
 end
 
-module type IntS = sig
-  include Integer.IntS
+module type UIntS = sig
+  include Integer.UIntS
   include PersistableS with type t := t
 end
 
-module DBInt(I : Integer.IntS) = struct
-  include I
+module DBInt(U : Integer.UIntS) = struct
+  include U
   include (Persistable (struct
-             include I
-             include (TrivialPersistable (I) : PrePersistableDependencyS with type t := t)
+             include U
+             include (TrivialPersistable (U) : PrePersistableDependencyS with type t := t)
            end) : PersistableS with type t := t)
 end
 

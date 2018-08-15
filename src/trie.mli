@@ -25,15 +25,15 @@ module type TrieSynthS = sig
 end
 
 (** A module to synthesize nothing *)
-module TrieSynthUnit (Key : IntS) (Value : TypeS)
+module TrieSynthUnit (Key : UIntS) (Value : TypeS)
   : TrieSynthS with type t = unit and type key = Key.t and type value = Value.t
 
 (** A module to synthesize the cardinal of a trie as an attribute of said trie *)
-module TrieSynthCardinal (Key : IntS) (Value : TypeS)
+module TrieSynthCardinal (Key : UIntS) (Value : TypeS)
   : TrieSynthS with type t = Z.t and type key = Key.t and type value = Value.t
 
 (** A module to synthesize attributes for Skip by reducing it to Branch and Leaf. *)
-module TrieSynthComputeSkip (Key : IntS) (Synth: TrieSynthS) : sig
+module TrieSynthComputeSkip (Key : UIntS) (Synth: TrieSynthS) : sig
   include TrieSynthS with type key := Key.t
 end
 
@@ -55,7 +55,7 @@ module type TrieTypeS = sig
 end
 
 module TrieType
-    (Key : IntS) (Value : TypeS) (WrapType : WrapTypeS)
+    (Key : UIntS) (Value : TypeS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
   : TrieTypeS with type key = Key.t
                and type value = Value.t
@@ -206,7 +206,7 @@ end
 
 (** A module for Big-Endian Patricia Tree, a.k.a. Trie. *)
 module Trie
-    (Key : IntS) (Value : YojsonableS) (WrapType : WrapTypeS)
+    (Key : UIntS) (Value : YojsonableS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
     (TrieType : TrieTypeS with type key = Key.t
                            and type value = Value.t

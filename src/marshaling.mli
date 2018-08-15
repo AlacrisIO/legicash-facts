@@ -48,10 +48,6 @@ val marshal_bool : bool marshaler
 val unmarshal_bool : bool unmarshaler
 val bool_marshaling : bool marshaling
 
-val marshal_string63 : string marshaler
-val unmarshal_string63 : string unmarshaler
-val string63_marshaling : string marshaling
-
 val marshal_map : ('x -> 'a) -> 'a marshaler -> 'x marshaler
 val unmarshal_map : ('a -> 'x) -> 'a unmarshaler -> 'x unmarshaler
 val marshaling_map : ('x -> 'a) -> ('a -> 'x) -> 'a marshaling -> 'x marshaling
@@ -168,3 +164,4 @@ module MarshalableOfYojsonable (J : YojsonableS) : YojsonMarshalableS with type 
 
 module YojsonableOfMarshalable (M : MarshalableS) : YojsonMarshalableS with type t = M.t
 
+module String63 : MarshalableS with type t = string

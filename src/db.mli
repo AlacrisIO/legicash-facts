@@ -66,8 +66,8 @@ module TrivialPersistable (P : PreYojsonMarshalableS) : PersistableS with type t
 
 module YojsonPersistable (Y: YojsonableS) : PersistableS with type t = Y.t
 
-module type IntS = sig
-  include Integer.IntS
+module type UIntS = sig
+  include Integer.UIntS
   include PersistableS with type t := t
 end
 
@@ -118,13 +118,13 @@ end
     Should a user record have two of them, one for the user one for the server?
     Not for now: the server can use the global clock for the server.
 *)
-module Revision : IntS
+module Revision : UIntS
 
 (** type of a timestamp *)
-module Timestamp : IntS
+module Timestamp : UIntS
 
 (** duration in terms of nanoseconds, for use in timeouts. TODO: should the unit be consensus cycles instead? *)
-module Duration : IntS
+module Duration : UIntS
 
 module StringT : PersistableS with type t = string
 

@@ -10,6 +10,11 @@ let of_yojson_exn_of_of_yojson of_yojson y =
   | Ok x -> x
   | Error s -> Yojson.json_error s
 
+let of_yojson_of_of_yojson_exn of_yojson_exn y =
+  try Ok (of_yojson_exn y) with
+  | Internal_error x -> Error ("Internal_error " ^ x)
+  | Yojson.Json_error x -> Error ("Json_error " ^ x)
+
 let to_yojson_string_of_to_yojson to_yojson x =
   x |> to_yojson |> Yojson.Safe.to_string
 

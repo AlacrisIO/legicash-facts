@@ -1,12 +1,43 @@
 open Lib
+open Hex
 open Yojsoning
 open Marshaling
 
-module type IntS = sig
-  include Unsigned.S
-  include PreMarshalableS with type t := t
-  include ShowableS with type t := t
-  include YojsonableS with type t := t
+(* Same as Unsigned.S from the integers library, minus the Infix module *)
+module type UIntBaseS = sig
+  type t
+  val add : t -> t -> t
+  val sub : t -> t -> t
+  val mul : t -> t -> t
+  val div : t -> t -> t
+  val rem : t -> t -> t
+  val max_int : t
+  val logand : t -> t -> t
+  val logor : t -> t -> t
+  val logxor : t -> t -> t
+  val shift_left : t -> int -> t
+  val shift_right : t -> int -> t
+  val of_int : int -> t
+  val to_int : t -> int
+  val of_int64 : int64 -> t
+  val to_int64 : t -> int64
+  val of_string : string -> t
+  val to_string : t -> string
+  val zero : t
+  val one : t
+  val lognot : t -> t
+  val succ : t -> t
+  val pred : t -> t
+  val compare : t -> t -> int
+  val max : t -> t -> t
+  val min : t -> t -> t
+end
+
+module type UIntMoreS = sig
+  include UIntBaseS
+  val module_name : string
+  val check_invariant : t -> bool
+  val is_non_negative : t -> bool
   val z_of: t -> Z.t
   val of_z: Z.t -> t
   val equal : t -> t -> bool
@@ -14,13 +45,36 @@ module type IntS = sig
   val extract : t -> int -> int -> t
   val numbits : t -> int
   val has_bit : t -> int -> bool
+  val is_numbits : int -> t -> bool
   val of_bits : string -> t
   val of_hex_string : string -> t
   val to_hex_string : t -> string
   val of_big_endian_bits : string -> t
   val to_big_endian_bits : t -> string
+  include PreYojsonableS with type t := t
+  include PreMarshalableS with type t := t
+  include ShowableS with type t := t
 end
 
+(* Same as the Infix sub-module of Unsigned.S from the integers library, plus the type t *)
+module type UIntInfixS = sig
+  type t
+  val (+) : t -> t -> t
+  val (-) : t -> t -> t
+  val ( * ) : t -> t -> t
+  val (/) : t -> t -> t
+  val (mod) : t -> t -> t
+  val (land) : t -> t -> t
+  val (lor) : t -> t -> t
+  val (lxor) : t -> t -> t
+  val (lsl) : t -> int -> t
+  val (lsr) : t -> int -> t
+end
+
+module type UIntS = sig
+  include UIntMoreS
+  module Infix : UIntInfixS with type t := t
+end
 
 let validate_nat_non_negative nat =
   if Z.sign nat < 0 then
@@ -65,25 +119,54 @@ let sized_nat_of_hex_string bits string =
 let nat_of_hex_string string =
   sized_nat_of_hex_string (4 * String.length string) string
 
+let unary_pre_op_check op check info x =
+  if check x then op x else
+    let (module_name, op_name, to_string) = info in
+    bork (Printf.sprintf "attempted %s.%s %s but the arguments are out of range"
+            module_name op_name (to_string x))
+
+let binary_pre_op_check op check info x y =
+  if check x y then op x y else
+    let (module_name, op_name, x_to_string, y_to_string) = info in
+    bork (Printf.sprintf "attempted %s.%s %s %s but the arguments are out of range"
+            module_name op_name (x_to_string x) (y_to_string y))
+
+let unary_post_op_check op check info x =
+  let y = op x in
+  if check y then y else
+    let (type_name, op_name, to_string) = info in
+    bork (Printf.sprintf "attempted %s.%s %s but the operation goes out of range"
+            type_name op_name (to_string x))
+
+let binary_post_op_check = fun
+  op check info x y ->
+  let z = op x y in
+  if check z then z else
+    let (type_name, op_name, x_to_string, y_to_string) = info in
+    bork (Printf.sprintf "attempted %s.%s %s %s but the operation goes out of range"
+            type_name op_name (x_to_string x) (y_to_string y))
+
 module Int = struct
   include Z
   let z_of = identity
   let of_z = identity
+  let module_name = "Int"
+  let check_invariant _  = true
   let has_bit key position = equal one (extract key position 1)
+  let is_numbits n z = numbits z <= n
+  let is_non_negative z = sign z >= 0
   let max_int = Z.of_int (-1)
   let of_hex_string = nat_of_hex_string
   let to_hex_string = hex_string_of_nat
   let of_big_endian_bits bs = nat_of_big_endian_bits (Pervasives.( * ) 8 (String.length bs)) bs
   let to_big_endian_bits nat = big_endian_bits_of_nat (Z.numbits nat) nat
+  (* TODO: Use ethereum-style json everywhere *)
+  let yojsoning = yojsoning_map to_string of_string string_yojsoning
   let marshaling = marshaling_not_implemented
   let pp formatter x = Format.fprintf formatter "%s" (to_string x)
   let show x = Format.asprintf "%a" pp x
-  (* TODO: Use ethereum-style json everywhere *)
-  include (Yojsonable(struct
-             type nonrec t = t
-             let yojsoning = yojsoning_map to_string of_string string_yojsoning
-           end) : YojsonableS with type t := t)
   module Infix = struct
+    type t = Z.t
     let (+) = Z.add
     let (-) = Z.sub
     let ( * ) = Z.mul
@@ -99,72 +182,164 @@ end
 
 (* TODO: check sign after every relevant operation, etc. *)
 module Nat = struct
-  include Int
+  include (Int : UIntMoreS with type t = Z.t)
+  let module_name = "Nat"
+  let check_underflow = is_non_negative
+  let check_invariant = check_underflow
+  let sub =
+    binary_post_op_check sub check_underflow (module_name, "sub", to_string, to_string)
+  let pred =
+    unary_post_op_check pred check_underflow (module_name, "pred", to_string)
+  let of_z =
+    unary_post_op_check of_z check_underflow (module_name, "of_z", Z.to_string)
+  let of_string =
+    unary_post_op_check of_string check_underflow (module_name, "of_string", identity)
+  let of_int =
+    unary_post_op_check of_int check_underflow (module_name, "of_int", string_of_int)
+  let of_int64 =
+    unary_post_op_check of_int64 check_underflow
+      (module_name, "of_int64", Signed.Int64.to_string)
+  let marshaling = marshaling_not_implemented
+  module Infix = struct
+    include Int.Infix
+    let (-) = sub
+  end
 end
 
-module type __IntS_Zable = sig
+module type PreUIntZS = sig
+  val size_in_bits : int
+end
+
+module UIntZ (P : PreUIntZS) = struct
+  include P
+  include (Int : UIntMoreS with type t = Z.t)
+  let module_name = "UInt" ^ (string_of_int size_in_bits)
+  let size_in_bytes = (size_in_bits + 7) / 8
+  let check_overflow = is_numbits size_in_bits
+  let check_underflow = is_non_negative
+  let check_invariant z = check_underflow z && check_overflow z
+  let add =
+    binary_post_op_check add check_overflow
+      (module_name, "add", to_string, to_string)
+  let sub =
+    binary_post_op_check sub check_underflow
+      (module_name, "sub", to_string, to_string)
+  let mul =
+    binary_post_op_check mul check_overflow
+      (module_name, "mul", to_string, to_string)
+  let shift_left =
+    binary_post_op_check shift_left check_overflow
+      (module_name, "shift_left", to_string, string_of_int)
+  let succ =
+    unary_post_op_check succ check_overflow (module_name, "succ", to_string)
+  let pred =
+    unary_post_op_check pred check_underflow (module_name, "succ", to_string)
+  let of_big_endian_bits b = of_z (nat_of_big_endian_bits size_in_bits b)
+  let to_big_endian_bits u = big_endian_bits_of_nat size_in_bits (z_of u)
+  let of_z =
+    unary_post_op_check of_z check_invariant (module_name, "of_z", Z.to_string)
+  let of_string =
+    unary_post_op_check of_string check_invariant
+      (module_name, "of_string", identity)
+  let of_int =
+    unary_post_op_check of_int check_invariant
+      (module_name, "of_int", string_of_int)
+  let of_int64 =
+    unary_post_op_check of_int64 check_invariant
+      (module_name, "of_int64", Signed.Int64.to_string)
+
+  (* Beware: unmarshaling here assumes that assumes size_in_bits is exactly size_in_bytes*8;
+     if that's not the case, you must override this value. *)
+  let marshaling = marshaling_sized_string size_in_bytes to_big_endian_bits of_big_endian_bits
+  let yojsoning = yojsoning_map to_hex_string of_hex_string string_yojsoning
+
+  module Infix = struct
+    include Int.Infix
+    let (+) = add
+    let (-) = sub
+    let ( * ) = mul
+    let (lsl) = shift_left
+  end
+end
+
+(* TODO: check bounds, after every operation, etc. *)
+module UInt256_z = struct
+  include UIntZ (struct let size_in_bits = 256 end)
+end
+
+module UInt256 = UInt256_z
+
+module Data256 = struct
+  include UInt256_z
+  let of_hex_string = sized_nat_of_hex_string 256
+  let to_hex_string = hex_string_of_sized_nat 256
+end
+
+module type PreUIntZableS = sig
   include Unsigned.S
+  include PreUIntZS
   val z_of: t -> Z.t
   val of_z: Z.t -> t
 end
 
-module OurUInt (UInt: __IntS_Zable) = struct
-  include UInt
+module UIntZable (P: PreUIntZableS) = struct
+  include P
+  let module_name = "UInt" ^ (string_of_int size_in_bits)
+  let size_in_bytes = (size_in_bits + 7) / 8
+  let check_invariant _ = true
   let equal x y = compare x y = 0
   let sign x = compare x zero
+  let is_non_negative _ = true
   let extract key position length = of_z (Z.extract (z_of key) position length)
   let numbits key = Z.numbits (z_of key)
+  let is_numbits n z = numbits z < n
   let has_bit key position = equal one (extract key position 1)
   let of_bits bits = Z.of_bits bits |> of_z
   let of_hex_string hs = of_z (Nat.of_hex_string hs)
   let to_hex_string u = Nat.to_hex_string (z_of u)
-  (*  let of_big_endian_bits bs = of_z (Nat.of_big_endian_bits bs)
-      let to_big_endian_bits u = Nat.to_big_endian_bits (z_of u) *)
+  let of_big_endian_bits b = of_z (nat_of_big_endian_bits size_in_bits b)
+  let to_big_endian_bits u = big_endian_bits_of_nat size_in_bits (z_of u)
   let pp formatter x = Format.fprintf formatter "%s" (to_string x)
   let show x = Format.asprintf "%a" pp x
-  let to_yojson x = Int.to_yojson (z_of x)
-  let of_yojson j = Result.map of_z (Int.of_yojson j)
-  include (Yojsonable(struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : YojsonableS with type t := t)
+  let yojsoning = yojsoning_map to_hex_string of_hex_string string_yojsoning
+  let marshaling = marshaling_sized_string size_in_bytes to_big_endian_bits of_big_endian_bits
 end
 
 module UInt16 = struct
-  module Zable = struct
+  module P = struct
     include Unsigned.UInt16
+    let size_in_bits = 16
     let of_z z = Unsigned.UInt16.of_int (Z.to_int z)
     let z_of u = Z.of_int (Unsigned.UInt16.to_int u)
   end
-  include OurUInt (Zable)
-  let of_big_endian_bits b = of_z (nat_of_big_endian_bits 16 b)
-  let to_big_endian_bits u = big_endian_bits_of_nat 16 (z_of u)
-  let marshaling = marshaling_sized_string 2 to_big_endian_bits of_big_endian_bits
+  include UIntZable (P)
   let to_yojson x = `Int (to_int x)
   let of_yojson = function
     | `Int i -> Ok (of_int i)
     | _ -> Error "bad integer"
-  include (Yojsonable(struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : YojsonableS with type t := t)
+  let yojsoning = {to_yojson;of_yojson}
 end
 
 module UInt32 = struct
-  module Zable = struct
+  module P = struct
     include Unsigned.UInt32
+    let size_in_bits = 32
     let of_z z = Unsigned.UInt32.of_int64 (Z.to_int64 z)
     let z_of u = Z.of_int64 (Unsigned.UInt32.to_int64 u)
   end
-  include OurUInt (Zable)
-  let of_big_endian_bits bs = of_z (nat_of_big_endian_bits 32 bs)
-  let to_big_endian_bits u = big_endian_bits_of_nat 32 (z_of u)
-  let marshaling = marshaling_sized_string 4 to_big_endian_bits of_big_endian_bits
+  include UIntZable (P)
+  (** BEWARE: assumes 63-bit (or at least full 32-bit) nativeint *)
+  let to_yojson x = `Int (to_int x)
+  let of_yojson = function
+    | `Int i -> Ok (of_int i)
+    | _ -> Error "bad integer"
+  let yojsoning = {to_yojson;of_yojson}
 end
 
 module UInt64 = struct
-  module Zable = struct
+  module P = struct
     include Unsigned.UInt64
+    let size_in_bits = 64
     let z_2_64 = Z.shift_left Z.one 64
     let z_maxint = Z.sub z_2_64 Z.one
     let z_maxposint = Z.sub (Z.shift_left Z.one 63) Z.one
@@ -176,26 +351,7 @@ module UInt64 = struct
                     else
                       Z.to_int64 (Z.sub z z_2_64))
   end
-  include OurUInt (Zable)
-  let of_big_endian_bits bs = of_z (nat_of_big_endian_bits 64 bs)
-  let to_big_endian_bits u = big_endian_bits_of_nat 64 (z_of u)
-  let marshaling = marshaling_sized_string 8 to_big_endian_bits of_big_endian_bits
-end
-
-(* TODO: check bounds, after every operation, etc. *)
-module UInt256_z = struct
-  include Int
-  let of_big_endian_bits = nat_of_big_endian_bits 256
-  let to_big_endian_bits = big_endian_bits_of_nat 256
-  let marshaling = marshaling_sized_string 32 to_big_endian_bits of_big_endian_bits
-end
-
-module UInt256 = UInt256_z
-
-module Data256 = struct
-  include UInt256_z
-  let of_hex_string = sized_nat_of_hex_string 256
-  let to_hex_string = hex_string_of_sized_nat 256
+  include UIntZable (P)
 end
 
 module Test = struct
@@ -222,7 +378,39 @@ module Test = struct
     throws (Internal_error "String longer than the expected 3 bytes: \"007e2\"")
       (fun _ -> sized_nat_of_hex_string 9 "007e2")
 
-  let%test "foo" =
-    UInt256.to_string (UInt256.of_z (Z.of_int 42)) = "42"
-    && UInt64.to_string (UInt64.of_z (UInt256.z_of (UInt256.of_int 42))) = "42"
+  let internal_error_thrown thunk = try ignore (thunk ()) ; None with Internal_error x -> Some x
+
+  module SimpleUIntTests (U : UIntS) = struct
+    let t name init func expected =
+      let result = func init in
+      if result = expected then true else
+        bork (Printf.sprintf "test %s, expected %s but got %s" name expected result)
+    let run () =
+      t "of_int >> check_invariant" 42 (U.of_int >> U.check_invariant >> string_of_bool) "true"
+      && t "of_int >> to_string " 42 (U.of_int >> U.to_string) "42"
+      && t "of_string >> to_int " "42" (U.of_string >> U.to_int >> string_of_int) "42"
+      && t "of_int >> to_yojson >> of_yojson >> to_int"
+           42 (U.of_int >> U.yojsoning.to_yojson >> U.yojsoning.of_yojson
+               >> ResultOrString.get >> U.to_string) "42"
+  end
+  module MoreUIntTests (U : UIntS) = struct
+    include SimpleUIntTests (U)
+    let run () =
+      run ()
+      && t "internal_error_thrown of_int -42"
+           (fun () -> U.of_int ~-42) (internal_error_thrown >> Option.get)
+           (Printf.sprintf "attempted %s.of_int -42 but the operation goes out of range" U.module_name)
+  end
+  module TNat = SimpleUIntTests (Nat)
+  module TU16 = SimpleUIntTests (UInt16)
+  module TU32 = SimpleUIntTests (UInt32)
+  module TU64 = SimpleUIntTests (UInt64)
+  module TU256 = MoreUIntTests (UInt256)
+  module TD256 = MoreUIntTests (Data256)
+  let%test "simple Nat tests" = TNat.run ()
+  let%test "simple UInt16 tests" = TU16.run ()
+  let%test "simple UInt32 tests" = TU32.run ()
+  let%test "simple UInt64 tests" = TU64.run ()
+  let%test "simple UInt256 tests" = TU256.run ()
+  let%test "simple Data256 tests" = TD256.run ()
 end
