@@ -200,3 +200,50 @@ Deposit/withdrawal threads
   where "side\_chain\_tx\_revision" is a sequence number for the request confirmed by the side chain
   facilitator, and "main\_chain\_confirmation" has the details of the transaction in a block on the
   main chain.
+
+Validation of proofs
+--------------------
+
+  For the validation of a [proof](#proofs) to be complete, the serialization of
+  the transaction (leaf value) must be hashed for comparison to the proof leaf.
+  For now, we're skipping that on the front end.
+
+  The hash for each `step` in has to be computed from the serialization of that
+  step. Those serializations are defined in `merkle_trie.ml`, in the module
+  `TrieSynthMerkle`. They are a concatenation of big-endian representations of
+  unsigned integer.
+  
+  The following details pertain to commit 4f49fa6, "Fix withdrawal."
+  
+  The trie from which the proofs are constructed is a `MerkleTrie (Revision)
+  (Confirmation)`, defined as `ConfirmationMap` in `side_chain.ml`. `Revision`
+  is defined in `db.ml` as a `UInt64`. `Confirmation` is defined in
+  `side_chain.ml`
+  
+  Each component of the serialization begins with a `UInt16`, which is a tag
+  defined in `tag.ml`.
+  
+### Leaf nodes
+
+  - Initial tag is `Tag.leaf = 0x81`.
+    Note that currently, we are not checking this, so these details could be
+    wrong, but it seems that the marshaling for the leaves is done in
+    `Side_chain.Confirmation.marshaling`.
+  
+### Branch nodes
+
+  - Initial tag is `Tag.branch = 0x82`
+  - Height is a `UInt16`. (`UInt16int.marshal buffer height;`).
+  - Left is a `Digest`, which is a `Uint256` defined in `db.ml`
+    (`module Digest = DBInt(Crypto.Digest)`)
+  - Right is another 256-bit digest.
+  
+### Skip nodes
+
+  - Initial tag is `Tag.skip = 0x83`.
+  - Height is UInt16
+  - Length is UInt16
+  - Key is a `Revision`, i.e. a UInt64
+  - child is a `Digest`, i.e. a UInt256. This is the hash from the last step.
+  
+  
