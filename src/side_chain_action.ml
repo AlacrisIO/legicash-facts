@@ -254,7 +254,7 @@ module Test = struct
       assert (alice_account.balance = alice_expected_deposit) ;
       (* withdrawal back to main chain *)
       let amount_to_withdraw = TokenAmount.of_int 42 in
-      (*let withdrawal_fee = fee_schedule.withdrawal_fee in*)
+      let withdrawal_fee = fee_schedule.withdrawal_fee in
       (alice_state2, (trent_address, amount_to_withdraw))
       |^>>+ withdrawal
       >>= fun (alice_state3, signed_request2) ->
@@ -266,7 +266,8 @@ module Test = struct
         let alice_account_after_withdrawal =
           AccountMap.find alice_address trent_accounts_after_withdrawal in
         let alice_expected_withdrawal =
-          TokenAmount.sub alice_expected_deposit amount_to_withdraw in
+          TokenAmount.sub alice_expected_deposit
+            (TokenAmount.add amount_to_withdraw withdrawal_fee) in
         assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
         (alice_state3, signed_confirmation2)
         |> (push_side_chain_action_to_main_chain trent_state2)

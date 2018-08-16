@@ -45,7 +45,8 @@
    Or [things that cite the latter](http://citeseerx.ist.psu.edu/showciting?doi=10.1.1.156.187).
 
 * Byzantine Fault Tolerance:
- [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015)
+ [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015);
+ [A Guide to 99% Fault Tolerant Consensus, by Vitalik Buterin](https://vitalik.ca/general/2018/08/07/99_fault_tolerant.html).
 
 * Scaling:
  [Ethereum wiki Sharding FAQ](https://github.com/ethereum/wiki/wiki/Sharding-FAQ),

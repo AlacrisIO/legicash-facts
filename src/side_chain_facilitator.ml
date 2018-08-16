@@ -75,7 +75,8 @@ let is_side_chain_request_well_formed :
            state.fee_schedule.fee_per_billion
            (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000))
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-      TokenAmount.is_sum balance withdrawal_amount withdrawal_fee
+      TokenAmount.is_add_valid withdrawal_amount withdrawal_fee
+      && TokenAmount.compare balance (TokenAmount.add withdrawal_amount withdrawal_fee) >= 0
       && TokenAmount.equal withdrawal_fee state.fee_schedule.withdrawal_fee
 
 (** Check that the request is basically well-formed, or else fail *)

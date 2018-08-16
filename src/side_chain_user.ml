@@ -237,11 +237,7 @@ let withdrawal (user_state, (facilitator_address, withdrawal_amount)) =
   (user_state, facilitator_address) |> get_facilitator_fee_schedule
   >>=+ fun (user_state1, {withdrawal_fee}) ->
   Lwt.return (issue_user_request
-                ( user_state1
-                , Withdrawal
-                    { withdrawal_amount= TokenAmount.sub withdrawal_amount withdrawal_fee
-                    ; withdrawal_fee
-                    } ))
+                ( user_state1, Withdrawal { withdrawal_amount ; withdrawal_fee } ))
 
 let payment (user_state, (_facilitator_address, recipient_address, payment_amount)) =
   let invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= ""} in
