@@ -406,11 +406,12 @@ module Test = struct
 
   (* a sample facilitator state *)
 
-  let trent_fee_schedule : FacilitatorFeeSchedule.t =
-    { deposit_fee= TokenAmount.of_int 5
-    ; withdrawal_fee= TokenAmount.of_int 5
-    ; per_account_limit= TokenAmount.of_int 20000
-    ; fee_per_billion= TokenAmount.of_int 42 }
+  let trent_fee_schedule =
+    FacilitatorFeeSchedule.
+      { deposit_fee= TokenAmount.of_int 5
+      ; withdrawal_fee= TokenAmount.of_int 5
+      ; per_account_limit= TokenAmount.of_int 20000
+      ; fee_per_billion= TokenAmount.of_int 42 }
 
   let confirmed_trent_state =
     State.{ previous_main_chain_state= Digest.zero

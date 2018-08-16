@@ -1,3 +1,9 @@
+open Lib
+open Lwt.Infix
+
+(* TODO: rewrite all our actions in a monadic style, input -> state -> (output or_exn * state) wrapper;
+   this implies propagating the change all around our source code. Sigh. *)
+
 type 'output or_exn = ('output, exn) result
 
 type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output or_exn
@@ -58,6 +64,26 @@ let ( ^>> ) = action_seq
 let async_action_seq action1 action2 = compose_async_actions action2 action1
 
 let ( ^>>+ ) = async_action_seq
+
+let ( >>=+ )
+      (promise : ('state * 'a or_exn) Lwt.t)
+      (async_action : ('a, 'b, 'state) async_action) : ('state * 'b or_exn) Lwt.t =
+  promise >>= function
+  | (state, Ok x) -> async_action (state, x)
+  | (state, Error e) -> Lwt.return (state, Error e)
+
+module AsyncAction (State : TypeS) = struct
+  type 'a t = State.t -> (State.t * 'a or_exn) Lwt.t
+  let monadize_async_action a x s = a (s, x)
+  let return x s = Lwt.return (s, Ok x)
+  let bind m f s = Lwt.bind (m s) (function
+    | (s', Ok a) -> f a s'
+    | (s', Error e) -> Lwt.return (s', Error e))
+  let run r x mf = match Lwt_main.run (mf x !r) with (s, roe) -> r := s ; ResultOrExn.get roe
+  module Infix = struct
+    let (>>=) = bind
+  end
+end
 
 exception Assertion_failed of string
 

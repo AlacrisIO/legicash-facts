@@ -1,3 +1,4 @@
+open Lib
 (** TODO: break this file in multiple files, so we can reuse the same standard names
     for standard operators on each kind of action
 *)
@@ -52,6 +53,24 @@ val ( ^>>+ ) :
   ('input, 'intermediate, 'state) async_action
   -> ('intermediate, 'output, 'state) async_action
   -> ('input, 'output, 'state) async_action
+
+(* async action as monad in the input *)
+val ( >>=+ ) :
+  ('state * ('a or_exn)) Lwt.t ->
+  ('a, 'b, 'state) async_action ->
+  ('state * ('b or_exn)) Lwt.t
+
+module AsyncAction (State : TypeS) : sig
+  type 'a t = State.t -> (State.t * 'a or_exn) Lwt.t
+  val monadize_async_action : ('a, 'b, State.t) async_action -> 'a -> 'b t
+  val return : 'a -> 'a t
+  val bind : 'a t -> ('a -> 'b t) -> 'b t
+  val run : State.t ref -> 'a -> ('a -> 'b t) -> 'b
+  module Infix : sig
+    val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+  end
+end
+
 
 val compose_action_list : ('a, 'a, 'state) action list -> ('a, 'a, 'state) action
 (** compose a list of actions (NB: monomorphic in type being passed around *)

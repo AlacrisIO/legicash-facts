@@ -183,25 +183,28 @@ module Test = struct
       >>= fun () ->
       unlock_account alice_keys.address
       >>= fun _ ->
+      (alice_state, ())
+      |^>>+ get_facilitator_fee_schedule
+      >>= fun (alice_state1, fee_schedule) ->
       let amount_to_deposit = TokenAmount.of_int 523 in
       (* deposit *)
-      (alice_state, (trent_address, amount_to_deposit))
+      (alice_state1, (trent_address, amount_to_deposit))
       |^>>+ deposit
-      >>= fun (alice_state1, signed_request1) ->
+      >>= fun (alice_state2, signed_request1) ->
       (trent_state, signed_request1) |> process_request
       >>= fun (trent_state1, _signed_confirmation1) ->
       (* TODO: maybe examine the log for the contract call *)
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
-      let deposit_fee = trent_state1.fee_schedule.deposit_fee in
+      let deposit_fee = fee_schedule.deposit_fee in
       let alice_account = AccountMap.find alice_address trent_accounts in
       let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
       assert (alice_account.balance = alice_expected_deposit) ;
       (* open Bob's account *)
       let payment_amount = TokenAmount.of_int 17 in
-      (alice_state1, (trent_address, bob_address, payment_amount))
+      (alice_state2, (trent_address, bob_address, payment_amount))
       |^>> payment
-      |> fun (_alice_state2, signed_request2) ->
+      |> fun (_alice_state3, signed_request2) ->
       (trent_state1, signed_request2) |> process_request
       >>= fun (trent_state2, _signed_confirmation2) ->
       (* verify the payment to Bob's account on Trent *)
@@ -234,23 +237,27 @@ module Test = struct
       >>= fun _ ->
       (* deposit some funds first *)
       let amount_to_deposit = TokenAmount.of_int 1023 in
+      (alice_state, ())
+      |^>>+ get_facilitator_fee_schedule
+      >>= fun (alice_state1, fee_schedule) ->
       (* deposit *)
-      (alice_state, (trent_address, amount_to_deposit))
+      (alice_state1, (trent_address, amount_to_deposit))
       |^>>+ deposit
-      >>= fun (alice_state1, signed_request1) ->
+      >>= fun (alice_state2, signed_request1) ->
       (trent_state, signed_request1) |> process_request
       >>= fun (trent_state1, _signed_confirmation1) ->
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
-      let deposit_fee = trent_state1.fee_schedule.deposit_fee in
+      let deposit_fee = fee_schedule.deposit_fee in
       let alice_account = AccountMap.find alice_address trent_accounts in
       let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
       assert (alice_account.balance = alice_expected_deposit) ;
       (* withdrawal back to main chain *)
       let amount_to_withdraw = TokenAmount.of_int 42 in
-      (alice_state1, (trent_address, amount_to_withdraw))
+      (*let withdrawal_fee = fee_schedule.withdrawal_fee in*)
+      (alice_state2, (trent_address, amount_to_withdraw))
       |^>>+ withdrawal
-      >>= fun (alice_state2, signed_request2) ->
+      >>= fun (alice_state3, signed_request2) ->
       (trent_state1, signed_request2) |> process_request
       >>= function
       | _, Error x -> raise x
@@ -261,7 +268,7 @@ module Test = struct
         let alice_expected_withdrawal =
           TokenAmount.sub alice_expected_deposit amount_to_withdraw in
         assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
-        (alice_state2, signed_confirmation2)
+        (alice_state3, signed_confirmation2)
         |> (push_side_chain_action_to_main_chain trent_state2)
         (* TODO: get actual transaction receipt from main chain, check receipt
            maybe this t est belongs in Ethereum_transactions

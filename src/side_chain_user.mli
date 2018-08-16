@@ -146,3 +146,5 @@ val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) us
 *)
 
 val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) user_action
+
+val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) user_async_action

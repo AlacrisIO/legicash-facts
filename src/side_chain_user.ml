@@ -102,6 +102,10 @@ let get_first_facilitator =
     | state, None -> (state, Error No_facilitator_yet)
     | state, Some (address, _) -> (state, Ok address)
 
+(** TODO: query the network, whatever, and find the fee schedule *)
+let get_facilitator_fee_schedule (user_state, _) =
+  Lwt.return (user_state, Ok Side_chain.Test.trent_fee_schedule)
+
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
 
@@ -208,16 +212,19 @@ let lift_main_chain_user_async_action_to_side_chain async_action (user_state, in
 (* TODO: use facilitator fee schedule *)
 let deposit_fee = TokenAmount.of_int 5
 
-let deposit ((_user_state, (_facilitator_address, deposit_amount)) as input) =
+let deposit (user_state, (facilitator_address, deposit_amount)) =
+  assert (TokenAmount.compare deposit_amount deposit_fee >= 0);
+  (user_state, facilitator_address) |> get_facilitator_fee_schedule
+  >>=+ fun (user_state1, {deposit_fee}) ->
   let open Lwt in
-  input
+  (user_state1, (facilitator_address, deposit_amount))
   |> lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
-  ^>>+ fun ((_user_state1, main_chain_deposit_signed) as transaction) ->
+  ^>>+ fun ((_user_state2, main_chain_deposit_signed) as transaction) ->
   transaction
   |> lift_main_chain_user_async_action_to_side_chain Main_chain_action.wait_for_confirmation
-  ^>>+ fun (user_state2, main_chain_deposit_confirmation) ->
+  ^>>+ fun (user_state3, main_chain_deposit_confirmation) ->
   return (issue_user_request
-            ( user_state2
+            ( user_state3
             , Deposit
                 { deposit_amount= TokenAmount.sub deposit_amount deposit_fee
                 ; deposit_fee
@@ -225,13 +232,12 @@ let deposit ((_user_state, (_facilitator_address, deposit_amount)) as input) =
                 ; main_chain_deposit_confirmation
                 ; deposit_expedited= false } ))
 
-(* TODO: take into account not just the facilitator name, but the fee schedule, too. *)
-let withdrawal_fee = TokenAmount.of_int 5
-
 (* in Lwt monad, because we'll push the request to the main chain *)
-let withdrawal (user_state, (_facilitator_address, withdrawal_amount)) =
+let withdrawal (user_state, (facilitator_address, withdrawal_amount)) =
+  (user_state, facilitator_address) |> get_facilitator_fee_schedule
+  >>=+ fun (user_state1, {withdrawal_fee}) ->
   Lwt.return (issue_user_request
-                ( user_state
+                ( user_state1
                 , Withdrawal
                     { withdrawal_amount= TokenAmount.sub withdrawal_amount withdrawal_fee
                     ; withdrawal_fee

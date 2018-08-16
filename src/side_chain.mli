@@ -219,6 +219,7 @@ exception Invalid_operation of Operation.t
 val challenge_duration : Duration.t
 
 module Test : sig
+  val trent_fee_schedule : FacilitatorFeeSchedule.t
   val trent_state : FacilitatorState.t
   (** sample facilitator state for testing *)
 end

@@ -420,3 +420,13 @@ module IdWrapType : WrapTypeS with type +'a t = 'a
 module IdWrap (T: TypeS) : WrapS with type t = T.t and type value = T.t
 
 val the_global : 'a option ref -> (unit -> 'a) -> unit -> 'a
+
+module type MonadS = sig
+  type 'a t
+  val return : 'a -> 'a t
+  val bind : 'a t -> ('a -> 'b t) -> 'b t
+  (*val run : 'a t -> 'a*)
+  module Infix : sig
+    val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+  end
+end

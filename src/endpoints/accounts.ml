@@ -202,11 +202,7 @@ let create_user_states () =
          (create_side_chain_user_state keys))
     account_key_list
 
-let trent_fee_schedule : FacilitatorFeeSchedule.t =
-  { deposit_fee= TokenAmount.of_int 5
-  ; withdrawal_fee= TokenAmount.of_int 5
-  ; per_account_limit= TokenAmount.of_int 20000
-  ; fee_per_billion= TokenAmount.of_int 42 }
+let trent_fee_schedule = Side_chain.Test.trent_fee_schedule
 
 let (confirmed_trent_state : Side_chain.State.t) =
   { previous_main_chain_state= Digest.zero

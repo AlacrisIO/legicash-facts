@@ -262,3 +262,12 @@ let the_global ref maker =
       ref := Some x;
       x
 
+module type MonadS = sig
+  type 'a t
+  val return : 'a -> 'a t
+  val bind : 'a t -> ('a -> 'b t) -> 'b t
+  (*val run : 'a t -> 'a*)
+  module Infix : sig
+    val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+  end
+end
