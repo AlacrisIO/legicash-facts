@@ -211,7 +211,7 @@ Validation of proofs
   The hash for each `step` in has to be computed from the serialization of that
   step. Those serializations are defined in `merkle_trie.ml`, in the module
   `TrieSynthMerkle`. They are a concatenation of big-endian representations of
-  unsigned integer.
+  unsigned integer. The strings returned by the `proof` endpoint are big-endian.
   
   The following details pertain to commit 4f49fa6, "Fix withdrawal."
   
@@ -238,6 +238,10 @@ Validation of proofs
     (`module Digest = DBInt(Crypto.Digest)`)
   - Right is another 256-bit digest.
   
+  These nodes correspond to `left` and `right` steps. For a `right` step, the
+  hash supplied in the step goes on the right, and the partial hash computed so
+  far goes on the left. Vice versa for `left` steps.
+  
 ### Skip nodes
 
   - Initial tag is `Tag.skip = 0x83`.
@@ -246,4 +250,5 @@ Validation of proofs
   - Key is a `Revision`, i.e. a UInt64
   - child is a `Digest`, i.e. a UInt256. This is the hash from the last step.
   
-  
+  These nodes correspond to `skip` steps. The partial hash computed so far is
+  the child digest.
