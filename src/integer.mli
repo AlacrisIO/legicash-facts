@@ -54,6 +54,8 @@ module type UIntMoreS = sig
   val of_bits : string -> t
   val of_hex_string : string -> t
   val to_hex_string : t -> string
+  val of_0x_string : string -> t
+  val to_0x_string : t -> string
   val of_big_endian_bits : string -> t
   val to_big_endian_bits : t -> string
   val is_add_valid : t -> t -> bool (* TODO: add an explicit upper bound as third argument? *)
@@ -88,6 +90,29 @@ end
 module Int : UIntS with type t = Z.t
 
 module Nat : UIntS with type t = Z.t
+
+module type PreUIntZS = sig
+  val size_in_bits : int
+end
+
+module UIntZ (P : PreUIntZS) : sig
+  include UIntS with type t = Z.t
+  val size_in_bits : int
+  val size_in_bytes : int
+end
+
+module type PreUIntZableS = sig
+  include Unsigned.S
+  include PreUIntZS
+  val z_of: t -> Z.t
+  val of_z: Z.t -> t
+end
+
+module UIntZable (P: PreUIntZableS) : sig
+  include UIntS with type t = P.t
+  val size_in_bits : int
+  val size_in_bytes : int
+end
 
 module UInt16 : UIntS (* with type t = Unsigned.UInt16.t *)
 

@@ -1,5 +1,4 @@
 (* keypair.ml -- Secp256k1 key pairs *)
-
 open Lib
 open Hex
 open Yojsoning
@@ -7,10 +6,7 @@ open Marshaling
 open Crypto
 open Db
 
-type t =
-  { private_key: Secp256k1.Key.secret Secp256k1.Key.t
-  ; public_key: Secp256k1.Key.public Secp256k1.Key.t
-  ; address: Address.t }
+type t = keypair
 
 let private_key_length = 32
 

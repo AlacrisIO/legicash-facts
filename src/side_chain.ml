@@ -1,7 +1,6 @@
 (* Types for LegiCash Facilitator side-chains *)
 (* NB: Comments are in the .mli file *)
 open Lib
-open Action
 open Yojsoning
 open Marshaling
 open Crypto
@@ -308,10 +307,6 @@ module State = struct
     ; main_chain_transactions_posted= DigestSet.empty }
 end
 
-type verifier_state
-
-type ('input, 'output) verifier_action = ('input, 'output, verifier_state) action
-
 module FacilitatorFeeSchedule = struct
   [@warning "-39"]
   type t =
@@ -374,10 +369,6 @@ module FacilitatorState = struct
     facilitator_address |> facilitator_state_key |> get_db |> Option.get |> Digest.unmarshal_string |>
     db_value_of_digest unmarshal_string
 end
-
-type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t) action
-
-type ('input, 'output) facilitator_async_action = ('input, 'output, FacilitatorState.t) async_action
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 

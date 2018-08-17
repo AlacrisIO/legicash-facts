@@ -40,6 +40,9 @@ module Option = struct
 
   let to_list = function None -> [] | Some x -> [x]
 
+  let return x = Some x
+  let bind opt f = match opt with Some x -> f x | None -> None
+
   (** TODO: find which is canonical according to the style guide between this and
       let list_of_option x = match x with None -> [] | Some x -> [x]
       and/or define a new style guide rule with motivation.
@@ -262,12 +265,36 @@ let the_global ref maker =
       ref := Some x;
       x
 
-module type MonadS = sig
-  type 'a t
+module type ArrowBaseS = sig
+  type ('i, 'o) arr
+  val arr : ('i -> 'o) -> ('i, 'o) arr
+  val (>>>) : ('a, 'b) arr -> ('b, 'c) arr -> ('a, 'c) arr
+end
+module type ArrowS = ArrowBaseS
+module Arrow (A : ArrowBaseS) = struct
+  include A
+end
+
+module type MonadBaseS = sig
+  type 'wrapped t
   val return : 'a -> 'a t
   val bind : 'a t -> ('a -> 'b t) -> 'b t
-  (*val run : 'a t -> 'a*)
-  module Infix : sig
-    val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
-  end
+end
+module type MonadS = sig
+  include MonadBaseS
+  include ArrowS with type ('i, 'o) arr = 'i -> 'o t
+  val map : ('a -> 'b) -> 'a t -> 'b t
+  val (>>=) : 'a t -> ('a, 'b) arr -> 'b t
+  val (>>|) : 'a t -> ('a -> 'b) -> 'b t
+end
+module Monad (M : MonadBaseS) = struct
+  include M
+  let map f m = bind m (f >> return)
+  let (>>=) = bind
+  let (>>|) m f = map f m
+  include Arrow(struct
+      type ('i, 'o) arr = 'i -> 'o t
+      let arr f x = return (f x)
+      let (>>>) f g x = x |> f >>= g
+    end)
 end

@@ -44,7 +44,7 @@ module Episteme : sig
     { request: Request.t signed
     ; confirmation_option: Confirmation.t signed option
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
-  [@@deriving lens]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
 
@@ -100,44 +100,34 @@ module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type val
     E. If Trent lies, we want to be able to divert the unconfirmed *incoming* transactions
     to Ursula and/or Judy (TODO: and their dependency history if any?)
 *)
-type user_state =
-  { main_chain_user_state: Main_chain.user_state
-  ; facilitators: UserAccountStateMap.t }
-[@@deriving lens]
+module UserState : sig
+  type t =
+    { main_chain_user_state: Main_chain.UserState.t
+    ; facilitators: UserAccountStateMap.t }
+  [@@deriving lens { prefix=true }]
+end
 
+module UserAction : ActionS with type state = UserState.t
+module UserAsyncAction : AsyncActionS with type state = UserState.t
 
-(** function from 'input to 'output that acts on a user_state *)
-type ('input, 'action) user_action = ('input, 'action, user_state) action
+val issue_user_request : (Operation.t, Request.t signed) UserAction.arr
 
-(** asynchronous function from 'input to 'output that acts on a user_state *)
-type ('input, 'action) user_async_action = ('input, 'action, user_state) async_action
+val deposit : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
-val issue_user_request : (Operation.t, Request.t signed) user_action
+val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) UserAction.arr
 
-(** Flow 1 Step 2: Confirm account status for facilitator *)
-
-val deposit : (Address.t * TokenAmount.t, Request.t signed) user_async_action
-(** Flow 1 Step 3: user sends money on the main chain to the side chain *)
-
-val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) user_action
-(** deposit request *)
-
-val push_side_chain_action_to_main_chain : FacilitatorState.t -> (Confirmation.t signed,Main_chain.Confirmation.t) user_async_action
 (** reflect action on side chain on main chain *)
+val push_side_chain_action_to_main_chain :
+  FacilitatorState.t -> (Confirmation.t signed,Main_chain.Confirmation.t) UserAsyncAction.arr
 
-val withdrawal : (Address.t * TokenAmount.t, Request.t signed) user_async_action
-(** Flow 3 Step 3: user sends money from the side chain to the main chain *)
+val withdrawal : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
-val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) user_action
+val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
-(* Flow 3: Individual Adversarial Exit *)
+(** post an account_activity_status request for closing the account on the *main chain*. *)
+val initiate_individual_exit : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 
-val initiate_individual_exit : (unit, Main_chain.TransactionSigned.t) user_action
-(** Flow 3 Step 1: Alice posts an account_activity_status request for closing the account
-    on the *main chain*.
-*)
-
-val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) user_action
+val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 (** Flow 3 Step 3: Alice, who can see the final state of her account,
     posts on the main chain a demand for the final funds.
     This is signed then posted on the *main chain* by invoking the contract.
@@ -145,6 +135,6 @@ val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) us
     and post a lawsuit within a timeout window.
 *)
 
-val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) user_action
+val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 
-val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) user_async_action
+val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr

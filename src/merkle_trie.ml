@@ -12,7 +12,6 @@
 *)
 open Lib
 open Lazy
-open Yojson.Safe.Util
 open Yojsoning
 open Marshaling
 open Crypto
@@ -227,14 +226,14 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
              ; ("length", UInt16int.to_yojson length) ]
 
   let step_of_yojson_exn of_yojson_exn yojson =
-    let t = yojson |> member "type" |> to_string in
+    let t = yojson |> YoJson.member "type" |> YoJson.to_string in
     if t = "Left" then
-      LeftBranch {right= yojson |> member "right" |> of_yojson_exn}
+      LeftBranch {right= yojson |> YoJson.member "right" |> of_yojson_exn}
     else if t = "Right" then
-      RightBranch {left= yojson |> member "left" |> of_yojson_exn}
+      RightBranch {left= yojson |> YoJson.member "left" |> of_yojson_exn}
     else if t = "Skip" then
-      let bits = yojson |> member "bits" |> Key.of_yojson_exn in
-      let length = yojson |> member "length" |> UInt16int.of_yojson_exn in
+      let bits = yojson |> YoJson.member "bits" |> Key.of_yojson_exn in
+      let length = yojson |> YoJson.member "length" |> UInt16int.of_yojson_exn in
       SkipChild {bits; length}
     else raise (Internal_error "Bad json")
 
@@ -286,10 +285,10 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
                    ; ("leaf", Digest.to_yojson leaf)
                    ; ("steps", `List (List.map (step_to_yojson Digest.to_yojson) steps)) ]
                let of_yojson_exn yojson =
-                 { key = yojson |> member "key" |> Key.of_yojson_exn
-                 ; trie = yojson |> member "trie" |> Digest.of_yojson_exn
-                 ; leaf = yojson |> member "leaf" |> Digest.of_yojson_exn
-                 ; steps = yojson |> member "steps" |> to_list |>
+                 { key = yojson |> YoJson.member "key" |> Key.of_yojson_exn
+                 ; trie = yojson |> YoJson.member "trie" |> Digest.of_yojson_exn
+                 ; leaf = yojson |> YoJson.member "leaf" |> Digest.of_yojson_exn
+                 ; steps = yojson |> YoJson.member "steps" |> YoJson.to_list |>
                            List.map (step_of_yojson_exn Digest.of_yojson_exn) }
                let of_yojson = of_yojson_of_of_yojson_exn of_yojson_exn
                let yojsoning = {to_yojson;of_yojson}
@@ -411,9 +410,9 @@ module MerkleTrieSet (Elt : UIntS) = struct
                    ; ("trie", Digest.to_yojson trie)
                    ; ("steps", `List (List.map (T.step_to_yojson Digest.to_yojson) steps)) ]
                let of_yojson_exn yojson =
-                 { elt = yojson |> member "elt" |> Elt.of_yojson_exn
-                 ; trie = yojson |> member "trie" |> Digest.of_yojson_exn
-                 ; steps = yojson |> member "steps" |> to_list |>
+                 { elt = yojson |> YoJson.member "elt" |> Elt.of_yojson_exn
+                 ; trie = yojson |> YoJson.member "trie" |> Digest.of_yojson_exn
+                 ; steps = yojson |> YoJson.member "steps" |> YoJson.to_list |>
                            List.map (T.step_of_yojson_exn Digest.of_yojson_exn) }
                let of_yojson = of_yojson_of_of_yojson_exn of_yojson_exn
                let yojsoning = {to_yojson;of_yojson}
@@ -647,17 +646,17 @@ module Test = struct
 
   let proof_42_in_trie_100 =
     lazy (Proof.of_yojson_exn
-            (`Assoc [ ("key",`String "2a")
-                    ; ("trie",`String "cc01591e96bdca2eb2510ccf74be5a7fe096bb3cdda73ec5880fbd6f0326184a")
-                    ; ("leaf", `String "c2f64e3c9a94699bc29349597513917805ab15a894de4c816207f13c5ee913dc")
+            (`Assoc [ ("key",`String "0x2a")
+                    ; ("trie",`String "0xcc01591e96bdca2eb2510ccf74be5a7fe096bb3cdda73ec5880fbd6f0326184a")
+                    ; ("leaf", `String "0xc2f64e3c9a94699bc29349597513917805ab15a894de4c816207f13c5ee913dc")
                     ; ("steps",
-                       `List [ make_left_step "3d7939f72e6b6999c38047dd2df5abd627afbf195c7c7fa64c4268253a00d79a"
-                             ; make_right_step "8df081a3ab9866b9c144345e55b1e911920f1b09637e888f2c28d721884e8722"
-                             ; make_left_step "36158648cfc7578e443f442d9c034bef0420ed92a10c5c58cb949c7cb58e2d63"
-                             ; make_right_step "59ae1683e18b2ca8173273b9b93fa1029feb2aea51982749a2992f52f176ce5c"
-                             ; make_left_step "e796ba487541955b1a782f099e1485dfca89f8480940ec6184fa58d6959ddf09"
-                             ; make_right_step "991d1c3e8d0cdc8476fd8e74679bc8583d46f79d13b46fb2fdbfe512a221176b"
-                             ; make_left_step "abd6323da1934061765cdce805821f278ff06f143a7e76f53e6b6fb5a8cac7e2"
+                       `List [ make_left_step "0x3d7939f72e6b6999c38047dd2df5abd627afbf195c7c7fa64c4268253a00d79a"
+                             ; make_right_step "0x8df081a3ab9866b9c144345e55b1e911920f1b09637e888f2c28d721884e8722"
+                             ; make_left_step "0x36158648cfc7578e443f442d9c034bef0420ed92a10c5c58cb949c7cb58e2d63"
+                             ; make_right_step "0x59ae1683e18b2ca8173273b9b93fa1029feb2aea51982749a2992f52f176ce5c"
+                             ; make_left_step "0xe796ba487541955b1a782f099e1485dfca89f8480940ec6184fa58d6959ddf09"
+                             ; make_right_step "0x991d1c3e8d0cdc8476fd8e74679bc8583d46f79d13b46fb2fdbfe512a221176b"
+                             ; make_left_step "0xabd6323da1934061765cdce805821f278ff06f143a7e76f53e6b6fb5a8cac7e2"
                              ])
                     ]))
 

@@ -46,7 +46,7 @@ let hex_string_of_address_with_checksum address =
   (* Char.code 'a' - Char.code 'A' *)
   let uppercase_difference = 32 in
   let hashed_digits = hash hex_digits in
-  "0x" ^ String.init (2 * Address.address_size)
+  "0x" ^ String.init (2 * Address.size_in_bytes)
            (fun i ->
               let ch = hex_digits.[i] in
               match ch with

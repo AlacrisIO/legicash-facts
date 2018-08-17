@@ -1,4 +1,5 @@
 (* ethereum_json_rpc.ml -- JSON RPC interface to Ethereum node *)
+open Yojsoning
 
 (** constructors for particular JSON RPC calls *)
 type ethereum_rpc_call =
@@ -15,12 +16,12 @@ type ethereum_rpc_call =
   | Personal_unlockAccount
 [@@deriving show]
 
-val send_rpc_call_to_net : Yojson.json -> Yojson.Safe.json Lwt.t
+val send_rpc_call_to_net : yojson -> yojson Lwt.t
 (** run the call given by the JSON *)
 
-val build_json_rpc_call : ethereum_rpc_call -> string list -> Yojson.json
+val build_json_rpc_call : ethereum_rpc_call -> string list -> yojson
 (** build the JSON from the call constructor and a list of string parameters *)
 
 val build_json_rpc_call_with_tagged_parameters :
-  ethereum_rpc_call -> Yojson.json list -> Yojson.json
+  ethereum_rpc_call -> yojson list -> yojson
 (** build the JSON from the call constructor and a type-tagged list of parameters *)

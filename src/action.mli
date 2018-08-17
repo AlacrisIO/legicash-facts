@@ -1,104 +1,62 @@
 open Lib
-(** TODO: break this file in multiple files, so we can reuse the same standard names
-    for standard operators on each kind of action
-*)
 
-(** 'output or exception -- TODO: if we use Lwt, we should just use Lwt.result for that. *)
+(** 'output or exception *)
 type 'output or_exn = ('output, exn) result
 
 (** function from 'input to 'output that acts on a 'state and may return an exception *)
-type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output or_exn
+type ('input, 'output, 'state) action = 'input -> 'state -> 'output or_exn * 'state
 
-(** asychronous function from 'input to 'output that acts on a 'state and may return an exception *)
-type ('input, 'output, 'state) async_action = 'state * 'input -> ('state * 'output or_exn) Lwt.t
-
-val make_action_async : ('input, 'output, 'state) action -> ('input, 'output, 'state) async_action
-
-val effect_action : ('input, 'output, 'state) action -> 'state ref -> 'input -> 'output
-(** run the action, with side-effects and all *)
-
-val no_action : ('passthrough, 'passthrough, 'state) action
-
-val fail_action : exn -> ('input, 'bottom, 'state) action
-
-val do_action : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 'output or_exn
-(** apply an action, left to right *)
-
-val ( ^|> ) : 'state * 'input -> ('input, 'output, 'state) action -> 'state * 'output or_exn
-
-val compose_actions :
-  ('intermediate, 'output, 'state) action
-  -> ('input, 'intermediate, 'state) action
-  -> ('input, 'output, 'state) action
-(** compose two actions *)
-
-val compose_async_actions :
-  ('intermediate, 'output, 'state) async_action
-  -> ('input, 'intermediate, 'state) async_action
-  -> ('input, 'output, 'state) async_action
-(** compose two async actions *)
-
-val action_seq :
-  ('input, 'intermediate, 'state) action
-  -> ('intermediate, 'output, 'state) action
-  -> ('input, 'output, 'state) action
-(** compose two actions, left to right *)
-
-val ( ^>> ) :
-  ('input, 'intermediate, 'state) action
-  -> ('intermediate, 'output, 'state) action
-  -> ('input, 'output, 'state) action
-
-val ( ^>>+ ) :
-  ('input, 'intermediate, 'state) async_action
-  -> ('intermediate, 'output, 'state) async_action
-  -> ('input, 'output, 'state) async_action
-
-(* async action as monad in the input *)
-val ( >>=+ ) :
-  ('state * ('a or_exn)) Lwt.t ->
-  ('a, 'b, 'state) async_action ->
-  ('state * ('b or_exn)) Lwt.t
-
-module AsyncAction (State : TypeS) : sig
-  type 'a t = State.t -> (State.t * 'a or_exn) Lwt.t
-  val monadize_async_action : ('a, 'b, State.t) async_action -> 'a -> 'b t
-  val return : 'a -> 'a t
-  val bind : 'a t -> ('a -> 'b t) -> 'b t
-  val run : State.t ref -> 'a -> ('a -> 'b t) -> 'b
-  module Infix : sig
-    val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
-  end
-end
-
-
-val compose_action_list : ('a, 'a, 'state) action list -> ('a, 'a, 'state) action
-(** compose a list of actions (NB: monomorphic in type being passed around *)
-
-type ('input, 'output, 'state) pure_action = 'state * 'input -> 'output
-(** a pure action can read the global state, but not modify it, and not fail *)
-
-val action_of_pure_action :
-  ('input, 'output, 'state) pure_action -> ('input, 'output, 'state) action
-(** treat pure action as action by passing through unmodified state *)
-
-val async_action_of_pure_action :
-  ('input, 'output, 'state) pure_action -> (('input, 'output, 'state) async_action)
-(** treat pure action as async_action; pass unmodified state, inject into the Lwt monad *)
-
-val compose_pure_actions :
-  ('intermediate, 'output, 'state) pure_action
-  -> ('input, 'intermediate, 'state) pure_action
-  -> ('input, 'output, 'state) pure_action
-
-val pure_action_seq :
-  ('input, 'intermediate, 'state) pure_action
-  -> ('intermediate, 'output, 'state) pure_action
-  -> ('input, 'output, 'state) pure_action
+(** asynchronous function from 'input to 'output that acts on a 'state and may return an exception *)
+type ('input, 'output, 'state) async_action = 'input -> 'state -> ('output or_exn * 'state) Lwt.t
 
 exception Assertion_failed of string
 
-val action_assert : string -> ('a, bool, 'state) pure_action -> ('a, 'a, 'state) action
-(** given a pure_action returning a bool, make an action that asserts the bool is true
-    the string could be the file location as given by Pervasives.__LOC__, or other
-    string identifying the point of failure, which is provided to Assertion_failed *)
+module type StatefulErrableActionS = sig
+  type state
+  include MonadS
+
+  (** computations that need to read the state can use with_state *)
+  val with_state : ('a * state, 'b) arr -> ('a, 'b) arr
+
+  (** computations that need to write the state can use return_state *)
+  val return_state : state -> ('a, 'a) arr
+
+  (** change the state, otherwise the identity arrow *)
+  val map_state : (state -> state) -> ('a, 'a) arr
+
+  (** computations that fail *)
+  val fail : exn -> _ t
+
+  (** a pure computation can read the state but have no other side-effect *)
+  type ('i, 'o) pure = 'i -> state -> 'o
+  val of_pure : ('i, 'o) pure -> ('i, 'o) arr
+
+  (** given a pure computation returning a bool, make an action that asserts the bool is true,
+      and if not fails with an Assertion_failed with a string computed by calling the thunk where,
+      which might compose a message based on Pervasives.__LOC__ or __POS__. *)
+  val assert_: (unit -> string) -> ('i, bool) pure -> ('i, 'i) arr
+
+  (** run a computation on a global state ref. *)
+  val run : state ref -> 'a -> ('a, 'b) arr -> 'b
+end
+
+module type ActionS = sig
+  type state
+  include StatefulErrableActionS
+    with type state := state
+     and type 'a t = state -> 'a or_exn * state
+end
+
+module Action (State : TypeS) : ActionS with type state = State.t
+
+module type AsyncActionS = sig
+  type state
+  include StatefulErrableActionS
+    with type state := state
+     and type 'a t = state -> ('a or_exn * state) Lwt.t
+
+  (** run a computation on a global state ref in an existing Lwt context *)
+  val run_lwt : state ref -> 'a -> ('a, 'b) arr -> 'b Lwt.t
+  val of_action : ('a -> state -> 'b or_exn * state) -> ('a, 'b) arr
+end
+module AsyncAction (State : TypeS) : AsyncActionS with type state = State.t

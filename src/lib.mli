@@ -60,6 +60,10 @@ module Option : sig
   (** Trivial functor from option to list *)
   val to_list : 'a t -> 'a list
 
+  (** Option is a Monad! *)
+  val return : 'a -> 'a t
+  val bind : 'a t -> ('a -> 'b t) -> 'b t
+
   (** Map a function to the content of the option, if any *)
   val map : ('a -> 'b) -> 'a t -> 'b t
 
@@ -421,12 +425,24 @@ module IdWrap (T: TypeS) : WrapS with type t = T.t and type value = T.t
 
 val the_global : 'a option ref -> (unit -> 'a) -> unit -> 'a
 
-module type MonadS = sig
-  type 'a t
+module type ArrowBaseS = sig
+  type ('i, 'o) arr
+  val arr : ('i -> 'o) -> ('i, 'o) arr
+  val (>>>) : ('a, 'b) arr -> ('b, 'c) arr -> ('a, 'c) arr
+end
+module type ArrowS = ArrowBaseS
+module Arrow (A : ArrowBaseS) : ArrowS with type ('i, 'o) arr = ('i, 'o) A.arr
+
+module type MonadBaseS = sig
+  type 'wrapped t
   val return : 'a -> 'a t
   val bind : 'a t -> ('a -> 'b t) -> 'b t
-  (*val run : 'a t -> 'a*)
-  module Infix : sig
-    val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
-  end
 end
+module type MonadS = sig
+  include MonadBaseS
+  include ArrowS with type ('i, 'o) arr = 'i -> 'o t
+  val map : ('a -> 'b) -> 'a t -> 'b t
+  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+  val (>>|) : 'a t -> ('a -> 'b) -> 'b t
+end
+module Monad (M : MonadBaseS) : MonadS with type 'a t = 'a M.t

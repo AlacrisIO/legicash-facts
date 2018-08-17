@@ -1,9 +1,19 @@
 (* TODO: combine the two sets of combinators for Yojsoning and Marshaling? *)
 open Lib
 
-type 'a to_yojson = 'a -> Yojson.Safe.json
-type 'a of_yojson = Yojson.Safe.json -> ('a, string) result
-type 'a of_yojson_exn = Yojson.Safe.json -> 'a
+type yojson = Yojson.Safe.json
+val string_of_yojson : yojson -> string
+val yojson_of_string : string -> yojson
+
+module YoJson : sig
+  include module type of Yojson.Safe.Util
+  val mem : string -> yojson -> bool
+end
+
+
+type 'a to_yojson = 'a -> yojson
+type 'a of_yojson = yojson -> ('a, string) result
+type 'a of_yojson_exn = yojson -> 'a
 type 'a yojsoning = { to_yojson: 'a to_yojson; of_yojson: 'a of_yojson }
 
 val of_yojson_exn_of_of_yojson : 'a of_yojson -> 'a of_yojson_exn

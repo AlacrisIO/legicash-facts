@@ -1,54 +1,42 @@
 open Lib
+open Hex
+open Yojsoning
 open Marshaling
 open Integer
+
+module Digest = Data256
+
+type digest = Digest.t
+type public_key = Secp256k1.Key.public Secp256k1.Key.t
+type private_key = Secp256k1.Key.secret Secp256k1.Key.t
+type signature = Secp256k1.Sign.recoverable Secp256k1.Sign.t
+type 'a signed = {payload: 'a; signature: signature}
 
 let keccak256_string s =
   Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
 (* To debug encoding issues in small problems, you can uncomment the following line:
    |> fun h -> Printf.printf "hash %s <= %s\n%!" (Hex.unparse_hex_string h) (Hex.unparse_hex_string s); h *)
 (* NB: trying to reuse (Cryptokit.Hash.keccak 256) object across calls results in a segfault *)
-
-(* Create context just once, because it's an expensive operation.
-   This assumes single instantiation of this module.
-*)
-let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
-
-module Digest = Data256
-
-type digest = Digest.t
-
 let digest_of_string s =
   Digest.of_big_endian_bits (keccak256_string s)
 let digest_of_marshal_bytes marshal_bytes x =
   x |> marshal_bytes |> Bytes.to_string |> digest_of_string
 let digest_of_marshal marshal =
   digest_of_marshal_bytes (marshal_bytes_of_marshal marshal)
-
-(** Special magic digest for None. A bit ugly. *)
 let null_digest = Digest.zero
 
-module type DigestibleS = sig
-  include MarshalableS
-  val digest: t -> digest
-end
-
-module Digestible (M : MarshalableS) = struct
-  include M
-  let digest = digest_of_marshal_bytes M.marshal_bytes
-end
-
-module DigestibleOfPreMarshalable (P : PreMarshalableS) = Digestible(Marshalable(P))
+(* Create context just once, because it's an expensive operation.
+   This assumes single instantiation of this module.
+*)
+let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
 module Address = struct
-  include UInt256_z
-  let address_size = 20
+  include UIntZ(struct let size_in_bits = 160 end)
   let of_hex_string = sized_nat_of_hex_string 160
   let to_hex_string = hex_string_of_sized_nat 160
-  let of_big_endian_bits = nat_of_big_endian_bits 160
-  let to_big_endian_bits = big_endian_bits_of_nat 160
-  let marshaling = marshaling_sized_string address_size to_big_endian_bits of_big_endian_bits
-  let pp formatter x = Format.fprintf formatter "0x%s" (to_hex_string x)
-  let show x = Format.asprintf "%a" pp x
+  let of_0x_string = parse_0x_prefix of_hex_string
+  let to_0x_string = unparse_0x_prefix to_hex_string
+  let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
   let of_public_key public_key =
     let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
     (* uncompressed public key has an extra byte at the beginning, which we remove:
@@ -57,22 +45,19 @@ module Address = struct
     let pubkey_string = Cstruct.to_string (Cstruct.of_bigarray ~off:1 buffer) in
     let hash = keccak256_string pubkey_string in
     let hash_len = String.length hash in
-    of_bits (String.init address_size (fun ndx -> hash.[hash_len - ndx - 1]))
+    of_bits (String.init size_in_bytes (fun ndx -> hash.[hash_len - ndx - 1]))
 end
 
-type signature = Secp256k1.Sign.recoverable Secp256k1.Sign.t
+type keypair =
+  { private_key: private_key
+  ; public_key: public_key
+  ; address: Address.t }
 
 (* create context just once, because expensive operation; assumes
    single instantiation of this module
    suppress unused variable warning
 *)
 let [@warning "-32"] secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
-
-(** unique identifier for all parties, that is, customers and facilitators *)
-type public_key = Secp256k1.Key.public Secp256k1.Key.t
-
-(** private key in public-key cryptography *)
-type private_key = Secp256k1.Key.secret Secp256k1.Key.t
 
 (*module Int256 : Int with type t = Z.t : sig
   end*)
@@ -119,8 +104,6 @@ module Signature = struct
   end
   include YojsonableOfMarshalable(Marshalable(S))
 end
-
-type 'a signed = {payload: 'a; signature: signature}
 
 let marshal_signed marshal buffer {payload; signature} =
   marshal buffer payload; Signature.marshaling.marshal buffer signature
@@ -178,8 +161,22 @@ let is_signature_valid make_digest (address: Address.t) (signature: Signature.t)
 let is_signed_value_valid make_digest address signed_value =
   is_signature_valid make_digest address signed_value.signature signed_value.payload
 
-let sign make_digest private_key data =
+let signed make_digest private_key data =
   {payload= data; signature= make_signature make_digest private_key data}
+
+module type DigestibleS = sig
+  include MarshalableS
+  val digest : t -> digest
+  val signed : keypair -> t -> t signed
+end
+
+module Digestible (M : MarshalableS) = struct
+  include M
+  let digest = digest_of_marshal_bytes M.marshal_bytes
+  let signed kp = signed digest kp.private_key
+end
+
+module DigestibleOfPreMarshalable (P : PreMarshalableS) = Digestible(Marshalable(P))
 
 module Test = struct
   (* test digests *)

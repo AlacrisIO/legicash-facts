@@ -15,7 +15,7 @@ module AccountMap = MerkleTrie (Address) (TokenAmount)
 module State = struct
   (* TODO: have an actual model of the Ethereum main chain, marshaled the Ethereum way. *)
   type t = {revision: Revision.t; accounts: AccountMap.t}
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }]
   module PrePersistable = struct
     module M = struct
       type nonrec t = t
@@ -70,7 +70,7 @@ module TxHeader = struct
            ; gas_price: TokenAmount.t
            ; gas_limit: TokenAmount.t
            ; value: TokenAmount.t }
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }]
   module PrePersistable = struct
     module M = struct
       type nonrec t = t
@@ -103,7 +103,7 @@ end
 (** Transaction (to be) posted to the main chain (i.e. Ethereum) *)
 module Transaction = struct
   type t = {tx_header: TxHeader.t; operation: Operation.t}
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }]
   module PrePersistable = OCamlPersistable (struct type nonrec t = t end)
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
@@ -114,18 +114,17 @@ module TransactionSigned = struct
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
 
-type user_state =
-  { keypair: Keypair.t
-  ; confirmed_state: digest
-  ; confirmed_balance: TokenAmount.t
-  ; pending_transactions: TransactionSigned.t list
-  ; nonce: Nonce.t }
-[@@deriving lens]
+module UserState = struct
+  type t =
+    { keypair: Keypair.t
+    ; confirmed_state: digest
+    ; confirmed_balance: TokenAmount.t
+    ; pending_transactions: TransactionSigned.t list
+    ; nonce: Nonce.t }
+  [@@deriving lens { prefix=true }]
+end
 
-type ('input, 'output) user_action = ('input, 'output, user_state) action
-(** type of synchronous actions on the main chain user state *)
-
-type ('input, 'output) user_async_action = ('input, 'output, user_state) async_action
-(** type of asynchronous actions on the main chain user state *)
+module UserAction = Action(UserState)
+module UserAsyncAction = AsyncAction(UserState)
 
 module TransactionDigestSet = DigestSet

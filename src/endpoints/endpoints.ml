@@ -2,6 +2,7 @@
 
 open Legicash_lib
 open Lib
+open Yojsoning
 open Lwt
 
 module TokenAmount = Main_chain.TokenAmount
@@ -104,8 +105,8 @@ let send_json ~code json =
   Eliom_registration.String.send ~code (json, json_mime_type)
 
 let send_error ~code error =
-  let json = Yojson.Safe.to_string (error_message_to_yojson {error}) in
-  send_json ~code json
+  let json_str = string_of_yojson (error_message_to_yojson {error}) in
+  send_json ~code json_str
 
 let send_success () =
   Eliom_registration.String.send ~code:200 ("", "")
@@ -138,19 +139,18 @@ let bad_response msg =
 (**** Handlers ****)
 
 let deposit_handler () (content_type,raw_content_opt) =
-  let open Yojson.Safe in
   if is_json_content content_type then
     try
       match raw_content_opt with
       | None -> missing_content_error "deposit"
       | Some raw_content ->
         read_raw_content raw_content >>= fun json_string ->
-        let json = from_string json_string in
+        let json = yojson_of_string json_string in
         let maybe_deposit = deposit_json_of_yojson json in
         match maybe_deposit with
         | Ok deposit ->
           let result_json = Actions.deposit_to_trent deposit.address deposit.amount in
-          send_json ~code:200 (Yojson.Safe.to_string result_json)
+          send_json ~code:200 (string_of_yojson result_json)
         | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
        | exn -> bad_response (Printexc.to_string exn)
@@ -158,19 +158,18 @@ let deposit_handler () (content_type,raw_content_opt) =
     not_json_content_error ()
 
 let withdrawal_handler () (content_type,raw_content_opt) =
-  let open Yojson.Safe in
   if is_json_content content_type then
     try
       match raw_content_opt with
       | None -> missing_content_error "withdrawal"
       | Some raw_content ->
         read_raw_content raw_content >>= fun json_string ->
-        let json = from_string json_string in
+        let json = yojson_of_string json_string in
         let maybe_withdrawal = withdrawal_json_of_yojson json in
         match maybe_withdrawal with
         | Ok withdrawal ->
           let result_json = Actions.withdrawal_from_trent withdrawal.address withdrawal.amount in
-          send_json ~code:200 (Yojson.Safe.to_string result_json)
+          send_json ~code:200 (string_of_yojson result_json)
         | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
        | exn -> bad_response (Printexc.to_string exn)
@@ -178,20 +177,19 @@ let withdrawal_handler () (content_type,raw_content_opt) =
     not_json_content_error ()
 
 let payment_handler () (content_type,raw_content_opt) =
-  let open Yojson.Safe in
   if is_json_content content_type then
     try
       match raw_content_opt with
       | None -> missing_content_error "payment"
       | Some raw_content ->
         read_raw_content raw_content >>= fun json_string ->
-        let json = from_string json_string in
+        let json = yojson_of_string json_string in
         let maybe_payment = payment_json_of_yojson json in
         match maybe_payment with
         | Ok payment ->
           Actions.payment_on_trent payment.sender payment.recipient payment.amount
           >>= fun result_json ->
-          send_json ~code:200 (Yojson.Safe.to_string result_json)
+          send_json ~code:200 (string_of_yojson result_json)
         | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
        | exn -> bad_response (Printexc.to_string exn)
@@ -199,19 +197,18 @@ let payment_handler () (content_type,raw_content_opt) =
     not_json_content_error ()
 
 let balance_handler () (content_type,raw_content_opt) =
-  let open Yojson.Safe in
   if is_json_content content_type then
     try
       match raw_content_opt with
       | None -> missing_content_error "balance"
       | Some raw_content ->
         read_raw_content raw_content >>= fun json_string ->
-        let json = from_string json_string in
+        let json = yojson_of_string json_string in
         let maybe_address = address_json_of_yojson json in
         match maybe_address with
         | Ok address_record ->
           let result_json = Actions.get_balance_on_trent address_record.address in
-          send_json ~code:200 (Yojson.Safe.to_string result_json)
+          send_json ~code:200 (string_of_yojson result_json)
         | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
        | exn -> bad_response (Printexc.to_string exn)
@@ -219,19 +216,18 @@ let balance_handler () (content_type,raw_content_opt) =
     not_json_content_error ()
 
 let recent_transactions_handler ((),maybe_limit) (content_type,raw_content_opt) =
-  let open Yojson.Safe in
   if is_json_content content_type then
     try
       match raw_content_opt with
       | None -> missing_content_error "balance"
       | Some raw_content ->
         read_raw_content raw_content >>= fun json_string ->
-        let json = from_string json_string in
+        let json = yojson_of_string json_string in
         let maybe_address = address_json_of_yojson json in
         match maybe_address with
         | Ok address_record ->
           let result_json = Actions.get_recent_transactions_on_trent address_record.address maybe_limit in
-          send_json ~code:200 (Yojson.Safe.to_string result_json)
+          send_json ~code:200 (string_of_yojson result_json)
         | Error msg -> bad_response msg
     with Internal_error msg -> bad_response msg
        | exn -> bad_response (Printexc.to_string exn)
@@ -243,7 +239,7 @@ let make_get_handler action =
   fun _ () ->
     try
       let result_json = action () in
-      send_json ~code:200 (Yojson.Safe.to_string result_json)
+      send_json ~code:200 (string_of_yojson result_json)
     with Internal_error msg -> bad_response msg
 
 let balances_handler = make_get_handler Actions.get_all_balances_on_trent
@@ -252,13 +248,13 @@ let transaction_rate_handler = make_get_handler Actions.get_transaction_rate_on_
 let proof_handler (_proof,tx_revision) () =
   try
     let result_json = Actions.get_proof tx_revision in
-    send_json ~code:200 (Yojson.Safe.to_string result_json)
+    send_json ~code:200 (string_of_yojson result_json)
   with Internal_error msg -> bad_response msg
 
 let thread_handler (_thread,id) () =
   try
     let result_json = Actions.apply_main_chain_thread id in
-    send_json ~code:200 (Yojson.Safe.to_string result_json)
+    send_json ~code:200 (string_of_yojson result_json)
   with Internal_error msg -> bad_response msg
 
 (* Register services *)

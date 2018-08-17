@@ -1,13 +1,13 @@
 open Legibase
 open Action
 open Crypto
-open Side_chain
-open Side_chain_user
 
 (* the "flows" mentioned here are those mentioned in the file "demo.md" *)
 
-val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
-(** constantly watch the main chain and search for prosecutable issues relating to facilitators *)
+(*
+   val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
+   (** constantly watch the main chain and search for prosecutable issues relating to facilitators *)
+*)
 
 (* Flow 2: Payment
    Step 1: Alice fills in the details of a check from an initial invoice, then signs it.
@@ -44,10 +44,12 @@ val send_message : 'a -> conversation -> unit or_exn
     TODO: To be implemented but not exposed
 *)
 
-val send_user_request : user_state -> Request.t signed -> conversation -> unit or_exn
+(*
+   val send_user_request : UserState.t -> Request.t signed -> conversation -> unit or_exn
 
-val send_facilitator_confirmation :
-  FacilitatorState.t -> Confirmation.t signed -> conversation -> unit or_exn
+   val send_facilitator_confirmation :
+   FacilitatorState.t -> Confirmation.t signed -> conversation -> unit or_exn
+*)
 
 (* useful functions for other test code *)
 module Test : sig

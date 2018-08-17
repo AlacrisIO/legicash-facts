@@ -1,8 +1,17 @@
 open Lib
 
-type 'a to_yojson = 'a -> Yojson.Safe.json
-type 'a of_yojson = Yojson.Safe.json -> ('a, string) result
-type 'a of_yojson_exn = Yojson.Safe.json -> 'a
+type yojson = Yojson.Safe.json
+let string_of_yojson y = Yojson.Safe.to_string y
+let yojson_of_string s = Yojson.Safe.from_string s
+
+module YoJson = struct
+  include Yojson.Safe.Util
+  let mem key yojson = List.mem key (keys yojson)
+end
+
+type 'a to_yojson = 'a -> yojson
+type 'a of_yojson = yojson -> ('a, string) result
+type 'a of_yojson_exn = yojson -> 'a
 type 'a yojsoning = { to_yojson: 'a to_yojson; of_yojson: 'a of_yojson }
 
 let of_yojson_exn_of_of_yojson of_yojson y =
@@ -16,10 +25,10 @@ let of_yojson_of_of_yojson_exn of_yojson_exn y =
   | Yojson.Json_error x -> Error ("Json_error " ^ x)
 
 let to_yojson_string_of_to_yojson to_yojson x =
-  x |> to_yojson |> Yojson.Safe.to_string
+  x |> to_yojson |> string_of_yojson
 
 let of_yojson_string_exn_of_of_yojson_exn of_yojson_exn s =
-  of_yojson_exn (Yojson.Safe.from_string s)
+  of_yojson_exn (yojson_of_string s)
 
 let to_yojson_map f to_yojson x = x |> f |> to_yojson
 let of_yojson_map f of_yojson y = y |> of_yojson |> Result.map f

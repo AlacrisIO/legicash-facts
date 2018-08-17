@@ -1,15 +1,19 @@
+open Action
 open Crypto
 open Side_chain
 
-val process_request : (Request.t signed, Confirmation.t signed) facilitator_async_action
-(** Flow 1 Step 5: facilitator acknowledges deposit, stores it and sends it to user *)
+module FacilitatorAction : ActionS with type state = FacilitatorState.t
+module FacilitatorAsyncAction : AsyncActionS with type state = FacilitatorState.t
 
-val commit_facilitator_state : (unit, unit) facilitator_action
+(** facilitator processes request *)
+val process_request : (Request.t signed, Confirmation.t signed) FacilitatorAsyncAction.arr
+
+val commit_facilitator_state : (unit, unit) FacilitatorAsyncAction.arr
 (** For a facilitator, commit the state of the side-chain to the main-chain *)
 
 (* val embed_request: (user_request, Main_chain.transaction) user_action *)
 
-val check_main_chain_for_exits : (unit, Request.t list) facilitator_action
+val check_main_chain_for_exits : (unit, Request.t list) FacilitatorAsyncAction.arr
 (** Flow 3 Step 2: Trent, who follows the main chain, checks for such exit requests.
     When one is found, Trent is on notice to post an update of his side-chain within
     an allowed deadline, that features a confirmation for these requests.

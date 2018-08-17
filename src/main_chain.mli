@@ -29,7 +29,7 @@ module TxHeader : sig
     ; gas_price: TokenAmount.t
     ; gas_limit: TokenAmount.t
     ; value: TokenAmount.t }
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
 
@@ -74,16 +74,17 @@ val is_confirmation_valid : Confirmation.t -> TransactionSigned.t -> bool
     confirmed_state is a digest of the confirmed Main_chain.State that this is relative to.
     confirmed_balance is the balance of the user account relative to that confirmed_state.
 *)
-type user_state =
-  { keypair: Keypair.t
-  ; confirmed_state: digest
-  ; confirmed_balance: TokenAmount.t
-  ; pending_transactions: TransactionSigned.t list
-  ; nonce: Nonce.t }
-[@@deriving lens]
+module UserState : sig
+  type t =
+    { keypair: Keypair.t
+    ; confirmed_state: digest
+    ; confirmed_balance: TokenAmount.t
+    ; pending_transactions: TransactionSigned.t list
+    ; nonce: Nonce.t }
+  [@@deriving lens { prefix=true }]
+end
 
-type ('input, 'output) user_action = ('input, 'output, user_state) action
-
-type ('input, 'output) user_async_action = ('input, 'output, user_state) async_action
+module UserAction : ActionS with type state = UserState.t
+module UserAsyncAction : AsyncActionS with type state = UserState.t
 
 val genesis_state : State.t

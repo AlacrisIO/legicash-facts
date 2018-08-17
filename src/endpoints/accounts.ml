@@ -1,8 +1,8 @@
 (* accounts.eliom -- account information for endpoints demo  *)
 
 open Legicash_lib
-
 open Lib
+open Yojsoning
 open Crypto
 open Db
 open Main_chain
@@ -127,7 +127,6 @@ let number_of_accounts = Array.length account_key_array
 let address_to_account_tbl = Hashtbl.create number_of_accounts
 
 let _ =
-  let open Keypair in
   Array.iter
     (fun (name, keys) -> Hashtbl.add address_to_account_tbl keys.address name)
     account_key_array
@@ -140,7 +139,6 @@ let get_user_name address_t =
 let address_to_keys_tbl = Hashtbl.create number_of_accounts
 
 let _ =
-  let open Keypair in
   List.iter
     (fun keys -> Hashtbl.add address_to_keys_tbl keys.address keys)
     account_keys
@@ -156,8 +154,6 @@ let trent_address = trent_keys.address
 let store_keys_on_testnet (name,keys) =
   let open Lwt in
   let open Secp256k1 in
-  let open Yojson in
-  let open Keypair in
   let open Ethereum_json_rpc in
   (* get hex string version of private key *)
   let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
@@ -170,30 +166,30 @@ let store_keys_on_testnet (name,keys) =
   let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
   send_rpc_call_to_net json
   >>= fun result_json ->
-  let result_keys = Safe.Util.keys result_json in
-  if List.mem "result" result_keys then (
-    let result = Safe.Util.member "result" result_json in
+  if YoJson.mem "result" result_json then (
+    let result = YoJson.member "result" result_json in
     Printf.eprintf "Succesfully created account for %s on test net with address: %s\n%!"
-      name (Safe.to_string result));
+      name (string_of_yojson result));
   return ()
 
 (* prepare test network with accounts, contract *)
 
-let (address_to_user_state_tbl : (Address.t,Side_chain_user.user_state) Hashtbl.t) = Hashtbl.create number_of_accounts
+let (address_to_user_state_tbl : (Address.t,Side_chain_user.UserState.t) Hashtbl.t) = Hashtbl.create number_of_accounts
 
 let create_side_chain_user_state user_keys =
   let main_chain_user_state =
-    { keypair= user_keys
-    ; confirmed_state= Digest.zero
-    ; confirmed_balance= TokenAmount.zero
-    ; pending_transactions= []
-    ; nonce= Nonce.zero }
+    Main_chain.UserState.
+      { keypair= user_keys
+      ; confirmed_state= Digest.zero
+      ; confirmed_balance= TokenAmount.zero
+      ; pending_transactions= []
+      ; nonce= Nonce.zero }
   in
   let (user_account_state : UserAccountStatePerFacilitator.t) =
     {facilitator_validity= Confirmed; confirmed_state= AccountState.empty; pending_operations= []}
   in
   let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
-  {main_chain_user_state; facilitators}
+  UserState.{main_chain_user_state; facilitators}
 
 let create_user_states () =
   List.iter

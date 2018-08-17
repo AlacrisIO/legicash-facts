@@ -30,7 +30,7 @@ module Episteme = struct
     { request: Request.t signed
     ; confirmation_option: Confirmation.t signed option
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
-  [@@deriving lens, yojson]
+  [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
@@ -83,28 +83,30 @@ end
 
 module UserAccountStateMap = MerkleTrie (Address) (UserAccountStatePerFacilitator)
 
-type user_state =
-  { main_chain_user_state: Main_chain.user_state
-  ; facilitators: UserAccountStateMap.t }
-[@@deriving lens]
+module UserState = struct
+  type t =
+    { main_chain_user_state: Main_chain.UserState.t
+    ; facilitators: UserAccountStateMap.t }
+  [@@deriving lens { prefix=true }]
+end
 
-type ('input, 'action) user_action = ('input, 'action, user_state) action
+module UserAction = Action(UserState)
+module UserAsyncAction = AsyncAction(UserState)
 
-type ('input, 'action) user_async_action = ('input, 'action, user_state) async_action
-
-let get_first_facilitator_state_option (user_state, _) :
-  (Address.t * UserAccountStatePerFacilitator.t) option =
-  UserAccountStateMap.find_first_opt (konstant true) user_state.facilitators
+let get_first_facilitator_state_option :
+  (unit, (Address.t * UserAccountStatePerFacilitator.t) option) UserAction.pure =
+  fun () user_state ->
+    UserAccountStateMap.find_first_opt (konstant true) user_state.facilitators
 
 let get_first_facilitator =
-  action_of_pure_action get_first_facilitator_state_option
-  ^>> function
-    | state, None -> (state, Error No_facilitator_yet)
-    | state, Some (address, _) -> (state, Ok address)
+  UserAction.(of_pure get_first_facilitator_state_option
+              >>> function
+              | None -> fail No_facilitator_yet
+              | Some (address, _) -> return address)
 
 (** TODO: query the network, whatever, and find the fee schedule *)
-let get_facilitator_fee_schedule (user_state, _) =
-  Lwt.return (user_state, Ok Side_chain.Test.trent_fee_schedule)
+let get_facilitator_fee_schedule _facilitator_address =
+  UserAsyncAction.return Side_chain.Test.trent_fee_schedule
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
@@ -117,23 +119,24 @@ let stub_confirmed_side_chain_state = ref Side_chain.State.empty
 
 let stub_confirmed_side_chain_state_digest = ref (State.digest Side_chain.State.empty)
 
-let make_rx_header (user_state, facilitator_address) =
-  match UserAccountStateMap.find_opt facilitator_address user_state.facilitators with
-  | None -> (user_state, Error Not_found)
+let make_rx_header facilitator_address user_state =
+  let open UserAction in
+  match UserAccountStateMap.find_opt facilitator_address user_state.UserState.facilitators with
+  | None -> fail Not_found user_state
   | Some facilitator ->
-    ( user_state
-    , Ok
-        { RxHeader.facilitator= facilitator_address
-        ; RxHeader.requester= user_state.main_chain_user_state.keypair.address
-        ; RxHeader.requester_revision=
-            Revision.add facilitator.confirmed_state.account_revision
-              (Revision.of_int (1 + List.length facilitator.pending_operations))
-        ; RxHeader.confirmed_main_chain_state_digest= !stub_confirmed_main_chain_state_digest
-        ; RxHeader.confirmed_main_chain_state_revision= !stub_confirmed_main_chain_state.revision
-        ; RxHeader.confirmed_side_chain_state_digest= !stub_confirmed_side_chain_state_digest
-        ; RxHeader.confirmed_side_chain_state_revision=
-            !stub_confirmed_side_chain_state.facilitator_revision
-        ; RxHeader.validity_within= default_validity_window } )
+    return
+      { RxHeader.facilitator= facilitator_address
+      ; RxHeader.requester= user_state.main_chain_user_state.keypair.address
+      ; RxHeader.requester_revision=
+          Revision.add facilitator.confirmed_state.account_revision
+            (Revision.of_int (1 + List.length facilitator.pending_operations))
+      ; RxHeader.confirmed_main_chain_state_digest= !stub_confirmed_main_chain_state_digest
+      ; RxHeader.confirmed_main_chain_state_revision= !stub_confirmed_main_chain_state.revision
+      ; RxHeader.confirmed_side_chain_state_digest= !stub_confirmed_side_chain_state_digest
+      ; RxHeader.confirmed_side_chain_state_revision=
+          !stub_confirmed_side_chain_state.facilitator_revision
+      ; RxHeader.validity_within= default_validity_window }
+      user_state
 
 let mk_rx_episteme rx =
   Episteme.{request= rx; confirmation_option= None; main_chain_confirmation_option= None}
@@ -145,25 +148,26 @@ let [@warning "-32"] mk_tx_episteme tx =
     ; main_chain_confirmation_option= None }
 
 (** TODO: Handle cases of updates to previous epistemes, rather than just new ones *)
-let add_user_episteme user_state episteme =
+let add_user_episteme episteme user_state =
   let facilitator = episteme.Episteme.request.payload.rx_header.facilitator in
   let account_state =
     UserAccountStateMap.find_defaulting
       (konstant UserAccountStatePerFacilitator.empty)
-      facilitator user_state.facilitators
+      facilitator user_state.UserState.facilitators
   in
-  ( user_state_facilitators |-- UserAccountStateMap.lens facilitator
+  ( UserState.lens_facilitators |-- UserAccountStateMap.lens facilitator
     |-- UserAccountStatePerFacilitator.lens_pending_operations )
   .set (episteme :: account_state.pending_operations) user_state
 
-let issue_user_request =
-  (fun (user_state, operation) ->
-     (user_state, ()) ^|> get_first_facilitator ^>> make_rx_header
-     ^>> action_of_pure_action (fun (user_state, rx_header) ->
-       sign Request.digest user_state.main_chain_user_state.keypair.private_key
-         {Request.rx_header; Request.operation} ) )
-  ^>> fun (user_state, request) ->
-    (add_user_episteme user_state (mk_rx_episteme request), Ok request)
+let issue_user_request operation =
+  let open UserAction in
+  get_first_facilitator ()
+  >>= make_rx_header
+  >>= (of_pure (fun rx_header user_state ->
+    Request.(signed user_state.main_chain_user_state.keypair
+               {rx_header; operation})))
+  >>= fun request ->
+  map_state (add_user_episteme (mk_rx_episteme request)) request
 
 (* TODO: is this used? should balances and revisions be updated in effect_request?
    looks like balances already are
@@ -192,8 +196,8 @@ let update_account_state_with_trusted_operation
 let update_account_state_with_trusted_operations trusted_operations account_state =
   List.fold_right update_account_state_with_trusted_operation trusted_operations account_state
 
-let [@warning "-32"] optimistic_facilitator_account_state (user_state, facilitator_address) =
-  match UserAccountStateMap.find_opt facilitator_address user_state.facilitators with
+let [@warning "-32"] optimistic_facilitator_account_state facilitator_address user_state =
+  match UserAccountStateMap.find_opt facilitator_address user_state.UserState.facilitators with
   | None -> AccountState.empty
   | Some {facilitator_validity; confirmed_state; pending_operations} ->
     match facilitator_validity with
@@ -203,57 +207,59 @@ let [@warning "-32"] optimistic_facilitator_account_state (user_state, facilitat
         (List.map (fun x -> x.Episteme.request.payload.operation) pending_operations)
         confirmed_state
 
-let lift_main_chain_user_async_action_to_side_chain async_action (user_state, input) =
-  let open Lwt in
-  async_action (user_state.main_chain_user_state, input)
-  >>= fun (new_state, result) ->
-  return ({user_state with main_chain_user_state= new_state}, result)
+let lift_main_chain_user_async_action_to_side_chain main_chain_user_async_action input user_state =
+  Lwt.bind
+    (main_chain_user_async_action input user_state.UserState.main_chain_user_state)
+    (fun (result, new_state) ->
+       Lwt.return (result, {user_state with main_chain_user_state= new_state}))
 
 (* TODO: use facilitator fee schedule *)
 let deposit_fee = TokenAmount.of_int 5
 
-let deposit (user_state, (facilitator_address, deposit_amount)) =
+let deposit (facilitator_address, deposit_amount) =
+  let open UserAsyncAction in
   assert (TokenAmount.compare deposit_amount deposit_fee >= 0);
-  (user_state, facilitator_address) |> get_facilitator_fee_schedule
-  >>=+ fun (user_state1, {deposit_fee}) ->
-  let open Lwt in
-  (user_state1, (facilitator_address, deposit_amount))
-  |> lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
-  ^>>+ fun ((_user_state2, main_chain_deposit_signed) as transaction) ->
-  transaction
-  |> lift_main_chain_user_async_action_to_side_chain Main_chain_action.wait_for_confirmation
-  ^>>+ fun (user_state3, main_chain_deposit_confirmation) ->
-  return (issue_user_request
-            ( user_state3
-            , Deposit
-                { deposit_amount= TokenAmount.sub deposit_amount deposit_fee
-                ; deposit_fee
-                ; main_chain_deposit_signed
-                ; main_chain_deposit_confirmation
-                ; deposit_expedited= false } ))
+  get_facilitator_fee_schedule facilitator_address
+  >>= fun {deposit_fee} ->
+  lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
+    (facilitator_address, deposit_amount)
+  >>= fun main_chain_deposit_signed ->
+  lift_main_chain_user_async_action_to_side_chain Main_chain_action.wait_for_confirmation
+    main_chain_deposit_signed
+  >>= fun main_chain_deposit_confirmation ->
+  of_action issue_user_request
+    (Deposit
+       { deposit_amount= TokenAmount.sub deposit_amount deposit_fee
+       ; deposit_fee
+       ; main_chain_deposit_signed
+       ; main_chain_deposit_confirmation
+       ; deposit_expedited= false })
 
 (* in Lwt monad, because we'll push the request to the main chain *)
-let withdrawal (user_state, (facilitator_address, withdrawal_amount)) =
-  (user_state, facilitator_address) |> get_facilitator_fee_schedule
-  >>=+ fun (user_state1, {withdrawal_fee}) ->
-  Lwt.return (issue_user_request
-                ( user_state1, Withdrawal { withdrawal_amount ; withdrawal_fee } ))
+let withdrawal (facilitator_address, withdrawal_amount) =
+  let open UserAsyncAction in
+  get_facilitator_fee_schedule facilitator_address
+  >>= fun {withdrawal_fee} ->
+  of_action issue_user_request
+    (Withdrawal { withdrawal_amount ; withdrawal_fee })
 
-let payment (user_state, (_facilitator_address, recipient_address, payment_amount)) =
-  let invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= ""} in
-  issue_user_request
-    ( user_state
-    , Payment
-        { payment_invoice= invoice
-        ; payment_fee= TokenAmount.of_int 0 (* TODO: we should get this from facilitator fee schedule *)
-        ; payment_expedited= false } )
+let payment (facilitator_address, recipient_address, payment_amount) =
+  let open UserAsyncAction in
+  get_facilitator_fee_schedule facilitator_address
+  >>= fun {fee_per_billion} ->
+  let payment_invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= ""} in
+  let payment_fee = TokenAmount.mul fee_per_billion
+                      (TokenAmount.div payment_amount (TokenAmount.of_int 1000000000)) in
+  of_action issue_user_request
+    (Payment {payment_invoice; payment_fee; payment_expedited= false})
 
+(** We should be signing the RLP, not the marshaling! *)
 let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operation.withdrawal_fee} user_address facilitator_keys =
   (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
   let ticket = 0L in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
   let bond = 0 in (* TODO: where does this come from? *)
-  let operation = Facilitator_contract.make_withdraw_call facilitator_keys.Keypair.address ticket bond confirmed_state in
+  let operation = Facilitator_contract.make_withdraw_call facilitator_keys.address ticket bond confirmed_state in
   let tx_header =
     Main_chain.TxHeader.
       { sender= user_address
@@ -264,10 +270,13 @@ let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operat
       }
   in
   let transaction = Main_chain.{ Transaction.tx_header; Transaction.operation } in
-  Ethereum_transaction.sign_transaction facilitator_keys transaction
+  Main_chain.Transaction.signed facilitator_keys transaction
 
 (* an action made on the side chain may need a corresponding action on the main chain *)
-let push_side_chain_action_to_main_chain (facilitator_state : FacilitatorState.t) ((user_state : user_state), (signed_confirmation : Confirmation.t signed)) =
+let push_side_chain_action_to_main_chain
+      (facilitator_state : FacilitatorState.t)
+      (signed_confirmation : Confirmation.t signed)
+      (user_state : UserState.t) =
   let confirmation = signed_confirmation.payload in
   let facilitator_address = facilitator_state.keypair.address in
   if not (is_signature_valid Confirmation.digest facilitator_address signed_confirmation.signature confirmation) then
@@ -282,9 +291,9 @@ let push_side_chain_action_to_main_chain (facilitator_state : FacilitatorState.t
   | Withdrawal details ->
     let open Lwt in
     let signed_transaction = make_main_chain_withdrawal_transaction details user_address facilitator_state.keypair in
-    Main_chain_action.wait_for_confirmation (user_state.main_chain_user_state,signed_transaction)
-    >>= fun (main_chain_user_state,main_chain_confirmation) ->
-    return ({ user_state with main_chain_user_state },main_chain_confirmation)
+    Main_chain_action.wait_for_confirmation signed_transaction user_state.main_chain_user_state
+    >>= fun (main_chain_confirmation, main_chain_user_state) ->
+    return (main_chain_confirmation, { user_state with main_chain_user_state })
   | Payment _
   | Deposit _ ->
     raise (Internal_error "Side chain confirmation does not need subsequent interaction with main chain")

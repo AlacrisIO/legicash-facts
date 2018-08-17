@@ -1,3 +1,4 @@
+open Yojsoning
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
@@ -25,14 +26,16 @@ let json_rpc_version = "2.0"
 let id_counter = ref 1
 
 let send_rpc_call_to_net json =
-  let json_str = Yojson.to_string json in
+  let json_str = string_of_yojson json in
+  (* For debugging, uncomment this line:
+     Printf.printf "Sending rpc call to net: %s\n%!" json_str; *)
   Client.post
     ~body:(Cohttp_lwt__.Body.of_string json_str)
     ~headers:(Cohttp.Header.add (Cohttp.Header.init ()) "Content-Type" "application/json")
     ethereum_net
   >>= fun (resp, body) ->
   let _ = resp |> Response.status |> Code.code_of_status in
-  body |> Cohttp_lwt.Body.to_string >|= Yojson.Safe.from_string
+  body |> Cohttp_lwt.Body.to_string >|= yojson_of_string
 
 
 (* given constructor, build JSON RPC call name *)
@@ -50,7 +53,7 @@ let json_rpc_callname call =
 
 
 (* common case: all parameters are strings *)
-let build_json_rpc_call call params : Yojson.json =
+let build_json_rpc_call call params : yojson =
   let string_params = List.map (fun s -> `String s) params in
   `Assoc
     [ ("jsonrpc", `String json_rpc_version)

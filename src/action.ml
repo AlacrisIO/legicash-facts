@@ -1,104 +1,82 @@
 open Lib
-open Lwt.Infix
-
-(* TODO: rewrite all our actions in a monadic style, input -> state -> (output or_exn * state) wrapper;
-   this implies propagating the change all around our source code. Sigh. *)
 
 type 'output or_exn = ('output, exn) result
 
-type ('input, 'output, 'state) action = 'state * 'input -> 'state * 'output or_exn
+type ('input, 'output, 'state) action = 'input -> 'state -> 'output or_exn * 'state
 
-type ('input, 'output, 'state) async_action = 'state * 'input -> ('state * 'output or_exn) Lwt.t
-
-let make_action_async action (state, input) = Lwt.return (action (state, input))
-
-(** run the action, with side-effects and all *)
-let effect_action action state_ref x =
-  match action (!state_ref, x) with
-  | s, Ok y ->
-    state_ref := s ;
-    y
-  | s, Error e ->
-    state_ref := s ;
-    raise e
-
-let no_action (s, a) = (s, Ok a)
-
-let fail_action failure (s, _) = (s, Error failure)
-
-(** compose two actions *)
-let compose_actions c_of_b b_of_a (s, a) =
-  match b_of_a (s, a) with
-  | t, Error e -> (t, Error e)
-  | t, Ok b -> c_of_b (t, b)
-
-(** compose two async actions *)
-let compose_async_actions c_of_b b_of_a (s, a) =
-  let open Lwt in
-  b_of_a (s, a)
-  >>= fun result ->
-  match result with
-    t, Error e -> return (t, Error e)
-  | t, Ok b -> c_of_b (t, b)
-
-(** compose a list of actions *)
-let compose_action_list action_list (s, a) =
-  let rec loop action_list (s, a) =
-    match action_list with
-    | [] -> (s, Ok a)
-    | action :: more_actions ->
-      match action (s, a) with t, Ok b -> loop more_actions (t, b) | (_, Error _) as x -> x
-  in
-  loop action_list (s, a)
-
-let do_action (state, value) action = action (state, value)
-
-let ( ^|> ) = do_action
-
-(* Same as |> !!!!*)
-
-let action_seq action1 action2 = compose_actions action2 action1
-
-let ( ^>> ) = action_seq
-
-let async_action_seq action1 action2 = compose_async_actions action2 action1
-
-let ( ^>>+ ) = async_action_seq
-
-let ( >>=+ )
-      (promise : ('state * 'a or_exn) Lwt.t)
-      (async_action : ('a, 'b, 'state) async_action) : ('state * 'b or_exn) Lwt.t =
-  promise >>= function
-  | (state, Ok x) -> async_action (state, x)
-  | (state, Error e) -> Lwt.return (state, Error e)
-
-module AsyncAction (State : TypeS) = struct
-  type 'a t = State.t -> (State.t * 'a or_exn) Lwt.t
-  let monadize_async_action a x s = a (s, x)
-  let return x s = Lwt.return (s, Ok x)
-  let bind m f s = Lwt.bind (m s) (function
-    | (s', Ok a) -> f a s'
-    | (s', Error e) -> Lwt.return (s', Error e))
-  let run r x mf = match Lwt_main.run (mf x !r) with (s, roe) -> r := s ; ResultOrExn.get roe
-  module Infix = struct
-    let (>>=) = bind
-  end
-end
+type ('input, 'output, 'state) async_action = 'input -> 'state -> ('output or_exn * 'state) Lwt.t
 
 exception Assertion_failed of string
 
-let action_assert where pure_action (state, value) =
-  if pure_action (state, value) then (state, Ok value) else (state, Error (Assertion_failed where))
+module type StatefulErrableActionS = sig
+  type state
+  include MonadS
+  val with_state : ('a * state, 'b) arr -> ('a, 'b) arr
+  val return_state : state -> ('a, 'a) arr
+  val map_state : (state -> state) -> ('a, 'a) arr
+  val fail : exn -> _ t
+  type ('i, 'o) pure = 'i -> state -> 'o
+  val of_pure : ('i, 'o) pure -> ('i, 'o) arr
+  val assert_: (unit -> string) -> ('i, bool) pure -> ('i, 'i) arr
+  val run : state ref -> 'a -> ('a, 'b) arr -> 'b
+end
 
-type ('input, 'output, 'state) pure_action = 'state * 'input -> 'output
+module type ActionS = sig
+  type state
+  include StatefulErrableActionS
+    with type state := state
+     and type 'a t = state -> 'a or_exn * state
+end
 
-type ('input, 'output, 'state) pure_async_action = 'state * 'input -> 'output Lwt.t
+module Action (State : TypeS) : ActionS with type state = State.t = struct
+  type state = State.t
+  include Monad(struct
+      type 'a t = state -> 'a or_exn * state
+      let return x s = Ok x, s
+      let bind m f s = (m s) |> function
+      | Ok a, s' -> f a s'
+      | Error e, s' -> Error e, s'
+    end)
+  let with_state f x s = f (x, s) s
+  let return_state s x _s' = Ok x, s
+  let map_state f x s = Ok x, f s
+  let fail failure s = Error failure, s
+  type ('i, 'o) pure = 'i -> state -> 'o
+  let of_pure p x s = return (p x s) s
+  let assert_ where test value state =
+    (if test value state then Ok value else Error (Assertion_failed (where ()))), state
+  let run r x mf = match (mf x !r) with (roe, s) -> r := s ; ResultOrExn.get roe
+end
 
-let action_of_pure_action f (state, value) = (state, Ok (f (state, value)))
-
-let async_action_of_pure_action f (state, value) = Lwt.return (state, Ok (f (state, value)))
-
-(** compose two pure actions *)
-let compose_pure_actions c_of_b b_of_a (s, a) = c_of_b (s, b_of_a (s, a))
-
-let pure_action_seq b_of_a c_of_b (s, a) = compose_pure_actions c_of_b b_of_a (s, a)
+module type AsyncActionS = sig
+  type state
+  include StatefulErrableActionS
+    with type state := state
+     and type 'a t = state -> ('a or_exn * state) Lwt.t
+  val run_lwt : state ref -> 'a -> ('a, 'b) arr -> 'b Lwt.t
+  val of_action : ('a -> state -> 'b or_exn * state) -> ('a, 'b) arr
+end
+module AsyncAction (State : TypeS) : AsyncActionS with type state = State.t = struct
+  type state = State.t
+  include Monad(struct
+      type 'a t = state -> ('a or_exn * state) Lwt.t
+      let return x s = Lwt.return (Ok x, s)
+      let bind m f s = Lwt.bind (m s)
+                         (function
+                           | Ok a, s' -> f a s'
+                           | Error e, s' -> Lwt.return (Error e, s'))
+    end)
+  module Action = Action(State)
+  let with_state f x s = f (x, s) s
+  let return_state s x _s' = (Ok x, s) |> Lwt.return
+  let map_state f x s = (Ok x, f s) |> Lwt.return
+  let fail failure s = Action.fail failure s |> Lwt.return
+  let assert_ where pure_action value state =
+    Action.assert_ where pure_action value state |> Lwt.return
+  let run_lwt r x mf =
+    Lwt.bind (mf x !r) (fun (roe, s) -> r := s ; ResultOrExn.get roe |> Lwt.return)
+  let run r x mf = (Lwt_main.run (run_lwt r x mf))
+  type ('i, 'o) pure = 'i -> state -> 'o
+  let of_pure p x s = return (p x s) s
+  let of_action a x s = a x s |> Lwt.return
+end

@@ -8,8 +8,8 @@
 open Lwt
 
 open Legicash_lib
-
 open Lib
+open Yojsoning
 open Crypto
 open Db
 open Side_chain
@@ -87,7 +87,7 @@ let add_main_chain_thread thread =
   find_thread_id 0
 
 (* get Merkle proof for side chain transaction identified by tx_revision *)
-let get_proof tx_revision : Yojson.Safe.json =
+let get_proof tx_revision : yojson =
   let tx_revision_t = Revision.of_int tx_revision in
   let operations = !trent_state.current.operations in
   match ConfirmationMap.Proof.get tx_revision_t operations with
@@ -97,7 +97,7 @@ let get_proof tx_revision : Yojson.Safe.json =
     ConfirmationMap.Proof.to_yojson proof
 
 (* lookup id in thread table; if completed, return result, else return boilerplate *)
-let apply_main_chain_thread id : Yojson.Safe.json =
+let apply_main_chain_thread id : yojson =
   try
     let thread = Hashtbl.find id_to_thread_tbl id in
     match state thread with
@@ -128,20 +128,17 @@ let json_of_exn exn = `Assoc [("error",`String (Printexc.to_string exn))]
 let deposit_to_trent address amount =
   let open Ethereum_transaction.Test in
   let address_t = Ethereum_util.address_of_hex_string address in
-  let user_state = user_state_from_address address_t in
+  let user_state = ref (user_state_from_address address_t) in
   let thread =
     unlock_account address_t
     >>= fun _unlock_json ->
-    (user_state, (trent_address,TokenAmount.of_int amount))
-    |> deposit |> Lwt.map ensure_ok
-    >>= fun (user_state1, signed_request) ->
-    (!trent_state, signed_request)
-    |> process_request |> Lwt.map ensure_ok
-    >>= fun (trent_state1,signed_confirmation) ->
+    UserAsyncAction.run_lwt user_state (trent_address, TokenAmount.of_int amount) deposit
+    >>= fun signed_request ->
+    Hashtbl.replace address_to_user_state_tbl address_t !user_state;
+    FacilitatorAsyncAction.run_lwt trent_state signed_request process_request
+    >>= fun signed_confirmation ->
     let confirmation = signed_confirmation.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
-    Hashtbl.replace address_to_user_state_tbl address_t user_state1;
-    set_trent_state trent_state1;
     (* get transaction hash for main chain *)
     let operation = signed_request.payload.operation in
     let main_chain_confirmation =
@@ -155,15 +152,11 @@ let deposit_to_trent address amount =
     let user_name = get_user_name address_t in
     let user_account_state = { address
                              ; user_name
-                             ; balance
-                             }
-    in
+                             ; balance } in
     let side_chain_tx_revision = Revision.to_int64 tx_revision in
     let deposit_result = { user_account_state
                          ; side_chain_tx_revision
-                         ; main_chain_confirmation
-                         }
-    in
+                         ; main_chain_confirmation } in
     return (transaction_result_to_yojson deposit_result)
   in
   add_main_chain_thread thread
@@ -171,7 +164,7 @@ let deposit_to_trent address amount =
 let withdrawal_from_trent address amount =
   let open Ethereum_transaction.Test in
   let address_t = Ethereum_util.address_of_hex_string address in
-  let user_state = user_state_from_address address_t in
+  let user_state = ref (user_state_from_address address_t) in
   let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
   let balance = user_account_on_trent.balance in
   if TokenAmount.compare (TokenAmount.of_int amount) balance > 0 then
@@ -179,19 +172,17 @@ let withdrawal_from_trent address amount =
   let thread =
     unlock_account address_t
     >>= fun _unlock_json ->
-    (user_state, (trent_address,TokenAmount.of_int amount))
-    |> withdrawal |> Lwt.map ensure_ok
-    >>= fun (user_state1, signed_request1) ->
-    (!trent_state,signed_request1)
-    |> process_request |> Lwt.map ensure_ok
-    >>= fun (trent_state2, signed_confirmation2) ->
+    UserAsyncAction.run_lwt user_state (trent_address, TokenAmount.of_int amount) withdrawal
+    >>= fun signed_request ->
+    Hashtbl.replace address_to_user_state_tbl address_t !user_state;
+    FacilitatorAsyncAction.run_lwt trent_state signed_request process_request
+    >>= fun signed_confirmation2 ->
     let confirmation = signed_confirmation2.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
-    (* update trent state *)
-    set_trent_state trent_state2;
-    push_side_chain_action_to_main_chain trent_state2 (user_state1,signed_confirmation2)
-    >>= fun (user_state2, maybe_main_chain_confirmation) ->
+    push_side_chain_action_to_main_chain !trent_state signed_confirmation2 !user_state
+    >>= fun (maybe_main_chain_confirmation, user_state2) ->
     (* update user state, which refers to main chain state *)
+    user_state := user_state2;
     Hashtbl.replace address_to_user_state_tbl address_t user_state2;
     let main_chain_confirmation =
       match maybe_main_chain_confirmation with
@@ -274,7 +265,7 @@ let make_operation_json address (revision:Revision.t) (request:Request.t) =
       ]
 
 let get_recent_transactions_on_trent address maybe_limit =
-  let exception Reached_limit of Yojson.Safe.json list in
+  let exception Reached_limit of yojson list in
   let address_t = Ethereum_util.address_of_hex_string address in
   let all_operations = !trent_state.current.operations in
   let get_operation_for_address _rev (confirmation:Confirmation.t) ((count,operations) as accum) =
@@ -326,14 +317,13 @@ let payment_on_trent sender recipient amount =
   let sender_account = AccountMap.find sender_address_t starting_accounts in
   if (TokenAmount.to_int sender_account.balance) < amount then
     raise (Internal_error "Sender has insufficient balance to make this payment");
-  (sender_state, (trent_address, recipient_address_t, TokenAmount.of_int amount))
-  |^>> payment
-  |> fun (sender_state_after_payment, signed_request) ->
-  Hashtbl.replace address_to_user_state_tbl sender_address_t sender_state_after_payment ;
-  (!trent_state, signed_request)
-  |> process_request |> Lwt.map ensure_ok
-  >>= fun (trent_state_after_confirmation, signed_confirmation) ->
-  set_trent_state trent_state_after_confirmation;
+  let sender_state_ref = ref sender_state in
+  UserAsyncAction.run_lwt sender_state_ref
+    (trent_address, recipient_address_t, TokenAmount.of_int amount) payment
+  >>= fun signed_request ->
+  Hashtbl.replace address_to_user_state_tbl sender_address_t !sender_state_ref ;
+  FacilitatorAsyncAction.run_lwt trent_state signed_request process_request
+  >>= fun signed_confirmation ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
   (* remaining code is preparing response *)

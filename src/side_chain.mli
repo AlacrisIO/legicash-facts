@@ -1,5 +1,4 @@
 (* Types for LegiCash Facilitator side-chains *)
-open Action
 open Crypto
 open Db
 open Merkle_trie
@@ -154,11 +153,7 @@ module State : sig
   val empty : t
 end
 
-(** state stored by a verifier *)
-type verifier_state
-
-(** function from 'input to 'output that acts on a verifier_state *)
-type ('input, 'output) verifier_action = ('input, 'output, verifier_state) action
+(** TODO: verifier state and actions in some module Side_chain_verifier. *)
 
 (** Fee structure for a facilitator
     NB: an important constraint is that we need to advertise this fee structure to users
@@ -189,12 +184,6 @@ module FacilitatorState : sig
   include PersistableS with type t := t
   val load : Address.t -> t
 end
-
-(** function from 'a to 'b that acts on a facilitator_state and has some side-effects *)
-type ('input, 'output) facilitator_action = ('input, 'output, FacilitatorState.t) action
-
-(** function from 'a to 'b that acts on a facilitator_state and has some side-effects *)
-type ('input, 'output) facilitator_async_action = ('input, 'output, FacilitatorState.t) async_action
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 

@@ -1,82 +1,33 @@
 (* ethereum_transaction.ml -- code for running transactions on Ethereum net via JSON RPC *)
 
 open Lib
+open Yojsoning
 open Crypto
-
-module TokenAmount = Main_chain.TokenAmount
-module Operation = Main_chain.Operation
-module Transaction = Main_chain.Transaction
-module TransactionSigned = Main_chain.TransactionSigned
-
-let sign_transaction keypair transaction = sign Transaction.digest keypair.Keypair.private_key transaction
+open Db
+open Main_chain
 
 (* params contain hex strings, but we unhex those strings when running RLP *)
-let build_transfer_tokens_parameters transaction : Yojson.json =
-  let tx_header = transaction.Transaction.tx_header in
-  let sender = tx_header.sender in
-  let recipient =
-    match transaction.operation with
-    | Operation.TransferTokens recipient -> recipient
-    | _ -> raise (Internal_error "Expected TransferTokens operation")
-  in
-  let gas = tx_header.gas_limit in
-  let gas_price = tx_header.gas_price in
-  let value = tx_header.value in
+let build_operation_parameters = function
+  | Operation.TransferTokens recipient ->
+    [("to", Address.to_yojson recipient)]
+  | Operation.CreateContract code ->
+    [("data", `String (Ethereum_util.hex_string_of_bytes code))]
+  | Operation.CallFunction (recipient, data) ->
+    [("to", Address.to_yojson recipient);
+     ("data", `String (Ethereum_util.hex_string_of_bytes data))]
+
+let build_transaction_parameters transaction =
+  let TxHeader.{ sender; gas_limit; gas_price; value } = transaction.Transaction.tx_header in
   `Assoc
-    [ ("from", `String (Ethereum_util.hex_string_of_address sender))
-    ; ("to", `String (Ethereum_util.hex_string_of_address recipient))
-    ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
-    ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
-    ; ("value", `String (Ethereum_util.hex_string_of_token_amount value)) ]
-
-let build_create_contract_parameters transaction : Yojson.json =
-  let tx_header = transaction.Transaction.tx_header in
-  if TokenAmount.compare tx_header.value TokenAmount.zero != 0 then
-    raise (Internal_error "New contract must have zero value") ;
-  let sender = tx_header.sender in
-  let code =
-    match transaction.operation with
-    | Operation.CreateContract code -> code
-    | _ -> raise (Internal_error "Expected CreateContract operation")
-  in
-  let gas = tx_header.gas_limit in
-  let gas_price = tx_header.gas_price in
-  `Assoc
-    [ ("from", `String (Ethereum_util.hex_string_of_address sender))
-    ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
-    ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
-    ; ("data", `String (Ethereum_util.hex_string_of_bytes code)) ]
-
-
-let build_call_function_parameters transaction : Yojson.json =
-  let tx_header = transaction.Transaction.tx_header in
-  let sender = tx_header.sender in
-  let contract_address, call_hash =
-    match transaction.operation with
-    | Operation.CallFunction (contract_address, call_hash) -> (contract_address, call_hash)
-    | _ -> raise (Internal_error "Expected CallFunction operation")
-  in
-  let gas = tx_header.gas_limit in
-  let gas_price = tx_header.gas_price in
-  let value = tx_header.value in
-  `Assoc
-    [ ("from", `String (Ethereum_util.hex_string_of_address sender))
-    ; ("to", `String (Ethereum_util.hex_string_of_address contract_address))
-    ; ("gas", `String (Ethereum_util.hex_string_of_token_amount gas))
-    ; ("gasPrice", `String (Ethereum_util.hex_string_of_token_amount gas_price))
-    (* allows transferring value to contract *)
-    ; ("value", `String (Ethereum_util.hex_string_of_token_amount value))
-    ; ("data", `String (Ethereum_util.hex_string_of_bytes call_hash)) ]
-
+    (List.append
+       [ ("from", Address.to_yojson sender)
+       ; ("gas", TokenAmount.to_yojson gas_limit)
+       ; ("gasPrice", TokenAmount.to_yojson gas_price)
+       ; ("value", TokenAmount.to_yojson value) ]
+       (build_operation_parameters transaction.operation))
 
 let build_transaction_json transaction =
-  let open Main_chain in
-  let params =
-    match transaction.Transaction.operation with
-    | TransferTokens _ -> build_transfer_tokens_parameters transaction
-    | CreateContract _ -> build_create_contract_parameters transaction
-    | CallFunction _ -> build_call_function_parameters transaction
-  in
+  let params = build_transaction_parameters transaction in
   Ethereum_json_rpc.build_json_rpc_call_with_tagged_parameters Eth_sendTransaction [params]
 
 let send_transaction_to_net signed_transaction =
@@ -97,7 +48,6 @@ let get_transaction_receipt transaction_hash =
   in
   Ethereum_json_rpc.send_rpc_call_to_net json
 
-
 let get_transaction_by_hash transaction_hash =
   let params = [transaction_hash] in
   let json =
@@ -117,17 +67,16 @@ let get_transaction_count address =
 
 let transaction_executed transaction_hash =
   let open Lwt in
-  let open Yojson in
   get_transaction_receipt transaction_hash
   >>= fun receipt_json ->
-  let keys = Safe.Util.keys receipt_json in
+  let keys = YoJson.keys receipt_json in
   let retval =
     not (List.mem "error" keys) && List.mem "result" keys
     &&
-    let result_json = Safe.Util.member "result" receipt_json in
+    let result_json = YoJson.member "result" receipt_json in
     result_json != `Null
     &&
-    let result_keys = Safe.Util.keys result_json in
+    let result_keys = YoJson.keys result_json in
     List.mem "blockHash" result_keys && List.mem "blockNumber" result_keys
   in
   return retval
@@ -135,7 +84,6 @@ let transaction_executed transaction_hash =
 let transaction_execution_matches_transaction transaction_hash
       (signed_transaction: TransactionSigned.t) =
   let open Lwt in
-  let open Yojson in
   transaction_executed transaction_hash
   >>= fun executed ->
   if not executed then
@@ -143,15 +91,15 @@ let transaction_execution_matches_transaction transaction_hash
   else
     get_transaction_by_hash transaction_hash
     >>= fun transaction_json ->
-    let keys = Safe.Util.keys transaction_json in
+    let keys = YoJson.keys transaction_json in
     let retval =
       not (List.mem "error" keys)
       &&
       let transaction = signed_transaction.payload in
-      let result_json = Safe.Util.member "result" transaction_json in
+      let result_json = YoJson.member "result" transaction_json in
       (* for all operations, check these fields *)
       let get_result_json key =
-        Safe.Util.to_string (Safe.Util.member key result_json) in
+        YoJson.to_string (YoJson.member key result_json) in
       let actual_sender = get_result_json "from" in
       let actual_nonce = get_result_json "nonce" in
       let actual_gas_price = Ethereum_util.token_amount_of_hex_string (get_result_json "gasPrice") in
@@ -254,17 +202,15 @@ let get_transaction_hash signed_transaction private_key =
 
 module Test = struct
   open Lwt
-  open Yojson
-
-  open Main_chain
   open Ethereum_json_rpc
   open Keypair.Test
 
-  let json_contains_error json =
-    match Safe.Util.member "error" json with `Null -> false | _ -> true
+  let assert_json_error_free location json =
+    if YoJson.mem "error" json then
+      bork (Printf.sprintf "Error at %s from geth: %s" location (string_of_yojson json))
 
   let json_result_to_int json =
-    int_of_string (Safe.Util.to_string (Safe.Util.member "result" json))
+    YoJson.member "result" json |> YoJson.to_string |> int_of_string
 
   let list_accounts () =
     let params = [] in
@@ -288,8 +234,7 @@ module Test = struct
   let get_first_account () =
     list_accounts ()
     >>= fun accounts_json ->
-    assert (not (json_contains_error accounts_json)) ;
-    let accounts = Safe.Util.to_list (Safe.Util.member "result" accounts_json) in
+    let accounts = YoJson.to_list (YoJson.member "result" accounts_json) in
     assert (not (accounts = [])) ;
     return (List.hd accounts)
 
@@ -311,9 +256,9 @@ module Test = struct
   let get_nonce address =
     get_transaction_count address
     >>= fun contract_count_json ->
-    assert (not (json_contains_error contract_count_json)) ;
-    let result = Safe.Util.member "result" contract_count_json
-                 |> Safe.Util.to_string
+    assert_json_error_free __LOC__ contract_count_json;
+    let result = YoJson.member "result" contract_count_json
+                 |> YoJson.to_string
     in
     return (Nonce.of_int64 (Int64.of_string result))
 
@@ -341,20 +286,20 @@ module Test = struct
     Lwt_main.run (
       get_first_account ()
       >>= fun account_json ->
-      let sender_account = Safe.Util.to_string account_json in
+      let sender_account = YoJson.to_string account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       new_account ()
       >>= fun new_account_json ->
-      assert (not (json_contains_error new_account_json)) ;
-      let new_account = Safe.Util.to_string (Safe.Util.member "result" new_account_json) in
+      assert_json_error_free __LOC__ new_account_json;
+      let new_account = YoJson.to_string (YoJson.member "result" new_account_json) in
       let recipient_address = Ethereum_util.address_of_hex_string new_account in
       (* unlock accounts *)
       unlock_account sender_address
       >>= fun unlock_sender_json ->
-      assert (not (json_contains_error unlock_sender_json)) ;
+      assert_json_error_free __LOC__ unlock_sender_json;
       unlock_account recipient_address
       >>= fun unlock_recipient_json ->
-      assert (not (json_contains_error unlock_recipient_json)) ;
+      assert_json_error_free __LOC__ unlock_recipient_json;
       (* we don't check opening balance, which may be too large to parse *)
       let transfer_amount = 22 in
       get_nonce sender_address
@@ -368,13 +313,13 @@ module Test = struct
       in
       let operation = Operation.TransferTokens recipient_address in
       let transaction = {Transaction.tx_header; Transaction.operation} in
-      let signed_transaction = sign_transaction alice_keys transaction in
+      let signed_transaction = Transaction.signed alice_keys transaction in
       (* send tokens *)
       send_transaction_to_net signed_transaction
       >>= fun output ->
-      assert (not (json_contains_error output)) ;
-      let result_json = Safe.Util.member "result" output in
-      let transaction_hash = Safe.Util.to_string result_json in
+      assert_json_error_free __LOC__ output;
+      let result_json = YoJson.member "result" output in
+      let transaction_hash = YoJson.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
       transaction_execution_matches_transaction transaction_hash signed_transaction)
@@ -383,11 +328,11 @@ module Test = struct
     Lwt_main.run (
       get_first_account ()
       >>= fun first_account ->
-      let sender_account =  Safe.Util.to_string first_account in
+      let sender_account =  YoJson.to_string first_account in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
-      assert (not (json_contains_error unlock_sender_json)) ;
+      assert_json_error_free __LOC__ unlock_sender_json;
       get_nonce sender_address
       >>= fun nonce ->
       let tx_header =
@@ -402,16 +347,16 @@ module Test = struct
       *)
       let operation = Operation.CreateContract (Bytes.create 128) in
       let transaction = {Transaction.tx_header; Transaction.operation} in
-      let signed_transaction = sign_transaction alice_keys transaction in
+      let signed_transaction = Transaction.signed alice_keys transaction in
       (* create contract *)
       send_transaction_to_net signed_transaction
       >>= fun output ->
-      assert (not (json_contains_error output)) ;
-      let result_json = Safe.Util.member "result" output in
-      let transaction_hash = Safe.Util.to_string result_json in
+      assert_json_error_free __LOC__ output;
+      let result_json = YoJson.member "result" output in
+      let transaction_hash = YoJson.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
-      let signed_transaction = sign_transaction alice_keys transaction in
+      let signed_transaction = Transaction.signed alice_keys transaction in
       transaction_execution_matches_transaction transaction_hash signed_transaction)
 
   let%test "call-contract-on-Ethereum-testnet" =
@@ -419,11 +364,11 @@ module Test = struct
     Lwt_main.run (
       get_first_account ()
       >>= fun sender_account_json ->
-      let sender_account = Safe.Util.to_string sender_account_json in
+      let sender_account = YoJson.to_string sender_account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
-      assert (not (json_contains_error unlock_sender_json)) ;
+      assert_json_error_free __LOC__ unlock_sender_json;
       get_nonce sender_address
       >>= fun nonce ->
       let tx_header =
@@ -454,17 +399,20 @@ module Test = struct
           , Bytes.of_string (Digest.to_big_endian_bits hashed) )
       in
       let transaction = {Transaction.tx_header; Transaction.operation} in
-      let signed_transaction = sign_transaction alice_keys transaction in
+      let signed_transaction = Transaction.signed alice_keys transaction in
       send_transaction_to_net signed_transaction
       >>= fun output ->
-      assert (not (json_contains_error output)) ;
-      let result_json = Safe.Util.member "result" output in
-      let transaction_hash = Safe.Util.to_string result_json in
+      assert_json_error_free __LOC__ output;
+      let result_json = YoJson.member "result" output in
+      let transaction_hash = YoJson.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
-      let signed_transaction = sign_transaction alice_keys transaction in
+      let signed_transaction = Transaction.signed alice_keys transaction in
       transaction_execution_matches_transaction transaction_hash signed_transaction)
 
+  (* TODO: sign the RLP, not the side-chain style marshaling!
+     Go through the entire example and check that we get the correct values bit-for-bit.
+  *)
   let%test "compute-transaction-hash" =
     Lwt_main.run (
       (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
@@ -473,7 +421,7 @@ module Test = struct
       let private_key = Keypair.make_private_key private_key_string in
       get_first_account ()
       >>= fun account_json ->
-      let sender_account = Safe.Util.to_string account_json in
+      let sender_account = YoJson.to_string account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       let tx_header =
         TxHeader.{ sender= sender_address (* doesn't matter for transaction hash *)
@@ -488,7 +436,7 @@ module Test = struct
           , Ethereum_util.bytes_of_hex_string "0xc0de")
       in
       let transaction = {Transaction.tx_header; Transaction.operation} in
-      let signed_transaction = sign Transaction.digest private_key transaction in
+      let signed_transaction = Crypto.signed Transaction.digest private_key transaction in
       let transaction_hash = get_transaction_hash signed_transaction private_key in
       return (Ethereum_util.hex_string_of_string transaction_hash
               = "0x2b1cb46f0aa4ba7da55ef4928e925b2dd3e9af6908319306cf2593d0f911f9c9"))
@@ -504,11 +452,11 @@ module Test = struct
       (* create a contract using "hello, world" EVM code *)
       get_first_account ()
       >>= fun account_json ->
-      let sender_account = Safe.Util.to_string account_json in
+      let sender_account = YoJson.to_string account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
-      assert (not (json_contains_error unlock_sender_json)) ;
+      assert_json_error_free __LOC__ unlock_sender_json;
       get_nonce sender_address
       >>= fun nonce ->
       let tx_header =
@@ -523,23 +471,23 @@ module Test = struct
       *)
       let operation = Operation.CreateContract code_bytes in
       let transaction = {Transaction.tx_header; Transaction.operation} in
-      let signed_transaction = sign_transaction alice_keys transaction in
+      let signed_transaction = Transaction.signed alice_keys transaction in
       (* create contract *)
       send_transaction_to_net signed_transaction
       >>= fun output ->
-      assert (not (json_contains_error output)) ;
-      let result_json = Safe.Util.member "result" output in
-      let transaction_hash = Safe.Util.to_string result_json in
+      assert_json_error_free __LOC__ output;
+      let result_json = YoJson.member "result" output in
+      let transaction_hash = YoJson.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
       get_transaction_receipt transaction_hash
       >>= fun receipt_json ->
-      assert (not (json_contains_error receipt_json)) ;
-      let receipt_result_json = Safe.Util.member "result" receipt_json in
+      assert_json_error_free __LOC__ receipt_json;
+      let receipt_result_json = YoJson.member "result" receipt_json in
       let contract_address =
-        Safe.Util.to_string (Safe.Util.member "contractAddress" receipt_result_json)
+        YoJson.to_string (YoJson.member "contractAddress" receipt_result_json)
       in
-      let signed_transaction = sign_transaction alice_keys transaction in
+      let signed_transaction = Transaction.signed alice_keys transaction in
       transaction_execution_matches_transaction transaction_hash signed_transaction
       >>= fun matches ->
       assert matches ;
@@ -559,32 +507,32 @@ module Test = struct
         Operation.CallFunction (Ethereum_util.address_of_hex_string contract_address, call_bytes)
       in
       let transaction1 = {Transaction.tx_header= tx_header1; Transaction.operation= operation1} in
-      let signed_transaction1 = sign_transaction alice_keys transaction1 in
+      let signed_transaction1 = Transaction.signed alice_keys transaction1 in
       send_transaction_to_net signed_transaction1
       >>= fun output1 ->
-      assert (not (json_contains_error output1)) ;
-      let result_json1 = Safe.Util.member "result" output1 in
-      let transaction_hash1 = Safe.Util.to_string result_json1 in
+      assert_json_error_free __LOC__ output;
+      let result_json1 = YoJson.member "result" output1 in
+      let transaction_hash1 = YoJson.to_string result_json1 in
       wait_for_contract_execution transaction_hash1
       >>= fun () ->
       get_transaction_receipt transaction_hash1
       >>= fun receipt_json1 ->
       (* verify that we called "printHelloWorld" *)
-      let receipt_result1_json = Safe.Util.member "result" receipt_json1 in
-      let log_json = List.hd (Safe.Util.to_list (Safe.Util.member "logs" receipt_result1_json)) in
+      let receipt_result1_json = YoJson.member "result" receipt_json1 in
+      let log_json = List.hd (YoJson.to_list (YoJson.member "logs" receipt_result1_json)) in
       (* we called the right contract *)
-      let log_contract_address = Safe.Util.to_string (Safe.Util.member "address" log_json) in
+      let log_contract_address = YoJson.to_string (YoJson.member "address" log_json) in
       assert (log_contract_address = contract_address) ;
       (* we called the right function within the contract *)
-      let log_topics = Safe.Util.to_list (Safe.Util.member "topics" log_json) in
+      let log_topics = YoJson.to_list (YoJson.member "topics" log_json) in
       assert (List.length log_topics = 1) ;
-      let topic_event = Safe.Util.to_string (List.hd log_topics) in
+      let topic_event = YoJson.to_string (List.hd log_topics) in
       let hello_world = (String_value "Hello, world!", String) in
       let signature = make_signature_bytes {function_name= "showResult"; parameters= [hello_world]} in
       let signature_hash = Ethereum_util.hex_string_of_string (Ethereum_util.hash_bytes signature) in
       assert (topic_event = signature_hash) ;
       (* the log data is the encoding of the parameter passed to the event *)
-      let data = Safe.Util.to_string (Safe.Util.member "data" log_json) in
+      let data = YoJson.to_string (YoJson.member "data" log_json) in
       let hello_encoding =
         let tuple_value, tuple_ty = abi_tuple_of_abi_values [hello_world] in
         Ethereum_util.hex_string_of_bytes (encode_abi_value tuple_value tuple_ty)
@@ -604,11 +552,11 @@ module Test = struct
       (* create the contract *)
       get_first_account ()
       >>= fun account_json ->
-      let sender_account = Safe.Util.to_string account_json in
+      let sender_account = YoJson.to_string account_json in
       let sender_address = Ethereum_util.address_of_hex_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
-      assert (not (json_contains_error unlock_sender_json)) ;
+      assert_json_error_free __LOC__ unlock_sender_json;
       get_nonce sender_address
       >>= fun nonce ->
       let tx_header =
@@ -620,30 +568,30 @@ module Test = struct
       in
       let operation = Operation.CreateContract code_bytes in
       let transaction = {Transaction.tx_header; Transaction.operation} in
-      let signed_transaction = sign_transaction alice_keys transaction in
+      let signed_transaction = Transaction.signed alice_keys transaction in
       send_transaction_to_net signed_transaction
       >>= fun output ->
-      assert (not (json_contains_error output)) ;
-      let result_json = Safe.Util.member "result" output in
-      let transaction_hash = Safe.Util.to_string result_json in
+      assert_json_error_free __LOC__ output;
+      let result_json = YoJson.member "result" output in
+      let transaction_hash = YoJson.to_string result_json in
       wait_for_contract_execution transaction_hash
       >>= fun () ->
       get_transaction_receipt transaction_hash
       >>= fun receipt_json ->
-      assert (not (json_contains_error receipt_json)) ;
-      let receipt_result_json = Safe.Util.member "result" receipt_json in
+      assert_json_error_free __LOC__ receipt_json;
+      let receipt_result_json = YoJson.member "result" receipt_json in
       let contract_address =
-        Safe.Util.to_string (Safe.Util.member "contractAddress" receipt_result_json)
+        YoJson.to_string (YoJson.member "contractAddress" receipt_result_json)
       in
       (* check balance of new contract *)
       send_balance_request_to_net (Ethereum_util.address_of_hex_string contract_address)
       >>= fun starting_balance_json ->
-      assert (not (json_contains_error starting_balance_json)) ;
+      assert_json_error_free __LOC__ starting_balance_json;
       let starting_balance =
-        int_of_string (Safe.Util.to_string (Safe.Util.member "result" starting_balance_json))
+        int_of_string (YoJson.to_string (YoJson.member "result" starting_balance_json))
       in
       assert (starting_balance = 0) ;
-      let signed_transaction = sign_transaction alice_keys transaction in
+      let signed_transaction = Transaction.signed alice_keys transaction in
       transaction_execution_matches_transaction transaction_hash signed_transaction
       >>= fun matches ->
       assert matches;
@@ -667,29 +615,29 @@ module Test = struct
         Operation.CallFunction (Ethereum_util.address_of_hex_string contract_address, address_bytes)
       in
       let transaction1 = {Transaction.tx_header= tx_header1; Transaction.operation= operation1} in
-      let signed_transaction1 = sign_transaction alice_keys transaction1 in
+      let signed_transaction1 = Transaction.signed alice_keys transaction1 in
       send_transaction_to_net signed_transaction1
       >>= fun output1 ->
-      assert (not (json_contains_error output1)) ;
-      let result_json1 = Safe.Util.member "result" output1 in
-      let transaction_hash1 = Safe.Util.to_string result_json1 in
+      assert_json_error_free __LOC__ output1;
+      let result_json1 = YoJson.member "result" output1 in
+      let transaction_hash1 = YoJson.to_string result_json1 in
       wait_for_contract_execution transaction_hash1
       >>= fun () ->
       get_transaction_receipt transaction_hash1
       >>= fun receipt_json1 ->
       (* verify that we called the fallback *)
-      let receipt_result1_json = Safe.Util.member "result" receipt_json1 in
-      let logs = Safe.Util.to_list (Safe.Util.member "logs" receipt_result1_json) in
+      let receipt_result1_json = YoJson.member "result" receipt_json1 in
+      let logs = YoJson.to_list (YoJson.member "logs" receipt_result1_json) in
       assert (List.length logs = 1) ;
       let log_json = List.hd logs in
       (* the log is for this contract *)
-      let receipt_address = Safe.Util.to_string (Safe.Util.member "address" log_json) in
+      let receipt_address = YoJson.to_string (YoJson.member "address" log_json) in
       assert (receipt_address = contract_address) ;
       (* we saw the expected event *)
-      let topics = Safe.Util.to_list (Safe.Util.member "topics" log_json) in
+      let topics = YoJson.to_list (YoJson.member "topics" log_json) in
       assert (List.length topics = 1) ;
       let topic = List.hd topics in
-      let logged_event = Safe.Util.to_string topic in
+      let logged_event = YoJson.to_string topic in
       let event_parameters =
         [(Address_value facilitator_address, Address); abi_uint_of_int amount_to_transfer]
       in
@@ -700,7 +648,7 @@ module Test = struct
       in
       assert (logged_event = event_signature) ;
       (* the facilitator address is visible as data *)
-      let data = Safe.Util.to_string (Safe.Util.member "data" log_json) in
+      let data = YoJson.to_string (YoJson.member "data" log_json) in
       let logged_encoding =
         let tuple_value, tuple_ty = abi_tuple_of_abi_values event_parameters in
         Ethereum_util.hex_string_of_bytes (encode_abi_value tuple_value tuple_ty)
@@ -709,9 +657,9 @@ module Test = struct
       (* confirm contract has received amount transferred *)
       send_balance_request_to_net (Ethereum_util.address_of_hex_string contract_address)
       >>= fun ending_balance_json ->
-      assert (not (json_contains_error ending_balance_json)) ;
+      assert_json_error_free __LOC__ ending_balance_json;
       let ending_balance =
-        int_of_string (Safe.Util.to_string (Safe.Util.member "result" ending_balance_json))
+        int_of_string (YoJson.to_string (YoJson.member "result" ending_balance_json))
       in
       assert (ending_balance = amount_to_transfer) ;
       (* now try invalid address, make sure it's not logged *)
@@ -722,17 +670,17 @@ module Test = struct
       in
       let tx_header2 = tx_header1 in
       let transaction2 = {Transaction.tx_header= tx_header2; Transaction.operation= operation2} in
-      let signed_transaction2 = sign_transaction alice_keys transaction2 in
+      let signed_transaction2 = Transaction.signed alice_keys transaction2 in
       send_transaction_to_net signed_transaction2
       >>= fun output2 ->
-      assert (not (json_contains_error output2)) ;
-      let result_json2 = Safe.Util.member "result" output2 in
-      let transaction_hash2 = Safe.Util.to_string result_json2 in
+      assert_json_error_free __LOC__ output2;
+      let result_json2 = YoJson.member "result" output2 in
+      let transaction_hash2 = YoJson.to_string result_json2 in
       wait_for_contract_execution transaction_hash2
       >>= fun () ->
       get_transaction_receipt transaction_hash2
       >>= fun receipt_json2 ->
-      let receipt_result2_json = Safe.Util.member "result" receipt_json2 in
-      let logs2 = Safe.Util.to_list (Safe.Util.member "logs" receipt_result2_json) in
+      let receipt_result2_json = YoJson.member "result" receipt_json2 in
+      let logs2 = YoJson.to_list (YoJson.member "logs" receipt_result2_json) in
       return (List.length logs2 = 0))
 end
