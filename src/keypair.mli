@@ -19,6 +19,13 @@ val make_public_key : string -> public_key
 (** given hex-string private key, generate Secp256k1 private key *)
 val make_private_key : string -> private_key
 
+(** Register a keypair -- typical usage would be to do that from reading a configuration file,
+    or with the notional equivalent of ssh-add. *)
+val register_keypair : t -> unit
+
+(** Unregister a keypair *)
+val unregister_keypair : t -> unit
+
 (** given an address, find the corresponding keypair in suitable configuration files *)
 val keypair_of_address : Address.t -> t
 

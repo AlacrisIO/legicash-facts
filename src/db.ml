@@ -12,6 +12,7 @@
     A conceptual mess? Yes it is! All because OCaml's type system can't deal with this kind of abstraction.
 *)
 open Lib
+open Action
 open Yojsoning
 open Marshaling
 open Integer
@@ -27,7 +28,7 @@ type db_request =
   | Put of {key: string; data: string}
   | Remove of string
   | Commit of unit Lwt.u
-  | Flush of int
+  | Ready of int
 
 (* One might be tempted to use Lwt.task instead of an option ref to define
    the db_name, db. Unhappily, at least as far as the db goes,
@@ -44,56 +45,39 @@ type connection =
 
 let the_connection_ref : (connection option ref) = ref None
 
-(* timeout for batching, in seconds *)
-let transaction_timeout_trigger = 0.01
-
-(* overflow size for batching, in seconds *)
-let transaction_size_trigger = 4*1024*1024
-
 let start_server ~db_name ~db ~mailbox () =
+  let open Lwt_monad in
   Lwt_io.printf "Opening LevelDB connection to db %s\n%!" db_name >>=
-  (let rec outer_loop count previous () =
-     let transaction = LevelDB.Batch.make () in
-     let (size_trigger, trigger_size) = Lwt.task () in
-     let timeout = Lwt_unix.sleep transaction_timeout_trigger in
-     Lwt.async (fun () -> Lwt.join [previous; Lwt.pick [timeout; size_trigger]]
-                 >>= (fun () -> Lwt_mvar.put mailbox (Flush count)));
-     let rec inner_loop triggered size tinuations =
-       if (not triggered) && (size >= transaction_size_trigger) then
-         begin
-           Lwt.wakeup_later trigger_size ();
-           inner_loop true size tinuations
-         end
-       else
-         Lwt_mvar.take mailbox
-         >>= function
-         | Put {key;data} ->
-           LevelDB.Batch.put transaction key data;
-           (* TODO: check sizes for overflow *)
-           inner_loop triggered (size + String.length key + String.length data) tinuations
-         | Remove key ->
-           LevelDB.Batch.delete transaction key;
-           (* TODO: check sizes for overflow *)
-           inner_loop triggered (size + String.length key) tinuations
-         | Commit tinuation ->
-           inner_loop triggered size (tinuation::tinuations)
-         | Flush n ->
-           if n = count then
-             outer_loop
-               (count + 1)
-               (Lwt_preemptive.detach
-                  (fun () ->
-                     if size != 0 then
-                       LevelDB.Batch.write db ~sync:true transaction) ()
-                >>= (fun () ->
-                  List.iter (fun tinuation -> Lwt.wakeup_later tinuation ()) tinuations;
-                  Lwt.return_unit))
-               ()
-           else
-             (* ignore timeout for  *)
-             inner_loop triggered size tinuations in
-     inner_loop false 0 [] in
-   outer_loop 0 Lwt.return_unit)
+  let rec outer_loop batch_id previous () =
+    let transaction = LevelDB.Batch.make () in
+    let (wait_on_batch_commit, notify_batch_commit) = Lwt.task () in
+    Lwt.async (fun () -> previous >>= fun () -> Lwt_mvar.put mailbox (Ready batch_id));
+    let rec inner_loop ~ready ~triggered =
+      if triggered && ready then
+        begin
+          Lwt.async ((fun () -> Lwt_preemptive.detach
+                                  (fun () -> LevelDB.Batch.write db ~sync:true transaction) ())
+                     >>> Lwt_monad.arr (Lwt.wakeup_later notify_batch_commit));
+          outer_loop (batch_id + 1) wait_on_batch_commit ()
+        end
+      else
+        Lwt_mvar.take mailbox
+        >>= function
+        | Put {key;data} ->
+          LevelDB.Batch.put transaction key data;
+          inner_loop ~ready ~triggered
+        | Remove key ->
+          LevelDB.Batch.delete transaction key;
+          inner_loop ~ready ~triggered
+        | Commit continuation ->
+          Lwt.async (fun () -> wait_on_batch_commit
+                      >>= Lwt_monad.arr (Lwt.wakeup_later continuation));
+          inner_loop ~ready ~triggered:true
+        | Ready n ->
+          assert (n = batch_id);
+          inner_loop ~ready:true ~triggered in
+    inner_loop ~ready:false ~triggered:false in
+  outer_loop 0 Lwt.return_unit
 
 let open_connection db_name =
   match !the_connection_ref with
@@ -119,10 +103,12 @@ let request r =
 let run ~db_name thunk =
   Lwt_main.run (open_connection db_name >>= thunk)
 
+let async_commit continuation =
+  request (Commit continuation)
+
 let commit () =
-  let (continuation, tinuation) = Lwt.task () in
-  Lwt.async (fun () -> request (Commit tinuation));
-  continuation
+  let (promise, resolver) = Lwt.task () in
+  async_commit resolver >>= fun () -> promise
 
 let has_db_key key =
   LevelDB.mem (the_db ()) key
@@ -137,6 +123,7 @@ let remove_db key =
   request (Remove key)
 
 
+(* TODO: move what's below to db_types? Only after the definition of OCamlPersistable? *)
 
 (** Walking across the dependencies of an object *)
 type 'a dependency_walking_methods =

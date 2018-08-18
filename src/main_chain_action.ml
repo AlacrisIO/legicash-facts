@@ -16,35 +16,31 @@ let [@warning "-32"] update_stub_state new_state =
   stub_state := new_state ;
   stub_state_digest := Digest.zero (* TODO: extract digest from new_state *)
 
-let make_tx_header =
-  UserAction.(
-    with_state
-      (fun ((value, gas_limit), user_state) ->
-         return
-           { TxHeader.sender= user_state.keypair.address
-           ; TxHeader.nonce= user_state.nonce
-           ; TxHeader.gas_price= !stub_gas_price
-           ; TxHeader.gas_limit
-           ; TxHeader.value }))
+let make_tx_header (value, gas_limit) (user_state: UserState.t) =
+  UserAction.return
+    { TxHeader.sender= user_state.keypair.address
+    ; TxHeader.nonce= user_state.nonce
+    ; TxHeader.gas_price= !stub_gas_price
+    ; TxHeader.gas_limit
+    ; TxHeader.value }
+    user_state
 
-let add_pending_transaction =
-  UserAction.(
-    with_state
-      (fun (transaction, user_state) ->
-         return_state
-           {user_state with
-            pending_transactions= transaction :: user_state.pending_transactions ;
-            nonce= Nonce.add Nonce.one user_state.nonce }
-           transaction))
+let add_pending_transaction transaction (user_state: UserState.t) =
+  UserAction.return transaction
+    {user_state with
+     pending_transactions= transaction :: user_state.pending_transactions ;
+     nonce= Nonce.(add one user_state.nonce) }
+
+let sign_transaction transaction user_state =
+  UserAction.return (Transaction.signed user_state.UserState.keypair transaction) user_state
 
 let issue_transaction (operation,value,gas_limit) =
   (value, gas_limit) |>
-  UserAsyncAction.of_action
-    (let open UserAction in
-     make_tx_header
-     >>> with_state (fun (tx_header, user_state) ->
-       return (Transaction.signed user_state.keypair {tx_header; operation}))
-     >>> add_pending_transaction)
+  let open UserAction in
+  to_async (make_tx_header
+            >>> (fun tx_header -> return Transaction.{tx_header; operation})
+            >>> sign_transaction
+            >>> add_pending_transaction)
 
 let transfer_gas_limit = TokenAmount.of_int 21000
 

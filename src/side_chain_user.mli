@@ -118,7 +118,7 @@ val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t sign
 
 (** reflect action on side chain on main chain *)
 val push_side_chain_action_to_main_chain :
-  FacilitatorState.t -> (Confirmation.t signed,Main_chain.Confirmation.t) UserAsyncAction.arr
+  FacilitatorState.t -> (Confirmation.t, Main_chain.Confirmation.t) UserAsyncAction.arr
 
 val withdrawal : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 

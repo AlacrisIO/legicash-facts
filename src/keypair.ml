@@ -45,16 +45,19 @@ let make_keypair private_key_string public_key_string =
 let make_keypair_from_hex private_key_hex public_key_hex =
   make_keypair (parse_coloned_hex_string private_key_hex) (parse_coloned_hex_string public_key_hex)
 
-let keypair_of_address address =
-  raise (Internal_error
-           (Printf.sprintf "Can't find keypair with address 0x%s"
-              (Address.to_hex_string address)))
+let registered_keypairs = Hashtbl.create 8
 
+let register_keypair keypair =
+  Hashtbl.replace registered_keypairs keypair.address keypair
+
+let unregister_keypair keypair =
+  Hashtbl.remove registered_keypairs keypair.address
+
+let keypair_of_address address =
+  Hashtbl.find registered_keypairs address
 
 module PrePersistable = struct
-
   type nonrec t = t
-
   let marshaling =
     { marshal =
         (fun buffer t ->

@@ -5,8 +5,16 @@ open Side_chain
 module FacilitatorAction : ActionS with type state = FacilitatorState.t
 module FacilitatorAsyncAction : AsyncActionS with type state = FacilitatorState.t
 
+(** start the background facilitator processes for given address *)
+val start_facilitator : Address.t -> unit Lwt.t
+
+(** Get a reference to the current state of the facilitator
+    NB: You're not allowed to write it, only the facilitator code is
+*)
+val get_facilitator_state : unit -> FacilitatorState.t Lwt.t
+
 (** facilitator processes request *)
-val process_request : (Request.t signed, Confirmation.t signed) FacilitatorAsyncAction.arr
+val process_request : (Request.t signed * bool, Confirmation.t) Lwt_exn.arr
 
 val commit_facilitator_state : (unit, unit) FacilitatorAsyncAction.arr
 (** For a facilitator, commit the state of the side-chain to the main-chain *)

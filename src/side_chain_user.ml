@@ -94,12 +94,12 @@ module UserAction = Action(UserState)
 module UserAsyncAction = AsyncAction(UserState)
 
 let get_first_facilitator_state_option :
-  (unit, (Address.t * UserAccountStatePerFacilitator.t) option) UserAction.pure =
+  (unit, (Address.t * UserAccountStatePerFacilitator.t) option) UserAction.readonly =
   fun () user_state ->
     UserAccountStateMap.find_first_opt (konstant true) user_state.facilitators
 
 let get_first_facilitator =
-  UserAction.(of_pure get_first_facilitator_state_option
+  UserAction.(of_readonly get_first_facilitator_state_option
               >>> function
               | None -> fail No_facilitator_yet
               | Some (address, _) -> return address)
@@ -159,15 +159,21 @@ let add_user_episteme episteme user_state =
     |-- UserAccountStatePerFacilitator.lens_pending_operations )
   .set (episteme :: account_state.pending_operations) user_state
 
+let sign_request request user_state =
+  UserAction.return
+    (Request.signed user_state.UserState.main_chain_user_state.keypair request)
+    user_state
+
+let add_pending_request request state =
+  UserAction.return request (add_user_episteme (mk_rx_episteme request) state)
+
 let issue_user_request operation =
   let open UserAction in
   get_first_facilitator ()
   >>= make_rx_header
-  >>= (of_pure (fun rx_header user_state ->
-    Request.(signed user_state.main_chain_user_state.keypair
-               {rx_header; operation})))
-  >>= fun request ->
-  map_state (add_user_episteme (mk_rx_episteme request)) request
+  >>= fun rx_header -> return Request.{rx_header; operation}
+  >>= sign_request
+  >>= add_pending_request
 
 (* TODO: is this used? should balances and revisions be updated in effect_request?
    looks like balances already are
@@ -213,23 +219,19 @@ let lift_main_chain_user_async_action_to_side_chain main_chain_user_async_action
     (fun (result, new_state) ->
        Lwt.return (result, {user_state with main_chain_user_state= new_state}))
 
-(* TODO: use facilitator fee schedule *)
-let deposit_fee = TokenAmount.of_int 5
-
 let deposit (facilitator_address, deposit_amount) =
   let open UserAsyncAction in
-  assert (TokenAmount.compare deposit_amount deposit_fee >= 0);
   get_facilitator_fee_schedule facilitator_address
   >>= fun {deposit_fee} ->
   lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
-    (facilitator_address, deposit_amount)
+    (facilitator_address, (TokenAmount.add deposit_amount deposit_fee))
   >>= fun main_chain_deposit_signed ->
   lift_main_chain_user_async_action_to_side_chain Main_chain_action.wait_for_confirmation
     main_chain_deposit_signed
   >>= fun main_chain_deposit_confirmation ->
   of_action issue_user_request
     (Deposit
-       { deposit_amount= TokenAmount.sub deposit_amount deposit_fee
+       { deposit_amount
        ; deposit_fee
        ; main_chain_deposit_signed
        ; main_chain_deposit_confirmation
@@ -275,12 +277,12 @@ let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operat
 (* an action made on the side chain may need a corresponding action on the main chain *)
 let push_side_chain_action_to_main_chain
       (facilitator_state : FacilitatorState.t)
-      (signed_confirmation : Confirmation.t signed)
+      (confirmation : Confirmation.t)
       (user_state : UserState.t) =
-  let confirmation = signed_confirmation.payload in
-  let facilitator_address = facilitator_state.keypair.address in
-  if not (is_signature_valid Confirmation.digest facilitator_address signed_confirmation.signature confirmation) then
-    raise (Internal_error "Invalid facilitator signature on signed confirmation");
+  (*
+     let facilitator_address = facilitator_state.keypair.address in
+     if not (is_signature_valid Confirmation.digest facilitator_address signed_confirmation.signature confirmation) then
+     raise (Internal_error "Invalid facilitator signature on signed confirmation");*)
   let signed_request = confirmation.signed_request in
   let request = signed_request.payload in
   let user_keys = user_state.main_chain_user_state.keypair in

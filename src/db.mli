@@ -8,6 +8,7 @@ type transaction
 
 val open_connection : string -> unit Lwt.t
 val run : db_name:string -> (unit -> 'a Lwt.t) -> 'a
+val async_commit : unit Lwt.u -> unit Lwt.t
 val commit : unit -> unit Lwt.t
 
 val has_db_key : string -> bool

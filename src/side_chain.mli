@@ -132,19 +132,25 @@ module AccountState : sig
   val empty : t
 end
 
-module ConfirmationMap : (MerkleTrieS with type key = Revision.t and type value = Confirmation.t)
+module ConfirmationMap : MerkleTrieS with type key = Revision.t and type value = Confirmation.t
 
-module AccountMap : (MerkleTrieS with type key = Address.t and type value = AccountState.t)
+module AccountMap : MerkleTrieS with type key = Address.t and type value = AccountState.t
 
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
+
+    TODO: somehow store the following?
+    ; confirmed_main_chain_state: digest (* Main_chain.State.t *)
+    ; confirmed_side_chain_state: digest (* state previously posted on the above *)
+    ; bond_posted: TokenAmount.t
+    Or "just" keep changes in this data in the ConfirmationMap as objects beside requests?
+    And keep a fast-access index to the latest entry numbers? As other trees?
+    As parallel trees that share the same data structures?
+    Index not just the confirmed, but also the pending confirmation?
 *)
 module State : sig
-  type t = { previous_main_chain_state: digest (* Main_chain.State.t *)
-           ; previous_side_chain_state: digest (* state previously posted on the above *)
-           ; facilitator_revision: Revision.t
+  type t = { facilitator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
-           ; bond_posted: TokenAmount.t
            ; accounts: AccountMap.t
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
@@ -173,13 +179,12 @@ end
 
 (** Private state of a facilitator (as opposed to what's public in the side-chain)
     TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
-*)
+    Remember operations pending operations with the main chain?
+    Include a Main_chain.user_state? State for dealing with the court registry? *)
 module FacilitatorState : sig
   type t = { keypair: Keypair.t
-           ; previous: State.t option
            ; current: State.t
-           ; fee_schedule: FacilitatorFeeSchedule.t
-           }
+           ; fee_schedule: FacilitatorFeeSchedule.t }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
   val load : Address.t -> t

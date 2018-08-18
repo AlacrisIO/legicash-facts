@@ -132,10 +132,10 @@ let deposit_to_trent address amount =
   let thread =
     unlock_account address_t
     >>= fun _unlock_json ->
-    UserAsyncAction.run_lwt user_state (trent_address, TokenAmount.of_int amount) deposit
+    UserAsyncAction.run_lwt user_state deposit (trent_address, TokenAmount.of_int amount)
     >>= fun signed_request ->
     Hashtbl.replace address_to_user_state_tbl address_t !user_state;
-    FacilitatorAsyncAction.run_lwt trent_state signed_request process_request
+    FacilitatorAsyncAction.run_lwt trent_state process_request signed_request
     >>= fun signed_confirmation ->
     let confirmation = signed_confirmation.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
@@ -172,10 +172,10 @@ let withdrawal_from_trent address amount =
   let thread =
     unlock_account address_t
     >>= fun _unlock_json ->
-    UserAsyncAction.run_lwt user_state (trent_address, TokenAmount.of_int amount) withdrawal
+    UserAsyncAction.run_lwt user_state withdrawal (trent_address, TokenAmount.of_int amount)
     >>= fun signed_request ->
     Hashtbl.replace address_to_user_state_tbl address_t !user_state;
-    FacilitatorAsyncAction.run_lwt trent_state signed_request process_request
+    FacilitatorAsyncAction.run_lwt trent_state process_request signed_request
     >>= fun signed_confirmation2 ->
     let confirmation = signed_confirmation2.payload in
     let tx_revision = confirmation.tx_header.tx_revision in
@@ -318,11 +318,11 @@ let payment_on_trent sender recipient amount =
   if (TokenAmount.to_int sender_account.balance) < amount then
     raise (Internal_error "Sender has insufficient balance to make this payment");
   let sender_state_ref = ref sender_state in
-  UserAsyncAction.run_lwt sender_state_ref
-    (trent_address, recipient_address_t, TokenAmount.of_int amount) payment
+  UserAsyncAction.run_lwt sender_state_ref payment
+    (trent_address, recipient_address_t, TokenAmount.of_int amount)
   >>= fun signed_request ->
   Hashtbl.replace address_to_user_state_tbl sender_address_t !sender_state_ref ;
-  FacilitatorAsyncAction.run_lwt trent_state signed_request process_request
+  FacilitatorAsyncAction.run_lwt trent_state process_request signed_request
   >>= fun signed_confirmation ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();

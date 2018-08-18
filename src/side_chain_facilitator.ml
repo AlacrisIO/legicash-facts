@@ -12,6 +12,21 @@ module FacilitatorAsyncAction = AsyncAction(FacilitatorState)
 
 type account_lens = (FacilitatorState.t, AccountState.t) Lens.t
 
+(* WARNING: GLOBAL STATE, so there's only one facilitator running *)
+let user_request_mailbox : (Request.t signed * bool * Confirmation.t or_exn Lwt.u) Lwt_mvar.t =
+  Lwt_mvar.create_empty ()
+
+type validated_request =
+  | Confirm of Request.t signed * account_lens * (Confirmation.t * unit Lwt.t) or_exn Lwt.u
+  | Flush of int
+
+let validated_request_mailbox : validated_request Lwt_mvar.t = Lwt_mvar.create_empty ()
+let (get_facilitator_state_ref, facilitator_state_resolver) = Lwt.task ()
+
+let get_facilitator_state =
+  let open Lwt_monad in
+  (fun () -> get_facilitator_state_ref) >>> (fun r -> return !r)
+
 let facilitator_account_lens address =
   FacilitatorState.lens_current |-- State.lens_accounts
   |-- defaulting_lens (konstant AccountState.empty) (AccountMap.lens address)
@@ -20,36 +35,33 @@ let facilitator_account_lens address =
     the request, the account state (new or old), the lens to set the account back at the end, and
     the user's public key *)
 let ensure_user_account :
-  (Request.t signed,
-   Request.t signed * AccountState.t * account_lens * Address.t) FacilitatorAction.arr =
+  (Request.t signed * bool,
+   Request.t signed * bool * AccountState.t * account_lens * Address.t) FacilitatorAction.arr =
   let open FacilitatorAction in
-  fun rx state ->
+  fun (rx, is_forced) state ->
     let requester = rx.payload.rx_header.requester in
     let account_lens = facilitator_account_lens requester in
     let account_state = account_lens.get state in
-    return (rx, account_state, account_lens, requester) state
+    return (rx, is_forced, account_state, account_lens, requester) state
+
+let one_billion_tokens = TokenAmount.of_int 1000000000
 
 (** Is the request well-formed?
     This function should include all checks that can be made without any non-local side-effect
     beside reading pure or monotonic data, which is allowed.
     Thus, we can later parallelize this check.
+    TODO: parallelize the signature checking in a C worker thread that lets us do additional OCaml work.
 *)
 let is_side_chain_request_well_formed :
-  (Request.t signed * AccountState.t * account_lens * Address.t, bool) FacilitatorAction.pure =
-  fun ( { payload=
-            { rx_header=
-                { requester
-                ; requester_revision }
-            ; operation } as payload
-        ; signature }
-      , {balance; account_revision}
-      , _
-      , _signing_address ) state ->
-    requester_revision = Revision.add account_revision Revision.one
+  (Request.t signed * bool * AccountState.t * account_lens * Address.t, bool) FacilitatorAction.readonly =
+  fun ({ payload ; signature }, is_forced, {balance; account_revision}, _, _signing_address) state ->
+    let Request.{ rx_header={ requester; requester_revision }; operation } = payload in
+    requester_revision = Revision.(add account_revision one)
     (* TODO: check confirmed main & side chain state + validity window *)
     && is_signature_valid Request.digest requester signature payload
     (* Check that the numbers add up: *)
-    && match operation with
+    && let open TokenAmount in
+    match operation with
     | Deposit
         { deposit_amount
         ; deposit_fee
@@ -59,150 +71,188 @@ let is_side_chain_request_well_formed :
             } as main_chain_deposit_signed
         ; main_chain_deposit_confirmation
         ; deposit_expedited=_deposit_expedited } ->
-      TokenAmount.is_sum value deposit_amount deposit_fee
+      is_sum value deposit_amount deposit_fee
+      && compare deposit_fee state.fee_schedule.deposit_fee >= 0
       (* TODO: delegate the same signature checking protocol to the main chain *)
       && is_signature_valid Transaction.digest requester signature payload
       && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
            main_chain_deposit_signed
-      && TokenAmount.equal deposit_fee state.fee_schedule.deposit_fee
     | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
-      TokenAmount.is_add_valid payment_invoice.amount payment_fee
-      && TokenAmount.compare balance (TokenAmount.add payment_invoice.amount payment_fee) >= 0
+      is_add_valid payment_invoice.amount payment_fee
+      && compare balance (add payment_invoice.amount payment_fee) >= 0
       (* TODO: make per_account_limit work on the entire floating thing *)
-      && TokenAmount.compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
-      (* TODO: make sure the fee multiplication cannot overflow! *)
-      && TokenAmount.is_product payment_fee
-           state.fee_schedule.fee_per_billion
-           (TokenAmount.div payment_invoice.amount (TokenAmount.of_int 1000000000))
+      && compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
+      && (is_forced ||
+          (is_mul_valid state.fee_schedule.fee_per_billion payment_invoice.amount
+           && is_mul_valid payment_fee one_billion_tokens
+           && compare
+                (mul payment_fee one_billion_tokens)
+                (mul state.fee_schedule.fee_per_billion payment_invoice.amount) >= 0))
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-      TokenAmount.is_add_valid withdrawal_amount withdrawal_fee
-      && TokenAmount.compare balance (TokenAmount.add withdrawal_amount withdrawal_fee) >= 0
-      && TokenAmount.equal withdrawal_fee state.fee_schedule.withdrawal_fee
+      is_add_valid withdrawal_amount withdrawal_fee
+      && compare balance (add withdrawal_amount withdrawal_fee) >= 0
+      && compare withdrawal_fee state.fee_schedule.withdrawal_fee >= 0
 
 (** Check that the request is basically well-formed, or else fail *)
 let check_side_chain_request_well_formed =
   FacilitatorAction.assert_ (fun () -> __LOC__) is_side_chain_request_well_formed
 
 let make_request_confirmation :
-  (Request.t signed * AccountState.t * account_lens, Confirmation.t signed) FacilitatorAction.arr =
-  fun (signed_request, account_state, account_lens) facilitator_state ->
+  (Request.t signed * account_lens,
+   Confirmation.t) FacilitatorAction.arr =
+  fun (signed_request, account_lens) facilitator_state ->
     let current_state = facilitator_state.current in
-    let new_revision = Revision.add current_state.facilitator_revision Revision.one in
+    let new_revision = Revision.(add current_state.facilitator_revision one) in
     let confirmation =
       { tx_header=TxHeader.{ tx_revision= new_revision
-                           ; updated_limit= facilitator_state.current.spending_limit
-                           }
+                           ; updated_limit= facilitator_state.current.spending_limit }
       ; Confirmation.signed_request } in
+    let new_requester_revision = signed_request.payload.rx_header.requester_revision in
     let new_facilitator_state =
-      account_lens.set
-        { account_state with account_revision= signed_request.payload.rx_header.requester_revision }
-        { facilitator_state with
-          previous = Some current_state;
-          current = { current_state with
-                      facilitator_revision = new_revision;
-                      operations = ConfirmationMap.add new_revision confirmation current_state.operations
-                    }
-        } in
-    let signed_confirmation = Confirmation.signed facilitator_state.keypair confirmation in
-    FacilitatorAction.return signed_confirmation new_facilitator_state
+      facilitator_state
+      |> (account_lens |-- AccountState.lens_account_revision).set new_requester_revision
+      |> (FacilitatorState.lens_current |-- State.lens_facilitator_revision).set new_revision
+      |> Lens.modify (FacilitatorState.lens_current |-- State.lens_operations)
+           (ConfirmationMap.add new_revision confirmation) in
+    FacilitatorAction.return confirmation new_facilitator_state
 
-exception Spending_limit_exceeded
+let modify_guarded_state guard modification lens failure success state =
+  if guard (lens.Lens.get state) then
+    Ok success, Lens.modify lens modification state
+  else
+    Error failure, state
+
+let decrement_state_tokens amount =
+  modify_guarded_state
+    (fun x -> TokenAmount.compare x amount >= 0)
+    (fun x -> TokenAmount.sub x amount)
 
 (** Facilitator actions to use up some of the limit *)
-let spend_spending_limit amount x state =
-  let open FacilitatorAction in
-  let open FacilitatorState in
-  if TokenAmount.compare amount state.current.spending_limit <= 0 then
-    return x
-      ((FacilitatorState.lens_current |-- State.lens_spending_limit).set
-         (TokenAmount.sub state.current.spending_limit amount)
-         state)
-  else fail Spending_limit_exceeded state
+exception Spending_limit_exceeded
 
-let maybe_spend_spending_limit : bool -> TokenAmount.t -> ('a, 'a) FacilitatorAction.arr =
-  fun is_expedited amount ->
-    if is_expedited then spend_spending_limit amount else FacilitatorAction.return
+let spend_spending_limit (amount : TokenAmount.t) : ('a, 'a) FacilitatorAction.arr =
+  decrement_state_tokens
+    amount
+    (FacilitatorState.lens_current |-- State.lens_spending_limit)
+    Spending_limit_exceeded
+
+let maybe_spend_spending_limit
+      (is_expedited : bool) (amount: TokenAmount.t) : ('a, 'a) FacilitatorAction.arr =
+  if is_expedited then spend_spending_limit amount else FacilitatorAction.return
 
 exception Already_posted
+
+exception Insufficient_balance
 
 (* To prevent double-deposit or double-withdrawal of a same main_chain_transaction_signed,
    we put those transactions in a set of already posted transactions.
    (Future: prune that set by expiring deposit requests?
    Have more expensive process to account for old deposits?)
 *)
-let check_against_double_accounting main_chain_transaction_signed x state =
-  let open FacilitatorAction in
+let check_against_double_accounting
+      (main_chain_transaction_signed : Main_chain.TransactionSigned.t)
+  : ('a, 'a) FacilitatorAction.arr =
   let witness = Main_chain.TransactionSigned.digest main_chain_transaction_signed in
   let lens =
-    FacilitatorState.lens_current |-- State.lens_main_chain_transactions_posted |-- DigestSet.lens witness
-  in
-  if lens.get state then
-    fail Already_posted state
-  else
-    return x (lens.set true state)
+    FacilitatorState.lens_current
+    |-- State.lens_main_chain_transactions_posted
+    |-- DigestSet.lens witness in
+  modify_guarded_state not (konstant true) lens Already_posted
+
+let credit_balance
+      (amount : TokenAmount.t) (account_lens : account_lens)
+  : ('a, 'a) FacilitatorAction.arr =
+  FacilitatorAction.map_state
+    (Lens.modify (account_lens |-- AccountState.lens_balance) (TokenAmount.add amount))
+
+let debit_balance amount account_lens =
+  decrement_state_tokens
+    amount
+    (account_lens |-- AccountState.lens_balance)
+    Insufficient_balance
+
+let accept_fee fee : ('a, 'a) FacilitatorAction.arr =
+  fun x state ->
+    let facilitator_self_account_lens =
+      facilitator_account_lens state.FacilitatorState.keypair.address in
+    credit_balance fee facilitator_self_account_lens x state
 
 (** compute the effects of a request on the account state *)
 let effect_request :
-  ( Request.t signed * AccountState.t * account_lens * Address.t
-  , Request.t signed * AccountState.t * account_lens )
-    FacilitatorAction.arr = fun (rx, account_state, account_lens, _user_key) ->
+  ( Request.t signed * account_lens
+  , Request.t signed * account_lens )
+    FacilitatorAction.arr = fun (rx, account_lens) ->
   let open FacilitatorAction in
-  match rx.payload.operation with
-  | Deposit
-      { deposit_amount
-      ; deposit_fee=_deposit_fee
-      ; main_chain_deposit_signed
-      ; main_chain_deposit_confirmation=_main_chain_deposit_confirmation
-      ; deposit_expedited } ->
-    ( rx
-    , Lens.modify AccountState.lens_balance (TokenAmount.add deposit_amount) account_state
-    , account_lens )
-    |> check_against_double_accounting main_chain_deposit_signed
-    >>= maybe_spend_spending_limit deposit_expedited deposit_amount
+  (rx, account_lens)
+  |> match rx.payload.operation with
+  | Deposit { deposit_amount; deposit_fee; main_chain_deposit_signed; deposit_expedited } ->
+    maybe_spend_spending_limit deposit_expedited deposit_amount
+    >>> check_against_double_accounting main_chain_deposit_signed
+    >>> credit_balance deposit_amount account_lens
+    >>> accept_fee deposit_fee
   | Payment {payment_invoice; payment_fee; payment_expedited} ->
-    ( rx
-    , { account_state with
-        balance= TokenAmount.sub account_state.balance
-                   (TokenAmount.add payment_invoice.amount payment_fee) }
-    , account_lens )
-    |> map_state
-         (Lens.modify
-            (facilitator_account_lens payment_invoice.recipient |-- AccountState.lens_balance)
-            (TokenAmount.add payment_invoice.amount))
-    >>= maybe_spend_spending_limit payment_expedited payment_invoice.amount
+    maybe_spend_spending_limit payment_expedited payment_invoice.amount
+    >>> debit_balance (TokenAmount.add payment_invoice.amount payment_fee) account_lens
+    >>> credit_balance payment_invoice.amount (facilitator_account_lens payment_invoice.recipient)
+    >>> accept_fee payment_fee
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-    return ( rx
-           , { account_state with
-               balance= TokenAmount.sub account_state.balance
-                          (TokenAmount.add withdrawal_amount withdrawal_fee) }
-           , account_lens )
+    debit_balance (TokenAmount.add withdrawal_amount withdrawal_fee) account_lens
+    >>> accept_fee withdrawal_fee
 
 
-(** TODO: have a server do all the effect_requests sequentially, after they have been validated in parallel *)
+(** TODO: have a server do all the effect_requests sequentially,
+    after they have been validated in parallel (well, except that Lwt is really single-threaded *)
 let post_validated_request :
-  ( Request.t signed * AccountState.t * account_lens * Address.t
-  , Request.t signed * AccountState.t * account_lens ) FacilitatorAsyncAction.arr =
-  FacilitatorAsyncAction.of_action effect_request
+  ( Request.t signed * bool * AccountState.t * account_lens * Address.t
+  , (Confirmation.t * unit Lwt.t)) Lwt_exn.arr =
+  fun (request, _is_forced, _account_state, account_lens, _requester) ->
+    let open Lwt_monad in
+    let (promise, resolver) = Lwt.task () in
+    Lwt_mvar.put validated_request_mailbox (Confirm (request, account_lens, resolver))
+    >>= fun () -> promise
 
+let process_validated_request : (Request.t signed * account_lens, Confirmation.t) FacilitatorAction.arr =
+  FacilitatorAction.(effect_request >>> make_request_confirmation)
 
-(** TODO:
- * save this initial state, and only use the new state if the confirmation was committed to disk,
-    i.e. implement a try-catch in our monad
- * commit the confirmation to disk and remote replicas before to return it
- * parallelize, batch, etc., to have decent performance
+(* Process a user request, with a flag to specify whether it's a forced request
+   (published on the main chain), in which case there are no fee amount minima.
+
+   We use the latest current state of the facilitator exported by the inner loop, but read-only,
+   to check that the request is valid.
+   If it is, we pass it to the inner loop, that will use it read-write.
+   In the future, maybe moving away from Lwt and from single-threaded OCaml,
+   and/or using forking and reducing the use of facilitator state so no DB access is needed,
+   this could be done in different threads or processes.
 *)
-let process_request : (Request.t signed, Confirmation.t signed) FacilitatorAsyncAction.arr =
-  fun signed_request ->
-    let open FacilitatorAsyncAction in
-    signed_request |>
-    (of_action
-       (let open FacilitatorAction in
-        ensure_user_account >>> check_side_chain_request_well_formed))
-    >>= post_validated_request
-    >>= (of_action make_request_confirmation)
-    >>= fun signed_confirmation state ->
-    Lwt.bind (Side_chain.FacilitatorState.save state)
-      (fun () -> return signed_confirmation state)
+let process_request : (Request.t signed * bool, Confirmation.t) Lwt_exn.arr =
+  fun (request, is_forced) ->
+    ()
+    |> let open Lwt_exn in
+    (let open Lwt_monad in
+     get_facilitator_state
+     >>> (FacilitatorAction.(to_async (ensure_user_account >>> check_side_chain_request_well_formed)))
+           (request, is_forced)
+     >>> (fun (result, _state) -> return result))
+    >>> post_validated_request
+    >>> fun (confirmation, wait_for_commit) ->
+    let open Lwt in
+    wait_for_commit >>= Lwt_exn.const confirmation
+
+let commit_facilitator_state = bottom
+
+let check_main_chain_for_exits = bottom
+
+(** Take messages from the user_request_mailbox, and process them in parallel *)
+let user_request_loop =
+  let open Lwt_monad in
+  forever
+    (fun () ->
+       Lwt_mvar.take user_request_mailbox
+       >>= fun (request, is_forced, continuation) ->
+       process_request (request, is_forced)
+       >>= fun confirmation_or_exn ->
+       Lwt.wakeup_later continuation confirmation_or_exn;
+       Lwt.return_unit)
 
 (** We assume that the operation will correctly apply:
     balances are sufficient for spending,
@@ -210,7 +260,61 @@ let process_request : (Request.t signed, Confirmation.t signed) FacilitatorAsync
     active revision will only increase, etc.
 *)
 
-let commit_facilitator_state = bottom
+(* TODO: tweak these numbers later *)
+let batch_timeout_trigger_in_seconds = 0.01
+let batch_size_trigger_in_requests = 1000
 
-let check_main_chain_for_exits = bottom
+let validated_request_loop =
+  let open Lwt in
+  let open Lwt_monad in
+  arr FacilitatorState.load
+  >>> fun facilitator_state ->
+  let facilitator_state_ref = ref facilitator_state in
+  wakeup_later facilitator_state_resolver facilitator_state_ref;
+  return (facilitator_state, 0, return_unit)
+  >>= forever
+        (fun (facilitator_state, batch_id, previous) ->
+           (* The promise sent back to requesters, that they have to wait on
+              for their confirmation's batch to have been committed,
+              and our private resolver for this batch. *)
+           let (wait_on_batch_commit, notify_batch_commit) = Lwt.task () in
+           (* An internal promise to detect if and when we trigger the batch based on size *)
+           let (size_trigger, trigger_size) = Lwt.task () in
+           (* An internal promise to detect if and when we trigger the batch based on time *)
+           let timeout = Lwt_unix.sleep batch_timeout_trigger_in_seconds in
+           (* When either trigger criterion is met, send ourselves a Flush message for this batch_id *)
+           Lwt.async
+             (fun () -> Lwt.join [previous; Lwt.pick [timeout; size_trigger]]
+               >>= (fun () -> Lwt_mvar.put validated_request_mailbox (Flush batch_id)));
+           let rec request_batch triggered size =
+             Lwt_mvar.take validated_request_mailbox
+             >>= function
+             | Confirm (request_signed, account_lens, continuation) ->
+               process_validated_request (request_signed, account_lens) facilitator_state
+               |> fun (confirmation_or_exn, facilitator_state) ->
+               facilitator_state_ref := facilitator_state;
+               Lwt.wakeup_later continuation
+                 (match confirmation_or_exn with
+                  | Ok confirmation -> Ok (confirmation, wait_on_batch_commit)
+                  | Error e -> Error e);
+               let size = size + 1 in
+               if (not triggered) && (size >= batch_size_trigger_in_requests) then
+                 begin
+                   Lwt.wakeup_later trigger_size ();
+                   request_batch true size
+                 end
+               else
+                 request_batch triggered size
+             | Flush id ->
+               assert (id = batch_id);
+               Side_chain.FacilitatorState.save facilitator_state
+               >>= fun () -> Db.async_commit notify_batch_commit
+               >>= fun () -> Lwt.return (facilitator_state, (batch_id + 1), wait_on_batch_commit) in
+           request_batch false 0)
 
+let start_facilitator address =
+  let open Lwt_monad in
+  let open Lwt in
+  async (const address >>> validated_request_loop);
+  async user_request_loop;
+  return_unit

@@ -1,4 +1,5 @@
 open Lib
+open Action
 open Yojsoning
 open Crypto
 open Db
@@ -19,7 +20,6 @@ module Test = struct
   open Lwt
   open Keypair.Test
   open Ethereum_transaction.Test
-  open Side_chain.Test
 
   (* open account tests *)
 
@@ -163,6 +163,8 @@ module Test = struct
   (* deposit and payment test *)
   let%test "deposit_and_payment_valid" =
     Lwt_main.run (
+      start_facilitator trent_address
+      >>= fun () ->
       fund_accounts ()
       >>= fun () ->
       install_contract ()
@@ -171,28 +173,32 @@ module Test = struct
       >>= fun _ ->
       let amount_to_deposit = TokenAmount.of_int 523 in
       let alice_state_ref = ref alice_state in
-      UserAsyncAction.run_lwt alice_state_ref () get_facilitator_fee_schedule
+      UserAsyncAction.run_lwt alice_state_ref get_facilitator_fee_schedule ()
       >>= fun fee_schedule ->
-      UserAsyncAction.run_lwt alice_state_ref (trent_address, amount_to_deposit) deposit
+      UserAsyncAction.run_lwt alice_state_ref deposit (trent_address, amount_to_deposit)
       >>= fun signed_request1 ->
-      let trent_state_ref = ref trent_state in
-      FacilitatorAsyncAction.run_lwt trent_state_ref signed_request1 process_request
-      >>= fun _signed_confirmation1 ->
+      process_request (signed_request1, false)
+      >>= fun confirmation_or_exn1 ->
+      ignore (Result.get confirmation_or_exn1);
+      get_facilitator_state ()
+      >>= fun trent_state1 ->
       (* TODO: maybe examine the log for the contract call *)
       (* verify the deposit to Alice's account on Trent *)
-      let trent_accounts = !trent_state_ref.current.accounts in
+      let trent_accounts = trent_state1.current.accounts in
       let deposit_fee = fee_schedule.deposit_fee in
       let alice_account = Side_chain.AccountMap.find alice_address trent_accounts in
       let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
       assert (alice_account.balance = alice_expected_deposit) ;
       (* open Bob's account *)
       let payment_amount = TokenAmount.of_int 17 in
-      UserAsyncAction.run_lwt alice_state_ref (trent_address, bob_address, payment_amount) payment
+      UserAsyncAction.run_lwt alice_state_ref payment (trent_address, bob_address, payment_amount)
       >>= fun signed_request2 ->
-      FacilitatorAsyncAction.run_lwt trent_state_ref signed_request2 process_request
+      Lwt_exn.run_lwt process_request (signed_request2, false)
       >>= fun _signed_confirmation2 ->
       (* verify the payment to Bob's account on Trent *)
-      let trent_accounts_after_payment = !trent_state_ref.current.accounts in
+      get_facilitator_state ()
+      >>= fun trent_state2 ->
+      let trent_accounts_after_payment = trent_state2.current.accounts in
       let get_trent_account name address =
         try Side_chain.AccountMap.find address trent_accounts_after_payment with Not_found ->
           raise (Internal_error (name ^ " has no account on Trent after payment")) in
@@ -205,32 +211,37 @@ module Test = struct
       assert (bob_account.balance = bob_expected_balance) ;
       (* test whether retrieving saved facilitator state yields the same state
          like similar test in Side_chain.Test;  here we have nonempty account, confirmation maps *)
-      Side_chain.FacilitatorState.save !trent_state_ref
+      get_facilitator_state ()
+      >>= fun trent_state3 ->
+      Side_chain.FacilitatorState.save trent_state3
       >>= commit
       >>= fun () ->
       let retrieved_state = Side_chain.FacilitatorState.load trent_address in
       return (FacilitatorState.to_yojson_string retrieved_state
-              = FacilitatorState.to_yojson_string !trent_state_ref))
+              = FacilitatorState.to_yojson_string trent_state3))
 
   (* deposit and withdrawal test *)
   let%test "withdrawal_valid" =
     Lwt_main.run (
+      start_facilitator trent_address
+      >>= fun () ->
       (* previous test installs contract on test net *)
       unlock_account ~duration:60 alice_keys.address
       >>= fun _ ->
       (* deposit some funds first *)
       let amount_to_deposit = TokenAmount.of_int 1023 in
       let alice_state_ref = ref alice_state in
-      UserAsyncAction.run_lwt alice_state_ref () get_facilitator_fee_schedule
+      UserAsyncAction.run_lwt alice_state_ref get_facilitator_fee_schedule ()
       >>= fun fee_schedule ->
       (* deposit *)
-      UserAsyncAction.run_lwt alice_state_ref (trent_address, amount_to_deposit) deposit
+      UserAsyncAction.run_lwt alice_state_ref deposit (trent_address, amount_to_deposit)
       >>= fun signed_request1 ->
-      let trent_state_ref = ref trent_state in
-      FacilitatorAsyncAction.run_lwt trent_state_ref signed_request1 process_request
-      >>= fun _signed_confirmation1 ->
+      Lwt_exn.run_lwt process_request (signed_request1, false)
+      >>= fun _confirmation1 ->
+      get_facilitator_state ()
+      >>= fun trent_state1 ->
       (* verify the deposit to Alice's account on Trent *)
-      let trent_accounts = !trent_state_ref.current.accounts in
+      let trent_accounts = trent_state1.current.accounts in
       let deposit_fee = fee_schedule.deposit_fee in
       let alice_account = Side_chain.AccountMap.find alice_address trent_accounts in
       let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
@@ -238,19 +249,23 @@ module Test = struct
       (* withdrawal back to main chain *)
       let amount_to_withdraw = TokenAmount.of_int 42 in
       let withdrawal_fee = fee_schedule.withdrawal_fee in
-      UserAsyncAction.run_lwt alice_state_ref (trent_address, amount_to_withdraw) withdrawal
+      UserAsyncAction.run_lwt alice_state_ref withdrawal (trent_address, amount_to_withdraw)
       >>= fun signed_request2 ->
-      FacilitatorAsyncAction.run_lwt trent_state_ref signed_request2 process_request
-      >>= fun signed_confirmation2 ->
-      let trent_accounts_after_withdrawal = !trent_state_ref.current.accounts in
+      Lwt_exn.run_lwt process_request (signed_request2, false)
+      >>= fun confirmation2 ->
+      get_facilitator_state ()
+      >>= fun trent_state2 ->
+      let trent_accounts_after_withdrawal = trent_state2.current.accounts in
       let alice_account_after_withdrawal =
         Side_chain.AccountMap.find alice_address trent_accounts_after_withdrawal in
       let alice_expected_withdrawal =
         TokenAmount.sub alice_expected_deposit
           (TokenAmount.add amount_to_withdraw withdrawal_fee) in
       assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
-      UserAsyncAction.run_lwt alice_state_ref signed_confirmation2
-        (push_side_chain_action_to_main_chain !trent_state_ref)
+      get_facilitator_state ()
+      >>= fun trent_state3 ->
+      UserAsyncAction.run_lwt alice_state_ref
+        (push_side_chain_action_to_main_chain trent_state3) confirmation2
       (* TODO: get actual transaction receipt from main chain, check receipt
          maybe this t est belongs in Ethereum_transactions
       *)

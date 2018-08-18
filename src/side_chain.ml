@@ -250,11 +250,8 @@ end
 
 module State = struct
   [@warning "-39"]
-  type t = { previous_main_chain_state: Digest.t
-           ; previous_side_chain_state: Digest.t
-           ; facilitator_revision: Revision.t
+  type t = { facilitator_revision: Revision.t
            ; spending_limit: TokenAmount.t
-           ; bond_posted: TokenAmount.t
            ; accounts: AccountMap.t
            ; operations: ConfirmationMap.t
            ; main_chain_transactions_posted: DigestSet.t }
@@ -264,29 +261,20 @@ module State = struct
     type nonrec t = t
     let marshaling =
       marshaling_tagged Tag.side_chain_state
-        (marshaling8
-           (fun { previous_main_chain_state
-                ; previous_side_chain_state
-                ; facilitator_revision
+        (marshaling5
+           (fun { facilitator_revision
                 ; spending_limit
-                ; bond_posted
                 ; accounts
                 ; operations
                 ; main_chain_transactions_posted } ->
-             (previous_main_chain_state, previous_side_chain_state, facilitator_revision,
-              spending_limit, bond_posted, accounts, operations, main_chain_transactions_posted))
-           (fun previous_main_chain_state previous_side_chain_state facilitator_revision
-             spending_limit bond_posted accounts operations main_chain_transactions_posted ->
-             { previous_main_chain_state
-             ; previous_side_chain_state
-             ; facilitator_revision
-             ; spending_limit
-             ; bond_posted
-             ; accounts
-             ; operations
-             ; main_chain_transactions_posted })
-           Digest.marshaling Digest.marshaling Revision.marshaling
-           TokenAmount.marshaling TokenAmount.marshaling
+             (facilitator_revision, spending_limit, accounts, operations, main_chain_transactions_posted))
+           (fun facilitator_revision spending_limit accounts operations main_chain_transactions_posted ->
+              { facilitator_revision
+              ; spending_limit
+              ; accounts
+              ; operations
+              ; main_chain_transactions_posted })
+           Revision.marshaling TokenAmount.marshaling
            AccountMap.marshaling ConfirmationMap.marshaling DigestSet.marshaling)
     let walk_dependencies _methods context {accounts; operations; main_chain_transactions_posted} =
       walk_dependency AccountMap.dependency_walking context accounts
@@ -297,11 +285,8 @@ module State = struct
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
   let empty =
-    { previous_main_chain_state= null_digest
-    ; previous_side_chain_state= null_digest
-    ; facilitator_revision= Revision.zero
+    { facilitator_revision= Revision.zero
     ; spending_limit= TokenAmount.zero
-    ; bond_posted= TokenAmount.zero
     ; accounts= AccountMap.empty
     ; operations= ConfirmationMap.empty
     ; main_chain_transactions_posted= DigestSet.empty }
@@ -334,25 +319,21 @@ end
 module FacilitatorState = struct
   [@warning "-39"]
   type t = { keypair: Keypair.t
-           ; previous: State.t option
            ; current: State.t
-           ; fee_schedule: FacilitatorFeeSchedule.t
-           }
+           ; fee_schedule: FacilitatorFeeSchedule.t }
   [@@deriving lens { prefix=true}, yojson]
 
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
-      marshaling4
-        (fun { keypair ; previous ; current ; fee_schedule } ->
-           keypair, previous, current, fee_schedule)
-        (fun keypair previous current fee_schedule ->
-           { keypair ; previous ; current ; fee_schedule })
-        Keypair.marshaling (option_marshaling State.marshaling)
-        State.marshaling FacilitatorFeeSchedule.marshaling
-    let walk_dependencies _methods context {previous ; current} =
-      let walk = walk_dependency State.dependency_walking context in
-      Option.iter_lwt walk previous >>= (fun () -> walk current)
+      marshaling3
+        (fun { keypair ; current ; fee_schedule } ->
+           keypair, current, fee_schedule)
+        (fun keypair current fee_schedule ->
+           { keypair ; current ; fee_schedule })
+        Keypair.marshaling State.marshaling FacilitatorFeeSchedule.marshaling
+    let walk_dependencies _methods context {current} =
+      walk_dependency State.dependency_walking context current
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end
@@ -405,11 +386,8 @@ module Test = struct
       ; fee_per_billion= TokenAmount.of_int 42 }
 
   let confirmed_trent_state =
-    State.{ previous_main_chain_state= Digest.zero
-          ; previous_side_chain_state= Digest.one
-          ; facilitator_revision= Revision.of_int 0
+    State.{ facilitator_revision= Revision.of_int 0
           ; spending_limit= TokenAmount.of_int 1000000
-          ; bond_posted= TokenAmount.of_int 5000000
           ; accounts= AccountMap.empty
           ; operations= ConfirmationMap.empty
           ; main_chain_transactions_posted= DigestSet.empty }
@@ -417,7 +395,6 @@ module Test = struct
   let trent_state =
     let open FacilitatorState in
     { keypair= trent_keys
-    ; previous= None
     ; current= confirmed_trent_state
     ; fee_schedule= trent_fee_schedule }
 
@@ -431,7 +408,7 @@ module Test = struct
     Db.run ~db_name:Legibase.db_name
       (fun () ->
          FacilitatorState.save trent_state
-         >>= commit
+         >>= Db.commit
          >>= (fun () ->
            let retrieved_state = FacilitatorState.load trent_address in
            Lwt.return (FacilitatorState.to_yojson_string retrieved_state
