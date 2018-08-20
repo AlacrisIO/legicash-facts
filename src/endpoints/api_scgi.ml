@@ -2,7 +2,8 @@ open Legicash_lib
 open Endpoints_lib
 open Actions
 open Scgi
-open Yojson
+open Lwt
+open Yojsoning
 
 type deposit_json =
   { address: string
@@ -32,7 +33,7 @@ let return_json status json =
   Lwt.return
     { Response.status = status
     ; headers = [`Content_type "application/json"]
-    ; body = `String (Safe.to_string json)
+    ; body = `String (string_of_yojson json)
     }
 
 let ok_json json = return_json `Ok json
@@ -63,6 +64,7 @@ let error_response msg =
   ok_json json
 
 let internal_error_response msg =
+  Printf.eprintf "INTERNAL: %s\n%!" msg;
   let json = error_json msg in
   internal_error json
 
@@ -75,8 +77,8 @@ let _ =
       begin
         match api_call with
           "balances" ->
-          let result_json = get_all_balances_on_trent () in
-          ok_json result_json
+          get_all_balances_on_trent ()
+          >>= ok_json
         | "tps" ->
           let result_json = get_transaction_rate_on_trent () in
           ok_json result_json
@@ -84,8 +86,7 @@ let _ =
           (match Request.param request "tx-revision" with
            | Some param ->
              (try
-                let tx_revision = int_of_string param in
-                let result_json = get_proof tx_revision in
+                let result_json = get_proof (int_of_string param) in
                 ok_json result_json
               with
               | Failure msg when msg = "int_of_string" ->
@@ -97,8 +98,7 @@ let _ =
           (match Request.param request "id" with
              Some param ->
              (try
-                let id = int_of_string param in
-                let result_json = apply_main_chain_thread id in
+                let result_json = apply_main_chain_thread (int_of_string param) in
                 ok_json result_json
               with
               | Failure msg when msg = "int_of_string" ->
@@ -140,8 +140,8 @@ let _ =
           (match maybe_payment with
            | Ok payment ->
              (try
-                let result_json = payment_on_trent payment.sender payment.recipient payment.amount in
-                ok_json result_json
+                payment_on_trent payment.sender payment.recipient payment.amount
+                >>= ok_json
               with
               | Lib.Internal_error msg -> internal_error_response msg
               | exn -> internal_error_response (Printexc.to_string exn))

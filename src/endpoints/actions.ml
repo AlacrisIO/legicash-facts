@@ -233,7 +233,7 @@ let get_all_balances_on_trent () =
       user_account_states
   in
   let sorted_balances_json = List.map user_account_state_to_yojson sorted_user_account_states in
-  `List sorted_balances_json
+  return (`List sorted_balances_json)
 
 (* convert Request to nice JSON *)
 let make_operation_json address (revision:Revision.t) (request:Request.t) =
@@ -313,6 +313,7 @@ let payment_on_trent sender recipient amount =
   let sender_account = AccountMap.find sender_address_t starting_accounts in
   if (TokenAmount.to_int sender_account.balance) < amount then
     raise (Internal_error "Sender has insufficient balance to make this payment");
+  let starting_trent_state = !trent_state in
   let sender_state_ref = ref sender_state in
   UserAsyncAction.run_lwt sender_state_ref payment
     (trent_address, recipient_address_t, TokenAmount.of_int amount)
@@ -322,6 +323,7 @@ let payment_on_trent sender recipient amount =
   >>= fun confirmation ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
+  (* remove completed operation from pending operations *)
   (* remaining code is preparing response *)
   let tx_revision = confirmation.tx_header.tx_revision in
   let sender_name = get_user_name sender_address_t in

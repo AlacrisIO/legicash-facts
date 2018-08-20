@@ -259,8 +259,6 @@ let load_trent_state () =
 
 let _ =
   let open Lwt in
-  (* for top-level operations, don't use Lwt_main.run
-     not needed, may cause deadlock because eliom already started one (?) *)
   Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
   Db.open_connection ~db_name:Legibase.db_name
   >>= fun () ->
