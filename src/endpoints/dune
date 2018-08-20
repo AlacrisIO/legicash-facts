@@ -9,12 +9,14 @@
  ;; -32 : unused value
  ;; -34 : unused type
  ;; -39 : unused rec (@@deriving yojson yields these)
- (flags (:standard -w -9-34-39 -warn-error -27-32-33 -I ../../../_build/default/.legicash_lib.objs))
- (libraries cohttp-lwt-unix eliom.server integers lwt ppx_deriving_yojson.runtime secp256k1 yojson))
+ (ocamlc_flags (:standard -g -w -9-34-39 -warn-error -27-32-33 -I ../../../_build/default/.legicash_lib.objs))
+ (ocamlopt_flags (:standard -g -w -9-34-39 -warn-error -27-32-33 -I ../../../_build/default/.legicash_lib.objs)) ;; NB: add -p to the flags for profiling
+ (libraries integers lwt ppx_deriving_yojson.runtime secp256k1 yojson))
 
 (executable
   (name api_scgi)
   (modules api_scgi)
   (preprocess (pps ppx_deriving.std ppx_inline_test ppx_deriving_yojson))
-  (flags (:standard -w -9-34-39 -warn-error -27-32-33))
-  (libraries cryptokit cstruct leveldb legicash endpoints_lib netcgi2 unix))
+  (ocamlc_flags (:standard -g -w -9-34-39 -warn-error -27-32-33))
+  (ocamlopt_flags (:standard -w -9-34-39 -warn-error -27-32-33)) ;; NB: add -p here for profiling
+  (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime legicash endpoints str scgi unix))

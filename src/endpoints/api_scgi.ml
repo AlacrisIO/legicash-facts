@@ -1,7 +1,7 @@
 open Legicash_lib
 open Endpoints_lib
 open Actions
-open Netcgi
+open Scgi
 open Yojson
 
 type deposit_json =
@@ -24,144 +24,144 @@ type address_json =
   { address: string
   } [@@deriving yojson]
 
-type error_message = {
-  error : string;
-} [@@deriving yojson]
+(* port and address must match "scgi_pass" in nginx/conf/scgi.conf *)
+let port = 1025
+let address = "127.0.0.1"
 
-exception SCGI_error of string
+let return_json status json =
+  Lwt.return
+    { Response.status = status
+    ; headers = [`Content_type "application/json"]
+    ; body = `String (Safe.to_string json)
+    }
 
-let amp_re = Str.regexp "&"
-let eq_re = Str.regexp "="
+let ok_json json = return_json `Ok json
 
-let return_result (cgi:cgi) result_json =
-  cgi#set_header
-    ~status:`Ok
-    ~cache:`No_cache ();
-  cgi # out_channel # output_string (Safe.to_string result_json);
-  cgi # out_channel # commit_work ()
+let bad_request json = return_json `Bad_request json
 
-let make_error_json msg = `Assoc [("error",`String msg)]
+let internal_error json = return_json `Internal_server_error json
 
-let failure_response (cgi:cgi) msg =
-  cgi#set_header
-    ~status:`Not_found
-    ~cache:`No_cache ();
-  cgi # out_channel # output_string (Basic.to_string (make_error_json msg));
-  cgi # out_channel # commit_work ()
+let error_json msg = `Assoc [("error",`String msg)]
 
-let invalid_api_call (cgi:cgi) call =
-  cgi#set_header
-    ~status:`Not_found
-    ~cache:`No_cache ();
-  cgi # out_channel # output_string ("No such API call: " ^ call);
-  cgi # out_channel # commit_work ()
+let bad_request_method methodz =
+  let json = error_json ("Invalid HTTP method: " ^ (Http_method.to_string methodz)) in
+  bad_request json
 
-let bad_request_method (cgi:cgi) =
-  cgi#set_header
-    ~status:`Bad_request
-    ~cache:`No_cache ();
-  cgi # out_channel # output_string "Only GET and POST are allowed";
-  cgi # out_channel # commit_work ()
+let invalid_api_call methodz call =
+  let json = error_json ("No such " ^ methodz ^ " API call: " ^ call) in
+  bad_request json
 
-let handler (cgi:cgi) =
-  let uri = cgi#environment#cgi_property "DOCUMENT_URI" in (* /api/somemethod *)
-  (* the Nginx SCGI conf guarantees the uri begins with "/api/" *)
-  let api_call = String.sub uri 5 (String.length uri - 5) in
-  (* query parameters are "parm1=xxx&parm2=xxx& ..." *)
-  let raw_parameters = cgi#environment#cgi_query_string in
-  let parameters =
-    List.map
-      (fun param ->
-         match Str.split eq_re param with
-         | [k ; v] -> (k, v)
-         | _ -> raise (SCGI_error "Not a valid parameter"))
-      (Str.split amp_re raw_parameters)
-  in
-  match cgi#request_method with
-  | `GET ->
-    (match api_call with
-       "balances" ->
-       let result_json = get_all_balances_on_trent () in
-       return_result cgi result_json
-     | "tps" ->
-       let result_json = get_transaction_rate_on_trent () in
-       return_result cgi result_json
-     | "proof" ->
-       if parameters != [] && List.tl parameters = [] then
-         let (key,value) = List.hd parameters in
-         if key = "tx-revision" then
-           let tx_revision = int_of_string value in
-           let result_json = get_proof tx_revision in
-           return_result cgi result_json
-         else
-           failure_response cgi ("Expected tx-revision parameter, got: " ^ key)
-       else
-         failure_response cgi ("Expected one parameter, tx-revision")
-     | "thread" ->
-       if parameters != [] && List.tl parameters = [] then
-         let (key,value) = List.hd parameters in
-         if key = "id" then
-           let id = int_of_string value in
-           let result_json = apply_main_chain_thread id in
-           return_result cgi result_json
-         else
-           failure_response cgi ("Expected id parameter, got: " ^ key)
-       else
-         failure_response cgi ("Expected one parameter, id")
-     | other_call -> invalid_api_call cgi other_call)
-  | `POST ->
-    let body = (cgi#argument "BODY")#value in
-    let json = Yojson.Safe.from_string body in
-    (match api_call with
-     | "deposit" ->
-       let maybe_deposit = deposit_json_of_yojson json in
-       (match maybe_deposit with
-        | Ok deposit ->
-          (try
-             let result_json = deposit_to_trent deposit.address deposit.amount in
-             return_result cgi result_json
-           with (Lib.Internal_error msg) -> failure_response cgi msg)
-        | Error msg -> failure_response cgi msg)
-     | "withdrawal" ->
-       let maybe_withdrawal = withdrawal_json_of_yojson json in
-       (match maybe_withdrawal with
-        | Ok withdrawal ->
-          (try
-             let result_json = withdrawal_from_trent withdrawal.address withdrawal.amount in
-             return_result cgi result_json
-           with (Lib.Internal_error msg) -> failure_response cgi msg)
-        | Error msg -> failure_response cgi msg)
-     | "payment" ->
-       let maybe_payment = payment_json_of_yojson json in
-       (match maybe_payment with
-        | Ok payment ->
-          (try
-             let result_json = payment_on_trent payment.sender payment.recipient payment.amount in
-             return_result cgi result_json
-           with (Lib.Internal_error msg) -> failure_response cgi msg)
-        | Error msg -> failure_response cgi msg)
-     | "balance" ->
-       let maybe_address = address_json_of_yojson json in
-       (match maybe_address with
-        | Ok address_record ->
-          let result_json = get_balance_on_trent address_record.address in
-          return_result cgi result_json
-        | Error msg -> failure_response cgi msg)
-     | other_call -> invalid_api_call cgi other_call)
-  (* neither GET nor POST *)
-  | _ -> bad_request_method cgi (* should be unreachable, because SCGI config disallows it *)
+let invalid_get_api_call call = invalid_api_call "GET" call
+let invalid_post_api_call call = invalid_api_call "POST" call
 
+let bad_request_response msg =
+  let json = error_json msg in
+  bad_request json
 
-let api_config = { default_config with
-                   permitted_input_content_types =
-                     "application/json"::default_config.permitted_input_content_types;
-                   permitted_http_methods = [`GET; `POST ]
-                 }
+let error_response msg =
+  let json = error_json msg in
+  ok_json json
+
+let internal_error_response msg =
+  let json = error_json msg in
+  internal_error json
 
 let _ =
-  Netcgi_scgi.run
-    ~config:api_config
-    ~arg_store:(fun _ _ _ -> `Memory)
-    (* must match "scgi_pass" in nginx/conf/scgi.conf *)
-    ~sockaddr:(ADDR_INET (Unix.inet_addr_of_string "127.0.0.1",1025))
-    handler
+  let handle_request request =
+    let uri = Request.path request in (* /api/somemethod *)
+    let api_call = String.sub uri 5 (String.length uri - 5) in (* remove /api/ *)
+    match Request.meth request with
+    | `GET ->
+      begin
+        match api_call with
+          "balances" ->
+          let result_json = get_all_balances_on_trent () in
+          ok_json result_json
+        | "tps" ->
+          let result_json = get_transaction_rate_on_trent () in
+          ok_json result_json
+        | "proof" ->
+          (match Request.param request "tx-revision" with
+           | Some param ->
+             (try
+                let tx_revision = int_of_string param in
+                let result_json = get_proof tx_revision in
+                ok_json result_json
+              with
+              | Failure msg when msg = "int_of_string" ->
+                bad_request_response ("Invalid tx-revision: " ^ param)
+              | exn ->
+                internal_error_response (Printexc.to_string exn))
+           | None -> bad_request_response ("Expected one parameter, tx-revision"))
+        | "thread" ->
+          (match Request.param request "id" with
+             Some param ->
+             (try
+                let id = int_of_string param in
+                let result_json = apply_main_chain_thread id in
+                ok_json result_json
+              with
+              | Failure msg when msg = "int_of_string" ->
+                bad_request_response ("Invalid id: " ^ param)
+              | exn ->
+                internal_error_response (Printexc.to_string exn))
+           | None ->
+             bad_request_response "Expected one parameter, id")
+        | _ -> invalid_get_api_call api_call
+      end
+    | `POST ->
+      let json = Yojson.Safe.from_string (Request.contents request) in
+      begin
+        match api_call with
+        | "deposit" ->
+          let maybe_deposit = deposit_json_of_yojson json in
+          (match maybe_deposit with
+           | Ok deposit ->
+             (try
+                let result_json = deposit_to_trent deposit.address deposit.amount in
+                ok_json result_json
+              with
+              | Lib.Internal_error msg -> internal_error_response msg
+              | exn -> internal_error_response (Printexc.to_string exn))
+           | Error msg -> error_response msg)
+        | "withdrawal" ->
+          let maybe_withdrawal = withdrawal_json_of_yojson json in
+          (match maybe_withdrawal with
+           | Ok withdrawal ->
+             (try
+                let result_json = withdrawal_from_trent withdrawal.address withdrawal.amount in
+                ok_json result_json
+              with
+              | Lib.Internal_error msg -> internal_error_response msg
+              | exn -> internal_error_response (Printexc.to_string exn))
+           | Error msg -> error_response msg)
+        | "payment" ->
+          let maybe_payment = payment_json_of_yojson json in
+          (match maybe_payment with
+           | Ok payment ->
+             (try
+                let result_json = payment_on_trent payment.sender payment.recipient payment.amount in
+                ok_json result_json
+              with
+              | Lib.Internal_error msg -> internal_error_response msg
+              | exn -> internal_error_response (Printexc.to_string exn))
+           | Error msg -> error_response msg)
+        | "balance" ->
+          let maybe_address = address_json_of_yojson json in
+          (match maybe_address with
+           | Ok address_record ->
+             (try
+                let result_json = get_balance_on_trent address_record.address in
+                ok_json result_json
+              with
+              | Lib.Internal_error msg -> internal_error_response msg
+              | exn -> internal_error_response (Printexc.to_string exn))
+           | Error msg -> error_response msg)
+        | other_call -> invalid_post_api_call other_call
+      end
+    (* neither GET nor POST *)
+    | methodz -> bad_request_method methodz
+  in
+  let _ = Server.handler_inet address port handle_request in
+  (* run forever in Lwt monad *)
+  Lwt_main.run (fst (Lwt.wait ()))
