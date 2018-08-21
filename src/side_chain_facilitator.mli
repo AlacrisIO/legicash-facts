@@ -11,7 +11,7 @@ val start_facilitator : Address.t -> unit Lwt.t
 (** Get a reference to the current state of the facilitator
     NB: You're not allowed to write it, only the facilitator code is
 *)
-val get_facilitator_state : unit -> FacilitatorState.t Lwt.t
+val get_facilitator_state : unit -> FacilitatorState.t
 
 (** facilitator processes request *)
 val process_request : (Request.t signed * bool, Confirmation.t) Lwt_exn.arr

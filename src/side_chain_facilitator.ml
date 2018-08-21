@@ -29,7 +29,7 @@ type facilitator_service =
 let the_facilitator_service_ref : (facilitator_service option ref) = ref None
 
 let get_facilitator_state () =
-  !the_facilitator_service_ref |> Option.get |> fun service -> !(service.state_ref) |> Lwt.return
+  !the_facilitator_service_ref |> Option.get |> fun service -> !(service.state_ref)
 
 let facilitator_account_lens address =
   FacilitatorState.lens_current |-- State.lens_accounts
@@ -262,11 +262,10 @@ let process_validated_request : (Request.t signed, Confirmation.t) FacilitatorAc
 *)
 let process_request : (Request.t signed * bool, Confirmation.t) Lwt_exn.arr =
   fun (request, is_forced) ->
-    ()
+    get_facilitator_state ()
     |> let open Lwt_exn in
     (let open Lwt_monad in
-     get_facilitator_state
-     >>> FacilitatorAction.to_async check_side_chain_request_well_formed (request, is_forced)
+     FacilitatorAction.to_async check_side_chain_request_well_formed (request, is_forced)
      >>> (fun (result, _state) -> return result))
     >>> post_validated_request
     >>> fun (confirmation, wait_for_commit) ->

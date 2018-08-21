@@ -180,8 +180,7 @@ module Test = struct
       process_request (signed_request1, false)
       >>= fun confirmation_or_exn1 ->
       ignore (Result.get confirmation_or_exn1);
-      get_facilitator_state ()
-      >>= fun trent_state1 ->
+      let trent_state1 = get_facilitator_state () in
       (* TODO: maybe examine the log for the contract call *)
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
@@ -195,8 +194,7 @@ module Test = struct
       Lwt_exn.run_lwt process_request (signed_request2, false)
       >>= fun _signed_confirmation2 ->
       (* verify the payment to Bob's account on Trent *)
-      get_facilitator_state ()
-      >>= fun trent_state2 ->
+      let trent_state2 = get_facilitator_state () in
       let trent_accounts_after_payment = trent_state2.current.accounts in
       let get_trent_account name address =
         try Side_chain.AccountMap.find address trent_accounts_after_payment with Not_found ->
@@ -212,8 +210,7 @@ module Test = struct
       assert (bob_account.balance = bob_expected_balance) ;
       (* test whether retrieving saved facilitator state yields the same state
          like similar test in Side_chain.Test;  here we have nonempty account, confirmation maps *)
-      get_facilitator_state ()
-      >>= fun trent_state3 ->
+      let trent_state3 = get_facilitator_state () in
       Side_chain.FacilitatorState.save trent_state3
       >>= commit
       >>= fun () ->
@@ -239,8 +236,7 @@ module Test = struct
       >>= fun signed_request1 ->
       Lwt_exn.run_lwt process_request (signed_request1, false)
       >>= fun _confirmation1 ->
-      get_facilitator_state ()
-      >>= fun trent_state1 ->
+      let trent_state1 = get_facilitator_state () in
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
       let deposit_fee = fee_schedule.deposit_fee in
@@ -254,8 +250,7 @@ module Test = struct
       >>= fun signed_request2 ->
       Lwt_exn.run_lwt process_request (signed_request2, false)
       >>= fun confirmation2 ->
-      get_facilitator_state ()
-      >>= fun trent_state2 ->
+      let trent_state2 = get_facilitator_state () in
       let trent_accounts_after_withdrawal = trent_state2.current.accounts in
       let alice_account_after_withdrawal =
         Side_chain.AccountMap.find alice_address trent_accounts_after_withdrawal in
@@ -263,8 +258,7 @@ module Test = struct
         TokenAmount.sub alice_expected_deposit
           (TokenAmount.add amount_to_withdraw withdrawal_fee) in
       assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
-      get_facilitator_state ()
-      >>= fun trent_state3 ->
+      let trent_state3 = get_facilitator_state () in
       UserAsyncAction.run_lwt alice_state_ref
         (push_side_chain_action_to_main_chain trent_state3) confirmation2
       (* TODO: get actual transaction receipt from main chain, check receipt
