@@ -201,18 +201,14 @@ let create_user_states () =
 let trent_fee_schedule = Side_chain.Test.trent_fee_schedule
 
 let (confirmed_trent_state : Side_chain.State.t) =
-  { previous_main_chain_state= Digest.zero
-  ; previous_side_chain_state= Digest.zero
-  ; facilitator_revision= Revision.of_int 0
+  { facilitator_revision= Revision.of_int 0
   ; spending_limit= TokenAmount.of_int 1000000
-  ; bond_posted= TokenAmount.of_int 5000000
   ; accounts= AccountMap.empty
   ; operations= ConfirmationMap.empty
   ; main_chain_transactions_posted= Merkle_trie.DigestSet.empty }
 
 let trent_genesis_state : FacilitatorState.t =
   { keypair= trent_keys
-  ; previous= None
   ; current= confirmed_trent_state
   ; fee_schedule= trent_fee_schedule }
 

@@ -9,6 +9,7 @@ open Lwt
 
 open Legicash_lib
 open Lib
+open Action
 open Yojsoning
 open Crypto
 open Db
@@ -135,9 +136,8 @@ let deposit_to_trent address amount =
     UserAsyncAction.run_lwt user_state deposit (trent_address, TokenAmount.of_int amount)
     >>= fun signed_request ->
     Hashtbl.replace address_to_user_state_tbl address_t !user_state;
-    FacilitatorAsyncAction.run_lwt trent_state process_request signed_request
-    >>= fun signed_confirmation ->
-    let confirmation = signed_confirmation.payload in
+    Lwt_exn.run_lwt process_request (signed_request, false)
+    >>= fun confirmation ->
     let tx_revision = confirmation.tx_header.tx_revision in
     (* get transaction hash for main chain *)
     let operation = signed_request.payload.operation in
@@ -175,11 +175,10 @@ let withdrawal_from_trent address amount =
     UserAsyncAction.run_lwt user_state withdrawal (trent_address, TokenAmount.of_int amount)
     >>= fun signed_request ->
     Hashtbl.replace address_to_user_state_tbl address_t !user_state;
-    FacilitatorAsyncAction.run_lwt trent_state process_request signed_request
-    >>= fun signed_confirmation2 ->
-    let confirmation = signed_confirmation2.payload in
+    Lwt_exn.run_lwt process_request (signed_request, false)
+    >>= fun confirmation ->
     let tx_revision = confirmation.tx_header.tx_revision in
-    push_side_chain_action_to_main_chain !trent_state signed_confirmation2 !user_state
+    push_side_chain_action_to_main_chain !trent_state confirmation !user_state
     >>= fun (maybe_main_chain_confirmation, user_state2) ->
     (* update user state, which refers to main chain state *)
     user_state := user_state2;
@@ -322,12 +321,11 @@ let payment_on_trent sender recipient amount =
     (trent_address, recipient_address_t, TokenAmount.of_int amount)
   >>= fun signed_request ->
   Hashtbl.replace address_to_user_state_tbl sender_address_t !sender_state_ref ;
-  FacilitatorAsyncAction.run_lwt trent_state process_request signed_request
-  >>= fun signed_confirmation ->
+  Lwt_exn.run_lwt process_request (signed_request, false)
+  >>= fun confirmation ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
   (* remaining code is preparing response *)
-  let confirmation = signed_confirmation.payload in
   let tx_revision = confirmation.tx_header.tx_revision in
   let sender_name = get_user_name sender_address_t in
   let recipient_name = get_user_name recipient_address_t in
