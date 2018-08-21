@@ -164,4 +164,17 @@ module MarshalableOfYojsonable (J : YojsonableS) : YojsonMarshalableS with type 
 
 module YojsonableOfMarshalable (M : MarshalableS) : YojsonMarshalableS with type t = M.t
 
+module type LengthS = sig
+  include PreMarshalableS with type t := int
+  val max_length : int
+end
+
+module Length63 : LengthS
+
+module Length1G : LengthS
+
+module StringL (L: LengthS) : MarshalableS with type t = string
+
+module String1G : MarshalableS with type t = string
+
 module String63 : MarshalableS with type t = string

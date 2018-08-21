@@ -57,6 +57,15 @@ module type YojsonableS = sig
   val of_yojson_string_exn : string -> t
 end
 
-module Yojsonable (P : PreYojsonableS) : YojsonableS with type t := P.t
+module Yojsonable (P : PreYojsonableS) : YojsonableS with type t = P.t
 
-module NotYojsonable (T : TypeS) : YojsonableS with type t := T.t
+module NotYojsonable (T : TypeS) : YojsonableS with type t = T.t
+
+val string_0x_yojsoning : string yojsoning
+
+val bytes_yojsoning : Bytes.t yojsoning
+
+module Bytes : sig
+  include module type of Bytes
+  include YojsonableS with type t := t
+end

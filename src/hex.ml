@@ -90,6 +90,11 @@ let parse_0x_prefix parser hs =
 
 let unparse_0x_prefix printer x = "0x" ^ (printer x)
 
+let parse_0x_string = parse_0x_prefix parse_hex_string
+
+let unparse_0x_string = unparse_0x_prefix unparse_hex_string
+
+
 module Test = struct
   let%test "hex_string" =
     List.for_all

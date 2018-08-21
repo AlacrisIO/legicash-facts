@@ -78,3 +78,5 @@ let unmarshal_option (u : 'a unmarshaler) ?(start=0) bytes =
   else
     Tag.bad_tag_error start bytes
 let option_marshaling m = {marshal=marshal_option m.marshal; unmarshal=unmarshal_option m.unmarshal}
+
+

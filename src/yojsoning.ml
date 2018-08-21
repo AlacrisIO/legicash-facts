@@ -112,3 +112,17 @@ module NotYojsonable (T : TypeS) = struct
   let to_yojson_string = bottom
   let of_yojson_string_exn = bottom
 end
+
+let string_0x_yojsoning =
+  yojsoning_map Hex.unparse_0x_string Hex.parse_0x_string string_yojsoning
+
+let bytes_yojsoning =
+  yojsoning_map Bytes.to_string Bytes.of_string string_0x_yojsoning
+
+module Bytes = struct
+  include Bytes
+  include (Yojsonable(struct
+             type t = Bytes.t
+             let yojsoning = bytes_yojsoning
+           end) : YojsonableS with type t := t)
+end

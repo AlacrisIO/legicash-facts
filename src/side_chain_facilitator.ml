@@ -294,6 +294,9 @@ let user_request_loop =
     active revision will only increase, etc.
 *)
 
+let increment_capped max x =
+  if x < max then x + 1 else max
+
 (* TODO: tweak these numbers later *)
 let batch_timeout_trigger_in_seconds = 0.01
 let batch_size_trigger_in_requests = 1000
@@ -309,39 +312,46 @@ let validated_request_loop =
                 for their confirmation's batch to have been committed,
                 and our private resolver for this batch. *)
              let (wait_on_batch_commit, notify_batch_commit) = Lwt.task () in
-             (* An internal promise to detect if and when we trigger the batch based on size *)
-             let (size_trigger, trigger_size) = Lwt.task () in
+             (* An internal promise to detect if and when we trigger the batch based on a timeout *)
+             let (time_triggered, time_trigger) = Lwt.task () in
              (* An internal promise to detect if and when we trigger the batch based on time *)
-             let timeout = Lwt_unix.sleep batch_timeout_trigger_in_seconds in
-             (* When either trigger criterion is met, send ourselves a Flush message for this batch_id *)
-             Lwt.async
-               (fun () -> Lwt.join [previous; Lwt.pick [timeout; size_trigger]]
-                 >>= (fun () -> Lwt_mvar.put validated_request_mailbox (Flush batch_id)));
-             let rec request_batch facilitator_state triggered size =
+             let (size_triggered, size_trigger) = Lwt.task () in
+             (* When we are ready and either trigger criterion is met,
+                send ourselves a Flush message for this batch_id *)
+             Lwt.async (fun () -> Lwt.join [previous;Lwt.pick [time_triggered; size_triggered]]
+                                  >>= (fun () -> Lwt_mvar.put validated_request_mailbox (Flush batch_id)));
+             let rec request_batch facilitator_state size =
                Lwt_mvar.take validated_request_mailbox
                >>= function
                | Confirm (request_signed, continuation) ->
                  process_validated_request request_signed facilitator_state
                  |> fun (confirmation_or_exn, new_facilitator_state) ->
                  facilitator_state_ref := new_facilitator_state;
-                 Lwt.wakeup_later continuation
-                   (match confirmation_or_exn with
-                    | Ok confirmation -> Ok (confirmation, wait_on_batch_commit)
-                    | Error e -> Error e);
-                 let size = size + 1 in
-                 if (not triggered) && (size >= batch_size_trigger_in_requests) then
-                   begin
-                     Lwt.wakeup_later trigger_size ();
-                     request_batch new_facilitator_state true size
-                   end
-                 else
-                   request_batch new_facilitator_state triggered size
+                 (match confirmation_or_exn with
+                  | Error e ->
+                     Lwt.wakeup_later continuation (Error e);
+                     request_batch new_facilitator_state size
+                  | Ok confirmation ->
+                     Lwt.wakeup_later continuation (Ok (confirmation, wait_on_batch_commit));
+                     let new_size = increment_capped max_int size in
+                     if new_size = batch_size_trigger_in_requests then
+                       (* Flush the data after enough entries are written *)
+                       Lwt.wakeup_later size_trigger ()
+                     else if new_size = 1 then
+                       (* Start a timeout to trigger flushing, but only after some entry is written *)
+                       Lwt.async (fun () -> Lwt_unix.sleep batch_timeout_trigger_in_seconds
+                                            >>= fun () -> Lwt.wakeup_later time_trigger ();
+                                            return_unit);
+                     request_batch new_facilitator_state new_size)
                | Flush id ->
-                 assert (id = batch_id);
-                 Side_chain.FacilitatorState.save facilitator_state
-                 >>= fun () -> Db.async_commit notify_batch_commit
-                 >>= fun () -> Lwt.return (facilitator_state, (batch_id + 1), wait_on_batch_commit) in
-             request_batch facilitator_state false 0)
+                  assert (id = batch_id);
+                  (if size > 0 then
+                    (Side_chain.FacilitatorState.save facilitator_state
+                     >>= fun () -> Db.async_commit notify_batch_commit)
+                   else
+                     Lwt.return_unit)
+                  >>= fun () -> Lwt.return (facilitator_state, (batch_id + 1), wait_on_batch_commit) in
+             request_batch facilitator_state 0)
 
 let start_facilitator address =
   let open Lwt_monad in

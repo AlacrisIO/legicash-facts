@@ -7,8 +7,10 @@ open Crypto
 open Db
 open Main_chain
 open Side_chain
+open Side_chain_facilitator
 open Side_chain_user
 open Side_chain_action.Test
+open Lwt
 
 (* users *)
 let account_names =
@@ -231,7 +233,7 @@ let user_accounts_from_trent_state address =
                 (Address.to_hex_string address)))
 
 let load_trent_state () =
-  Printf.printf "Loading facilitator state...%!";
+  Printf.printf "Loading facilitator state...\n%!";
   try
     let facilitator_state = Side_chain.FacilitatorState.load trent_address in
     Printf.printf "done\n%!";
@@ -244,34 +246,41 @@ let load_trent_state () =
            Hashtbl.replace address_to_user_state_tbl address
              { user_state with facilitators = new_user_accounts }
          with _ -> ())
-      address_to_user_state_tbl
+      address_to_user_state_tbl;
+    Lwt.return_unit
   with _ ->
-    Printf.printf "Could not load facilitator state, using genesis state\n%!"
+    Lwt_io.printf "Could not load facilitator state, using genesis state\n%!"
+    >>= fun () -> Lwt_io.printf "New state: %s\n%!" (FacilitatorState.to_yojson_string !trent_state)
+    >>= fun () -> check_connection () ; return_unit
+    >>= fun () -> FacilitatorState.save !trent_state
+    >>= Db.commit
 
 let _ =
   let open Lwt in
   (* for top-level operations, don't use Lwt_main.run
-     not needed, may cause deadlock *)
+     not needed, may cause deadlock because eliom already started one (?) *)
   Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
-  Db.run ~db_name:Legibase.db_name
+  open_connection ~db_name:Legibase.db_name
+  >>=
     (fun () ->
-       create_user_states ();
-       load_trent_state ();
-       Lwt_list.iter_s store_keys_on_testnet account_key_list
-       >>= fun () ->
-       store_keys_on_testnet ("Trent",trent_keys)
-       >>= fun () -> Lwt_io.printf "Funding account: Trent\n%!"
-       >>= fun () ->
-       (* dev mode provides prefunded address with a very large balance *)
-       get_prefunded_address ()
-       >>= fun prefunded_address ->
-       fund_account prefunded_address trent_keys
-       >>= fun () ->
-       Lwt_list.iter_s
-         (fun (name,keys) ->
-            Lwt_io.printf "Funding account: %s\n%!" name
-            >>= (fun () -> fund_account prefunded_address keys))
-         account_key_list
-       >>= fun () -> Lwt_io.printf "Installing facilitator contract\n%!"
-       >>= install_contract
-       >>= fun () -> Lwt_io.printf "*** READY ***\n%!")
+      start_facilitator trent_address
+      >>= fun () ->
+      create_user_states ();
+      Lwt_list.iter_s store_keys_on_testnet account_key_list
+      >>= fun () ->
+      store_keys_on_testnet ("Trent",trent_keys)
+      >>= fun () -> Lwt_io.printf "Funding account: Trent\n%!"
+      >>= fun () ->
+      (* Ethereum dev mode provides prefunded address with a very large balance *)
+      get_prefunded_address ()
+      >>= fun prefunded_address ->
+      fund_account prefunded_address trent_keys
+      >>= fun () ->
+      Lwt_list.iter_s
+        (fun (name,keys) ->
+          Lwt_io.printf "Funding account: %s\n%!" name
+          >>= (fun () -> fund_account prefunded_address keys))
+        account_key_list
+      >>= fun () -> Lwt_io.printf "Installing facilitator contract\n%!"
+      >>= install_contract
+      >>= fun () -> Lwt_io.printf "*** READY ***\n%!")

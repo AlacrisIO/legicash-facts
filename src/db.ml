@@ -30,28 +30,57 @@ type db_request =
   | Commit of unit Lwt.u
   | Ready of int
 
+let yojson_of_db_request = function
+  | Put {key; data} -> `List [`String "Put"
+                             ;`String (Hex.unparse_hex_string key)
+                             ;`String (Hex.unparse_hex_string data)]
+  | Remove key -> `List [`String "Remove"; `String (Hex.unparse_hex_string key)]
+  | Commit _ -> `List [`String "Commit"]
+  | Ready n -> `List [`String "Ready"; `Int n]
+
 (* One might be tempted to use Lwt.task instead of an option ref to define
    the db_name, db. Unhappily, at least as far as the db goes,
    we can't rely on it, because we use the db read-only through implicit
    side-effects to preserve a pure-functional interface to our merkle trees
    (one man's explicit side-effects are another man's implicit infrastructure).
-   On the other hand, we could make the mailbox its own global binding,
-   initialized as it is defined as the regular binding it is.
+
+   On the other hand, we do make the mailbox its own global binding,
+   initialized as it is defined as the regular binding it is, rather than
+   put it in the connection object (though we did it before and may
+   again in the future).
 *)
 type connection =
   { db_name : string
-  ; db : db
-  ; mailbox : db_request Lwt_mvar.t }
+  ; db : db }
 
+(* The mailbox to communicate with the db daemon *)
+let db_mailbox : db_request Lwt_mvar.t = Lwt_mvar.create_empty ()
+
+(*
+let _ =
+  Lwt.async
+    (Lwt_monad.forever
+       (fun () ->
+         Lwt_io.printf "The mailbox at %d is %sempty\n%!"
+           (2 * Obj.magic db_mailbox)
+           (if Lwt_mvar.is_empty db_mailbox then "" else "not ")
+         >>= fun () ->
+         Lwt_unix.sleep 1.0))
+ *)
+
+(* The mailbox to communicate with the db daemon *)
 let the_connection_ref : (connection option ref) = ref None
 
-let start_server ~db_name ~db ~mailbox () =
+let check_connection () =
+  assert (!the_connection_ref != None)
+
+let start_server ~db_name ~db () =
   let open Lwt_monad in
   Lwt_io.printf "Opening LevelDB connection to db %s\n%!" db_name >>=
   let rec outer_loop batch_id previous () =
     let transaction = LevelDB.Batch.make () in
     let (wait_on_batch_commit, notify_batch_commit) = Lwt.task () in
-    Lwt.async (fun () -> previous >>= fun () -> Lwt_mvar.put mailbox (Ready batch_id));
+    Lwt.async (fun () -> previous >>= fun () -> Lwt_mvar.put db_mailbox (Ready batch_id));
     let rec inner_loop ~ready ~triggered =
       if triggered && ready then
         begin
@@ -61,7 +90,7 @@ let start_server ~db_name ~db ~mailbox () =
           outer_loop (batch_id + 1) wait_on_batch_commit ()
         end
       else
-        Lwt_mvar.take mailbox
+        Lwt_mvar.take db_mailbox
         >>= function
         | Put {key;data} ->
           LevelDB.Batch.put transaction key data;
@@ -79,7 +108,7 @@ let start_server ~db_name ~db ~mailbox () =
     inner_loop ~ready:false ~triggered:false in
   outer_loop 0 Lwt.return_unit
 
-let open_connection db_name =
+let open_connection ~db_name =
   match !the_connection_ref with
   | Some x ->
     if x.db_name = db_name then
@@ -91,9 +120,8 @@ let open_connection db_name =
               db_name x.db_name)
   | None ->
     let db = LevelDB.open_db db_name in
-    let mailbox = Lwt_mvar.create_empty () in
-    the_connection_ref := Some { db_name ; db ; mailbox };
-    Lwt.async (start_server ~db_name ~db ~mailbox);
+    the_connection_ref := Some { db_name ; db };
+    Lwt.async (start_server ~db_name ~db);
     Lwt.return_unit
 
 let the_connection =
@@ -103,10 +131,10 @@ let the_connection =
 let the_db () = (the_connection ()).db
 
 let request r =
-  Lwt_mvar.put (the_connection ()).mailbox r
+  Lwt_mvar.put db_mailbox r
 
 let run ~db_name thunk =
-  Lwt_main.run (open_connection db_name >>= thunk)
+  Lwt_main.run (open_connection ~db_name >>= thunk)
 
 let async_commit continuation =
   request (Commit continuation)
@@ -120,6 +148,8 @@ let has_db_key key =
 
 let get_db key =
   LevelDB.get (the_db ()) key
+(* Uncomment this line to spy on db read accesses:
+  |> function None -> Printf.printf "key %s not found\n%!" (Hex.unparse_hex_string key) ; None | Some data -> Printf.printf "key %s data %s\n%!" (Hex.unparse_hex_string key) (Hex.unparse_hex_string data); Some data *)
 
 let put_db key data =
   request (Put {key; data})
@@ -218,23 +248,15 @@ module TrivialPersistable (P : PreYojsonMarshalableS) =
   end)
 
 module OCamlPersistable (T: TypeS) =
-  Persistable(struct
-    include Marshalable(OCamlMarshaling (T))
-    let make_persistent = normal_persistent
-    let walk_dependencies = no_dependencies
-    let to_yojson x = `String (marshal_string x)
-    let of_yojson = function
-      | `String s -> Ok (unmarshal_string s)
-      | _ -> Error "bad ocaml json"
-    include (Yojsonable(struct
-               type nonrec t = t
-               let yojsoning = {to_yojson;of_yojson}
-             end) : YojsonableS with type t := t)
+  TrivialPersistable(struct
+    module M = Marshalable(OCamlMarshaling (T))
+    include M
+    include (YojsonableOfMarshalable(M) : YojsonableS with type t := t)
   end)
 
-module YojsonPersistable (J: YojsonableS) = struct
+module YojsonPersistable (J: PreYojsonableS) = struct
   module MJ = struct
-    include MarshalableOfYojsonable (J)
+    include MarshalableOfYojsonable (Yojsonable(J))
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
@@ -330,7 +352,10 @@ module DigestValue (Value : PersistableS) = struct
       let walk_dependencies _methods context x =
         walk_dependency Value.dependency_walking context (dv_get x)
       let make_persistent f dv =
-        if dv.persisted then Lwt.return_unit else (dv.persisted <- true; f dv)
+        if dv.persisted then
+          Lwt.return_unit
+        else
+          (dv.persisted <- true; f dv)
     end)
 end
 

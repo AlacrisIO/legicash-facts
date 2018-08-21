@@ -16,3 +16,4 @@ val unmarshal_cases : Tag.t -> 'a marshaling array -> 'a unmarshaler
 val marshaling_cases : ('a -> Tag.t) -> Tag.t -> 'a marshaling array -> 'a marshaling
 val new_marshaling_cases : int -> 'a marshaling array
 val init_marshaling_cases : Tag.t -> 'a marshaling array -> (Tag.t * 'a marshaling) list -> unit
+

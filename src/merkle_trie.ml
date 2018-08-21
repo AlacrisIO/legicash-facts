@@ -125,7 +125,7 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableS)
         >>= (fun () -> walk_dependency !t_dependency_walking context right)
       | Skip {child} ->
         walk_dependency !t_dependency_walking context child
-    include NotYojsonable (struct type nonrec t = t end)
+    let yojsoning = {to_yojson=bottom;of_yojson=bottom}
   end
   module Trie = Persistable(PreTrie)
   module T = DigestValue(Trie)

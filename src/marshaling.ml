@@ -209,7 +209,6 @@ let marshaling9 xt tx a b c d e f g h i =
   ;unmarshal=unmarshal9 tx a.unmarshal b.unmarshal c.unmarshal d.unmarshal
                e.unmarshal f.unmarshal g.unmarshal h.unmarshal i.unmarshal}
 
-
 (*
    let marshal_if f tag (m: 'a marshaler) (melse: 'a marshaler) buffer x =
    if f x then
@@ -254,24 +253,6 @@ module Marshalable (P : PreMarshalableS) = struct
   let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
 end
 
-module String63 = Marshalable(struct
-    type t = string
-    let marshal buffer string =
-      let len = String.length string in
-      if len <= 63 then
-        (marshal_char buffer (Char.chr len);
-         Buffer.add_string buffer string)
-      else
-        raise (Marshaling_error (Printf.sprintf "string %S too long" string))
-    let unmarshal ?(start=0) bytes =
-      let len = Char.code (Bytes.get bytes start) in
-      if len <= 63 then
-        (Bytes.sub_string bytes (start + 1) len, start + 1 + len)
-      else
-        raise (Unmarshaling_error ("string length too long", start, bytes))
-    let marshaling={marshal;unmarshal}
-  end)
-
 module OCamlMarshaling (T: TypeS) = struct
   include T
   let marshaling =
@@ -292,33 +273,96 @@ module type YojsonMarshalableS = sig
   include YojsonableS with type t := t
 end
 
-module MarshalableOfYojsonable (Y : YojsonableS) = struct
-  include Y
-  let marshal buffer x = Buffer.add_string buffer (to_yojson_string x)
-  let unmarshal ?(start=0) bytes =
-    let x = of_yojson_string_exn (Bytes.sub_string bytes start (Bytes.length bytes - start)) in
-    (* gross hack to get the length assuming the marshaling was made through marshal *)
-    let m = to_yojson_string x in
-    let l = String.length m in
-    if m = Bytes.sub_string bytes start l then
-      (x, start + l)
-    else
-      raise (Unmarshaling_error ("bad json marshaling", start, bytes))
-  let marshaling = {marshal;unmarshal}
-  let marshal_bytes = marshal_bytes_of_marshal marshal
-  let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
-  let marshal_string = to_yojson_string
-  let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
-end
 
 module YojsonableOfMarshalable (Type : MarshalableS) = struct
   include Type
-  let to_yojson x = `String (marshal_string x)
+  let to_yojson x = `String (x |> marshal_string |> Hex.unparse_hex_string)
   let of_yojson = function
-    | `String a -> Ok (unmarshal_string a)
+    | `String a -> Ok (unmarshal_string (Hex.parse_hex_string a))
     | _ -> Error "bad json"
   include (Yojsonable(struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : YojsonableS with type t := t)
+end
+
+module type LengthS = sig
+  include PreMarshalableS with type t := int
+  val max_length : int
+end
+
+module StringL (L : LengthS) = struct
+  let check_length ?(bork=bork) l =
+    if l > L.max_length then
+      bork (Printf.sprintf "Invalid string length %d (max %d)" l L.max_length)
+  let checked_string_length ?(bork=bork) s =
+    let l = String.length s in check_length ~bork l; l
+  let check_string_length ?(bork=bork) s =
+    ignore (checked_string_length ~bork s); s
+
+  module P = struct
+    type t = string
+    let marshal buffer string =
+      let len = checked_string_length ~bork:(fun x -> raise (Marshaling_error x)) string in
+      L.marshaling.marshal buffer len;
+      Buffer.add_string buffer string
+    let unmarshal ?(start=0) bytes =
+      let len, p = L.marshaling.unmarshal ~start bytes in
+      let bork x = raise (Unmarshaling_error (x, start, bytes)) in
+      check_length ~bork len;
+      if len + p <= Bytes.length bytes then
+        Bytes.sub_string bytes p len, len + p
+      else
+        bork (Printf.sprintf "declared length %d, but only %d characters left" len (Bytes.length bytes - p))
+    let marshaling={marshal;unmarshal}
+    let check_yojson_string s = check_string_length ~bork:(fun x -> Yojson.json_error x) s
+    let yojsoning=yojsoning_map check_yojson_string check_yojson_string string_yojsoning
+  end
+  include Marshalable(P)
+  include (Yojsonable(P) : YojsonableS with type t := t)
+end
+
+module Length63 = struct
+  let max_length = 63
+  let check63 l = if l > 63 then
+      bork (Printf.sprintf "Invalid length %d (max 63)" l);
+    l
+  let marshaling = marshaling_map
+                     (check63 >> Char.chr) (Char.code >> check63) char_marshaling
+end
+
+module String63 = StringL(Length63)
+
+module Length1G = struct
+  let max_length = 1 lsl 30 - 1
+  let check_length l = if l > max_length then
+      bork (Printf.sprintf "Invalid length %d (max %d)" l max_length)
+  let marshal buffer len =
+    check_length len;
+    Buffer.add_char buffer (Char.chr (len lsr 24));
+    Buffer.add_char buffer (Char.chr (255 land (len lsr 16)));
+    Buffer.add_char buffer (Char.chr (255 land (len lsr 8)));
+    Buffer.add_char buffer (Char.chr (255 land len))
+  let unmarshal ?(start=0) bytes =
+    if start + 4 > Bytes.length bytes then
+      raise (Unmarshaling_error ("not enough length to read a 30-bit integer", start, bytes))
+    else
+      let hihi = Char.code (Bytes.get bytes start) in
+      let lohi = Char.code (Bytes.get bytes (start + 1)) in
+      let hilo = Char.code (Bytes.get bytes (start + 2)) in
+      let lolo = Char.code (Bytes.get bytes (start + 3)) in
+      if hihi > 63 then
+        raise (Unmarshaling_error ("invalid high byte for a 30-bit integer", start, bytes));
+      (hihi lsl 24) + (lohi lsl 16) + (hilo lsl 8) + lolo, start + 4
+  let marshaling = {marshal;unmarshal}
+end
+
+module String1G = StringL(Length1G)
+
+module MarshalableOfYojsonable (Y : YojsonableS) = struct
+  include Y
+  include (Marshalable (struct
+             type nonrec t = t
+             let marshaling = marshaling_map to_yojson_string of_yojson_string_exn String1G.marshaling
+           end) : MarshalableS with type t := t)
 end

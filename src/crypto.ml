@@ -98,19 +98,21 @@ let [@warning "-32"] signature_of_string string =
 module Signature = struct
   (* 8 bytes for the recovery id + 64 bytes for the signature proper *)
   let width = 72
-  module S = struct
+  module P = struct
     type t = signature
     let marshaling = marshaling_sized_string width string_of_signature signature_of_string
+    let yojsoning = yojsoning_map string_of_signature signature_of_string string_0x_yojsoning
   end
-  include YojsonableOfMarshalable(Marshalable(S))
+  include Marshalable(P)
+  include (Yojsonable(P) : YojsonableS with type t := t)
 end
 
 let marshal_signed marshal buffer {payload; signature} =
-  marshal buffer payload; Signature.marshaling.marshal buffer signature
+  marshal buffer payload; Signature.marshal buffer signature
 
 let unmarshal_signed (unmarshal:'a unmarshaler) ?(start=0) bytes : 'a signed * int =
   let payload,payload_offset = unmarshal ~start bytes in
-  let signature,final_offset = Signature.marshaling.unmarshal ~start:payload_offset bytes in
+  let signature,final_offset = Signature.unmarshal ~start:payload_offset bytes in
   ( { payload
     ; signature
     }

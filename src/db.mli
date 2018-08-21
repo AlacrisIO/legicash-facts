@@ -6,7 +6,7 @@ open Crypto
 type db
 type transaction
 
-val open_connection : string -> unit Lwt.t
+val open_connection : db_name:string -> unit Lwt.t
 val run : db_name:string -> (unit -> 'a Lwt.t) -> 'a
 val async_commit : unit Lwt.u -> unit Lwt.t
 val commit : unit -> unit Lwt.t
@@ -16,6 +16,8 @@ val get_db : string -> string option
 val put_db : string -> string -> unit Lwt.t
 val remove_db : string -> unit Lwt.t
 
+(* Raise an exception unless there is a DB connection open *)
+val check_connection : unit -> unit
 
 (** Walking across the dependencies of an object *)
 type 'a dependency_walking_methods =
@@ -65,7 +67,7 @@ module Persistable (P : PrePersistableS) : PersistableS with type t = P.t
 
 module TrivialPersistable (P : PreYojsonMarshalableS) : PersistableS with type t = P.t
 
-module YojsonPersistable (Y: YojsonableS) : PersistableS with type t = Y.t
+module YojsonPersistable (Y: PreYojsonableS) : PersistableS with type t = Y.t
 
 module type UIntS = sig
   include Integer.UIntS
