@@ -82,8 +82,13 @@ let start_server ~db_name ~db ~mailbox () =
 let open_connection db_name =
   match !the_connection_ref with
   | Some x ->
-    bork (Printf.sprintf "Process already has a LevelDB connection to db %s, won't start %s"
-            x.db_name (if x.db_name = db_name then "another one" else "one for db " ^ db_name))
+    if x.db_name = db_name then
+      Lwt_io.printf
+        "Process already has a LevelDB connection to db %s, won't start another one" db_name
+    else
+      bork (Printf.sprintf
+              "Cannot start a LevelDB connection to db %s because there's already one to %s"
+              db_name x.db_name)
   | None ->
     let db = LevelDB.open_db db_name in
     let mailbox = Lwt_mvar.create_empty () in
