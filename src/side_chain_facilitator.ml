@@ -17,7 +17,7 @@ let user_request_mailbox : (Request.t signed * bool * Confirmation.t or_exn Lwt.
   Lwt_mvar.create_empty ()
 
 type validated_request =
-  | Confirm of Request.t signed * account_lens * (Confirmation.t * unit Lwt.t) or_exn Lwt.u
+  | Confirm of Request.t signed * (Confirmation.t * unit Lwt.t) or_exn Lwt.u
   | Flush of int
 
 let validated_request_mailbox : validated_request Lwt_mvar.t = Lwt_mvar.create_empty ()
@@ -31,18 +31,7 @@ let facilitator_account_lens address =
   FacilitatorState.lens_current |-- State.lens_accounts
   |-- defaulting_lens (konstant AccountState.empty) (AccountMap.lens address)
 
-(** Given a signed request, handle the special case of opening an account, and return
-    the request, the account state (new or old), the lens to set the account back at the end, and
-    the user's public key *)
-let ensure_user_account :
-  (Request.t signed * bool,
-   Request.t signed * bool * AccountState.t * account_lens * Address.t) FacilitatorAction.arr =
-  let open FacilitatorAction in
-  fun (rx, is_forced) state ->
-    let requester = rx.payload.rx_header.requester in
-    let account_lens = facilitator_account_lens requester in
-    let account_state = account_lens.get state in
-    return (rx, is_forced, account_state, account_lens, requester) state
+let signed_request_requester rx = rx.payload.Request.rx_header.requester
 
 exception Malformed_request of string
 
@@ -54,15 +43,16 @@ exception Malformed_request of string
     TODO: parallelize the signature checking in a C worker thread that lets us do additional OCaml work.
 *)
 let check_side_chain_request_well_formed :
-  (Request.t signed * bool * AccountState.t * account_lens * Address.t,
-   Request.t signed * bool * AccountState.t * account_lens * Address.t) FacilitatorAction.arr =
+  (Request.t signed * bool, Request.t signed * bool) FacilitatorAction.arr =
   let open FacilitatorAction in
   fun x state ->
-    let ({ payload ; signature }, is_forced, AccountState.{balance; account_revision}, _, _) = x in
+    let ({ payload ; signature }, is_forced) = x in
     let Request.{ rx_header={ requester; requester_revision }; operation } = payload in
+    let AccountState.{balance; account_revision} = (facilitator_account_lens requester).get state in
     let FacilitatorState.{fee_schedule} = state in
     let check test exngen =
-      fun x state -> if test then return x state
+      fun x state ->
+        if test then return x state
         else fail (Malformed_request (exngen ())) state in
     (fun arr -> arr x state)
       ((let open Revision in
@@ -140,16 +130,16 @@ let check_side_chain_request_well_formed :
                (fun () -> Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
                             (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
 
-let make_request_confirmation :
-  (Request.t signed * account_lens,
-   Confirmation.t) FacilitatorAction.arr =
-  fun (signed_request, account_lens) facilitator_state ->
+let make_request_confirmation : (Request.t signed, Confirmation.t) FacilitatorAction.arr =
+  fun signed_request facilitator_state ->
     let current_state = facilitator_state.current in
     let new_revision = Revision.(add current_state.facilitator_revision one) in
     let confirmation =
       { tx_header=TxHeader.{ tx_revision= new_revision
                            ; updated_limit= facilitator_state.current.spending_limit }
       ; Confirmation.signed_request } in
+    let requester = signed_request_requester signed_request in
+    let account_lens = facilitator_account_lens requester in
     let new_requester_revision = signed_request.payload.rx_header.requester_revision in
     let new_facilitator_state =
       facilitator_state
@@ -163,7 +153,7 @@ let modify_guarded_state guard modification lens failure success state =
   if guard (lens.Lens.get state) then
     Ok success, Lens.modify lens modification state
   else
-    Error failure, state
+    Error (failure state), state
 
 let decrement_state_tokens amount =
   modify_guarded_state
@@ -177,7 +167,7 @@ let spend_spending_limit (amount : TokenAmount.t) : ('a, 'a) FacilitatorAction.a
   decrement_state_tokens
     amount
     (FacilitatorState.lens_current |-- State.lens_spending_limit)
-    Spending_limit_exceeded
+    (fun _ -> Spending_limit_exceeded)
 
 let maybe_spend_spending_limit
       (is_expedited : bool) (amount: TokenAmount.t) : ('a, 'a) FacilitatorAction.arr =
@@ -185,7 +175,7 @@ let maybe_spend_spending_limit
 
 exception Already_posted
 
-exception Insufficient_balance
+exception Insufficient_balance of string
 
 (* To prevent double-deposit or double-withdrawal of a same main_chain_transaction_signed,
    we put those transactions in a set of already posted transactions.
@@ -200,61 +190,60 @@ let check_against_double_accounting
     FacilitatorState.lens_current
     |-- State.lens_main_chain_transactions_posted
     |-- DigestSet.lens witness in
-  modify_guarded_state not (konstant true) lens Already_posted
+  modify_guarded_state not (konstant true) lens (fun _ -> Already_posted)
 
-let credit_balance
-      (amount : TokenAmount.t) (account_lens : account_lens)
+let credit_balance (amount : TokenAmount.t) (account_address : Address.t)
   : ('a, 'a) FacilitatorAction.arr =
   FacilitatorAction.map_state
-    (Lens.modify (account_lens |-- AccountState.lens_balance) (TokenAmount.add amount))
+    (Lens.modify (facilitator_account_lens account_address |-- AccountState.lens_balance)
+       (TokenAmount.add amount))
 
-let debit_balance amount account_lens =
+let debit_balance amount account_address =
+  let lens = facilitator_account_lens account_address |-- AccountState.lens_balance in
   decrement_state_tokens
-    amount
-    (account_lens |-- AccountState.lens_balance)
-    Insufficient_balance
+    amount lens
+    (fun state ->
+       Insufficient_balance
+         (Printf.sprintf "Account 0x%s has insufficient balance %s to debit transaction value %s"
+            (Address.to_hex_string account_address) (TokenAmount.to_string (lens.get state))
+            (TokenAmount.to_string amount)))
 
 let accept_fee fee : ('a, 'a) FacilitatorAction.arr =
-  fun x state ->
-    let facilitator_self_account_lens =
-      facilitator_account_lens state.FacilitatorState.keypair.address in
-    credit_balance fee facilitator_self_account_lens x state
+  fun x state -> credit_balance fee state.FacilitatorState.keypair.address x state
 
 (** compute the effects of a request on the account state *)
-let effect_request :
-  ( Request.t signed * account_lens
-  , Request.t signed * account_lens )
-    FacilitatorAction.arr = fun (rx, account_lens) ->
-  let open FacilitatorAction in
-  (rx, account_lens)
-  |> match rx.payload.operation with
-  | Deposit { deposit_amount; deposit_fee; main_chain_deposit_signed; deposit_expedited } ->
-    maybe_spend_spending_limit deposit_expedited deposit_amount
-    >>> check_against_double_accounting main_chain_deposit_signed
-    >>> credit_balance deposit_amount account_lens
-    >>> accept_fee deposit_fee
-  | Payment {payment_invoice; payment_fee; payment_expedited} ->
-    maybe_spend_spending_limit payment_expedited payment_invoice.amount
-    >>> debit_balance (TokenAmount.add payment_invoice.amount payment_fee) account_lens
-    >>> credit_balance payment_invoice.amount (facilitator_account_lens payment_invoice.recipient)
-    >>> accept_fee payment_fee
-  | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-    debit_balance (TokenAmount.add withdrawal_amount withdrawal_fee) account_lens
-    >>> accept_fee withdrawal_fee
+let effect_request : ( Request.t signed, Request.t signed) FacilitatorAction.arr =
+  fun rx ->
+    let open FacilitatorAction in
+    let requester = signed_request_requester rx in
+    rx
+    |> match rx.payload.operation with
+    | Deposit { deposit_amount; deposit_fee; main_chain_deposit_signed; deposit_expedited } ->
+      maybe_spend_spending_limit deposit_expedited deposit_amount
+      >>> check_against_double_accounting main_chain_deposit_signed
+      >>> credit_balance deposit_amount requester
+      >>> accept_fee deposit_fee
+    | Payment {payment_invoice; payment_fee; payment_expedited} ->
+      maybe_spend_spending_limit payment_expedited payment_invoice.amount
+      >>> debit_balance (TokenAmount.add payment_invoice.amount payment_fee) requester
+      >>> credit_balance payment_invoice.amount payment_invoice.recipient
+      >>> accept_fee payment_fee
+    | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+      debit_balance (TokenAmount.add withdrawal_amount withdrawal_fee) requester
+      >>> accept_fee withdrawal_fee
 
 
 (** TODO: have a server do all the effect_requests sequentially,
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
 let post_validated_request :
-  ( Request.t signed * bool * AccountState.t * account_lens * Address.t
-  , (Confirmation.t * unit Lwt.t)) Lwt_exn.arr =
-  fun (request, _is_forced, _account_state, account_lens, _requester) ->
+  ( Request.t signed * bool, (Confirmation.t * unit Lwt.t)) Lwt_exn.arr =
+  fun (request, _is_forced) ->
     let open Lwt_monad in
     let (promise, resolver) = Lwt.task () in
-    Lwt_mvar.put validated_request_mailbox (Confirm (request, account_lens, resolver))
+    Lwt_mvar.put validated_request_mailbox (Confirm (request, resolver))
     >>= fun () -> promise
 
-let process_validated_request : (Request.t signed * account_lens, Confirmation.t) FacilitatorAction.arr =
+let process_validated_request : (Request.t signed, Confirmation.t) FacilitatorAction.arr =
   FacilitatorAction.(effect_request >>> make_request_confirmation)
 
 (* Process a user request, with a flag to specify whether it's a forced request
@@ -273,8 +262,7 @@ let process_request : (Request.t signed * bool, Confirmation.t) Lwt_exn.arr =
     |> let open Lwt_exn in
     (let open Lwt_monad in
      get_facilitator_state
-     >>> (FacilitatorAction.(to_async (ensure_user_account >>> check_side_chain_request_well_formed)))
-           (request, is_forced)
+     >>> FacilitatorAction.to_async check_side_chain_request_well_formed (request, is_forced)
      >>> (fun (result, _state) -> return result))
     >>> post_validated_request
     >>> fun (confirmation, wait_for_commit) ->
@@ -332,8 +320,8 @@ let validated_request_loop =
            let rec request_batch triggered size =
              Lwt_mvar.take validated_request_mailbox
              >>= function
-             | Confirm (request_signed, account_lens, continuation) ->
-               process_validated_request (request_signed, account_lens) facilitator_state
+             | Confirm (request_signed, continuation) ->
+               process_validated_request request_signed facilitator_state
                |> fun (confirmation_or_exn, facilitator_state) ->
                facilitator_state_ref := facilitator_state;
                Lwt.wakeup_later continuation
