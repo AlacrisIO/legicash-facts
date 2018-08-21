@@ -5,6 +5,10 @@ open Side_chain
 module FacilitatorAction : ActionS with type state = FacilitatorState.t
 module FacilitatorAsyncAction : AsyncActionS with type state = FacilitatorState.t
 
+type account_lens = (FacilitatorState.t, AccountState.t) Lens.t
+
+val facilitator_account_lens : Address.t -> account_lens
+
 (** start the background facilitator processes for given address *)
 val start_facilitator : Address.t -> unit Lwt.t
 

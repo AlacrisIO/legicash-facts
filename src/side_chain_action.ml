@@ -24,19 +24,14 @@ module Test = struct
   (* open account tests *)
 
   let create_side_chain_user_state_for_testing user_keys =
-    let main_chain_user_state =
-      Main_chain.UserState.
-        { keypair= user_keys
-        ; confirmed_state= Digest.zero
-        ; confirmed_balance= TokenAmount.zero
-        ; pending_transactions= []
-        ; nonce= Nonce.zero }
-    in
-    let user_account_state = UserAccountStatePerFacilitator.empty in
+    let main_chain_user_state = Main_chain.UserState.init user_keys in
+    let trent_state = get_facilitator_state () in
+    let confirmed_state = (facilitator_account_lens user_keys.address).get trent_state in
+    let user_account_state = {UserAccountStatePerFacilitator.empty with confirmed_state } in
     let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
     UserState.{main_chain_user_state; facilitators}
 
-  let alice_state = create_side_chain_user_state_for_testing alice_keys
+  let make_alice_state () = create_side_chain_user_state_for_testing alice_keys
 
   (* create accounts, fund them *)
   let create_account_on_testnet keys =
@@ -172,7 +167,7 @@ module Test = struct
       unlock_account alice_keys.address
       >>= fun _ ->
       let amount_to_deposit = TokenAmount.of_int 523 in
-      let alice_state_ref = ref alice_state in
+      let alice_state_ref = ref (make_alice_state ()) in
       UserAsyncAction.run_lwt alice_state_ref get_facilitator_fee_schedule ()
       >>= fun fee_schedule ->
       UserAsyncAction.run_lwt alice_state_ref deposit (trent_address, amount_to_deposit)
@@ -228,7 +223,9 @@ module Test = struct
       >>= fun _ ->
       (* deposit some funds first *)
       let amount_to_deposit = TokenAmount.of_int 1023 in
-      let alice_state_ref = ref alice_state in
+      let alice_state_ref = ref (make_alice_state ()) in
+      let initial_balance =
+        (UserAccountStateMap.find trent_address !alice_state_ref.facilitators).confirmed_state.balance in
       UserAsyncAction.run_lwt alice_state_ref get_facilitator_fee_schedule ()
       >>= fun fee_schedule ->
       (* deposit *)
@@ -239,10 +236,10 @@ module Test = struct
       let trent_state1 = get_facilitator_state () in
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
-      let deposit_fee = fee_schedule.deposit_fee in
       let alice_account = Side_chain.AccountMap.find alice_address trent_accounts in
-      let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
-      assert (alice_account.balance = alice_expected_deposit) ;
+      let alice_expected_deposit = amount_to_deposit in
+      let alice_balance_expected_after_deposit = TokenAmount.add initial_balance alice_expected_deposit in
+      assert (alice_account.balance = alice_balance_expected_after_deposit);
       (* withdrawal back to main chain *)
       let amount_to_withdraw = TokenAmount.of_int 42 in
       let withdrawal_fee = fee_schedule.withdrawal_fee in
@@ -255,7 +252,7 @@ module Test = struct
       let alice_account_after_withdrawal =
         Side_chain.AccountMap.find alice_address trent_accounts_after_withdrawal in
       let alice_expected_withdrawal =
-        TokenAmount.sub alice_expected_deposit
+        TokenAmount.sub alice_balance_expected_after_deposit
           (TokenAmount.add amount_to_withdraw withdrawal_fee) in
       assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
       let trent_state3 = get_facilitator_state () in

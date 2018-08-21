@@ -82,6 +82,7 @@ module UserState : sig
     ; pending_transactions: TransactionSigned.t list
     ; nonce: Nonce.t }
   [@@deriving lens { prefix=true }]
+  val init : keypair -> t
 end
 
 module UserAction : ActionS with type state = UserState.t

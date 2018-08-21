@@ -122,6 +122,12 @@ module UserState = struct
     ; pending_transactions: TransactionSigned.t list
     ; nonce: Nonce.t }
   [@@deriving lens { prefix=true }]
+  let init keypair =
+    { keypair
+    ; confirmed_state= Digest.zero
+    ; confirmed_balance= TokenAmount.zero
+    ; pending_transactions= []
+    ; nonce= Nonce.zero }
 end
 
 module UserAction = Action(UserState)
