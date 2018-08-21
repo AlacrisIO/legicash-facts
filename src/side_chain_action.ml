@@ -185,9 +185,8 @@ module Test = struct
       (* TODO: maybe examine the log for the contract call *)
       (* verify the deposit to Alice's account on Trent *)
       let trent_accounts = trent_state1.current.accounts in
-      let deposit_fee = fee_schedule.deposit_fee in
       let alice_account = Side_chain.AccountMap.find alice_address trent_accounts in
-      let alice_expected_deposit = TokenAmount.sub amount_to_deposit deposit_fee in
+      let alice_expected_deposit = amount_to_deposit in
       assert (alice_account.balance = alice_expected_deposit) ;
       (* open Bob's account *)
       let payment_amount = TokenAmount.of_int 17 in
@@ -205,7 +204,9 @@ module Test = struct
       let alice_account = get_trent_account "Alice" alice_address in
       let bob_account = get_trent_account "Bob" bob_address in
       (* Alice has payment debited from her earlier deposit; Bob has just the payment in his account *)
-      let alice_expected_balance = TokenAmount.sub alice_expected_deposit payment_amount in
+      let payment_fee = payment_fee_for fee_schedule payment_amount in
+      let alice_expected_balance =
+        TokenAmount.(sub alice_expected_deposit (add payment_amount payment_fee)) in
       let bob_expected_balance = payment_amount in
       assert (alice_account.balance = alice_expected_balance) ;
       assert (bob_account.balance = bob_expected_balance) ;

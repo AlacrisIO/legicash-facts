@@ -245,13 +245,15 @@ let withdrawal (facilitator_address, withdrawal_amount) =
   of_action issue_user_request
     (Withdrawal { withdrawal_amount ; withdrawal_fee })
 
+let payment_fee_for FacilitatorFeeSchedule.{fee_per_billion} payment_amount =
+  TokenAmount.(div (mul fee_per_billion payment_amount) one_billion_tokens)
+
 let payment (facilitator_address, recipient_address, payment_amount) =
   let open UserAsyncAction in
   get_facilitator_fee_schedule facilitator_address
-  >>= fun {fee_per_billion} ->
+  >>= fun fee_schedule ->
   let payment_invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= ""} in
-  let payment_fee = TokenAmount.mul fee_per_billion
-                      (TokenAmount.div payment_amount (TokenAmount.of_int 1000000000)) in
+  let payment_fee = payment_fee_for fee_schedule payment_amount in
   of_action issue_user_request
     (Payment {payment_invoice; payment_fee; payment_expedited= false})
 

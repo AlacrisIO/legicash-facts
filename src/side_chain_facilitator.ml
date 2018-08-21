@@ -44,58 +44,101 @@ let ensure_user_account :
     let account_state = account_lens.get state in
     return (rx, is_forced, account_state, account_lens, requester) state
 
-let one_billion_tokens = TokenAmount.of_int 1000000000
+exception Malformed_request of string
 
-(** Is the request well-formed?
+(** Check that the request is basically well-formed, or else fail
     This function should include all checks that can be made without any non-local side-effect
-    beside reading pure or monotonic data, which is allowed.
+    beside reading pure or monotonic data, which is allowed for now
+    (but may later have to be split to another function).
     Thus, we can later parallelize this check.
     TODO: parallelize the signature checking in a C worker thread that lets us do additional OCaml work.
 *)
-let is_side_chain_request_well_formed :
-  (Request.t signed * bool * AccountState.t * account_lens * Address.t, bool) FacilitatorAction.readonly =
-  fun ({ payload ; signature }, is_forced, {balance; account_revision}, _, _signing_address) state ->
+let check_side_chain_request_well_formed :
+  (Request.t signed * bool * AccountState.t * account_lens * Address.t,
+   Request.t signed * bool * AccountState.t * account_lens * Address.t) FacilitatorAction.arr =
+  let open FacilitatorAction in
+  fun x state ->
+    let ({ payload ; signature }, is_forced, AccountState.{balance; account_revision}, _, _) = x in
     let Request.{ rx_header={ requester; requester_revision }; operation } = payload in
-    requester_revision = Revision.(add account_revision one)
-    (* TODO: check confirmed main & side chain state + validity window *)
-    && is_signature_valid Request.digest requester signature payload
-    (* Check that the numbers add up: *)
-    && let open TokenAmount in
-    match operation with
-    | Deposit
-        { deposit_amount
-        ; deposit_fee
-        ; main_chain_deposit_signed=
-            { signature
-            ; payload= {tx_header= {value}} as payload
-            } as main_chain_deposit_signed
-        ; main_chain_deposit_confirmation
-        ; deposit_expedited=_deposit_expedited } ->
-      is_sum value deposit_amount deposit_fee
-      && compare deposit_fee state.fee_schedule.deposit_fee >= 0
-      (* TODO: delegate the same signature checking protocol to the main chain *)
-      && is_signature_valid Transaction.digest requester signature payload
-      && Main_chain.is_confirmation_valid main_chain_deposit_confirmation
-           main_chain_deposit_signed
-    | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
-      is_add_valid payment_invoice.amount payment_fee
-      && compare balance (add payment_invoice.amount payment_fee) >= 0
-      (* TODO: make per_account_limit work on the entire floating thing *)
-      && compare state.fee_schedule.per_account_limit payment_invoice.amount >= 0
-      && (is_forced ||
-          (is_mul_valid state.fee_schedule.fee_per_billion payment_invoice.amount
-           && is_mul_valid payment_fee one_billion_tokens
-           && compare
-                (mul payment_fee one_billion_tokens)
-                (mul state.fee_schedule.fee_per_billion payment_invoice.amount) >= 0))
-    | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-      is_add_valid withdrawal_amount withdrawal_fee
-      && compare balance (add withdrawal_amount withdrawal_fee) >= 0
-      && compare withdrawal_fee state.fee_schedule.withdrawal_fee >= 0
-
-(** Check that the request is basically well-formed, or else fail *)
-let check_side_chain_request_well_formed =
-  FacilitatorAction.assert_ (fun () -> __LOC__) is_side_chain_request_well_formed
+    let FacilitatorState.{fee_schedule} = state in
+    let check test exngen =
+      fun x state -> if test then return x state
+        else fail (Malformed_request (exngen ())) state in
+    (fun arr -> arr x state)
+      ((let open Revision in
+        check (requester_revision = (add account_revision one))
+          (fun () ->
+             Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
+               (to_string requester_revision) (to_string (add account_revision one))))
+       >>> check (is_signature_valid Request.digest requester signature payload)
+             (fun () -> "The signature for the request doesn't match the requester")
+       (* TODO: check confirmed main & side chain state + validity window *)
+       >>> (* Check that the numbers add up: *)
+       let open TokenAmount in
+       match operation with
+       | Deposit
+           { deposit_amount
+           ; deposit_fee
+           ; main_chain_deposit_signed=
+               { signature
+               ; payload= {tx_header= {value}} as payload
+               } as main_chain_deposit_signed
+           ; main_chain_deposit_confirmation
+           ; deposit_expedited } ->
+         check (is_sum value deposit_amount deposit_fee)
+           (fun () ->
+              Printf.sprintf "Deposit amount %s and fee %s fail to add up to deposit value %s"
+                (to_string deposit_amount) (to_string deposit_fee) (to_string value))
+         >>> check (not (is_forced && deposit_expedited))
+               (fun () -> "You cannot force an expedited deposit")
+         >>> check (is_forced || compare deposit_fee fee_schedule.deposit_fee >= 0)
+               (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
+                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
+         (* TODO: use the same signature checking protocol to the main chain *)
+         >>> check (is_signature_valid Transaction.digest requester signature payload)
+               (fun () -> "The signature for the main chain deposit doesn't match the requester")
+         >>> check (Main_chain.is_confirmation_valid
+                      main_chain_deposit_confirmation main_chain_deposit_signed)
+               (fun () -> "The main chain deposit confirmation is invalid")
+       | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
+         check (is_add_valid payment_invoice.amount payment_fee)
+           (fun () -> "Adding payment amount and fee causes an overflow!")
+         >>> check (compare balance (add payment_invoice.amount payment_fee) >= 0)
+               (fun () ->
+                  Printf.sprintf "Balance %s insufficient to cover payment amount %s plus fee %s"
+                    (to_string balance) (to_string payment_invoice.amount) (to_string payment_fee))
+         (* TODO: make per_account_limit work on the entire floating thing *)
+         >>> check (compare fee_schedule.per_account_limit payment_invoice.amount >= 0)
+               (fun () ->
+                  Printf.sprintf "Payment amount %s is larger than authorized limit %s"
+                    (to_string payment_invoice.amount) (to_string fee_schedule.per_account_limit))
+         >>> check (is_forced ||
+                    is_mul_valid state.fee_schedule.fee_per_billion payment_invoice.amount)
+               (fun () ->
+                  Printf.sprintf
+                    "Payment fee calculation overflows with amount %s, scheduled fee per billion %s"
+                    (to_string payment_invoice.amount) (to_string fee_schedule.fee_per_billion))
+         >>> check (is_forced ||
+                    compare payment_fee
+                      (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
+                         one_billion_tokens)
+                    >= 0)
+               (fun () ->
+                  Printf.sprintf
+                    "Insufficient payment fee %s when at least %s were expected"
+                    (to_string payment_fee)
+                    (to_string (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
+                                  one_billion_tokens)))
+       | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+         check (is_add_valid withdrawal_amount withdrawal_fee)
+           (fun () -> "Adding withdrawal amount and fee causes an overflow!")
+         >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
+               (fun () ->
+                  Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
+                    (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
+         >>> check (is_forced || compare withdrawal_fee fee_schedule.withdrawal_fee >= 0)
+               (fun () -> Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
+                            (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
 
 let make_request_confirmation :
   (Request.t signed * account_lens,

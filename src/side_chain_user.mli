@@ -122,6 +122,8 @@ val push_side_chain_action_to_main_chain :
 
 val withdrawal : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
+val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
+
 val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
 (** post an account_activity_status request for closing the account on the *main chain*. *)
