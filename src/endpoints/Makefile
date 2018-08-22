@@ -113,4 +113,4 @@ clean:
 	-rm -rf $(PREFIX)
 	-rm -f $(CONFIG) $(CONFIG_TEST)
 	-rm -rf _build
-	-rm -rf accounts confirmations facilitator_state
+	-rm -rf legicash

@@ -18,5 +18,5 @@
   (modules api_scgi)
   (preprocess (pps ppx_deriving.std ppx_inline_test ppx_deriving_yojson))
   (ocamlc_flags (:standard -g -w -9-34-39 -warn-error -27-32-33))
-  (ocamlopt_flags (:standard -w -9-34-39 -warn-error -27-32-33)) ;; NB: add -p here for profiling
+  (ocamlopt_flags (:standard -g -w -9-34-39 -warn-error -27-32-33)) ;; NB: add -p here for profiling
   (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime legicash endpoints str scgi unix))

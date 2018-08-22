@@ -60,6 +60,8 @@ type tps_result =
   }
 [@@deriving yojson]
 
+let trent_mutex = Lwt_mutex.create ()
+
 let ensure_ok = function state, Ok x -> (state, x) | _state, Error y -> raise y
 
 let ( |^>> ) v f = v |> f |> ensure_ok

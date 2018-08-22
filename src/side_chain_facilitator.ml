@@ -48,6 +48,7 @@ exception Malformed_request of string
     Thus, we can later parallelize this check.
     TODO: parallelize the signature checking in a C worker thread that lets us do additional OCaml work.
 *)
+
 let check_side_chain_request_well_formed :
   (Request.t signed * bool, Request.t signed * bool) FacilitatorAction.arr =
   let open FacilitatorAction in
