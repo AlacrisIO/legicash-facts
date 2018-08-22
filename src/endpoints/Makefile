@@ -87,10 +87,10 @@ else
   GLOBAL_SED_ARGS += -e "s|%%USERGROUP%%|<user>$(WWWUSER)</user><group>$(WWWGROUP)</group>|g"
 endif
 
-${CONFIG} : ${PROJECT_NAME}.conf.in Makefile.options 
+${CONFIG} : ${PROJECT_NAME}.conf.in Makefile.options
 	$(SHOW) "Making Ocsigen config"
 	$(HIDE) $(SED) $(SED_ARGS) $(GLOBAL_SED_ARGS) $< > $@
-${CONFIG_TEST} : ${PROJECT_NAME}.conf.in Makefile.options 
+${CONFIG_TEST} : ${PROJECT_NAME}.conf.in Makefile.options
 	$(SHOW) "Making Ocsigen test config"
 	$(HIDE) $(SED) $(SED_ARGS) $(LOCAL_SED_ARGS) $< > $@
 
@@ -102,7 +102,7 @@ run.test: ${CONFIG_TEST} endpoints_lib $(DIRS)
 	$(OCSIGENSERVER) $(RUN_DEBUG) -c $<
 
 run: ${CONFIG} endpoints_lib $(DIRS)
-	$(OCSIGENSERVER) $(RUN_DEBUG) -c $< 
+	$(OCSIGENSERVER) $(RUN_DEBUG) -c $<
 
 clean:
 	-rm -rf $(PREFIX)

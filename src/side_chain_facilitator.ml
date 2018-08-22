@@ -29,7 +29,9 @@ type facilitator_service =
 let the_facilitator_service_ref : (facilitator_service option ref) = ref None
 
 let get_facilitator_state () =
-  !the_facilitator_service_ref |> Option.get |> fun service -> !(service.state_ref)
+  !the_facilitator_service_ref
+  |> (function Some x -> x | None -> bork "Facilitator service not started")
+  |> fun service -> !(service.state_ref)
 
 let facilitator_account_lens address =
   FacilitatorState.lens_current |-- State.lens_accounts

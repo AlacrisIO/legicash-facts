@@ -316,6 +316,8 @@ module FacilitatorFeeSchedule = struct
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
+exception Facilitator_not_found of string
+
 module FacilitatorState = struct
   [@warning "-39"]
   type t = { keypair: Keypair.t
@@ -347,8 +349,13 @@ module FacilitatorState = struct
       let key = facilitator_state_key address in
       Db.put key (Digest.to_big_endian_bits (digest facilitator_state)))
   let load facilitator_address =
-    facilitator_address |> facilitator_state_key |> Db.get |> Option.get |> Digest.unmarshal_string |>
-    db_value_of_digest unmarshal_string
+    facilitator_address |> facilitator_state_key |> Db.get
+    |> (function
+        | Some x -> x
+        | None -> raise (Facilitator_not_found
+                           (Printf.sprintf "Facilitator %s not found in the database"
+                              (Address.to_0x_string facilitator_address))))
+    |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
 end
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]

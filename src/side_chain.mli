@@ -198,6 +198,8 @@ type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@der
 type update = {current_state: digest; availability_proof: court_clerk_confirmation list}
 (*[@@deriving lens { prefix = true }]*)
 
+exception Facilitator_not_found of string
+
 exception No_facilitator_yet
 
 exception Already_open
