@@ -64,7 +64,6 @@ let error_response msg =
   ok_json json
 
 let internal_error_response msg =
-  Printf.eprintf "INTERNAL: %s\n%!" msg;
   let json = error_json msg in
   internal_error json
 
