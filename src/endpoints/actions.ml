@@ -315,7 +315,6 @@ let payment_on_trent sender recipient amount =
   let sender_account = AccountMap.find sender_address_t starting_accounts in
   if (TokenAmount.to_int sender_account.balance) < amount then
     raise (Internal_error "Sender has insufficient balance to make this payment");
-  let starting_trent_state = !trent_state in
   let sender_state_ref = ref sender_state in
   UserAsyncAction.run_lwt sender_state_ref payment
     (trent_address, recipient_address_t, TokenAmount.of_int amount)

@@ -1,5 +1,5 @@
 open Legicash_lib
-open Endpoints_lib
+open Endpoints
 open Actions
 open Scgi
 open Lwt
