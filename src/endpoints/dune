@@ -12,6 +12,7 @@
  (ocamlc_flags (:standard -g -w -9-34-39 -warn-error -27-32-33 -I ../../../_build/default/.legicash_lib.objs))
  (ocamlopt_flags (:standard -g -w -9-34-39 -warn-error -27-32-33 -I ../../../_build/default/.legicash_lib.objs)) ;; NB: add -p to the flags for profiling
  (libraries integers lwt ppx_deriving_yojson.runtime secp256k1 yojson))
+ ;; NB: lwt 4.1.0 WILL REQUIRE lwt.unix to be added above.
 
 (executable
   (name api_scgi)
