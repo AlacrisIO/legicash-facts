@@ -236,7 +236,6 @@ let load_trent_state () =
   Db.check_connection ();
   let facilitator_state =
     try
-      Printf.printf "FOO 110\n%!";
       Side_chain.FacilitatorState.load trent_address
       |> fun x -> Printf.printf "done\n%!"; x
     with
@@ -269,7 +268,8 @@ let _ =
   >>= fun () ->
   start_facilitator trent_address
   >>= fun () ->
-  create_user_states ();
+  create_user_states (); return_unit
+  >>= fun () ->
   Lwt_list.iter_s store_keys_on_testnet account_key_list
   >>= fun () ->
   store_keys_on_testnet ("Trent",trent_keys)
