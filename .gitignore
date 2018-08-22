@@ -5,6 +5,8 @@ tezos
 *.cmo
 *.cmi
 *.tmp
+*.log
+legicash.install
 geth-data
 src/facilitator_contract_binary.ml
 src/endpoints/dune-project
