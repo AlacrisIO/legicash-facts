@@ -3968,7 +3968,7 @@ let list_take elts n =
   in
   loop elts [] 0
 
-let account_key_list = List.map2 (fun name keys -> (name, keys)) (list_take account_names 104) (list_take account_keys 104)
+let account_key_list = List.map2 (fun name keys -> (name, keys)) (list_take account_names 13) (list_take account_keys 13)
 let account_key_array = Array.of_list account_key_list
 let number_of_accounts = Array.length account_key_array
 let address_to_account_tbl = Hashtbl.create number_of_accounts

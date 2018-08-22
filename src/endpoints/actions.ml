@@ -104,7 +104,10 @@ let apply_main_chain_thread id : yojson =
     let thread = Hashtbl.find id_to_thread_tbl id in
     match state thread with
     | Return json -> json
-    | Fail exn -> raise exn
+    | Fail exn ->
+      `Assoc [("error",`String (Format.sprintf "Thread exception: %s\nStack: %s"
+                                  (Printexc.to_string exn)
+                                  (Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ()))))]
     | Sleep ->
       `Assoc [("result",`String "The operation is pending")]
   with Not_found ->
