@@ -4,7 +4,7 @@ open Hex
 open Yojsoning
 open Marshaling
 open Crypto
-open Db
+open Persisting
 
 type t = keypair
 

@@ -15,7 +15,7 @@ open Lazy
 open Yojsoning
 open Marshaling
 open Crypto
-open Db
+open Persisting
 open Db_types
 open Trie
 open Lwt.Infix

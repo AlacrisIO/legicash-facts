@@ -1,6 +1,6 @@
 (** Tags used for Persistence *)
 open Marshaling
-open Db
+open Persisting
 
 
 let marshal_tagged value m buffer x =

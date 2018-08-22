@@ -4,7 +4,7 @@ open Legicash_lib
 open Lib
 open Yojsoning
 open Crypto
-open Db
+open Persisting
 open Main_chain
 open Side_chain
 open Side_chain_facilitator
@@ -251,7 +251,7 @@ let load_trent_state () =
   with _ ->
     Lwt_io.printf "Could not load facilitator state, using genesis state\n%!"
     >>= fun () -> Lwt_io.printf "New state: %s\n%!" (FacilitatorState.to_yojson_string !trent_state)
-    >>= fun () -> check_connection () ; return_unit
+    >>= fun () -> Db.check_connection () ; return_unit
     >>= fun () -> FacilitatorState.save !trent_state
     >>= Db.commit
 
@@ -260,7 +260,7 @@ let _ =
   (* for top-level operations, don't use Lwt_main.run
      not needed, may cause deadlock because eliom already started one (?) *)
   Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
-  open_connection ~db_name:Legibase.db_name
+  Db.open_connection ~db_name:Legibase.db_name
   >>=
     (fun () ->
       start_facilitator trent_address

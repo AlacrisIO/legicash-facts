@@ -1,6 +1,6 @@
 (* Types for LegiCash Facilitator side-chains *)
 open Crypto
-open Db
+open Persisting
 open Merkle_trie
 
 module TokenAmount = Main_chain.TokenAmount

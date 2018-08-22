@@ -4,7 +4,7 @@ open Action
 open Yojsoning
 open Marshaling
 open Crypto
-open Db
+open Persisting
 open Merkle_trie
 
 module TokenAmount = UInt64

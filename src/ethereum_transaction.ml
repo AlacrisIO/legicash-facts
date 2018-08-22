@@ -3,7 +3,7 @@
 open Lib
 open Yojsoning
 open Crypto
-open Db
+open Persisting
 open Main_chain
 
 (* params contain hex strings, but we unhex those strings when running RLP *)

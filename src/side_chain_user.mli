@@ -1,7 +1,7 @@
 (* Types for LegiCash Facilitator side-chains *)
 open Action
 open Crypto
-open Db
+open Persisting
 open Merkle_trie
 open Side_chain
 

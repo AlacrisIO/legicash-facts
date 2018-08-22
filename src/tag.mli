@@ -2,7 +2,7 @@
     NB: these are fine for hashing,
     but when signing, we want to prepend a long address of some kind to the entire message.
 *)
-open Db
+open Persisting
 
 include PersistableS with type t = int
 

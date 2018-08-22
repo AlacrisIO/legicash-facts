@@ -3,7 +3,7 @@ open Lib
 open Yojsoning
 open Marshaling
 open Crypto
-open Db
+open Persisting
 open Trie
 
 module type TrieSynthMerkleS = sig

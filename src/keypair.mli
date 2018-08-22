@@ -1,6 +1,6 @@
 (* keypair.mli *)
 open Crypto
-open Db
+open Persisting
 
 (** the type of public-key key pairs *)
 type t = keypair

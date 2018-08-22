@@ -1,6 +1,6 @@
 (** Tags used for Persistence *)
 open Marshaling
-open Db
+open Persisting
 
 let base_trie = 0x80
 let empty = 0x80

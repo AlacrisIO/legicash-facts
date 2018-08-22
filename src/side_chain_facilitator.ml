@@ -1,7 +1,7 @@
 open Lib
 open Action
 open Crypto
-open Db
+open Persisting
 open Merkle_trie
 open Main_chain
 open Side_chain
@@ -311,7 +311,7 @@ let validated_request_loop =
              (* The promise sent back to requesters, that they have to wait on
                 for their confirmation's batch to have been committed,
                 and our private resolver for this batch. *)
-             let (wait_on_batch_commit, notify_batch_commit) = Lwt.task () in
+             let (batch_committed, notify_batch_committed) = Lwt.task () in
              (* An internal promise to detect if and when we trigger the batch based on a timeout *)
              let (time_triggered, time_trigger) = Lwt.task () in
              (* An internal promise to detect if and when we trigger the batch based on time *)
@@ -332,7 +332,7 @@ let validated_request_loop =
                      Lwt.wakeup_later continuation (Error e);
                      request_batch new_facilitator_state size
                   | Ok confirmation ->
-                     Lwt.wakeup_later continuation (Ok (confirmation, wait_on_batch_commit));
+                     Lwt.wakeup_later continuation (Ok (confirmation, batch_committed));
                      let new_size = increment_capped max_int size in
                      if new_size = batch_size_trigger_in_requests then
                        (* Flush the data after enough entries are written *)
@@ -347,10 +347,10 @@ let validated_request_loop =
                   assert (id = batch_id);
                   (if size > 0 then
                     (Side_chain.FacilitatorState.save facilitator_state
-                     >>= fun () -> Db.async_commit notify_batch_commit)
+                     >>= fun () -> Db.async_commit notify_batch_committed)
                    else
                      Lwt.return_unit)
-                  >>= fun () -> Lwt.return (facilitator_state, (batch_id + 1), wait_on_batch_commit) in
+                  >>= fun () -> Lwt.return (facilitator_state, (batch_id + 1), batch_committed) in
              request_batch facilitator_state 0)
 
 let start_facilitator address =

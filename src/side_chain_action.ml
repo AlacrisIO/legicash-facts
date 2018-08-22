@@ -2,7 +2,6 @@ open Lib
 open Action
 open Yojsoning
 open Crypto
-open Db
 open Main_chain
 open Side_chain
 open Side_chain_facilitator
@@ -207,7 +206,7 @@ module Test = struct
          like similar test in Side_chain.Test;  here we have nonempty account, confirmation maps *)
       let trent_state3 = get_facilitator_state () in
       Side_chain.FacilitatorState.save trent_state3
-      >>= commit
+      >>= Db.commit
       >>= fun () ->
       let retrieved_state = Side_chain.FacilitatorState.load trent_address in
       return (FacilitatorState.to_yojson_string retrieved_state

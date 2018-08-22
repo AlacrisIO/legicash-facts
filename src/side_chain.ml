@@ -4,7 +4,7 @@ open Lib
 open Yojsoning
 open Marshaling
 open Crypto
-open Db
+open Persisting
 open Db_types
 open Merkle_trie
 open Lwt.Infix
@@ -345,9 +345,9 @@ module FacilitatorState = struct
     >>= (fun () ->
       let address = facilitator_state.keypair.address in
       let key = facilitator_state_key address in
-      put_db key (Digest.to_big_endian_bits (digest facilitator_state)))
+      Db.put key (Digest.to_big_endian_bits (digest facilitator_state)))
   let load facilitator_address =
-    facilitator_address |> facilitator_state_key |> get_db |> Option.get |> Digest.unmarshal_string |>
+    facilitator_address |> facilitator_state_key |> Db.get |> Option.get |> Digest.unmarshal_string |>
     db_value_of_digest unmarshal_string
 end
 

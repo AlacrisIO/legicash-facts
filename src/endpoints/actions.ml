@@ -12,7 +12,7 @@ open Lib
 open Action
 open Yojsoning
 open Crypto
-open Db
+open Persisting
 open Side_chain
 open Side_chain_facilitator
 open Side_chain_user
