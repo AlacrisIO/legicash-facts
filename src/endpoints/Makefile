@@ -22,7 +22,7 @@ all : api_scgi
 
 .PHONY: endpoints_lib
 
-ENDPOINTS_LIB=endpoints_lib.cmxs
+ENDPOINTS_LIB=endpoints.cmxs
 
 endpoints_lib : $(LIBDIR)
 	$(SHOW) "Building endpoints library"
