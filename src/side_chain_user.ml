@@ -28,7 +28,7 @@ module Episteme = struct
   [@warning "-39"]
   type t =
     { request: Request.t signed
-    ; confirmation_option: Confirmation.t signed option
+    ; confirmation_option: Confirmation.t option
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
   [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
@@ -40,7 +40,7 @@ module Episteme = struct
         (fun request confirmation_option main_chain_confirmation_option ->
            { request; confirmation_option; main_chain_confirmation_option })
         (marshaling_signed Request.marshaling)
-        (option_marshaling (marshaling_signed Confirmation.marshaling))
+        (option_marshaling Confirmation.marshaling)
         (option_marshaling Main_chain.Confirmation.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
@@ -144,20 +144,29 @@ let mk_rx_episteme rx =
 let [@warning "-32"] mk_tx_episteme tx =
   Episteme.
     { request= tx.payload.Confirmation.signed_request
-    ; confirmation_option= Some tx
+    ; confirmation_option= Some tx.payload
     ; main_chain_confirmation_option= None }
+
+let facilitator_lens : Address.t -> (UserState.t, UserAccountStatePerFacilitator.t) Lens.t =
+  fun facilitator_address ->
+  UserState.lens_facilitators |--
+    defaulting_lens (konstant UserAccountStatePerFacilitator.empty)
+      (UserAccountStateMap.lens facilitator_address)
 
 (** TODO: Handle cases of updates to previous epistemes, rather than just new ones *)
 let add_user_episteme episteme user_state =
   let facilitator = episteme.Episteme.request.payload.rx_header.facilitator in
-  let account_state =
-    UserAccountStateMap.find_defaulting
-      (konstant UserAccountStatePerFacilitator.empty)
-      facilitator user_state.UserState.facilitators
-  in
-  ( UserState.lens_facilitators |-- UserAccountStateMap.lens facilitator
-    |-- UserAccountStatePerFacilitator.lens_pending_operations )
-  .set (episteme :: account_state.pending_operations) user_state
+  Lens.modify
+    (facilitator_lens facilitator |-- UserAccountStatePerFacilitator.lens_pending_operations)
+    (fun ops -> episteme::ops) (* TODO: replays, retries...*)
+    user_state
+
+let remove_user_request request user_state =
+  let facilitator = request.payload.Request.rx_header.facilitator in
+  Lens.modify
+    (facilitator_lens facilitator |-- UserAccountStatePerFacilitator.lens_pending_operations)
+    (List.filter (fun x -> x.Episteme.request != request))
+    user_state
 
 let sign_request request user_state =
   UserAction.return
@@ -166,6 +175,9 @@ let sign_request request user_state =
 
 let add_pending_request request state =
   UserAction.return request (add_user_episteme (mk_rx_episteme request) state)
+
+let mark_request_rejected request state =
+  UserAction.return () (remove_user_request request state)
 
 let issue_user_request operation =
   let open UserAction in

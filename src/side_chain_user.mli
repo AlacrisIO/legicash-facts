@@ -42,7 +42,9 @@ end
 module Episteme : sig
   type t =
     { request: Request.t signed
-    ; confirmation_option: Confirmation.t signed option
+    ; confirmation_option: Confirmation.t option
+    (* TODO: distinguish the TxRecord which will be the trie entry
+       from the Confirmation, which will include merkle path to a signed state. *)
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
@@ -140,3 +142,6 @@ val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) Us
 val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 
 val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr
+
+val mark_request_rejected : (Request.t signed, unit) UserAction.arr
+

@@ -60,12 +60,6 @@ type tps_result =
   }
 [@@deriving yojson]
 
-let ensure_ok = function state, Ok x -> (state, x) | _state, Error y -> raise y
-
-let ( |^>> ) v f = v |> f |> ensure_ok
-(* Lwt-monadic version of |^>> *)
-let ( |^>>+ ) v f = v |> f >>= Lwt.map ensure_ok
-
 (* table of id's to Lwt threads *)
 let (id_to_thread_tbl : (int,yojson Lwt.t) Hashtbl.t) = Hashtbl.create 1031
 
@@ -120,11 +114,10 @@ let user_state_from_address address_t =
 
 (* convert main chain confirmation to JSON-friendly types *)
 let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmation.t) =
-  { transaction_hash = "0x" ^ (confirmation.transaction_hash |> Digest.to_hex_string)
+  { transaction_hash = confirmation.transaction_hash |> Digest.to_0x_string
   ; transaction_index = confirmation.transaction_index |> UInt64.to_int
   ; block_number = confirmation.block_number |> Revision.to_int
-  ; block_hash = "0x" ^ (confirmation.block_hash |> Digest.to_hex_string)
-  }
+  ; block_hash = confirmation.block_hash |> Digest.to_0x_string }
 
 let json_of_exn exn = `Assoc [("error",`String (Printexc.to_string exn))]
 
