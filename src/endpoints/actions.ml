@@ -87,7 +87,8 @@ let add_main_chain_thread thread =
 (* get Merkle proof for side chain transaction identified by tx_revision *)
 let get_proof tx_revision : yojson =
   let tx_revision_t = Revision.of_int tx_revision in
-  let operations = !trent_state.current.operations in
+  let trent_state = get_trent_state () in
+  let operations = trent_state.current.operations in
   match ConfirmationMap.Proof.get tx_revision_t operations with
   | None ->
     `Assoc [("error",`String (Format.sprintf "Cannot provide proof for tx-revision: %d" tx_revision))]
@@ -146,7 +147,7 @@ let deposit_to_trent address amount =
       | _ -> raise (Internal_error "Expected deposit request")
     in
     (* get user account info on Trent *)
-    let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
+    let user_account_on_trent = get_user_account address_t in
     let balance = TokenAmount.to_int (user_account_on_trent.balance) in
     let user_name = get_user_name address_t in
     let user_account_state = { address
@@ -164,7 +165,7 @@ let withdrawal_from_trent address amount =
   let open Ethereum_transaction.Test in
   let address_t = Address.of_0x_string address in
   let user_state = ref (user_state_from_address address_t) in
-  let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
+  let user_account_on_trent = get_user_account address_t in
   let balance = user_account_on_trent.balance in
   if TokenAmount.compare (TokenAmount.of_int amount) balance > 0 then
     raise (Internal_error "Insufficient balance to withdraw specified amount");
@@ -177,7 +178,8 @@ let withdrawal_from_trent address amount =
     Lwt_exn.run_lwt process_request (signed_request, false)
     >>= fun confirmation ->
     let tx_revision = confirmation.tx_header.tx_revision in
-    push_side_chain_action_to_main_chain !trent_state confirmation !user_state
+    let trent_state = get_trent_state () in
+    push_side_chain_action_to_main_chain trent_state confirmation !user_state
     >>= fun (maybe_main_chain_confirmation, user_state2) ->
     (* update user state, which refers to main chain state *)
     user_state := user_state2;
@@ -187,7 +189,7 @@ let withdrawal_from_trent address amount =
       | Error exn -> raise exn
       | Ok confirmation -> jsonable_confirmation_of_confirmation confirmation
     in
-    let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
+    let user_account_on_trent = get_user_account address_t in
     let balance = TokenAmount.to_int (user_account_on_trent.balance) in
     let user_name = get_user_name address_t in
     let user_account_state = { address
@@ -207,7 +209,7 @@ let withdrawal_from_trent address amount =
 
 let get_balance_on_trent address =
   let address_t = Address.of_0x_string address in
-  let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
+  let user_account_on_trent = get_user_account address_t in
   let balance = TokenAmount.to_int (user_account_on_trent.balance) in
   let user_name = get_user_name address_t in
   let user_account_state = { address
@@ -226,7 +228,8 @@ let get_all_balances_on_trent () =
                         }
     in account_state::accum
   in
-  let user_account_states = AccountMap.fold make_balance_json !trent_state.current.accounts [] in
+  let trent_state = get_trent_state () in
+  let user_account_states = AccountMap.fold make_balance_json trent_state.current.accounts [] in
   let sorted_user_account_states =
     List.sort
       (fun bal1 bal2 -> String.compare bal1.user_name bal2.user_name)
@@ -265,7 +268,8 @@ let make_operation_json address (revision:Revision.t) (request:Request.t) =
 let get_recent_transactions_on_trent address maybe_limit =
   let exception Reached_limit of yojson list in
   let address_t = Address.of_0x_string address in
-  let all_operations = !trent_state.current.operations in
+  let trent_state = get_trent_state () in
+  let all_operations = trent_state.current.operations in
   let get_operation_for_address _rev (confirmation:Confirmation.t) ((count,operations) as accum) =
     if Option.is_some maybe_limit &&
        count >= Option.get maybe_limit then
@@ -309,8 +313,7 @@ let payment_on_trent sender recipient amount =
   let sender_address_t = Address.of_0x_string sender in
   let recipient_address_t = Address.of_0x_string recipient in
   let sender_state = Hashtbl.find address_to_user_state_tbl sender_address_t in
-  let starting_accounts = !trent_state.current.accounts in
-  let sender_account = AccountMap.find sender_address_t starting_accounts in
+  let sender_account = get_user_account sender_address_t in
   if (TokenAmount.to_int sender_account.balance) < amount then
     raise (Internal_error "Sender has insufficient balance to make this payment");
   let sender_state_ref = ref sender_state in
@@ -326,9 +329,8 @@ let payment_on_trent sender recipient amount =
   let tx_revision = confirmation.tx_header.tx_revision in
   let sender_name = get_user_name sender_address_t in
   let recipient_name = get_user_name recipient_address_t in
-  let accounts = !trent_state.current.accounts in
-  let sender_account = AccountMap.find sender_address_t accounts in
-  let recipient_account = AccountMap.find sender_address_t accounts in
+  let sender_account = get_user_account sender_address_t in
+  let recipient_account = get_user_account recipient_address_t in
   let make_account_state address_t name (account : AccountState.t) =
     { address = Address.to_0x_string address_t
     ; user_name = name

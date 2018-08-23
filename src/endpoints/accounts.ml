@@ -76,17 +76,13 @@ let account_key_array = Array.of_list account_key_list
 let number_of_accounts = Array.length account_key_array
 let address_to_account_tbl = Hashtbl.create number_of_accounts
 
+let address_to_keys_tbl = Hashtbl.create number_of_accounts
+
 let _ =
   Array.iter
-    (fun (name, keys) -> Hashtbl.add address_to_account_tbl keys.address name)
+    (fun (name, keys) ->
+       Hashtbl.add address_to_account_tbl keys.address name)
     account_key_array
-
-let get_user_name address_t =
-  try
-    Hashtbl.find address_to_account_tbl address_t
-  with Not_found -> raise (Internal_error "Can't find user name for address")
-
-let address_to_keys_tbl = Hashtbl.create number_of_accounts
 
 let _ =
   List.iter
@@ -99,6 +95,14 @@ let trent_keys =
     "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
 
 let trent_address = trent_keys.address
+
+let _ =
+  Hashtbl.add address_to_account_tbl trent_address "Trent"
+
+let get_user_name address_t =
+  try
+    Hashtbl.find address_to_account_tbl address_t
+  with Not_found -> raise (Internal_error (Format.sprintf "Can't find user name for address %s" (Address.to_0x_string address_t)))
 
 (* store keys on Ethereum test net. TODO: don't do this on real net!  *)
 let store_keys_on_testnet (name,keys) =
@@ -163,13 +167,16 @@ let new_facilitator_state facilitator_keypair =
   ; current= confirmed_state
   ; fee_schedule= fee_schedule }
 
-let trent_state = ref (new_facilitator_state trent_keys)
+let get_trent_state () =
+  Side_chain_facilitator.get_facilitator_state ()
 
-let set_trent_state state = trent_state := state
+let get_user_account address =
+  (Side_chain_facilitator.facilitator_account_lens address).get (get_trent_state ())
 
 let user_accounts_from_trent_state address =
   let open UserAccountState in
-  let accounts = !trent_state.current.accounts in
+  let trent_state = get_trent_state () in
+  let accounts = trent_state.current.accounts in
   try
     let user_account = AccountMap.find address accounts in
     let account_state =
@@ -192,7 +199,6 @@ let load_trent_state () =
       Facilitator_not_found _ ->
       Printf.printf "not found, generating a new demo facilitator\n%!";
       new_facilitator_state trent_keys in
-  set_trent_state facilitator_state;
   FacilitatorState.save facilitator_state
   >>= Db.commit
   >>= fun () ->

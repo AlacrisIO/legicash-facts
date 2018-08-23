@@ -148,6 +148,7 @@ let _ =
               | exn -> internal_error_response id (Printexc.to_string exn))
            | Error msg -> error_response id msg)
         | "payment" ->
+          Printf.eprintf "ENTERED PAYMENT\n%!";
           let maybe_payment = payment_json_of_yojson json in
           (match maybe_payment with
            | Ok payment ->
