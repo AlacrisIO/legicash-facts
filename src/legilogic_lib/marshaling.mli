@@ -50,6 +50,9 @@ val bool_marshaling : bool marshaling
 
 val marshal_map : ('x -> 'a) -> 'a marshaler -> 'x marshaler
 val unmarshal_map : ('a -> 'x) -> 'a unmarshaler -> 'x unmarshaler
+(** [marshaling_map f g marshaling] is a marshaler which marshals ['x]s as
+   ['a]s. Assumes [x |> f |> g |> f = x |> f] and [a |> g |> f |> g = a |> g]
+   (i.e. [g] is inverse to [f] on the image of [f] and vice versa.) *)
 val marshaling_map : ('x -> 'a) -> ('a -> 'x) -> 'a marshaling -> 'x marshaling
 
 val marshal2 : ('x -> 'a*'b) -> 'a marshaler -> 'b marshaler
@@ -150,6 +153,7 @@ val marshaling_not_implemented : 'a marshaling
 (** Do NOT use this module in production. Only for demos and temporary cut-throughs *)
 module OCamlMarshaling (T: TypeS) : PreMarshalableS with type t = T.t
 
+(** Marshalable to binary, and (separately) convertible to json. *)
 module type PreYojsonMarshalableS = sig
   include PreMarshalableS
   include PreYojsonableS with type t := t

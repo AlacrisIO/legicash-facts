@@ -291,6 +291,7 @@ module type LengthS = sig
   val max_length : int
 end
 
+(** Length-prefixed string. Marshals to <length><string-of-that-length> *)
 module StringL (L : LengthS) = struct
   let check_length ?(fail=bork "%s") l =
     if l > L.max_length then
@@ -333,6 +334,7 @@ end
 
 module String63 = StringL(Length63)
 
+(** Length which reliably fits in a native int, even on a 32-bit platform. *)
 module Length1G = struct
   let max_length = 1 lsl 30 - 1
   let check_length l = if l > max_length then
@@ -357,8 +359,11 @@ module Length1G = struct
   let marshaling = {marshal;unmarshal}
 end
 
+(** Length-prefixed string where the length fits in 32 bits *)
 module String1G = StringL(Length1G)
 
+(** Object which can be marshaled based on json representation. Marshaled
+   representation must fit in a gigabyte (!) *)
 module MarshalableOfYojsonable (Y : YojsonableS) = struct
   include Y
   include (Marshalable (struct
