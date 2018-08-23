@@ -19,9 +19,21 @@ BUILD_DIR:=src/_build/default
 
 all: api_scgi
 
-.PHONY: all force legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean real_contract contract
+.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean real_contract contract
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli)
+
+LEGILOGIC_LIB:=$(BUILD_DIR)/legilogic_lib/legilogic_lib.cmxs
+legilogic_lib: $(LEGILOGIC_LIB)
+$(LEGILOGIC_LIB): $(ML_SOURCES)
+	$(SHOW) "Building Legilogic library"
+	$(HIDE) dune build --root=src legilogic_lib/legilogic_lib.a legilogic_lib/legilogic_lib.cmxa legilogic_lib/legilogic_lib.cmxs legilogic_lib/legilogic_lib.cma
+
+LEGILOGIC_ETHEREUM:=$(BUILD_DIR)/legilogic_ethereum/legilogic_ethereum.cmxs
+legilogic_ethereum: $(LEGILOGIC_ETHEREUM)
+$(LEGILOGIC_ETHEREUM): $(ML_SOURCES)
+	$(SHOW) "Building Legilogic ethereum support"
+	$(HIDE) dune build --root=src legilogic_ethereum/legilogic_ethereum.a legilogic_ethereum/legilogic_ethereum.cmxa legilogic_ethereum/legilogic_ethereum.cmxs legilogic_ethereum/legilogic_ethereum.cma
 
 # for the endpoints demo, this is a simplified contract that just
 # logs deposits and withdrawals
@@ -81,7 +93,7 @@ test: $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Running Legicash tests"
 	$(HIDE) dune runtest --root=src -j 1
 
-toplevel: $(ML_SOURCES) $(CONTRACT)
+toplevel: $(ML_SOURCES) $(CONTRACT) legilogic_lib legilogic_ethereum legicash_lib endpoints
 	$(SHOW) "Building custom OCaml toplevel"
 	$(HIDE) dune build --root=src legicaml.exe
 
