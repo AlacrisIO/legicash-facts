@@ -62,11 +62,13 @@ let check_side_chain_request_well_formed :
         if test then return x state
         else fail (Malformed_request (exngen ())) state in
     (fun arr -> arr x state)
-      ((let open Revision in
-        check (requester_revision = (add account_revision one))
-          (fun () ->
-             Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
-               (to_string requester_revision) (to_string (add account_revision one))))
+      ((* XXX TEMPORARILY DISABLED FOR DEMO PURPOSES UNTIL WE IMPROVE THE SIDE CHAIN USER SOFTWARE
+          TODO - Fix the side_chain_user and endpoints/actions code, then re-enable this check. *)
+       let open Revision in
+       check (requester_revision = (add account_revision one) || true) (* <-- TODO: REMOVE the || true *)
+         (fun () ->
+           Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
+             (to_string requester_revision) (to_string (add account_revision one)))
        >>> check (is_signature_valid Request.digest requester signature payload)
          (fun () -> "The signature for the request doesn't match the requester")
        (* TODO: check confirmed main & side chain state + validity window *)
