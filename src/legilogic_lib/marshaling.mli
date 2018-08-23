@@ -1,3 +1,5 @@
+(** Logic for conversion of various data types to string representations *)
+
 open Lib
 open Yojsoning
 
@@ -18,6 +20,7 @@ module type PreMarshalableS = sig
   val marshaling : t marshaling
 end
 
+(** Object which can be converted to and from binary representation *)
 module type MarshalableS = sig
   include PreMarshalableS
   val marshal: t marshaler
@@ -28,10 +31,13 @@ module type MarshalableS = sig
   val unmarshal_string: string -> t
 end
 
+(** Auto-generated methods for object which can be converted to and from binary
+   representation *)
 module Marshalable (P : PreMarshalableS) : MarshalableS with type t = P.t
 
 val marshal_of_sized_string_of : int -> ('a -> string) -> 'a marshaler
 val unmarshal_of_sized_of_string : int -> (string -> 'a) -> 'a unmarshaler
+(** Marshaler which verifies that binary representation has specified length *)
 val marshaling_sized_string : int -> ('a -> string) -> (string -> 'a) -> 'a marshaling
 
 val marshal_bytes_of_marshal : 'a marshaler -> 'a -> Bytes.t
@@ -51,20 +57,21 @@ val bool_marshaling : bool marshaling
 val marshal_map : ('x -> 'a) -> 'a marshaler -> 'x marshaler
 val unmarshal_map : ('a -> 'x) -> 'a unmarshaler -> 'x unmarshaler
 (** [marshaling_map f g marshaling] is a marshaler which marshals ['x]s as
-   ['a]s. Assumes [x |> f |> g |> f = x |> f] and [a |> g |> f |> g = a |> g]
-   (i.e. [g] is inverse to [f] on the image of [f] and vice versa.) *)
+   ['a]s. Assumes [g] is the inverse of [f] on [f]'s image, and vice versa.) *)
 val marshaling_map : ('x -> 'a) -> ('a -> 'x) -> 'a marshaling -> 'x marshaling
 
 val marshal2 : ('x -> 'a*'b) -> 'a marshaler -> 'b marshaler
   -> 'x marshaler
 val unmarshal2 : ('a -> 'b -> 'x) -> 'a unmarshaler -> 'b unmarshaler
   -> 'x unmarshaler
+(** Marshaling of pairs *)
 val marshaling2 : ('x -> 'a*'b) -> ('a -> 'b -> 'x) -> 'a marshaling -> 'b marshaling -> 'x marshaling
 
 val marshal3 : ('x -> 'a*'b*'c) -> 'a marshaler -> 'b marshaler -> 'c marshaler
   -> 'x marshaler
 val unmarshal3 : ('a -> 'b -> 'c -> 'x) -> 'a unmarshaler -> 'b unmarshaler -> 'c unmarshaler
   -> 'x unmarshaler
+(** Marshaling of triples *)
 val marshaling3 : ('x -> 'a*'b*'c) -> ('a -> 'b -> 'c -> 'x)
   -> 'a marshaling -> 'b marshaling -> 'c marshaling
   -> 'x marshaling
@@ -74,6 +81,7 @@ val marshal4 : ('x -> 'a*'b*'c*'d) -> 'a marshaler -> 'b marshaler -> 'c marshal
 val unmarshal4 : ('a -> 'b -> 'c -> 'd -> 'x)
   -> 'a unmarshaler -> 'b unmarshaler -> 'c unmarshaler -> 'd unmarshaler
   -> 'x unmarshaler
+(** Marshaling of 4-tuples *)
 val marshaling4 : ('x -> 'a*'b*'c*'d) -> ('a -> 'b -> 'c -> 'd -> 'x)
   -> 'a marshaling -> 'b marshaling -> 'c marshaling -> 'd marshaling
   -> 'x marshaling
@@ -85,6 +93,7 @@ val unmarshal5 : ('a -> 'b -> 'c -> 'd -> 'e -> 'x)
   -> 'a unmarshaler -> 'b unmarshaler -> 'c unmarshaler -> 'd unmarshaler
   -> 'e unmarshaler
   -> 'x unmarshaler
+(** Marshaling of 5-tuples *)
 val marshaling5 : ('x -> 'a*'b*'c*'d*'e) -> ('a -> 'b -> 'c -> 'd -> 'e -> 'x)
   -> 'a marshaling -> 'b marshaling -> 'c marshaling -> 'd marshaling
   -> 'e marshaling
@@ -98,6 +107,7 @@ val unmarshal6 : ('a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'x)
   -> 'a unmarshaler -> 'b unmarshaler -> 'c unmarshaler -> 'd unmarshaler
   -> 'e unmarshaler -> 'f unmarshaler
   -> 'x unmarshaler
+(** Marshaling of 6-tuples *)
 val marshaling6 : ('x -> 'a*'b*'c*'d*'e*'f) -> ('a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'x)
   -> 'a marshaling -> 'b marshaling -> 'c marshaling -> 'd marshaling
   -> 'e marshaling -> 'f marshaling
@@ -111,6 +121,7 @@ val unmarshal7 : ('a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'x)
   -> 'a unmarshaler -> 'b unmarshaler -> 'c unmarshaler -> 'd unmarshaler
   -> 'e unmarshaler -> 'f unmarshaler -> 'g unmarshaler
   -> 'x unmarshaler
+(** Marshaling of 4-tuples *)
 val marshaling7 : ('x -> 'a*'b*'c*'d*'e*'f*'g) -> ('a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'x)
   -> 'a marshaling -> 'b marshaling -> 'c marshaling -> 'd marshaling
   -> 'e marshaling -> 'f marshaling -> 'g marshaling
@@ -124,6 +135,7 @@ val unmarshal8 : ('a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'x)
   -> 'a unmarshaler -> 'b unmarshaler -> 'c unmarshaler -> 'd unmarshaler
   -> 'e unmarshaler -> 'f unmarshaler -> 'g unmarshaler -> 'h unmarshaler
   -> 'x unmarshaler
+(** Marshaling of 8-tuples *)
 val marshaling8 : ('x -> 'a*'b*'c*'d*'e*'f*'g*'h)
   -> ('a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'x)
   -> 'a marshaling -> 'b marshaling -> 'c marshaling -> 'd marshaling
@@ -139,6 +151,7 @@ val unmarshal9 : ('a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'x)
   -> 'e unmarshaler -> 'f unmarshaler -> 'g unmarshaler -> 'h unmarshaler
   -> 'i unmarshaler
   -> 'x unmarshaler
+(** Marshaling of 9-tuples *)
 val marshaling9 : ('x -> 'a*'b*'c*'d*'e*'f*'g*'h*'i)
   -> ('a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'x)
   -> 'a marshaling -> 'b marshaling -> 'c marshaling -> 'd marshaling
@@ -148,6 +161,7 @@ val marshaling9 : ('x -> 'a*'b*'c*'d*'e*'f*'g*'h*'i)
 
 val marshal_not_implemented : 'a marshaler
 val unmarshal_not_implemented : 'a unmarshaler
+(** Marshaler which simply errors if you try to use it *)
 val marshaling_not_implemented : 'a marshaling
 
 (** Do NOT use this module in production. Only for demos and temporary cut-throughs *)
@@ -159,13 +173,16 @@ module type PreYojsonMarshalableS = sig
   include PreYojsonableS with type t := t
 end
 
+(** Marshalable to binary, and (separately) convertible to json. *)
 module type YojsonMarshalableS = sig
   include MarshalableS
   include YojsonableS with type t := t
 end
 
+(** "Marshalable" *as* json. *)
 module MarshalableOfYojsonable (J : YojsonableS) : YojsonMarshalableS with type t = J.t
 
+(** Renders marshaled value as a json hex string *)
 module YojsonableOfMarshalable (M : MarshalableS) : YojsonMarshalableS with type t = M.t
 
 module type LengthS = sig
@@ -173,12 +190,18 @@ module type LengthS = sig
   val max_length : int
 end
 
+
+(** 6-bit representation of string length *)
 module Length63 : LengthS
 
+(** 30-bit representation of string length *)
 module Length1G : LengthS
 
+(** Marshalable as length-prefixed string of constrained length [L] *)
 module StringL (L: LengthS) : MarshalableS with type t = string
 
+(** Marshalable as length-prefixed string of length expressible in 30 bits *)
 module String1G : MarshalableS with type t = string
 
+(** Marshalable as length-prefixed string of length expressible in 6 bits *)
 module String63 : MarshalableS with type t = string
