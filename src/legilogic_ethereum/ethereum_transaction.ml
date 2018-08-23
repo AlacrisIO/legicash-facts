@@ -205,6 +205,8 @@ module Test = struct
   open Ethereum_json_rpc
   open Keypair.Test
 
+  let%test "move logs aside" = Logging.log_to_file "test.log"; true
+
   let assert_json_error_free location json =
     if YoJson.mem "error" json then
       bork "Error at %s from geth: %s" location (string_of_yojson json)

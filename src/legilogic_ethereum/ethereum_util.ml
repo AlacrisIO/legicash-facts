@@ -120,5 +120,4 @@ module Test = struct
       [("0x9797809415e4b8efea0963e362ff68b9d98f9e00", "Invalid address checksum at index 12 for 0x9797809415e4b8efea0963e362ff68b9d98f9e00");
        ("0x507877C2E26f1387432D067D2DaAfa7D0420d90a", "Invalid address checksum at index 33 for 0x507877C2E26f1387432D067D2DaAfa7D0420d90a");
        ("0x507877", "String length not the expected 40 bytes: \"507877\"")]
-
 end

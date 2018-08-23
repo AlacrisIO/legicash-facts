@@ -13,3 +13,7 @@ let output_line out line = output_string out line; output_char out '\n'; flush o
 let log_line s = output_line !log_channel s
 
 let log fmt = Printf.ksprintf log_line fmt
+
+module Test = struct
+  let%test "move logs aside" = log_to_file "test.log"; true
+end

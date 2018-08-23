@@ -25,6 +25,8 @@ module Test = struct
   open Keypair.Test
   open Ethereum_transaction.Test
 
+  let%test "move logs aside" = Logging.log_to_file "test.log"; true
+
   (* open account tests *)
 
   let create_side_chain_user_state_for_testing user_keys =
