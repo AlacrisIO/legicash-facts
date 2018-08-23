@@ -7,6 +7,7 @@ tezos
 *.tmp
 *.log
 *.pid
+*.pyc
 legicash.install
 geth-data
 src/facilitator_contract_binary.ml
