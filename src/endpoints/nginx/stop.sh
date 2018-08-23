@@ -1,4 +1,6 @@
 #!/bin/bash
+HERE=$(dirname "$0")
 
-# NB: Running as a normal user. Otherwise, use sudo and uncomment the user directive in conf/nginx.conf
-nginx -p `pwd` -c conf/nginx.conf -s stop
+# NB: Use sudo to run as root, otherwise run as regular user.
+# Check file permissions if you mix the two
+nginx -p "$HERE" -c conf/nginx.conf -s stop
