@@ -26,12 +26,15 @@ ENDPOINTS_LIB=endpoints.cmxs
 
 endpoints_lib : $(LIBDIR)
 	$(SHOW) "Building endpoints library"
-	$(HIDE) $(BUILDER) build --root=. $(ENDPOINTS_LIB)
-	$(HIDE) cp _build/default/$(ENDPOINTS_LIB) $(LIBDIR)/
+	$(HIDE) $(BUILDER) build --root=.. endpoints/$(ENDPOINTS_LIB)
+	$(HIDE) cp ../_build/default/endpoints/$(ENDPOINTS_LIB) $(LIBDIR)/
 
 api_scgi : endpoints_lib
 	$(SHOW) "Building Legicash API SCGI executable"
-	$(HIDE) $(BUILDER) build --root=. api_scgi.exe
+	$(HIDE) $(BUILDER) build --root=.. endpoints/api_scgi.exe
+
+run: api_scgi
+	../_build/default/endpoints/api_scgi.exe
 
 # subdirectories
 
@@ -103,10 +106,10 @@ ${CONFIG_TEST} : ${PROJECT_NAME}.conf.in Makefile.options
 
 .PHONY: run clean
 
-run.test: ${CONFIG_TEST} endpoints_lib $(DIRS)
+ocsigen.run.test: ${CONFIG_TEST} endpoints_lib $(DIRS)
 	$(OCSIGENSERVER) $(RUN_DEBUG) -c $<
 
-run: ${CONFIG} endpoints_lib $(DIRS)
+ocsigen.run: ${CONFIG} endpoints_lib $(DIRS)
 	$(OCSIGENSERVER) $(RUN_DEBUG) -c $<
 
 clean:
