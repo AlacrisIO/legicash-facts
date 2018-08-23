@@ -92,9 +92,6 @@ let _ =
         | "tps" ->
           let result_json = get_transaction_rate_on_trent () in
           ok_json id result_json
-        | "recent_transactions" ->
-          let result_json = get_recent_transactions_on_trent () in
-          ok_json id result_json
         | "proof" ->
           (match Request.param request "tx-revision" with
            | Some param ->
@@ -170,6 +167,30 @@ let _ =
               | Lib.Internal_error msg -> internal_error_response id msg
               | exn -> internal_error_response id (Printexc.to_string exn))
            | Error msg -> error_response id msg)
+        | "recent_transactions" ->
+          let maybe_limit_string = Request.param request "limit" in
+          let invalid_limit = Some (-1) in
+          let maybe_limit =
+            match maybe_limit_string with
+            | Some s ->
+              (try
+                 let limit = int_of_string s in
+                 if limit < 0 then raise (Failure "bad limit");
+                 Some limit
+               with Failure _ ->
+                 (* limit string not parseable as a number, or negative *)
+                 invalid_limit)
+            | None -> None
+          in
+          if maybe_limit = invalid_limit then
+            bad_request_response id ("Invalid limit value: " ^ (Lib.Option.get maybe_limit_string))
+          else
+            let maybe_address = address_json_of_yojson json in
+            (match maybe_address with
+             | Ok address_record ->
+               let result_json = get_recent_transactions_on_trent address_record.address maybe_limit in
+               ok_json id result_json
+             | Error msg -> error_response id msg)
         | other_call -> invalid_post_api_call id other_call
       end
     (* neither GET nor POST *)
