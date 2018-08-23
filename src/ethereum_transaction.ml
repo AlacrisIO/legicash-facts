@@ -205,7 +205,7 @@ module Test = struct
 
   let assert_json_error_free location json =
     if YoJson.mem "error" json then
-      bork (Printf.sprintf "Error at %s from geth: %s" location (string_of_yojson json))
+      bork "Error at %s from geth: %s" location (string_of_yojson json)
 
   let json_result_to_int json =
     YoJson.member "result" json |> YoJson.to_string |> int_of_string

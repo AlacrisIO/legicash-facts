@@ -7,7 +7,7 @@ exception Internal_error of string
 
 let spf = Printf.sprintf
 
-let bork s = raise (Internal_error s)
+let bork fmt = Printf.ksprintf (fun x -> raise (Internal_error x)) fmt
 
 let bottom : 'a -> 'b = fun _ -> raise Not_implemented
 

@@ -110,9 +110,8 @@ let open_connection ~db_name =
       Lwt_io.printf
         "Process already has a LevelDB connection to db %s, won't start another one" db_name
     else
-      bork (Printf.sprintf
-              "Cannot start a LevelDB connection to db %s because there's already one to %s"
-              db_name x.db_name)
+      bork "Cannot start a LevelDB connection to db %s because there's already one to %s"
+        db_name x.db_name
   | None ->
     let db = LevelDB.open_db db_name in
     the_connection_ref := Some { db_name ; db };
@@ -121,7 +120,7 @@ let open_connection ~db_name =
 
 let the_connection =
   the_global the_connection_ref
-    (fun () -> bork (Printf.sprintf "no db connection for pid %d\n%!" (Unix.getpid ())))
+    (fun () -> bork "no db connection for pid %d\n%!" (Unix.getpid ()))
 
 let the_db () = (the_connection ()).db
 

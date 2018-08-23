@@ -139,29 +139,29 @@ let strict_nat_of_hex_string string =
 let unary_pre_op_check op check info x =
   if check x then op x else
     let (module_name, op_name, to_string) = info in
-    bork (Printf.sprintf "attempted %s.%s %s but the arguments are out of range"
-            module_name op_name (to_string x))
+    bork "attempted %s.%s %s but the arguments are out of range"
+      module_name op_name (to_string x)
 
 let binary_pre_op_check op check info x y =
   if check x y then op x y else
     let (module_name, op_name, x_to_string, y_to_string) = info in
-    bork (Printf.sprintf "attempted %s.%s %s %s but the arguments are out of range"
-            module_name op_name (x_to_string x) (y_to_string y))
+    bork "attempted %s.%s %s %s but the arguments are out of range"
+      module_name op_name (x_to_string x) (y_to_string y)
 
 let unary_post_op_check op check info x =
   let y = op x in
   if check y then y else
     let (type_name, op_name, to_string) = info in
-    bork (Printf.sprintf "attempted %s.%s %s but the operation goes out of range"
-            type_name op_name (to_string x))
+    bork "attempted %s.%s %s but the operation goes out of range"
+      type_name op_name (to_string x)
 
 let binary_post_op_check = fun
   op check info x y ->
   let z = op x y in
   if check z then z else
     let (type_name, op_name, x_to_string, y_to_string) = info in
-    bork (Printf.sprintf "attempted %s.%s %s %s but the operation goes out of range"
-            type_name op_name (x_to_string x) (y_to_string y))
+    bork "attempted %s.%s %s %s but the operation goes out of range"
+      type_name op_name (x_to_string x) (y_to_string y)
 
 module Int = struct
   include Z
@@ -442,7 +442,7 @@ module Test = struct
     let t name init func expected =
       let result = func init in
       if result = expected then true else
-        bork (Printf.sprintf "test %s, expected %s but got %s" name expected result)
+        bork "test %s, expected %s but got %s" name expected result
     let run () =
       t "of_int >> check_invariant" 42 (U.of_int >> U.check_invariant >> string_of_bool) "true"
       && t "of_int >> to_string " 42 (U.of_int >> U.to_string) "42"

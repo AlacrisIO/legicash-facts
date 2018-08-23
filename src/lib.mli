@@ -12,8 +12,8 @@ exception Not_implemented
 (** Internal_error, which should never happen in production, with explanation *)
 exception Internal_error of string
 
-(** bork raises an Internal_error with the given string *)
-val bork : string -> 'a
+(** bork raises an Internal_error with the format string and arguments *)
+val bork : ('a, unit, string, 'b) format4 -> 'a
 
 (** spf is short for Printf.sprintf. Only use spf as shorthand while debugging *)
 val spf : ('a, unit, string) format -> 'a

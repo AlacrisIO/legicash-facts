@@ -292,30 +292,30 @@ module type LengthS = sig
 end
 
 module StringL (L : LengthS) = struct
-  let check_length ?(bork=bork) l =
+  let check_length ?(fail=bork "%s") l =
     if l > L.max_length then
-      bork (Printf.sprintf "Invalid string length %d (max %d)" l L.max_length)
-  let checked_string_length ?(bork=bork) s =
-    let l = String.length s in check_length ~bork l; l
-  let check_string_length ?(bork=bork) s =
-    ignore (checked_string_length ~bork s); s
+      fail (Printf.sprintf "Invalid string length %d (max %d)" l L.max_length)
+  let checked_string_length ?(fail=bork "%s") s =
+    let l = String.length s in check_length ~fail l; l
+  let check_string_length ?(fail=bork "%s") s =
+    ignore (checked_string_length ~fail s); s
 
   module P = struct
     type t = string
     let marshal buffer string =
-      let len = checked_string_length ~bork:(fun x -> raise (Marshaling_error x)) string in
+      let len = checked_string_length ~fail:(fun x -> raise (Marshaling_error x)) string in
       L.marshaling.marshal buffer len;
       Buffer.add_string buffer string
     let unmarshal ?(start=0) bytes =
       let len, p = L.marshaling.unmarshal ~start bytes in
-      let bork x = raise (Unmarshaling_error (x, start, bytes)) in
-      check_length ~bork len;
+      let fail x = raise (Unmarshaling_error (x, start, bytes)) in
+      check_length ~fail len;
       if len + p <= Bytes.length bytes then
         Bytes.sub_string bytes p len, len + p
       else
-        bork (Printf.sprintf "declared length %d, but only %d characters left" len (Bytes.length bytes - p))
+        fail (Printf.sprintf "declared length %d, but only %d characters left" len (Bytes.length bytes - p))
     let marshaling={marshal;unmarshal}
-    let check_yojson_string s = check_string_length ~bork:(fun x -> Yojson.json_error x) s
+    let check_yojson_string s = check_string_length ~fail:(fun x -> Yojson.json_error x) s
     let yojsoning=yojsoning_map check_yojson_string check_yojson_string string_yojsoning
   end
   include Marshalable(P)
@@ -324,8 +324,8 @@ end
 
 module Length63 = struct
   let max_length = 63
-  let check63 l = if l > 63 then
-      bork (Printf.sprintf "Invalid length %d (max 63)" l);
+  let check63 l =
+    if l > 63 then bork "Invalid length %d (max 63)" l;
     l
   let marshaling = marshaling_map
                      (check63 >> Char.chr) (Char.code >> check63) char_marshaling
@@ -336,7 +336,7 @@ module String63 = StringL(Length63)
 module Length1G = struct
   let max_length = 1 lsl 30 - 1
   let check_length l = if l > max_length then
-      bork (Printf.sprintf "Invalid length %d (max %d)" l max_length)
+      bork "Invalid length %d (max %d)" l max_length
   let marshal buffer len =
     check_length len;
     Buffer.add_char buffer (Char.chr (len lsr 24));

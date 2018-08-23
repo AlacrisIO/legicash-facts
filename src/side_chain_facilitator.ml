@@ -368,9 +368,8 @@ let start_facilitator address =
         "Facilitator service already running for address %s, not starting another one\n%!"
         (Address.to_0x_string address)
     else
-      bork (Printf.sprintf
-              "Cannot start a facilitator service for address %s because there's already one for %s"
-              (Address.to_0x_string address) (Address.to_0x_string x.address))
+      bork "Cannot start a facilitator service for address %s because there's already one for %s"
+        (Address.to_0x_string address) (Address.to_0x_string x.address)
   | None ->
     let facilitator_state =
       try
