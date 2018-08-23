@@ -1,4 +1,4 @@
-(* accounts.eliom -- account information for endpoints demo  *)
+(* accounts.ml -- account information for endpoints demo  *)
 
 open Lwt
 
@@ -137,11 +137,11 @@ let create_side_chain_user_state user_keys =
       ; pending_transactions= []
       ; nonce= Nonce.zero }
   in
-  let (user_account_state : UserAccountStatePerFacilitator.t) =
+  let (user_account_state : UserAccountState.t) =
     {facilitator_validity= Confirmed; confirmed_state= AccountState.empty; pending_operations= []}
   in
   let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
-  UserState.{main_chain_user_state; facilitators}
+  UserState.{main_chain_user_state; facilitators; notifications= []}
 
 let create_user_states () =
   List.iter
@@ -168,7 +168,7 @@ let trent_state = ref (new_facilitator_state trent_keys)
 let set_trent_state state = trent_state := state
 
 let user_accounts_from_trent_state address =
-  let open UserAccountStatePerFacilitator in
+  let open UserAccountState in
   let accounts = !trent_state.current.accounts in
   try
     let user_account = AccountMap.find address accounts in

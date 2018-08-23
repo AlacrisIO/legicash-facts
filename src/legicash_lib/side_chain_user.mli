@@ -1,6 +1,7 @@
 (* Types for LegiCash Facilitator side-chains *)
 open Legilogic_lib
 open Action
+open Yojsoning
 open Crypto
 open Persisting
 open Merkle_trie
@@ -55,7 +56,7 @@ module Episteme : sig
 end
 
 (** private state a user keeps for his account with a facilitator *)
-module UserAccountStatePerFacilitator : sig
+module UserAccountState : sig
   type t =
     { facilitator_validity: KnowledgeStage.t
     (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
@@ -67,7 +68,7 @@ module UserAccountStatePerFacilitator : sig
   val empty : t
 end
 
-module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type value = UserAccountStatePerFacilitator.t)
+module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type value = UserAccountState.t)
 
 (** User state (for Alice)
     For now, only one facilitator; but in the future, allow for many.
@@ -105,11 +106,15 @@ module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type val
     what are the upper and lower bounds if some things go wrong.
     E. If Trent lies, we want to be able to divert the unconfirmed *incoming* transactions
     to Ursula and/or Judy (TODO: and their dependency history if any?)
+
+    Notifications are free-form json objects (for now) to be displayed to the user based on
+    e.g. failures.
 *)
 module UserState : sig
   type t =
     { main_chain_user_state: Main_chain.UserState.t
-    ; facilitators: UserAccountStateMap.t }
+    ; facilitators: UserAccountStateMap.t
+    ; notifications: (Revision.t * yojson) list }
   [@@deriving lens { prefix=true }]
 end
 

@@ -33,9 +33,9 @@ module Test = struct
     let main_chain_user_state = Main_chain.UserState.init user_keys in
     let trent_state = get_facilitator_state () in
     let confirmed_state = (facilitator_account_lens user_keys.address).get trent_state in
-    let user_account_state = {UserAccountStatePerFacilitator.empty with confirmed_state } in
+    let user_account_state = {UserAccountState.empty with confirmed_state} in
     let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
-    UserState.{main_chain_user_state; facilitators}
+    UserState.{main_chain_user_state; facilitators; notifications = []}
 
   let make_alice_state () = create_side_chain_user_state_for_testing alice_keys
 

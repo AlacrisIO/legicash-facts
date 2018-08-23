@@ -54,7 +54,7 @@ module Episteme = struct
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
-module UserAccountStatePerFacilitator = struct
+module UserAccountState = struct
   [@warning "-39"]
   type t =
     { facilitator_validity: KnowledgeStage.t
@@ -86,12 +86,13 @@ module UserAccountStatePerFacilitator = struct
     ; pending_operations= [] }
 end
 
-module UserAccountStateMap = MerkleTrie (Address) (UserAccountStatePerFacilitator)
+module UserAccountStateMap = MerkleTrie (Address) (UserAccountState)
 
 module UserState = struct
   type t =
     { main_chain_user_state: Main_chain.UserState.t
-    ; facilitators: UserAccountStateMap.t }
+    ; facilitators: UserAccountStateMap.t
+    ; notifications: (Revision.t * yojson) list }
   [@@deriving lens { prefix=true }]
 end
 
@@ -99,7 +100,7 @@ module UserAction = Action(UserState)
 module UserAsyncAction = AsyncAction(UserState)
 
 let get_first_facilitator_state_option :
-  (unit, (Address.t * UserAccountStatePerFacilitator.t) option) UserAction.readonly =
+  (unit, (Address.t * UserAccountState.t) option) UserAction.readonly =
   fun () user_state ->
     UserAccountStateMap.find_first_opt (konstant true) user_state.facilitators
 
@@ -152,24 +153,24 @@ let [@warning "-32"] mk_tx_episteme tx =
     ; confirmation_option= Some tx.payload
     ; main_chain_confirmation_option= None }
 
-let facilitator_lens : Address.t -> (UserState.t, UserAccountStatePerFacilitator.t) Lens.t =
+let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
   fun facilitator_address ->
   UserState.lens_facilitators |--
-    defaulting_lens (konstant UserAccountStatePerFacilitator.empty)
+    defaulting_lens (konstant UserAccountState.empty)
       (UserAccountStateMap.lens facilitator_address)
 
 (** TODO: Handle cases of updates to previous epistemes, rather than just new ones *)
 let add_user_episteme episteme user_state =
   let facilitator = episteme.Episteme.request.payload.rx_header.facilitator in
   Lens.modify
-    (facilitator_lens facilitator |-- UserAccountStatePerFacilitator.lens_pending_operations)
+    (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
     (fun ops -> episteme::ops) (* TODO: replays, retries...*)
     user_state
 
 let remove_user_request request user_state =
   let facilitator = request.payload.Request.rx_header.facilitator in
   Lens.modify
-    (facilitator_lens facilitator |-- UserAccountStatePerFacilitator.lens_pending_operations)
+    (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
     (List.filter (fun x -> x.Episteme.request != request))
     user_state
 
