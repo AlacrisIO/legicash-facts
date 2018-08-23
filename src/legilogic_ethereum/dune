@@ -4,9 +4,8 @@
  (name legilogic_ethereum)
  (modules
   ;; TODO: once refactored, move the ethereum modules to their own repository legilogic_ethereum
-  ethereum_util ethereum_rlp ethereum_json_rpc
-  ethereum_patricia_merkle ethereum_transaction ethereum_abi
-  main_chain ethereum_action)
+  main_chain ethereum_util ethereum_transaction ethereum_rlp ethereum_patricia_merkle ethereum_json_rpc
+  ethereum_action ethereum_abi)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  ;; -9 : all fields mentioned in a pattern
  ;; -27 : unused variable
