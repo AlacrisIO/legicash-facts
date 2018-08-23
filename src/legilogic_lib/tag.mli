@@ -1,7 +1,6 @@
-(** Global tags used for Persistence
-    NB: these are fine for hashing,
-    but when signing, we want to prepend a long address of some kind to the entire message.
-*)
+(** Global tags used for Persistence NB: these are fine for hashing, but when
+    signing, we want to prepend a long address of some kind to the entire
+    message, to prevent replay attacks. *)
 open Persisting
 
 include PersistableS with type t = int
