@@ -173,7 +173,7 @@ let user_accounts_from_trent_state address =
   with Not_found ->
     raise (Internal_error
              (Format.sprintf "Could not find user state for address: %s"
-                (Address.to_hex_string address)))
+                (Address.to_0x_string address)))
 
 let load_trent_state () =
   Printf.printf "Loading the facilitator state...\n%!";

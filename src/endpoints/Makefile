@@ -16,19 +16,19 @@ HIDE := $(if $(VERBOSE),,@)
 # all : endpoints_lib $(CONFIG) $(CONFIG_TEST)
 all : api_scgi
 
-.PHONY: all endpoints api_scgi run clean
+.PHONY: all endpoints api_scgi run clean force
 
 BUILD_DIR=../_build/default/endpoints
 
 ENDPOINTS_LIB=$(BUILD_DIR)/endpoints.cmxs
 endpoints : $(ENDPOINTS_LIB)
-$(ENDPOINTS_LIB) : $(LIBDIR) $(wildcard *.ml *.mli)
+$(ENDPOINTS_LIB) : $(LIBDIR) $(wildcard *.ml *.mli) force
 	$(SHOW) "Building endpoints library"
 	$(HIDE) dune build --root=.. endpoints/endpoints.cmxs
 
 API_SCGI=$(BUILD_DIR)/api_scgi.exe
 api_scgi : $(API_SCGI)
-$(API_SCGI) : $(ENDPOINTS_LIB)
+$(API_SCGI) : $(ENDPOINTS_LIB) force
 	$(SHOW) "Building Legicash API SCGI executable"
 	$(HIDE) dune build --root=.. endpoints/api_scgi.exe
 
