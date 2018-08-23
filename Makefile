@@ -15,11 +15,7 @@ SHOW:=@echo
 # use HIDE to run commands invisibly, unless VERBOSE defined
 HIDE:=$(if $(VERBOSE),,@)
 
-BUILDER:=dune
 BUILD_DIR:=src/_build/default
-
-# name of custom toplevel
-TOPLEVEL:=legicaml
 
 all: api_scgi
 
@@ -39,7 +35,7 @@ LEGICASH_LIB:=$(BUILD_DIR)/legicash_lib/legicash_lib.cmxs
 legicash_lib: $(LEGICASH_LIB)
 $(LEGICASH_LIB): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Legicash library"
-	$(HIDE) $(BUILDER) build --root=src legicash_lib/legicash_lib.a legicash_lib/legicash_lib.cmxa legicash_lib/legicash_lib.cmxs legicash_lib/legicash_lib.cma
+	$(HIDE) dune build --root=src legicash_lib/legicash_lib.a legicash_lib/legicash_lib.cmxa legicash_lib/legicash_lib.cmxs legicash_lib/legicash_lib.cma
 
 ENDPOINTS:=$(BUILD_DIR)/endpoints/endpoints.cmxs
 endpoints: $(ENDPOINTS)
@@ -60,7 +56,7 @@ HELLO_LEGICASH:=$(BUILD_DIR)/hello_legicash.exe
 hello_legicash: $(HELLO_LEGICASH)
 $(HELLO_LEGICASH): $(LEGICASH_LIB) $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Building main Legicash executable"
-	$(HIDE) $(BUILDER) build --root=src hello_legicash.exe
+	$(HIDE) dune build --root=src hello_legicash.exe
 
 install: $(LEGICASH_LIB)
 ifeq ($(shell ocamlfind query -qe legicash 2> /dev/null),)
@@ -83,22 +79,24 @@ endif
 
 test: $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Running Legicash tests"
-	$(HIDE) $(BUILDER) runtest --root=src -j 1
+	$(HIDE) dune runtest --root=src -j 1
 
 toplevel: $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building custom OCaml toplevel"
-	$(HIDE) $(BUILDER) build --root=src legicaml.exe
+	$(HIDE) dune build --root=src legicaml.exe
 
+# name of custom toplevel
+TOPLEVEL:=legicaml
 repl: toplevel
 	$(HIDE) rlwrap ./bin/$(TOPLEVEL)
 
 install-contract: legicash_lib src/install_contract.ml
 	$(SHOW) "Installing facilitator contract on main chain"
-	$(HIDE) $(BUILDER) build --root=src install_contract.exe
+	$(HIDE) dune build --root=src install_contract.exe
 
 clean:
 	$(SHOW) "Cleaning via dune"
-	$(HIDE) $(BUILDER) clean --root=src
+	$(HIDE) dune clean --root=src
 	$(SHOW) "Removing contract binary"
 	$(HIDE) rm -f src/legicash_lib/facilitator_contract_binary.ml
 	$(SHOW) "Removing OPAM install file"
