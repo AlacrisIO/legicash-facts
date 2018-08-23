@@ -1,9 +1,10 @@
 (* Managing the database connection *)
 
-(** Open a database.
-   The db_name is the name of the database,
-   which is a path absolute or relative to getcwd().
- *)
+(** Open a database. The db_name is the name of the database, which is a path
+   absolute or relative to getcwd().
+
+   See [start_server] implementation for details on the background thread which
+   actually interacts with the db. *)
 val open_connection : db_name:string -> unit Lwt.t
 
 (** Run some code in a database.

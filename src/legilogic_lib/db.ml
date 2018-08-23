@@ -29,10 +29,15 @@ type transaction = LevelDB.writebatch
 
 (* type snapshot = LevelDB.snapshot *)
 
+(** Interaction with mutating state in LevelDB *)
 type request =
+  (** Store [data] at [key] in LevelDB *)
   | Put of {key: string; data: string}
+  (** Remove [key] from LevelDB *)
   | Remove of string
+  (** Actually send batched [put] and [remove] [request]s to LevelDB *)
   | Commit of unit Lwt.u
+  (** Internal message indicating that LevelDB is available for interaction *)
   | Ready of int
 
 (* For debugging purposes only *)
@@ -59,16 +64,24 @@ type connection =
   { db_name : string (* actually a path, absolute or relative to getcwd, to the data directory *)
   ; db : db }
 
-(* The mailbox to communicate with the db daemon.
-   WARNING: GLOBAL STATE, so there's only one database daemon running *)
+(* The mailbox to communicate with the db daemon. WARNING: GLOBAL STATE, so
+   there's only one database daemon running.db *)
 let db_mailbox : request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
-(* The mailbox to communicate with the db daemon *)
+(* The mailbox to communicate with the db daemon
+
+   Any Lwt thread which [Lwt_mvar.put]s to here is blocked until the message is
+   read. *)
 let the_connection_ref : (connection option ref) = ref None
 
 let check_connection () =
   assert (!the_connection_ref != None)
 
+(** Starts a loop checking [db_mailbox] for [request]s.
+
+    A [Commit] kicks off a system thread which commits [request]s received since
+    initialization or the last commit. Internal [ready] state tracks whether a
+    [Commit] is currently in progress. If so, it's false. *)
 let start_server ~db_name ~db () =
   let open Lwt_monad in
   Lwt_io.printf "Opening LevelDB connection to db %s\n%!" db_name >>=
