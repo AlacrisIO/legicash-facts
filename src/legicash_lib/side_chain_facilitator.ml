@@ -12,6 +12,24 @@ open Main_chain
 
 open Side_chain
 
+(* TODO:
+  divide requests in multiple kinds:
+   * user query, which looks at some existing account without modification
+   * user transaction request, which modifies their account
+   * system transaction, which e.g. posts
+
+  The side-chain has three different (kind of) states:
+   * current, the facilitator's view of itself
+   * pending to the main chain, but not yet passed the challenge period
+     (there can be multiple such states at various stages of advancement,
+     e.g. posted on the main chain but not yet in a main chain block,
+     in a main chain block but not yet considered final,
+     in a final-enough main chain block, still unchallenged but not yet past the challenge period
+     in a final-enough main chain block and challenged, trial still open.
+   * confirmed on the main chain
+   * old enough that it doesn't directly matter to the contract anymore.
+ *)
+
 module FacilitatorAction = Action(FacilitatorState)
 module FacilitatorAsyncAction = AsyncAction(FacilitatorState)
 

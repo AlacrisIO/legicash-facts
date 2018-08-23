@@ -14,6 +14,26 @@ open Legilogic_ethereum
 
 open Side_chain
 
+(* TODO:
+   Devise and implement a good persistent asynchronous programming model.
+   i.e. each actor (in this case, a side_chain user) has persistent set of partial ongoing
+   transactions, and it will keep making progress on by chatting with other actors,
+   even if the computer crashes.
+
+   The transactions may be themselves organized as a set of desiderata each associated
+   with some "aspect" of the state. Each aspect can synchronize with the outside world;
+   if there is a conflict, then log a notification and reset expectations.
+   If there is no conflict, but incompleteness, then do the next thing to go forward,
+   or set a timeout if waiting for a response.
+
+   Thus, to ensure that a key is usable on ethereum, start with the assumption that geth
+   doesn't know about keys, so the next step is to send it the key.
+   Confirmation can later be achieved by trying a simple use of the key.
+   If later geth complains that the key is not found, issue a notification,
+   and probably persist in the desire for a while and retry a few times,
+   before giving up on the desire and issuing a bigger notification.
+ *)
+
 module KnowledgeStage = struct
   type t = Unknown | Pending | Confirmed | Rejected
   let to_char = function Unknown -> 'U' | Pending -> 'P' | Confirmed -> 'C' | Rejected -> 'R'
