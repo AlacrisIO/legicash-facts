@@ -2,6 +2,7 @@ open Lib
 open Action
 open Yojsoning
 open Crypto
+open Persisting
 open Main_chain
 open Side_chain
 open Side_chain_facilitator
@@ -61,7 +62,7 @@ module Test = struct
     get_first_account ()
     >>= fun first_account ->
     YoJson.to_string first_account
-    |> Ethereum_util.address_of_hex_string
+    |> Address.of_0x_string
     |> Lwt.return
 
   let fund_account ?(min_balance=1000000000) funding_account (keys : Keypair.t) =
@@ -121,7 +122,7 @@ module Test = struct
     Test.get_first_account ()
     >>= fun contract_account_json ->
     let contract_account = YoJson.to_string contract_account_json in
-    let contract_address = Ethereum_util.address_of_hex_string contract_account in
+    let contract_address = Address.of_0x_string contract_account in
     Test.unlock_account contract_address
     >>= fun unlock_contract_json ->
     assert_json_error_free __LOC__ unlock_contract_json;
@@ -148,8 +149,7 @@ module Test = struct
     let receipt_result_json = YoJson.member "result" receipt_json in
     let contract_address =
       YoJson.member "contractAddress" receipt_result_json
-      |> YoJson.to_string
-      |> Ethereum_util.address_of_hex_string
+      |> Address.of_yojson_exn
     in
     Facilitator_contract.set_contract_address contract_address;
     return ()

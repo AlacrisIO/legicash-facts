@@ -109,7 +109,7 @@ let _ =
         | _ -> invalid_get_api_call api_call
       end
     | `POST ->
-      let json = Yojson.Safe.from_string (Request.contents request) in
+      let json = yojson_of_string (Request.contents request) in
       begin
         match api_call with
         | "deposit" ->

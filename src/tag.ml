@@ -34,7 +34,7 @@ let bad_tag_error start bytes =
 
 module SignaturePrefix = struct
   include Address
-  let state_update = Address.of_hex_string "7E91CA540000000057A7E009DA7E00000000001"
+  let state_update = Address.of_hex_string "7E91CA540000000057A7E009DA7E000000000001"
 end
 
 module Tag = struct

@@ -67,7 +67,7 @@ let ( |^>> ) v f = v |> f |> ensure_ok
 let ( |^>>+ ) v f = v |> f >>= Lwt.map ensure_ok
 
 (* table of id's to Lwt threads *)
-let (id_to_thread_tbl : (int,Yojson.Safe.json Lwt.t) Hashtbl.t) = Hashtbl.create 1031
+let (id_to_thread_tbl : (int,yojson Lwt.t) Hashtbl.t) = Hashtbl.create 1031
 
 (* add Lwt.t thread to table, return its id *)
 let add_main_chain_thread thread =
@@ -130,7 +130,7 @@ let json_of_exn exn = `Assoc [("error",`String (Printexc.to_string exn))]
 
 let deposit_to_trent address amount =
   let open Ethereum_transaction.Test in
-  let address_t = Ethereum_util.address_of_hex_string address in
+  let address_t = Address.of_0x_string address in
   let user_state = ref (user_state_from_address address_t) in
   let thread =
     unlock_account address_t
@@ -165,7 +165,7 @@ let deposit_to_trent address amount =
 
 let withdrawal_from_trent address amount =
   let open Ethereum_transaction.Test in
-  let address_t = Ethereum_util.address_of_hex_string address in
+  let address_t = Address.of_0x_string address in
   let user_state = ref (user_state_from_address address_t) in
   let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
   let balance = user_account_on_trent.balance in
@@ -209,7 +209,7 @@ let withdrawal_from_trent address amount =
   add_main_chain_thread thread
 
 let get_balance_on_trent address =
-  let address_t = Ethereum_util.address_of_hex_string address in
+  let address_t = Address.of_0x_string address in
   let user_account_on_trent = AccountMap.find address_t !trent_state.current.accounts in
   let balance = TokenAmount.to_int (user_account_on_trent.balance) in
   let user_name = get_user_name address_t in
@@ -223,7 +223,7 @@ let get_balance_on_trent address =
 let get_all_balances_on_trent () =
   let make_balance_json address_t (account : Side_chain.AccountState.t) accum =
     let user_name = get_user_name address_t in
-    let account_state = { address = Ethereum_util.hex_string_of_address address_t
+    let account_state = { address = Address.to_0x_string address_t
                         ; user_name
                         ; balance = TokenAmount.to_int account.balance
                         }
@@ -267,7 +267,7 @@ let make_operation_json address (revision:Revision.t) (request:Request.t) =
 
 let get_recent_transactions_on_trent address maybe_limit =
   let exception Reached_limit of yojson list in
-  let address_t = Ethereum_util.address_of_hex_string address in
+  let address_t = Address.of_0x_string address in
   let all_operations = !trent_state.current.operations in
   let get_operation_for_address _rev (confirmation:Confirmation.t) ((count,operations) as accum) =
     if Option.is_some maybe_limit &&
@@ -309,8 +309,8 @@ let payment_timestamp () =
 let payment_on_trent sender recipient amount =
   if sender = recipient then
     raise (Internal_error "Sender and recipient are the same");
-  let sender_address_t = Ethereum_util.address_of_hex_string sender in
-  let recipient_address_t = Ethereum_util.address_of_hex_string recipient in
+  let sender_address_t = Address.of_0x_string sender in
+  let recipient_address_t = Address.of_0x_string recipient in
   let sender_state = Hashtbl.find address_to_user_state_tbl sender_address_t in
   let starting_accounts = !trent_state.current.accounts in
   let sender_account = AccountMap.find sender_address_t starting_accounts in
@@ -333,7 +333,7 @@ let payment_on_trent sender recipient amount =
   let sender_account = AccountMap.find sender_address_t accounts in
   let recipient_account = AccountMap.find sender_address_t accounts in
   let make_account_state address_t name (account : AccountState.t) =
-    { address = Ethereum_util.hex_string_of_address address_t
+    { address = Address.to_0x_string address_t
     ; user_name = name
     ; balance = TokenAmount.to_int account.balance
     }

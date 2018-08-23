@@ -54,14 +54,24 @@ module type UIntMoreS = sig
   val of_bits : string -> t
   val of_hex_string : string -> t
   val to_hex_string : t -> string
+
+  (** Convert from Ethereum-style 0x syntax *)
   val of_0x_string : string -> t
+
+  (** Convert to Ethereum-style 0x syntax *)
   val to_0x_string : t -> string
+
   val of_big_endian_bits : string -> t
   val to_big_endian_bits : t -> string
+
   val is_add_valid : t -> t -> bool (* TODO: add an explicit upper bound as third argument? *)
+
   val is_sum : t -> t -> t -> bool
+
   val is_mul_valid : t -> t -> bool
+
   val is_product : t -> t -> t -> bool
+
   include PreYojsonableS with type t := t
   include PreMarshalableS with type t := t
   include ShowableS with type t := t

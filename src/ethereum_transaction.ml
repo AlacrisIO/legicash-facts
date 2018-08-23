@@ -36,7 +36,7 @@ let send_transaction_to_net signed_transaction =
   Ethereum_json_rpc.send_rpc_call_to_net json
 
 let send_balance_request_to_net address =
-  let params = [Ethereum_util.hex_string_of_address address; "latest"] in
+  let params = [Address.to_0x_string address; "latest"] in
   let json = Ethereum_json_rpc.build_json_rpc_call Ethereum_json_rpc.Eth_getBalance params in
   Ethereum_json_rpc.send_rpc_call_to_net json
 
@@ -57,8 +57,7 @@ let get_transaction_by_hash transaction_hash =
 
 
 let get_transaction_count address =
-  let address_hex_string = Ethereum_util.hex_string_of_address address in
-  let params = [address_hex_string; "latest"] in
+  let params = [Address.to_0x_string address; "latest"] in
   let json =
     Ethereum_json_rpc.build_json_rpc_call Ethereum_json_rpc.Eth_getTransactionCount params
   in
@@ -102,11 +101,11 @@ let transaction_execution_matches_transaction transaction_hash
         YoJson.to_string (YoJson.member key result_json) in
       let actual_sender = get_result_json "from" in
       let actual_nonce = get_result_json "nonce" in
-      let actual_gas_price = Ethereum_util.token_amount_of_hex_string (get_result_json "gasPrice") in
-      let actual_gas = Ethereum_util.token_amount_of_hex_string (get_result_json "gas") in
-      let actual_value = Ethereum_util.token_amount_of_hex_string (get_result_json "value") in
+      let actual_gas_price = TokenAmount.of_0x_string (get_result_json "gasPrice") in
+      let actual_gas = TokenAmount.of_0x_string (get_result_json "gas") in
+      let actual_value = TokenAmount.of_0x_string (get_result_json "value") in
       let tx_header = transaction.tx_header in
-      let expected_sender = Ethereum_util.hex_string_of_address tx_header.sender in
+      let expected_sender = Address.to_0x_string tx_header.sender in
       let expected_nonce = "0x" ^ (Main_chain.Nonce.to_hex_string tx_header.nonce) in
       let expected_gas_limit = tx_header.gas_limit in
       let expected_gas_price = tx_header.gas_price in
@@ -120,12 +119,12 @@ let transaction_execution_matches_transaction transaction_hash
       match transaction.operation with
       | TransferTokens recipient_address ->
         let actual_to = get_result_json "to" in
-        let expected_to = Ethereum_util.hex_string_of_address recipient_address in
+        let expected_to = Address.to_0x_string recipient_address in
         actual_to = expected_to
       | CreateContract _ -> true
       | CallFunction (contract_address, _) ->
         let actual_to = get_result_json "to" in
-        let expected_to = Ethereum_util.hex_string_of_address contract_address in
+        let expected_to = Address.to_0x_string contract_address in
         actual_to = expected_to
     in
     return retval
@@ -133,14 +132,13 @@ let transaction_execution_matches_transaction transaction_hash
 (* convert transaction record to rlp_item suitable for encoding *)
 let rlp_of_transaction transaction =
   let open Main_chain in
-  let open Ethereum_util in
   let open Ethereum_rlp in
   let tx_header = transaction.Transaction.tx_header in
   (* all items are strings, each character represents 2 digits in hex representation *)
-  let nonce = bits_of_nonce tx_header.nonce in
-  let gas_price = bits_of_token_amount tx_header.gas_price in
-  let gas_limit = bits_of_token_amount tx_header.gas_limit in
-  let value = bits_of_token_amount tx_header.value in
+  let nonce = Nonce.to_big_endian_bits tx_header.nonce in
+  let gas_price = TokenAmount.to_big_endian_bits tx_header.gas_price in
+  let gas_limit = TokenAmount.to_big_endian_bits tx_header.gas_limit in
+  let value = TokenAmount.to_big_endian_bits tx_header.value in
   let toaddr, data =
     match transaction.operation with
     | TransferTokens to_address -> (Address.to_big_endian_bits to_address, "")
@@ -226,7 +224,7 @@ module Test = struct
   let unlock_account ?(duration=5) address =
     let password = "" in
     let params =
-      [`String (Ethereum_util.hex_string_of_address address); `String password; `Int duration]
+      [`String (Address.to_0x_string address); `String password; `Int duration]
     in
     let json = build_json_rpc_call_with_tagged_parameters Personal_unlockAccount params in
     send_rpc_call_to_net json
@@ -287,12 +285,12 @@ module Test = struct
       get_first_account ()
       >>= fun account_json ->
       let sender_account = YoJson.to_string account_json in
-      let sender_address = Ethereum_util.address_of_hex_string sender_account in
+      let sender_address = Address.of_0x_string sender_account in
       new_account ()
       >>= fun new_account_json ->
       assert_json_error_free __LOC__ new_account_json;
       let new_account = YoJson.to_string (YoJson.member "result" new_account_json) in
-      let recipient_address = Ethereum_util.address_of_hex_string new_account in
+      let recipient_address = Address.of_0x_string new_account in
       (* unlock accounts *)
       unlock_account sender_address
       >>= fun unlock_sender_json ->
@@ -329,7 +327,7 @@ module Test = struct
       get_first_account ()
       >>= fun first_account ->
       let sender_account =  YoJson.to_string first_account in
-      let sender_address = Ethereum_util.address_of_hex_string sender_account in
+      let sender_address = Address.of_0x_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
       assert_json_error_free __LOC__ unlock_sender_json;
@@ -365,7 +363,7 @@ module Test = struct
       get_first_account ()
       >>= fun sender_account_json ->
       let sender_account = YoJson.to_string sender_account_json in
-      let sender_address = Ethereum_util.address_of_hex_string sender_account in
+      let sender_address = Address.of_0x_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
       assert_json_error_free __LOC__ unlock_sender_json;
@@ -395,7 +393,7 @@ module Test = struct
       let hashed = digest_of_string "some arbitrary string" in
       let operation =
         Operation.CallFunction
-          ( Ethereum_util.address_of_hex_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
+          ( Address.of_0x_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
           , Bytes.of_string (Digest.to_big_endian_bits hashed) )
       in
       let transaction = {Transaction.tx_header; Transaction.operation} in
@@ -422,7 +420,7 @@ module Test = struct
       get_first_account ()
       >>= fun account_json ->
       let sender_account = YoJson.to_string account_json in
-      let sender_address = Ethereum_util.address_of_hex_string sender_account in
+      let sender_address = Address.of_0x_string sender_account in
       let tx_header =
         TxHeader.{ sender= sender_address (* doesn't matter for transaction hash *)
                  ; nonce= Nonce.zero
@@ -432,7 +430,7 @@ module Test = struct
       in
       let operation =
         Operation.CallFunction
-          ( Ethereum_util.address_of_hex_string "0x687422eea2cb73b5d3e242ba5456b782919afc85"
+          ( Address.of_0x_string "0x687422eea2cb73b5d3e242ba5456b782919afc85"
           , Ethereum_util.bytes_of_hex_string "0xc0de")
       in
       let transaction = {Transaction.tx_header; Transaction.operation} in
@@ -453,7 +451,7 @@ module Test = struct
       get_first_account ()
       >>= fun account_json ->
       let sender_account = YoJson.to_string account_json in
-      let sender_address = Ethereum_util.address_of_hex_string sender_account in
+      let sender_address = Address.of_0x_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
       assert_json_error_free __LOC__ unlock_sender_json;
@@ -504,7 +502,7 @@ module Test = struct
       let call = {function_name= "printHelloWorld"; parameters= []} in
       let call_bytes = encode_function_call call in
       let operation1 =
-        Operation.CallFunction (Ethereum_util.address_of_hex_string contract_address, call_bytes)
+        Operation.CallFunction (Address.of_0x_string contract_address, call_bytes)
       in
       let transaction1 = {Transaction.tx_header= tx_header1; Transaction.operation= operation1} in
       let signed_transaction1 = Transaction.signed alice_keys transaction1 in
@@ -553,7 +551,7 @@ module Test = struct
       get_first_account ()
       >>= fun account_json ->
       let sender_account = YoJson.to_string account_json in
-      let sender_address = Ethereum_util.address_of_hex_string sender_account in
+      let sender_address = Address.of_0x_string sender_account in
       unlock_account sender_address
       >>= fun unlock_sender_json ->
       assert_json_error_free __LOC__ unlock_sender_json;
@@ -584,7 +582,7 @@ module Test = struct
         YoJson.to_string (YoJson.member "contractAddress" receipt_result_json)
       in
       (* check balance of new contract *)
-      send_balance_request_to_net (Ethereum_util.address_of_hex_string contract_address)
+      send_balance_request_to_net (Address.of_0x_string contract_address)
       >>= fun starting_balance_json ->
       assert_json_error_free __LOC__ starting_balance_json;
       let starting_balance =
@@ -608,11 +606,11 @@ module Test = struct
       in
       (* use (dummy) facilitator address as code to trigger fallback *)
       let facilitator_address =
-        Ethereum_util.address_of_hex_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00"
+        Address.of_0x_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00"
       in
       let address_bytes = Ethereum_util.bytes_of_address facilitator_address in
       let operation1 =
-        Operation.CallFunction (Ethereum_util.address_of_hex_string contract_address, address_bytes)
+        Operation.CallFunction (Address.of_0x_string contract_address, address_bytes)
       in
       let transaction1 = {Transaction.tx_header= tx_header1; Transaction.operation= operation1} in
       let signed_transaction1 = Transaction.signed alice_keys transaction1 in
@@ -655,7 +653,7 @@ module Test = struct
       in
       assert (logged_encoding = data) ;
       (* confirm contract has received amount transferred *)
-      send_balance_request_to_net (Ethereum_util.address_of_hex_string contract_address)
+      send_balance_request_to_net (Address.of_0x_string contract_address)
       >>= fun ending_balance_json ->
       assert_json_error_free __LOC__ ending_balance_json;
       let ending_balance =
@@ -666,7 +664,7 @@ module Test = struct
       let bogus_address_bytes = Ethereum_util.bytes_of_hex_string "0xFF" in
       let operation2 =
         Operation.CallFunction
-          (Ethereum_util.address_of_hex_string contract_address, bogus_address_bytes)
+          (Address.of_0x_string contract_address, bogus_address_bytes)
       in
       let tx_header2 = tx_header1 in
       let transaction2 = {Transaction.tx_header= tx_header2; Transaction.operation= operation2} in

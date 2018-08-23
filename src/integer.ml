@@ -105,8 +105,8 @@ let hex_string_of_nat nat =
     hex_string_of_sized_nat (Z.numbits nat) nat
 
 let validate_sized_string num_bytes string =
-  if String.length string > num_bytes then
-    raise (Internal_error (Printf.sprintf "String longer than the expected %d bytes: %S" num_bytes string))
+  if String.length string != num_bytes then
+    raise (Internal_error (Printf.sprintf "String length not the expected %d bytes: %S" num_bytes string))
 
 let nat_of_big_endian_bits bits string =
   let num_bytes = (bits + 7) / 8 in
@@ -127,6 +127,14 @@ let sized_nat_of_hex_string bits string =
 
 let nat_of_hex_string string =
   sized_nat_of_hex_string (4 * String.length string) string
+
+let strict_nat_of_hex_string string =
+  if string = "0" then
+    Z.zero
+  else if String.length string > 0 && String.get string 0 = '0' then
+    raise (Internal_error "Hex number starts with 0")
+  else
+    nat_of_hex_string string
 
 let unary_pre_op_check op check info x =
   if check x then op x else
@@ -171,8 +179,8 @@ module Int = struct
   let max_int = Z.of_int (-1)
   let of_hex_string = nat_of_hex_string
   let to_hex_string = hex_string_of_nat
-  let of_0x_string = parse_0x_prefix of_hex_string
-  let to_0x_string = unparse_0x_prefix to_hex_string
+  let of_0x_string = parse_0x_prefix strict_nat_of_hex_string
+  let to_0x_string = unparse_0x_prefix hex_string_of_nat
   let of_big_endian_bits bs = nat_of_big_endian_bits (Pervasives.( * ) 8 (String.length bs)) bs
   let to_big_endian_bits nat = big_endian_bits_of_nat (Z.numbits nat) nat
   (* TODO: Use ethereum-style json everywhere *)
@@ -257,6 +265,10 @@ module UIntZ (P : PreUIntZS) = struct
   let of_string =
     unary_post_op_check of_string check_invariant
       (module_name, "of_string", identity)
+  let of_hex_string =
+    unary_post_op_check of_hex_string check_overflow (module_name, "of_hex_string", identity)
+  let of_0x_string =
+    unary_post_op_check of_0x_string check_overflow (module_name, "of_hex_string", identity)
   let of_int =
     unary_post_op_check of_int check_invariant
       (module_name, "of_int", string_of_int)
@@ -319,12 +331,12 @@ module UIntZable (P: PreUIntZableS) = struct
   let is_numbits n z = numbits z < n
   let has_bit key position = equal one (extract key position 1)
   let of_bits bits = Z.of_bits bits |> of_z
-  let of_hex_string hs = of_z (Nat.of_hex_string hs)
-  let to_hex_string u = Nat.to_hex_string (z_of u)
-  let of_big_endian_bits b = of_z (nat_of_big_endian_bits size_in_bits b)
-  let to_big_endian_bits u = big_endian_bits_of_nat size_in_bits (z_of u)
-  let of_0x_string = parse_0x_prefix of_hex_string
-  let to_0x_string = unparse_0x_prefix to_hex_string
+  let of_hex_string = Nat.of_hex_string >> of_z
+  let to_hex_string = z_of >> Nat.to_hex_string
+  let of_big_endian_bits = nat_of_big_endian_bits size_in_bits >> of_z
+  let to_big_endian_bits = z_of >> big_endian_bits_of_nat size_in_bits
+  let of_0x_string = Nat.of_0x_string >> of_z
+  let to_0x_string = z_of >> Nat.to_0x_string
   let pp formatter x = Format.fprintf formatter "%s" (to_string x)
   let show x = Format.asprintf "%a" pp x
   let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
@@ -421,7 +433,7 @@ module Test = struct
     sized_nat_of_hex_string 18 "007e2" = Z.of_int 2018
 
   let%test "sized_nat_of_hex_string 9 007e2" =
-    throws (Internal_error "String longer than the expected 3 bytes: \"007e2\"")
+    throws (Internal_error "String length not the expected 3 bytes: \"007e2\"")
       (fun _ -> sized_nat_of_hex_string 9 "007e2")
 
   let internal_error_thrown thunk = try ignore (thunk ()) ; None with Internal_error x -> Some x
