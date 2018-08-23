@@ -2,6 +2,7 @@ open Yojsoning
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
+open Logging
 
 type ethereum_rpc_call =
   (* DApps methods, use anywhere *)
@@ -27,15 +28,19 @@ let id_counter = ref 1
 
 let send_rpc_call_to_net json =
   let json_str = string_of_yojson json in
-  (* For debugging, uncomment this line:
-     Printf.printf "Sending rpc call to net: %s\n%!" json_str; *)
+  (* For debugging, uncomment this line: *)
+  log "Sending rpc call to geth: %s" json_str;
   Client.post
     ~body:(Cohttp_lwt__.Body.of_string json_str)
     ~headers:(Cohttp.Header.add (Cohttp.Header.init ()) "Content-Type" "application/json")
     ethereum_net
   >>= fun (resp, body) ->
   let _ = resp |> Response.status |> Code.code_of_status in
-  body |> Cohttp_lwt.Body.to_string >|= yojson_of_string
+  Cohttp_lwt.Body.to_string body
+  >>= fun response_str ->
+  (* For debugging, uncomment this line: *)
+  log "Receive rpc response from geth: %s" response_str;
+  Lwt.return (yojson_of_string response_str)
 
 
 (* given constructor, build JSON RPC call name *)
