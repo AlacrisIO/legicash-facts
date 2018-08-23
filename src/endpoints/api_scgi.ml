@@ -4,18 +4,9 @@ open Actions
 open Scgi
 open Lwt
 open Yojsoning
+open Logging
 
-let log_file = "nginx/logs/legicash.log"
-
-let log_channel =
-  open_out_gen
-    [Open_wronly;Open_append;Open_creat;Open_text] 0o666 log_file
-
-let log_line s =
-  output_string log_channel s; output_char log_channel '\n'; flush log_channel
-
-let log : ('a, unit, string, unit) format4 -> 'a =
-  fun fmt -> Printf.ksprintf log_line fmt
+let _ = log_to_file "nginx/logs/legicash.log"
 
 type deposit_json =
   { address: string

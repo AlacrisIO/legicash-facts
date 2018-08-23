@@ -3,8 +3,10 @@
 (library
  (name legicash_lib)
  (modules
-  ;; TODO: after the demo, move the modules of this line to their own repository legilogic_lib
-  lib hex yojsoning marshaling integer crypto db persisting tag db_types keypair trie merkle_trie action
+  ;; TODO: after the demo, move the modules of these three lines to their own directory legilogic_lib
+  lib action hex logging
+  yojsoning marshaling integer crypto db persisting tag db_types keypair
+  trie merkle_trie
   ;; TODO: once refactored, move the ethereum modules to their own repository legilogic_ethereum
   ethereum_rlp ethereum_patricia_merkle ethereum_transaction ethereum_abi
   ethereum_util ethereum_rlp ethereum_json_rpc
