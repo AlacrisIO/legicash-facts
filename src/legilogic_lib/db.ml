@@ -64,11 +64,11 @@ type connection =
   { db_name : string (* actually a path, absolute or relative to getcwd, to the data directory *)
   ; db : db }
 
-(* The mailbox to communicate with the db daemon. WARNING: GLOBAL STATE, so
-   there's only one database daemon running.db *)
+(* The mailbox to communicate with the db daemon.
+   WARNING: GLOBAL STATE, so there's only one database daemon running. *)
 let db_mailbox : request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
-(* The mailbox to communicate with the db daemon
+(* The mailbox to communicate with the db daemon.
 
    Any Lwt thread which [Lwt_mvar.put]s to here is blocked until the message is
    read. *)
