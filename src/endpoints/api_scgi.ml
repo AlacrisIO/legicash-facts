@@ -92,6 +92,9 @@ let _ =
         | "tps" ->
           let result_json = get_transaction_rate_on_trent () in
           ok_json id result_json
+        | "recent_transactions" ->
+          let result_json = get_recent_transactions_on_trent () in
+          ok_json id result_json
         | "proof" ->
           (match Request.param request "tx-revision" with
            | Some param ->
