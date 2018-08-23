@@ -21,7 +21,7 @@ type ethereum_rpc_call =
 [@@deriving show]
 
 (* network parameters for geth or other node *)
-let ethereum_net = Uri.make ~scheme:"http" ~host:"localhost" ~port:8080 ()
+let ethereum_net = Uri.make ~scheme:"http" ~host:"localhost" ~port:8545 ()
 
 let json_rpc_version = "2.0"
 

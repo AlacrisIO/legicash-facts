@@ -3,7 +3,7 @@
 # run the Ethereum test net
 
 PORT=30303
-RPCPORT=8080
+RPCPORT=8545
 DATADIR=geth-data
 
 # clean out existing data dir
