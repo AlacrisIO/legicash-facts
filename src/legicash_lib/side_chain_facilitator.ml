@@ -1,11 +1,16 @@
+open Lens.Infix
+
+open Legilogic_lib
 open Lib
 open Action
 open Crypto
 open Persisting
 open Merkle_trie
+
+open Legilogic_ethereum
 open Main_chain
+
 open Side_chain
-open Lens.Infix
 
 module FacilitatorAction = Action(FacilitatorState)
 module FacilitatorAsyncAction = AsyncAction(FacilitatorState)

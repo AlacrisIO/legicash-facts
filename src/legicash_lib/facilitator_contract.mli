@@ -1,6 +1,10 @@
 (* facilitator-contract.mli -- get encodings of calls to the contract *)
 
+open Legilogic_lib
 open Crypto
+
+open Legilogic_ethereum
+
 
 val set_contract_address : Address.t -> unit
 (** set the address of the contract on Ethereum

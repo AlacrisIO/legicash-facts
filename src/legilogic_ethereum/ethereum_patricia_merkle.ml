@@ -9,6 +9,7 @@
 
 *)
 
+open Legilogic_lib
 open Lib
 open Hex
 open Crypto

@@ -4,6 +4,7 @@
    https://github.com/ethereum/wiki/wiki/RLP
 *)
 
+open Legilogic_lib
 open Lib
 
 type rlp_item = RlpItem of string | RlpItems of rlp_item list

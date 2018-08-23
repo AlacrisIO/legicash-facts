@@ -1,5 +1,8 @@
 (* Types for LegiCash Facilitator side-chains *)
 (* NB: Comments are in the .mli file *)
+open Lwt.Infix
+
+open Legilogic_lib
 open Lib
 open Yojsoning
 open Marshaling
@@ -7,8 +10,8 @@ open Crypto
 open Persisting
 open Db_types
 open Merkle_trie
-open Lwt.Infix
 
+open Legilogic_ethereum
 module TokenAmount = Main_chain.TokenAmount
 
 module Invoice = struct

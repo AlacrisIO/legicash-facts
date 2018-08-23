@@ -1,19 +1,8 @@
 ;; dune file for Legicash sources
 
 (library
- (name legicash_lib)
+ (name legicash_top)
  (modules
-  ;; TODO: after the demo, move the modules of these three lines to their own directory legilogic_lib
-  lib action hex logging
-  yojsoning marshaling integer crypto db persisting tag db_types keypair
-  trie merkle_trie
-  ;; TODO: once refactored, move the ethereum modules to their own repository legilogic_ethereum
-  ethereum_rlp ethereum_patricia_merkle ethereum_transaction ethereum_abi
-  ethereum_util ethereum_rlp ethereum_json_rpc
-  ;; These are the legicash files proper
-  legibase main_chain main_chain_action
-  side_chain side_chain_facilitator side_chain_user side_chain_action
-  court_registry facilitator_contract facilitator_contract_binary
   version)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  ;; -9 : all fields mentioned in a pattern
@@ -22,7 +11,7 @@
  ;; -34 : unused type
  (ocamlc_flags (:standard -g -w -9-34 -warn-error -27-32-33 -thread -I +threads))
  (ocamlopt_flags (:standard -p -g -w -9-34 -warn-error -27-32-33 -thread -I +threads))
- (libraries cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
+ (libraries legilogic_lib legilogic_ethereum legicash_lib)
  ;; NB: lwt 4.1.0 WILL REQUIRE lwt.unix to be added above.
  (inline_tests))
 
@@ -31,12 +20,12 @@
  (name hello_legicash)
  (preprocess (pps ppx_deriving.std lens.ppx_deriving ppx_inline_test lwt_ppx))
  (modules hello_legicash)
- (libraries legicash_lib))
+ (libraries legicash_top))
 
 ;; custom toplevel
 (executable
  (name legicaml)
  (modules legicaml)
- (libraries  compiler-libs.toplevel legicash_lib)
+ (libraries  compiler-libs.toplevel legicash_top legilogic_lib legilogic_ethereum legicash_lib)
  (link_flags -linkall -cclib -lintegers -I +threads)
  (modes      byte))

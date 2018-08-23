@@ -1,6 +1,8 @@
-open Legibase
+open Legilogic_lib
 open Action
 open Crypto
+
+open Legibase
 
 (* the "flows" mentioned here are those mentioned in the file "demo.md" *)
 

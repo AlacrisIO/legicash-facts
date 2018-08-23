@@ -1,5 +1,6 @@
 (* ethereum_transaction.mli -- run transactions on Ethereum net *)
 
+open Legilogic_lib
 open Yojsoning
 open Crypto
 

@@ -1,3 +1,6 @@
+open Lens.Infix
+
+open Legilogic_lib
 open Lib
 open Action
 open Yojsoning
@@ -6,8 +9,10 @@ open Crypto
 open Persisting
 open Db_types
 open Merkle_trie
+
+open Legilogic_ethereum
+
 open Side_chain
-open Lens.Infix
 
 module KnowledgeStage = struct
   type t = Unknown | Pending | Confirmed | Rejected
@@ -238,7 +243,7 @@ let deposit (facilitator_address, deposit_amount) =
   lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
     (facilitator_address, (TokenAmount.add deposit_amount deposit_fee))
   >>= fun main_chain_deposit_signed ->
-  lift_main_chain_user_async_action_to_side_chain Main_chain_action.wait_for_confirmation
+  lift_main_chain_user_async_action_to_side_chain Ethereum_action.wait_for_confirmation
     main_chain_deposit_signed
   >>= fun main_chain_deposit_confirmation ->
   of_action issue_user_request
@@ -307,7 +312,7 @@ let push_side_chain_action_to_main_chain
   | Withdrawal details ->
     let open Lwt in
     let signed_transaction = make_main_chain_withdrawal_transaction details user_address facilitator_state.keypair in
-    Main_chain_action.wait_for_confirmation signed_transaction user_state.main_chain_user_state
+    Ethereum_action.wait_for_confirmation signed_transaction user_state.main_chain_user_state
     >>= fun (main_chain_confirmation, main_chain_user_state) ->
     return (main_chain_confirmation, { user_state with main_chain_user_state })
   | Payment _

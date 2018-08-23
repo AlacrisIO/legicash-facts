@@ -1,3 +1,4 @@
+open Legilogic_lib
 open Action
 open Crypto
 open Persisting

@@ -1,5 +1,6 @@
 (* ethereum_util.mli *)
 
+open Legilogic_lib
 open Crypto
 
 (** Keccak256 hash *)

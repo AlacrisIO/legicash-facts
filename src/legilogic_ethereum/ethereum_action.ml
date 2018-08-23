@@ -1,9 +1,10 @@
+open Legilogic_lib
 open Lib
 open Yojsoning
 open Crypto
 open Persisting
+
 open Main_chain
-open Facilitator_contract
 
 let stub_state = ref genesis_state
 
@@ -46,12 +47,6 @@ let transfer_gas_limit = TokenAmount.of_int 21000
 
 let transfer_tokens (recipient, amount) =
   issue_transaction (TransferTokens recipient, amount, transfer_gas_limit)
-
-let deposit_gas_limit = TokenAmount.of_int 1000000
-
-(* call facilitator deposit function on main chain *)
-let deposit (facilitator_address, amount) =
-  issue_transaction (make_deposit_call facilitator_address, amount, deposit_gas_limit)
 
 let rec retry_until_some interval_seconds x action =
   let open Lwt in

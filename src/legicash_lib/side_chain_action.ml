@@ -1,9 +1,13 @@
+open Legilogic_lib
 open Lib
 open Action
 open Yojsoning
 open Crypto
 open Persisting
+
+open Legilogic_ethereum
 open Main_chain
+
 open Side_chain
 open Side_chain_facilitator
 open Side_chain_user

@@ -1,6 +1,7 @@
 (* ethereum-abi -- support for Ethereum contract ABI *)
 (* see https://solidity.readthedocs.io/en/develop/abi-spec.html *)
 
+open Legilogic_lib
 open Lib
 open Crypto
 

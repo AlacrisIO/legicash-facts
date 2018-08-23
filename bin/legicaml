@@ -13,4 +13,4 @@ fi
 echo "Starting Legicash OCaml toplevel..."
 echo
 $LEGICAMLEXE -I $CMOSDIR \
-             -open Legicash_lib $@
+             -open Legilogic_lib -open Legilogic_ethereum -open Legicash_lib $@

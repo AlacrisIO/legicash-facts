@@ -1,3 +1,4 @@
+open Legilogic_lib
 open Action
 
 type schema

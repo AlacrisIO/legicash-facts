@@ -1,10 +1,12 @@
-open Legicash_lib
-open Endpoints
-open Actions
 open Scgi
 open Lwt
+
+open Legilogic_lib
 open Yojsoning
 open Logging
+
+open Endpoints
+open Actions
 
 let _ = log_to_file "nginx/logs/legicash.log"
 

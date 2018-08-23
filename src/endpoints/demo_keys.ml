@@ -1,4 +1,4 @@
-open Legicash_lib
+open Legilogic_lib
 
 let account_keys =
   List.map

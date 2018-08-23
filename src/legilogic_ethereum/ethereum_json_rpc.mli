@@ -1,4 +1,5 @@
 (* ethereum_json_rpc.ml -- JSON RPC interface to Ethereum node *)
+open Legilogic_lib
 open Yojsoning
 
 (** constructors for particular JSON RPC calls *)

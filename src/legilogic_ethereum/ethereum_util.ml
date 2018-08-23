@@ -1,5 +1,6 @@
 (* ethereum_util.ml -- utility code for Ethereum main chain *)
 
+open Legilogic_lib
 open Lib
 open Hex
 open Integer

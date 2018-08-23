@@ -1,6 +1,9 @@
 (* facilitator_contract.ml -- OCaml interface to contract entry points *)
 
+open Legilogic_lib
 open Crypto
+
+open Legilogic_ethereum
 open Main_chain
 
 let contract_address = ref Address.zero

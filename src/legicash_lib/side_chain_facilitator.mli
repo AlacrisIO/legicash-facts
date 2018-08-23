@@ -1,5 +1,7 @@
+open Legilogic_lib
 open Action
 open Crypto
+
 open Side_chain
 
 module FacilitatorAction : ActionS with type state = FacilitatorState.t

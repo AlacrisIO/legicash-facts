@@ -1,9 +1,11 @@
 (* ethereum_transaction.ml -- code for running transactions on Ethereum net via JSON RPC *)
 
+open Legilogic_lib
 open Lib
 open Yojsoning
 open Crypto
 open Persisting
+
 open Main_chain
 
 (* params contain hex strings, but we unhex those strings when running RLP *)

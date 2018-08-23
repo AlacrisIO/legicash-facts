@@ -1,8 +1,10 @@
 (* Types for LegiCash Facilitator side-chains *)
+open Legilogic_lib
 open Crypto
 open Persisting
 open Merkle_trie
 
+open Legilogic_ethereum
 module TokenAmount = Main_chain.TokenAmount
 
 (** invoice sent from payee to payer

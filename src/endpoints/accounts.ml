@@ -1,16 +1,22 @@
 (* accounts.eliom -- account information for endpoints demo  *)
 
-open Legicash_lib
+open Lwt
+
+open Legilogic_lib
 open Lib
 open Yojsoning
 open Crypto
 open Persisting
+
+open Legilogic_ethereum
 open Main_chain
+
+open Legicash_lib
 open Side_chain
 open Side_chain_facilitator
 open Side_chain_user
 open Side_chain_action.Test
-open Lwt
+
 open Demo_keys
 
 (* users *)

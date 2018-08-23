@@ -1,8 +1,12 @@
 (* Types for LegiCash Facilitator side-chains *)
+open Legilogic_lib
 open Action
 open Crypto
 open Persisting
 open Merkle_trie
+
+open Legilogic_ethereum
+
 open Side_chain
 
 (** Stage of knowledge of one actor about an operation

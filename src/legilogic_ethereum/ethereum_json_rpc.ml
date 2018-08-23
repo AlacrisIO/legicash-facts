@@ -1,7 +1,9 @@
-open Yojsoning
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
+
+open Legilogic_lib
+open Yojsoning
 open Logging
 
 type ethereum_rpc_call =

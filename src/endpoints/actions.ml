@@ -7,12 +7,16 @@
 
 open Lwt
 
-open Legicash_lib
+open Legilogic_lib
 open Lib
 open Action
 open Yojsoning
 open Crypto
 open Persisting
+
+open Legilogic_ethereum
+
+open Legicash_lib
 open Side_chain
 open Side_chain_facilitator
 open Side_chain_user

@@ -10,7 +10,7 @@ tezos
 *.pyc
 legicash.install
 geth-data
-src/facilitator_contract_binary.ml
+src/legicash_lib/facilitator_contract_binary.ml
 src/endpoints/endpoints.conf
 src/endpoints/endpoints-test.conf
 src/endpoints/accounts/
