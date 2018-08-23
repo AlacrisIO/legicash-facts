@@ -1,5 +1,9 @@
 ## This Makefile contains the rules to make the Legicash endpoints demo.
 ## The project is configured through the variables in the file Makefile.options.
+#
+# TODO: have only one Makefile, at the toplevel, and also move the dune-project there,
+# and reorganize the entire repository tree.
+
 
 VERBOSE=
 
@@ -9,111 +13,29 @@ SHOW=@echo
 # use HIDE to run commands invisibly, unless VERBOSE defined
 HIDE := $(if $(VERBOSE),,@)
 
-BUILDER=dune
-OCSIGENSERVER=ocsigenserver.opt
-SED=sed
-CONFIG=${PROJECT_NAME}.conf
-CONFIG_TEST=${PROJECT_NAME}-test.conf
-
-include Makefile.options
-
 # all : endpoints_lib $(CONFIG) $(CONFIG_TEST)
 all : api_scgi
 
-.PHONY: endpoints_lib
+.PHONY: all endpoints api_scgi run clean
 
-ENDPOINTS_LIB=endpoints.cmxs
+BUILD_DIR=../_build/default/endpoints
 
-endpoints_lib : $(LIBDIR)
+ENDPOINTS_LIB=$(BUILD_DIR)/endpoints.cmxs
+endpoints : $(ENDPOINTS_LIB)
+$(ENDPOINTS_LIB) : $(LIBDIR) $(wildcard *.ml *.mli)
 	$(SHOW) "Building endpoints library"
-	$(HIDE) $(BUILDER) build --root=.. endpoints/$(ENDPOINTS_LIB)
-	$(HIDE) cp ../_build/default/endpoints/$(ENDPOINTS_LIB) $(LIBDIR)/
+	$(HIDE) dune build --root=.. endpoints/endpoints.cmxs
 
-api_scgi : endpoints_lib
+API_SCGI=$(BUILD_DIR)/api_scgi.exe
+api_scgi : $(API_SCGI)
+$(API_SCGI) : $(ENDPOINTS_LIB)
 	$(SHOW) "Building Legicash API SCGI executable"
-	$(HIDE) $(BUILDER) build --root=.. endpoints/api_scgi.exe
+	$(HIDE) dune build --root=.. endpoints/api_scgi.exe
 
-run: api_scgi
+run: $(API_SCGI)
 	../_build/default/endpoints/api_scgi.exe
-
-# subdirectories
-
-$(LIBDIR) :
-	$(SHOW) "Creating library directory"
-	$(HIDE) mkdir -p $(LIBDIR)
-$(ETCDIR) :
-	$(SHOW) "Creating etc directory"
-	$(HIDE) mkdir -p $(ETCDIR)
-$(RUNDIR) :
-	$(SHOW) "Creating run directory"
-	$(HIDE) mkdir -p $(RUNDIR)
-$(LOGDIR) :
-	$(SHOW) "Creating log directory"
-	$(HIDE) mkdir -p $(LOGDIR)
-$(LOGFILE) : $(LOGDIR)
-	$(SHOW) "Creating empty access log"
-	echo -n > $@
-	chmod a+rw $@
-$(DATADIR) :
-	$(SHOW) "Creating data directory"
-	$(HIDE) mkdir -p $(DATADIR)
-$(STATICDIR) :
-	$(SHOW) "Creating static directory"
-	$(HIDE) mkdir -p $(STATICDIR)
-
-DIRS=$(LIBDIR) $(ETCDIR) $(RUNDIR) $(LOGDIR) $(DATADIR) $(STATICDIR)
-
-# config files
-
-FINDLIB_PACKAGES=$(patsubst %,\<extension\ findlib-package=\"%\"\ /\>,$(SERVER_PACKAGES))
-EDIT_WARNING=DON\'T EDIT THIS FILE! It is generated from $(PROJECT_NAME).conf.in, edit that one, or the variables in Makefile.options
-SED_ARGS := -e "/^ *%%%/d"
-SED_ARGS += -e "s|%%PROJECT_NAME%%|$(PROJECT_NAME)|g"
-SED_ARGS += -e "s|%%DATABASE_NAME%%|$(DATABASE_NAME)|g"
-SED_ARGS += -e "s|%%DATABASE_USER%%|$(DATABASE_USER)|g"
-SED_ARGS += -e "s|%%CMDPIPE%%|$(CMDPIPE)|g"
-SED_ARGS += -e "s|%%LOGDIR%%|$(LOGDIR)|g"
-SED_ARGS += -e "s|%%DATADIR%%|$(DATADIR)|g"
-SED_ARGS += -e "s|%%PERSISTENT_DATA_BACKEND%%|$(PERSISTENT_DATA_BACKEND)|g"
-SED_ARGS += -e "s|%%LIBDIR%%|$(LIBDIR)|g"
-SED_ARGS += -e "s|%%WARNING%%|$(EDIT_WARNING)|g"
-SED_ARGS += -e "s|%%PACKAGES%%|$(FINDLIB_PACKAGES)|g"
-ifeq ($(DEBUG),yes)
-  SED_ARGS += -e "s|%%DEBUGMODE%%|\<debugmode /\>|g"
-else
-  SED_ARGS += -e "s|%%DEBUGMODE%%||g"
-endif
-
-LOCAL_SED_ARGS := -e "s|%%PORT%%|$(TEST_PORT)|g"
-LOCAL_SED_ARGS += -e "s|%%STATICDIR%%|$(LOCAL_STATIC)|g"
-LOCAL_SED_ARGS += -e "s|%%USERGROUP%%||g"
-GLOBAL_SED_ARGS := -e "s|%%PORT%%|$(PORT)|g"
-GLOBAL_SED_ARGS += -e "s|%%STATICDIR%%|$(STATICDIR)|g"
-ifeq ($(WWWUSER)$(WWWGROUP),)
-  GLOBAL_SED_ARGS += -e "s|%%USERGROUP%%||g"
-else
-  GLOBAL_SED_ARGS += -e "s|%%USERGROUP%%|<user>$(WWWUSER)</user><group>$(WWWGROUP)</group>|g"
-endif
-
-${CONFIG} : ${PROJECT_NAME}.conf.in Makefile.options
-	$(SHOW) "Making Ocsigen config"
-	$(HIDE) $(SED) $(SED_ARGS) $(GLOBAL_SED_ARGS) $< > $@
-${CONFIG_TEST} : ${PROJECT_NAME}.conf.in Makefile.options
-	$(SHOW) "Making Ocsigen test config"
-	$(HIDE) $(SED) $(SED_ARGS) $(LOCAL_SED_ARGS) $< > $@
-
-# end config files
-
-.PHONY: run clean
-
-ocsigen.run.test: ${CONFIG_TEST} endpoints_lib $(DIRS)
-	$(OCSIGENSERVER) $(RUN_DEBUG) -c $<
-
-ocsigen.run: ${CONFIG} endpoints_lib $(DIRS)
-	$(OCSIGENSERVER) $(RUN_DEBUG) -c $<
 
 clean:
 	-rm -rf $(PREFIX)
-	-rm -f $(CONFIG) $(CONFIG_TEST)
 	-rm -rf _build
 	-rm -rf legicash
