@@ -17,7 +17,7 @@ HIDE:=$(if $(VERBOSE),,@)
 
 BUILD_DIR:=src/_build/default
 
-all: api_scgi
+all: api_scgi hello_legicash
 
 .PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean real_contract contract
 
@@ -93,16 +93,17 @@ test: $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Running Legicash tests"
 	$(HIDE) dune runtest --root=src -j 1
 
-toplevel: $(ML_SOURCES) $(CONTRACT) legilogic_lib legilogic_ethereum legicash_lib endpoints
+TOPLEVEL=$(BUILD_DIR)/legicaml.exe
+toplevel: $(TOPLEVEL)
+$(TOPLEVEL): $(ML_SOURCES) $(CONTRACT) legilogic_lib legilogic_ethereum legicash_lib endpoints
 	$(SHOW) "Building custom OCaml toplevel"
 	$(HIDE) dune build --root=src legicaml.exe
 
 # name of custom toplevel
-TOPLEVEL:=legicaml
-repl: toplevel
-	$(HIDE) rlwrap ./bin/$(TOPLEVEL)
+repl: ./bin/legicaml $(TOPLEVEL)
+	$(HIDE) rlwrap $<
 
-install-contract: legicash_lib src/install_contract.ml
+install_contract: legicash_lib src/install_contract.ml
 	$(SHOW) "Installing facilitator contract on main chain"
 	$(HIDE) dune build --root=src install_contract.exe
 
@@ -116,4 +117,4 @@ clean:
 
 # real contract
 real_contract:
-	(cd contracts/ && solc court.sol)
+	cd contracts/ && solc court.sol
