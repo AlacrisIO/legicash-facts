@@ -23,6 +23,9 @@
  [documentation](https://ocaml.janestreet.com/ocaml-core/latest/doc/index.html),
  [OCaml Labs](http://ocamllabs.io/).
 
+* OCaml metaprogramming:
+ [Oleg's Reconciling Abstraction with High Performance: A MetaOCaml approach](https://www.nowpublishers.com/article/Details/PGL-038).
+
 * [Computability Logic](http://www.csc.villanova.edu/~japaridz/CL/)
 
 * [K Framework](http://www.kframework.org/index.php/Main_Page),
@@ -42,7 +45,8 @@
    Or [things that cite the latter](http://citeseerx.ist.psu.edu/showciting?doi=10.1.1.156.187).
 
 * Byzantine Fault Tolerance:
- [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015)
+ [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015);
+ [A Guide to 99% Fault Tolerant Consensus, by Vitalik Buterin](https://vitalik.ca/general/2018/08/07/99_fault_tolerant.html).
 
 * Scaling:
  [Ethereum wiki Sharding FAQ](https://github.com/ethereum/wiki/wiki/Sharding-FAQ),
@@ -66,7 +70,9 @@
   [Towards verifying ethereum smart contract bytecode in Isabelle/HOL](https://dl.acm.org/citation.cfm?doid=3176245.3167084),
   [the Parity Light Protocol](https://wiki.parity.io/The-Parity-Light-Protocol-%28PIP%29)
   (PR for similar light client functionality [in geth](https://github.com/ethereum/go-ethereum/pull/16534/files)),
-  [Consensys Labs' Ethereum developer tools list](https://github.com/ConsenSysLabs/ethereum-developer-tools-list).
+  [Consensys Labs' Ethereum developer tools list](https://github.com/ConsenSysLabs/ethereum-developer-tools-list),
+  [Solium, linter and formatter for Solidity](https://github.com/duaraghav8/solium),
+  [Ethertrust, analysis tool for smart contracts](https://www.netidee.at/ethertrust).
 
 * Compiling to the EVM:
   [Pirapira's Bamboo](https://github.com/pirapira/bamboo).
@@ -83,3 +89,7 @@
   [AltCoin](https://github.com/AltCoinExchange/ethatomicswap/),
   [RepublicProtocol](https://github.com/republicprotocol/eth-atomic-swap),
   [Komodo BarterDEX](https://komodoplatform.com/decentralized-exchange/)
+
+* Building secure software:
+  [Some thoughts on security after ten years of qmail 1.0 (2007)](https://cr.yp.to/qmail/qmailsec-20071101.pdf),
+  ...

@@ -1,0 +1,7 @@
+version = "1.2.0"
+description = "Legicash library"
+requires = "cohttp-lwt-unix integers lens ppx_inline_test secp256k1 yojson"
+archive(byte) = "legicash_lib.cma"
+archive(native) = "legicash_lib.cmxa"
+plugin(byte) = "legicash_lib.cma"
+plugin(native) = "legicash_lib.cmxs"

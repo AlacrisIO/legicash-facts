@@ -1,0 +1,18 @@
+;; dune file for Legicash sources
+
+(library
+ (name legicash_lib)
+ (modules
+  legibase
+  main_chain_action
+  side_chain side_chain_facilitator side_chain_user side_chain_action
+  court_registry facilitator_contract facilitator_contract_binary)
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
+ ;; -9 : all fields mentioned in a pattern
+ ;; -27 : unused variable
+ ;; -32 : unused value
+ ;; -34 : unused type
+ (ocamlc_flags (:standard -g -w -9-34 -warn-error -27-32-33 -thread -I +threads))
+ (ocamlopt_flags (:standard -p -g -w -9-34 -warn-error -27-32-33 -thread -I +threads))
+ (libraries legilogic_lib legilogic_ethereum cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
+ (inline_tests))

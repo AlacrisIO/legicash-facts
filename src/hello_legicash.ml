@@ -1,6 +1,6 @@
 (* main Legicash executable *)
 
-open Legicash_lib
+open Legicash_top
 
 let _ =
   Printf.printf "Hello, world from Legicash\n" ;

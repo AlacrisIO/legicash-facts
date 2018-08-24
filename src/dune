@@ -1,33 +1,30 @@
 ;; dune file for Legicash sources
 
 (library
- (name legicash_lib)
+ (name legicash_top)
  (modules
-  lib integer trie legibase marshaling crypto keypair action
-  ethereum_rlp ethereum_patricia_merkle ethereum_transaction ethereum_abi
-  ethereum_util ethereum_rlp ethereum_json_rpc
-  main_chain main_chain_action side_chain side_chain_action court_registry
   version)
- (preprocess (pps ppx_deriving.std ppx_inline_test lens.ppx_deriving))
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  ;; -9 : all fields mentioned in a pattern
  ;; -27 : unused variable
  ;; -32 : unused value
  ;; -34 : unused type
- (flags (:standard -w -9-34 -warn-error -27-32))
- (libraries cryptokit cstruct integers lens secp256k1 cohttp lwt cohttp-lwt-unix yojson)
+ (ocamlc_flags (:standard -g -w -9-34 -warn-error -27-32-33 -thread -I +threads))
+ (ocamlopt_flags (:standard -p -g -w -9-34 -warn-error -27-32-33 -thread -I +threads))
+ (libraries legilogic_lib legilogic_ethereum legicash_lib)
  (inline_tests))
 
 ;; main executable
 (executable
  (name hello_legicash)
- (preprocess (pps ppx_deriving.std lens.ppx_deriving ppx_inline_test))
+ (preprocess (pps ppx_deriving.std lens.ppx_deriving ppx_inline_test lwt_ppx))
  (modules hello_legicash)
- (libraries legicash_lib))
+ (libraries legicash_top))
 
 ;; custom toplevel
 (executable
- (name       legicaml)
+ (name legicaml)
  (modules legicaml)
- (libraries  compiler-libs.toplevel legicash_lib)
- (link_flags -linkall -cclib -lintegers)
+ (libraries  compiler-libs.toplevel legicash_top legilogic_lib legilogic_ethereum legicash_lib)
+ (link_flags -linkall -cclib -lintegers -I +threads)
  (modes      byte))

@@ -44,7 +44,8 @@ These same build and run steps appear in the Gitlab CI YAML file
     ./.gitlab-ci.yml
 
 Note: So far, we've only tried to build and run the software on Linux
-x86_64. It may be possible to build and run it on other platforms.
+x86_64 using the Debian distribution. It may be possible to build and
+run it on other platforms.
 
 If you'd like to contribute to the Legicash codebase, please submit a
 Gitlab merge request, and note the following:
@@ -59,7 +60,7 @@ You can play with our OCaml toplevel with, e.g.:
 
 ### Coding Style
 
-We'll be using ocp-indent to keep code well-formatted, but otherwise following the
+We'll be using `ocp-indent` to keep code well-formatted, but otherwise following the
 [Jane Street coding standards](https://opensource.janestreet.com/standards/).
 
 ### License
