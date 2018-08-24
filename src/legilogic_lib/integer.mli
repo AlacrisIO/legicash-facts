@@ -41,6 +41,8 @@ end
 module type UIntMoreS = sig
   include UIntBaseS
   val module_name : string
+  val size_in_bits : int (* size in bits, or -1 if dynamically allocated *)
+  val size_in_bytes : int (* size in bits, or -1 if dynamically allocated *)
   val check_invariant : t -> bool
   val is_non_negative : t -> bool
   val z_of: t -> Z.t
@@ -101,6 +103,16 @@ module Int : UIntS with type t = Z.t
 
 module Nat : UIntS with type t = Z.t
 
+module UInt256 : UIntS (* with type t = Nat.t *)
+module Data256 : UIntS (* with type t = UInt256.t *)
+
+module Data160 : UIntS (* with type t = Nat.t *)
+
+module UInt64 : UIntS (* with type t = Unsigned.UInt64.t *)
+module UInt32 : UIntS (* with type t = Unsigned.UInt32.t *)
+module UInt16 : UIntS (* with type t = Unsigned.UInt16.t *)
+
+
 module type PreUIntZS = sig
   val size_in_bits : int
 end
@@ -123,19 +135,6 @@ module UIntZable (P: PreUIntZableS) : sig
   val size_in_bits : int
   val size_in_bytes : int
 end
-
-module UInt16 : UIntS (* with type t = Unsigned.UInt16.t *)
-
-module UInt32 : UIntS (* with type t = Unsigned.UInt32.t *)
-
-module UInt64 : UIntS (* with type t = Unsigned.UInt64.t *)
-
-module UInt256_z : UIntS with type t = Z.t
-
-module UInt256 : UIntS (* with type t = Z.t *)
-
-module Data256 : UIntS (* with type t = Z.t *)
-
 
 (** convert a n-bit natural number to a big-endian string of bytes *)
 val big_endian_bits_of_nat : int -> Z.t -> string

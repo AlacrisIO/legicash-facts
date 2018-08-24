@@ -2,7 +2,7 @@ open Legilogic_lib
 
 let account_keys =
   List.map
-    (fun (priv, pub) -> Keypair.make_keypair_from_hex priv pub)
+    (fun (priv, pub) -> Signing.make_keypair_from_hex priv pub)
     [ ( "fd:c8:f1:5b:2d:d9:22:9b:0b:92:46:09:43:93:af:c2:3b:3b:70:5c:07:e6:74:f6:cb:61:41:20:d1:62:78:18"
       , "04:55:62:69:5c:85:f8:8f:6c:ba:ec:12:1d:2a:3d:a6:66:6c:5d:c8:54:0d:86:35:8b:d5:69:a1:88:2b:be:6d:dc:f4:5b:76:f5:64:31:33:93:9c:8e:7a:33:99:47:ca:1b:11:52:90:d5:77:34:30:23:d7:9c:25:6d:bc:54:bc:97"
       )

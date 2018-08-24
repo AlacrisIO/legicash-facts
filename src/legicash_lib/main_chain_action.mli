@@ -1,5 +1,5 @@
 open Legilogic_lib
-open Persisting
+open Signing
 
 open Legilogic_ethereum
 open Main_chain

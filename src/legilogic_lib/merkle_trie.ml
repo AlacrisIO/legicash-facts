@@ -10,15 +10,17 @@
 
 (* A big endian patricia tree maps non-negative integers to values.
 *)
+open Lwt.Infix
+
 open Lib
 open Lazy
 open Yojsoning
 open Marshaling
-open Crypto
+open Tag
+open Digesting
 open Persisting
-open Db_types
+open Types
 open Trie
-open Lwt.Infix
 
 module type TrieSynthMerkleS = sig
   include TrieSynthS with type t = digest

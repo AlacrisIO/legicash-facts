@@ -54,6 +54,8 @@ val marshal_bool : bool marshaler
 val unmarshal_bool : bool unmarshaler
 val bool_marshaling : bool marshaling
 
+val list_marshaling : 'a marshaling -> 'a list marshaling
+
 val marshal_map : ('x -> 'a) -> 'a marshaler -> 'x marshaler
 val unmarshal_map : ('a -> 'x) -> 'a unmarshaler -> 'x unmarshaler
 (** [marshaling_map f g marshaling] is a marshaler which marshals ['x]s as
@@ -182,14 +184,24 @@ end
 (** "Marshalable" *as* json. *)
 module MarshalableOfYojsonable (J : YojsonableS) : YojsonMarshalableS with type t = J.t
 
-(** Renders marshaled value as a json hex string *)
+val to_yojson_of_marshal_string : ('a -> string) -> 'a -> yojson
+val of_yojson_of_unmarshal_string : (string -> 'a) -> yojson -> ('a, string) result
+val yojsoning_of_marshal_string_unmarshal_string : ('a -> string) -> (string -> 'a) -> 'a yojsoning
+val yojsoning_of_marshaling : 'a marshaling -> 'a yojsoning
+
+(** JSON-encodes an PreMarshable object as its marshaled string *)
+module YojsonableOfPreMarshalable (P : PreMarshalableS) : YojsonMarshalableS with type t = P.t
+
+(** JSON-encodes an Marshable object as its marshaled string *)
 module YojsonableOfMarshalable (M : MarshalableS) : YojsonMarshalableS with type t = M.t
+
+(** Complete both Yojsonable and Marshalable interfaces from precursors *)
+module YojsonMarshalable (P : PreYojsonMarshalableS) : YojsonMarshalableS with type t = P.t
 
 module type LengthS = sig
   include PreMarshalableS with type t := int
   val max_length : int
 end
-
 
 (** 6-bit representation of string length *)
 module Length63 : LengthS

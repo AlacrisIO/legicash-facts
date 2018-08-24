@@ -1,9 +1,10 @@
 open Legilogic_lib
 open Lib
+open Hex
 open Action
 open Yojsoning
-open Crypto
-open Persisting
+open Signing
+open Types
 
 open Legilogic_ethereum
 open Main_chain
@@ -22,7 +23,7 @@ let send_message = bottom
 
 module Test = struct
   open Lwt
-  open Keypair.Test
+  open Signing.Test
   open Ethereum_transaction.Test
 
   let%test "move logs aside" = Logging.log_to_file "test.log"; true
@@ -41,14 +42,9 @@ module Test = struct
 
   (* create accounts, fund them *)
   let create_account_on_testnet keys =
-    let open Secp256k1 in
     let open Ethereum_json_rpc in
     (* get hex string version of private key *)
-    let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
-    let s = Cstruct.to_string (Cstruct.of_bigarray buffer) in
-    let pk_string_raw = Ethereum_util.hex_string_of_string s in
-    let pk_string_len = String.length pk_string_raw in
-    let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in
+    let private_key_string = keys.Keypair.private_key |> PrivateKey.marshal_string |> unparse_hex_string in
     let password = "" in
     let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
     send_rpc_call_to_net json
@@ -94,7 +90,7 @@ module Test = struct
       in
       let operation = Main_chain.Operation.TransferTokens keys.address in
       let transaction = Main_chain.{Transaction.tx_header; Transaction.operation} in
-      let signed_transaction = Transaction.signed trent_keys transaction in
+      let signed_transaction = Main_chain.Transaction.signed trent_keys transaction in
       send_transaction_to_net signed_transaction
       >>= fun json ->
       let json_keys = YoJson.keys json in
@@ -141,7 +137,7 @@ module Test = struct
     in
     let operation = Operation.CreateContract Facilitator_contract_binary.facilitator_contract in
     let transaction = { Transaction.tx_header; Transaction.operation } in
-    let signed_transaction = Transaction.signed Keypair.Test.alice_keys transaction in
+    let signed_transaction = Transaction.signed Signing.Test.alice_keys transaction in
     send_transaction_to_net signed_transaction
     >>= fun output ->
     assert_json_error_free __LOC__ output;

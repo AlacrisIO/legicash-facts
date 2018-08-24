@@ -1,7 +1,7 @@
 (* facilitator-contract.mli -- get encodings of calls to the contract *)
 
 open Legilogic_lib
-open Crypto
+open Types
 
 open Legilogic_ethereum
 

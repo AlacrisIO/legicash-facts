@@ -1,4 +1,4 @@
 open Legilogic_lib
-open Crypto
+open Signing
 
 val account_keys : keypair list

@@ -5,8 +5,8 @@ open Lwt
 open Legilogic_lib
 open Lib
 open Yojsoning
-open Crypto
-open Persisting
+open Signing
+open Types
 
 open Legilogic_ethereum
 open Main_chain
@@ -81,16 +81,16 @@ let address_to_keys_tbl = Hashtbl.create number_of_accounts
 let _ =
   Array.iter
     (fun (name, keys) ->
-       Hashtbl.add address_to_account_tbl keys.address name)
+       Hashtbl.add address_to_account_tbl keys.Keypair.address name)
     account_key_array
 
 let _ =
   List.iter
-    (fun keys -> Hashtbl.add address_to_keys_tbl keys.address keys)
+    (fun keys -> Hashtbl.add address_to_keys_tbl keys.Keypair.address keys)
     account_keys
 
 let trent_keys =
-  Keypair.make_keypair_from_hex
+  Signing.make_keypair_from_hex
     "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
     "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
 
@@ -107,15 +107,9 @@ let get_user_name address_t =
 (* store keys on Ethereum test net. TODO: don't do this on real net!  *)
 let store_keys_on_testnet (name,keys) =
   let open Lwt in
-  let open Secp256k1 in
   let open Ethereum_json_rpc in
   (* get hex string version of private key *)
-  let buffer = Key.to_bytes ~compress:false secp256k1_ctx keys.private_key in
-  let len = Bigarray.Array1.dim buffer in
-  let s = String.init len (fun ndx -> Bigarray.Array1.get buffer ndx) in
-  let pk_string_raw = Ethereum_util.hex_string_of_string s in
-  let pk_string_len = String.length pk_string_raw in
-  let private_key_string = String.sub pk_string_raw 2 (pk_string_len - 2) in
+  let private_key_string = keys.Keypair.private_key |> PrivateKey.marshal_string |> Hex.unparse_hex_string in
   let password = "" in
   let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
   send_rpc_call_to_net json

@@ -11,8 +11,7 @@ open Legilogic_lib
 open Lib
 open Action
 open Yojsoning
-open Crypto
-open Persisting
+open Types
 
 open Legilogic_ethereum
 

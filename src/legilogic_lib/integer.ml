@@ -36,6 +36,8 @@ end
 module type UIntMoreS = sig
   include UIntBaseS
   val module_name : string
+  val size_in_bits : int
+  val size_in_bytes : int
   val check_invariant : t -> bool
   val is_non_negative : t -> bool
   val z_of: t -> Z.t
@@ -87,11 +89,11 @@ let is_sized_nat bits z = Z.sign z >= 0 && Z.numbits z <= bits
 
 let validate_nat z =
   if not (is_nat z) then
-    raise (Internal_error (Printf.sprintf "Expected natural number is negative: %s" (Z.to_string z)))
+    bork "Expected natural number is negative: %s" (Z.to_string z)
 let validate_sized_nat bits z =
   validate_nat z ;
   if (Z.numbits z > bits) then
-    raise (Internal_error (Printf.sprintf "Natural natural number %s won't fit in %d bits" (Z.to_string z) bits))
+    bork "Natural natural number %s won't fit in %d bits" (Z.to_string z) bits
 
 let hex_string_of_sized_nat bits nat =
   validate_sized_nat bits nat ;
@@ -106,7 +108,7 @@ let hex_string_of_nat nat =
 
 let validate_sized_string num_bytes string =
   if String.length string != num_bytes then
-    raise (Internal_error (Printf.sprintf "String length not the expected %d bytes: %S" num_bytes string))
+    bork "String length not the expected %d bytes: %S" num_bytes string
 
 let nat_of_big_endian_bits bits string =
   let num_bytes = (bits + 7) / 8 in
@@ -132,7 +134,7 @@ let strict_nat_of_hex_string string =
   if string = "0" then
     Z.zero
   else if String.length string > 0 && String.get string 0 = '0' then
-    raise (Internal_error "Hex number starts with 0")
+    bork "Hex number starts with 0"
   else
     nat_of_hex_string string
 
@@ -168,6 +170,8 @@ module Int = struct
   let z_of = identity
   let of_z = identity
   let module_name = "Int"
+  let size_in_bits = -1
+  let size_in_bytes = -1
   let check_invariant _  = true
   let has_bit key position = equal one (extract key position 1)
   let is_numbits n z = numbits z <= n
@@ -234,8 +238,8 @@ module type PreUIntZS = sig
 end
 
 module UIntZ (P : PreUIntZS) = struct
-  include P
   include (Int : UIntMoreS with type t = Z.t)
+  include P
   let module_name = "UInt" ^ (string_of_int size_in_bits)
   let size_in_bytes = (size_in_bits + 7) / 8
   let check_overflow = is_numbits size_in_bits
@@ -303,6 +307,15 @@ module Data256 = struct
   include UInt256_z
   let of_hex_string = sized_nat_of_hex_string 256
   let to_hex_string = hex_string_of_sized_nat 256
+  let of_0x_string = parse_0x_prefix of_hex_string
+  let to_0x_string = unparse_0x_prefix to_hex_string
+  let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
+end
+
+module Data160 = struct
+  include UIntZ(struct let size_in_bits = 160 end)
+  let of_hex_string = sized_nat_of_hex_string 160
+  let to_hex_string = hex_string_of_sized_nat 160
   let of_0x_string = parse_0x_prefix of_hex_string
   let to_0x_string = unparse_0x_prefix to_hex_string
   let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
@@ -464,11 +477,28 @@ module Test = struct
   module TU32 = SimpleUIntTests (UInt32)
   module TU64 = SimpleUIntTests (UInt64)
   module TU256 = MoreUIntTests (UInt256)
+  module TD160 = MoreUIntTests (Data160)
   module TD256 = MoreUIntTests (Data256)
   let%test "simple Nat tests" = TNat.run ()
   let%test "simple UInt16 tests" = TU16.run ()
   let%test "simple UInt32 tests" = TU32.run ()
   let%test "simple UInt64 tests" = TU64.run ()
   let%test "simple UInt256 tests" = TU256.run ()
+  let%test "simple Data160 tests" = TD160.run ()
   let%test "simple Data256 tests" = TD256.run ()
+
+  let%test "0x_string <-> UInt256" =
+    List.for_all
+      (fun (n, hex) -> let num = UInt256.of_int n in
+        UInt256.to_0x_string num = hex
+        && UInt256.equal num (UInt256.of_0x_string hex))
+      [(0,"0x0");(1,"0x1");(10,"0xa");(291,"0x123");(61453,"0xf00d");(0xabcde,"0xabcde")]
+
+  let%test "UInt256 <> 0x_string errors" =
+    List.for_all
+      (fun (hex, err) -> try ignore (UInt256.of_0x_string hex) ; false with
+           Internal_error x -> x = err)
+      [("0x", "Hex string has no digits");
+       ("0x0400","Hex number starts with 0");
+       ("ff","Hex string does not strictly begin with 0x")]
 end

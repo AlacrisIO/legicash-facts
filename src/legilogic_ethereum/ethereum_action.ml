@@ -1,8 +1,7 @@
 open Legilogic_lib
 open Lib
 open Yojsoning
-open Crypto
-open Persisting
+open Types
 
 open Main_chain
 

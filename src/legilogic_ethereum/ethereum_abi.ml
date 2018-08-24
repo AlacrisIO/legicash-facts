@@ -3,7 +3,9 @@
 
 open Legilogic_lib
 open Lib
-open Crypto
+open Hex
+open Digesting
+open Signing
 
 type abi_type =
   (* uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256 *)
@@ -337,20 +339,19 @@ let abi_ufixed64_of_int64 n num =
   | Int_value bytes -> (Ufixed (64, n), Ufixed_value bytes)
   | v -> expected_int v
 
-let make_signature_bytes function_call =
+let function_signature function_call =
   (* parameter list is shown as a tuple over the passed types *)
   let tys = List.map snd function_call.parameters in
   let params = show_type_for_function_selector (Tuple tys) in
   function_call.function_name ^ params
-  |> Bytes.of_string
+
+let function_signature_hash = function_signature >> keccak256_string
 
 (* first four bytes of call are the first four bytes of the Keccak256 hash of the
-   signature
+   function signature
 *)
-let encode_signature function_call =
-  let signature = make_signature_bytes function_call in
-  let hashed = Ethereum_util.hash_bytes signature in
-  Bytes.of_string (String.sub hashed 0 4)
+let encode_function_signature function_call =
+  String.sub (function_signature_hash function_call) 0 4
 
 (* encoding of parameter depends on classification of types as static or dynamic *)
 let rec is_dynamic_type = function
@@ -440,9 +441,9 @@ let rec encode_abi_value v ty =
     let bytes = Ethereum_util.bytes_of_address address in
     encode_abi_value (Uint_value bytes) (Uint 160)
   | Function_value (address, function_call), Function ->
-    let address_bytes = Ethereum_util.bytes_of_address address in
-    let signature_bytes = encode_signature function_call in
-    let bytes = Bytes.cat address_bytes signature_bytes in
+    let address_bits = Address.to_big_endian_bits address in
+    let signature_bits = encode_function_signature function_call in
+    let bytes = address_bits ^ signature_bits |> Bytes.of_string in
     encode_abi_value (Bytes_value bytes) (Bytes 24)
   | Array_value elts, Array (_m, ty) ->
     let element_encodings = List.map (fun elt -> encode_abi_value elt ty) elts in
@@ -491,7 +492,7 @@ let rec encode_abi_value v ty =
 
 (* an encoding of the function call is what we pass to Ethereum in a transaction *)
 let encode_function_call function_call =
-  let encoded_signature = encode_signature function_call in
+  let encoded_signature = encode_function_signature function_call |> Bytes.of_string in
   let param_val, param_ty = abi_tuple_of_abi_values function_call.parameters in
   let encoded_params = encode_abi_value param_val param_ty in
   Bytes.cat encoded_signature encoded_params
@@ -544,8 +545,7 @@ module Test = struct
     let expected_hex_string =
       "0xcdcd77c000000000000000000000000000000000000000000000000000000000000000450000000000000000000000000000000000000000000000000000000000000001"
     in
-    let expected_bytes =
-      Ethereum_util.bytes_of_hex_string expected_hex_string
+    let expected_bytes = parse_0x_bytes expected_hex_string
     in
     bytes = expected_bytes
 
@@ -562,8 +562,7 @@ module Test = struct
     let expected_hex_string =
       "0xfce353f661626300000000000000000000000000000000000000000000000000000000006465660000000000000000000000000000000000000000000000000000000000"
     in
-    let expected_bytes =
-      Ethereum_util.bytes_of_hex_string expected_hex_string
+    let expected_bytes = parse_0x_bytes expected_hex_string
     in
     bytes = expected_bytes
 
@@ -580,8 +579,7 @@ module Test = struct
     let expected_hex_string =
       "0xa5643bf20000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000464617665000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003"
     in
-    let expected_bytes =
-      Ethereum_util.bytes_of_hex_string expected_hex_string
+    let expected_bytes = parse_0x_bytes expected_hex_string
     in
     bytes = expected_bytes
 
@@ -601,8 +599,7 @@ module Test = struct
     let expected_hex_string =
       "0x8be6524600000000000000000000000000000000000000000000000000000000000001230000000000000000000000000000000000000000000000000000000000000080313233343536373839300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000004560000000000000000000000000000000000000000000000000000000000000789000000000000000000000000000000000000000000000000000000000000000d48656c6c6f2c20776f726c642100000000000000000000000000000000000000"
     in
-    let expected_bytes =
-      Ethereum_util.bytes_of_hex_string expected_hex_string
+    let expected_bytes = parse_0x_bytes expected_hex_string
     in
     bytes = expected_bytes
 
@@ -610,7 +607,7 @@ module Test = struct
     (* from our Solidity hello.sol example *)
     let parameters, ty = abi_tuple_of_abi_values [(String_value "Hello, world!", String)] in
     let hello_encoding = encode_abi_value parameters ty in
-    let hello_hex = Ethereum_util.hex_string_of_bytes hello_encoding in
+    let hello_hex = unparse_0x_bytes hello_encoding in
     hello_hex
     = "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d48656c6c6f2c20776f726c642100000000000000000000000000000000000000"
 end

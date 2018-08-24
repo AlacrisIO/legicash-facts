@@ -4,9 +4,11 @@ open Legilogic_lib
 open Action
 open Yojsoning
 open Marshaling
-open Crypto
+open Digesting
+open Signing
 open Persisting
 open Merkle_trie
+open Types
 
 module TokenAmount = UInt64
 module Nonce = UInt64
@@ -113,7 +115,8 @@ module Transaction = struct
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
-           end) : PersistableS with type t := t)
+             end) : PersistableS with type t := t)
+  let signed = signed_of_digest digest
 end
 
 module TransactionSigned = struct

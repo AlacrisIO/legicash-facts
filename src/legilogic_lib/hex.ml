@@ -90,10 +90,20 @@ let parse_0x_prefix parser hs =
 
 let unparse_0x_prefix printer x = "0x" ^ (printer x)
 
-let parse_0x_string = parse_0x_prefix parse_hex_string
+let unparse_0x_string s =
+  if s = "" then "0x0" else "0x" ^ unparse_hex_substring s 0 (String.length s)
 
-let unparse_0x_string = unparse_0x_prefix unparse_hex_string
+let parse_0x_string hs =
+  if hs = "0x0" then "" else
+    (validate_0x_prefix hs ;
+     let len = String.length hs in
+     if len mod 2 != 0 then
+       raise (Internal_error "Odd number of digits in hex string") ;
+     parse_hex_substring hs 2 (len - 2))
 
+let parse_0x_bytes hs = Bytes.of_string (parse_0x_string hs)
+
+let unparse_0x_bytes bs = unparse_0x_string (Bytes.to_string bs)
 
 module Test = struct
   let%test "hex_string" =
@@ -101,4 +111,21 @@ module Test = struct
       (fun (bits, hex) -> unparse_hex_string bits = hex && parse_hex_string hex = bits)
       [("","");("\000","00");("\000\000","0000");
        ("abcd","61626364");("\r\n","0d0a")]
+
+  let%test "unparse_0x_string bits" =
+    List.for_all
+      (fun (bits, hex) -> unparse_0x_string bits = hex
+                          && bits = parse_0x_string hex)
+      [("","0x0");("\000","0x00");("\000\000","0x0000");("\001\035","0x0123");
+       ("abcd","0x61626364");("\r\n","0x0d0a");
+       ("\236\202\132key1\132val1\202\132key2\132val2\202\132key3\132val3\202\132key4\132val4",
+        "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34")]
+
+  let%test "parse_0x_string error" =
+    List.for_all
+      (fun (hex, err) -> try ignore (parse_0x_string hex) ; false with
+           Internal_error x -> x = err)
+      [("0x", "Hex string has no digits");
+       ("0xf0f0f","Odd number of digits in hex string");
+       ("004200","Hex string does not strictly begin with 0x")]
 end

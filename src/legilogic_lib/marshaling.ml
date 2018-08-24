@@ -273,18 +273,34 @@ module type YojsonMarshalableS = sig
   include YojsonableS with type t := t
 end
 
-
-module YojsonableOfMarshalable (Type : MarshalableS) = struct
-  include Type
-  let to_yojson x = `String (x |> marshal_string |> Hex.unparse_hex_string)
-  let of_yojson = function
+let to_yojson_of_marshal_string marshal_string x =
+  `String (x |> marshal_string |> Hex.unparse_hex_string)
+let of_yojson_of_unmarshal_string unmarshal_string = function
     | `String a -> Ok (unmarshal_string (Hex.parse_hex_string a))
     | _ -> Error "bad json"
+let yojsoning_of_marshal_string_unmarshal_string marshal_string unmarshal_string =
+  { to_yojson=to_yojson_of_marshal_string marshal_string
+  ; of_yojson=of_yojson_of_unmarshal_string unmarshal_string }
+let yojsoning_of_marshaling marshaling =
+  yojsoning_of_marshal_string_unmarshal_string
+    (marshal_string_of_marshal marshaling.marshal)
+    (unmarshal_string_of_unmarshal marshaling.unmarshal)
+
+module YojsonMarshalable (P : PreYojsonMarshalableS) = struct
+  include Marshalable(P)
+  include (Yojsonable(P) : YojsonableS with type t := t)
+end
+
+module YojsonableOfMarshalable (M : MarshalableS) = struct
+  include M
   include (Yojsonable(struct
              type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
+             let yojsoning = yojsoning_of_marshal_string_unmarshal_string marshal_string unmarshal_string
            end) : YojsonableS with type t := t)
 end
+
+module YojsonableOfPreMarshalable (P : PreMarshalableS) =
+  YojsonableOfMarshalable(Marshalable(P))
 
 module type LengthS = sig
   include PreMarshalableS with type t := int
@@ -361,6 +377,20 @@ end
 
 (** Length-prefixed string where the length fits in 32 bits *)
 module String1G = StringL(Length1G)
+
+let marshal_list m buffer l =
+  let len = List.length l in
+  Length1G.marshal buffer len;
+  List.iter (m buffer) l
+let unmarshal_list (u : 'a unmarshaler) ?(start=0) bytes =
+  let (len, p) = Length1G.unmarshal ~start bytes in
+  let rec loop i start acc =
+    if i = 0 then (List.rev acc, start) else
+      let (v, p) = u ~start bytes in
+      loop (i - 1) p (v::acc) in
+  loop len p []
+let list_marshaling m = {marshal=marshal_list m.marshal; unmarshal=unmarshal_list m.unmarshal}
+
 
 (** Object which can be marshaled based on json representation. Marshaled
    representation must fit in a gigabyte (!) *)

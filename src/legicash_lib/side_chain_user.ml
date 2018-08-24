@@ -5,9 +5,10 @@ open Lib
 open Action
 open Yojsoning
 open Marshaling
-open Crypto
+open Tag
+open Signing
 open Persisting
-open Db_types
+open Types
 open Merkle_trie
 
 open Legilogic_ethereum
@@ -301,7 +302,8 @@ let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operat
   let ticket = 0L in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
   let bond = 0 in (* TODO: where does this come from? *)
-  let operation = Facilitator_contract.make_withdraw_call facilitator_keys.address ticket bond confirmed_state in
+  let operation = Facilitator_contract.make_withdraw_call
+                    facilitator_keys.Keypair.address ticket bond confirmed_state in
   let tx_header =
     Main_chain.TxHeader.
       { sender= user_address

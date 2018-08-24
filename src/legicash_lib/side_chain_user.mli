@@ -2,8 +2,9 @@
 open Legilogic_lib
 open Action
 open Yojsoning
-open Crypto
+open Signing
 open Persisting
+open Types
 open Merkle_trie
 
 open Legilogic_ethereum

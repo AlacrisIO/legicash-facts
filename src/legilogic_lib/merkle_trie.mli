@@ -2,8 +2,9 @@
 open Lib
 open Yojsoning
 open Marshaling
-open Crypto
+open Digesting
 open Persisting
+open Types
 open Trie
 
 module type TrieSynthMerkleS = sig

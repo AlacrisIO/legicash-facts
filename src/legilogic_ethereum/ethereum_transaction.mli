@@ -2,15 +2,15 @@
 
 open Legilogic_lib
 open Yojsoning
-open Crypto
+open Signing
 
 val send_transaction_to_net : Main_chain.TransactionSigned.t -> yojson Lwt.t
 (** post a transaction to Ethereum network *)
 
-val send_balance_request_to_net : Address.t -> yojson Lwt.t
+val send_balance_request_to_net : address -> yojson Lwt.t
 (** for a given address, request its balance on Ethereum network *)
 
-val get_transaction_count : Address.t -> yojson Lwt.t
+val get_transaction_count : address -> yojson Lwt.t
 (** get count of transactions sent from an address; use to find next transaction nonce *)
 
 val get_transaction_receipt : string -> yojson Lwt.t
@@ -31,7 +31,7 @@ module Test : sig
   (** JSON list of account addresses on net *)
   val new_account : unit -> yojson Lwt.t
   (** creates new account with given JSON address on net *)
-  val unlock_account : ?duration:int -> Address.t -> yojson Lwt.t
+  val unlock_account : ?duration:int -> address -> yojson Lwt.t
   (** unlocks account for given duration (in seconds) on net *)
   val get_first_account : unit -> yojson Lwt.t
   (** get first account listed on net; for dev network, this is the prefunded account *)

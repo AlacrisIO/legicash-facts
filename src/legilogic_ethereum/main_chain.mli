@@ -1,7 +1,9 @@
 open Legilogic_lib
 open Action
-open Crypto
+open Digesting
+open Signing
 open Persisting
+open Types
 open Merkle_trie
 
 module TokenAmount : UIntS
@@ -50,6 +52,7 @@ module Transaction : sig
   type t = {tx_header: TxHeader.t; operation: Operation.t}
   [@@deriving lens { prefix=true } ]
   include PersistableS with type t := t
+  include SignableS with type t := t
 end
 
 module TransactionSigned : sig

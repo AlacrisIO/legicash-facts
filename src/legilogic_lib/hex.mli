@@ -49,8 +49,14 @@ val parse_0x_prefix : (string -> 'a) -> string -> 'a
 (** create a string that starts with "0x" then the result of unparsing the given data *)
 val unparse_0x_prefix : ('a -> string) -> 'a -> string
 
-(** parse a string as a 0x-prefixed hex string *)
+(** parse a string as an ethereum-style 0x-prefixed hex string *)
 val parse_0x_string : string -> string
 
-(** unparse a string as a 0x-prefixed hex string *)
+(** unparse a string as an ethereum-style 0x-prefixed hex string *)
 val unparse_0x_string : string -> string
+
+(** parse a string as an ethereum-style 0x-prefixed hex string, into bytes *)
+val parse_0x_bytes : string -> Bytes.t
+
+(** unparse some bytes as an ethereum-style 0x-prefixed hex string *)
+val unparse_0x_bytes : Bytes.t -> string

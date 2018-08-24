@@ -6,9 +6,10 @@ open Legilogic_lib
 open Lib
 open Yojsoning
 open Marshaling
-open Crypto
+open Tag
+open Signing
 open Persisting
-open Db_types
+open Types
 open Merkle_trie
 
 open Legilogic_ethereum
@@ -182,6 +183,7 @@ module Request = struct
     let walk_dependencies = no_dependencies
   end
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
+  let signed = signed_of_digest digest
 end
 
 module TxHeader = struct
@@ -384,9 +386,14 @@ let challenge_duration = Duration.mul one_second (Duration.of_int 7200)
 
 let one_billion_tokens = TokenAmount.of_int 1000000000
 
+module SignaturePrefix = struct
+  include Address
+  let state_update = Address.of_hex_string "7E91CA540000000057A7E009DA7E000000000001"
+end
+
 module Test = struct
 
-  open Keypair.Test
+  open Signing.Test
 
   (* a sample facilitator state *)
 

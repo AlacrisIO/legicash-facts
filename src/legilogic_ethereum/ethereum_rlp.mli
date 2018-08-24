@@ -12,6 +12,9 @@ type t
 val encode : rlp_item -> t
 (** RLP-encode item(s)  *)
 
+val encoded_string : rlp_item -> string
+(** RLP-encode items then extract string *)
+
 val encode_string : string -> t
 (** produce RLP-encoding from string *)
 

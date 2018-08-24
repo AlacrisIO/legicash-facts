@@ -12,7 +12,7 @@
 open Legilogic_lib
 open Lib
 open Hex
-open Crypto
+open Digesting
 
 (* keys are sequences of nybbles, which can be packed into two-nybbles-per-byte form *)
 module Key : sig

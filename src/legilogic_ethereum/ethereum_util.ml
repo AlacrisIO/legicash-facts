@@ -3,11 +3,8 @@
 open Legilogic_lib
 open Lib
 open Hex
-open Integer
-open Crypto
-
-let hash = keccak256_string
-let hash_bytes bytes = hash (Bytes.to_string bytes)
+open Digesting
+open Signing
 
 (* Hexadecimal support. See https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding *)
 
@@ -15,7 +12,7 @@ let hex_string_of_address_with_checksum address =
   let hex_digits = Address.to_hex_string address in
   (* Char.code 'a' - Char.code 'A' *)
   let uppercase_difference = 32 in
-  let hashed_digits = hash hex_digits in
+  let hashed_digits = keccak256_string hex_digits in
   "0x" ^ String.init (2 * Address.size_in_bytes)
            (fun i ->
               let ch = hex_digits.[i] in
@@ -33,7 +30,7 @@ let validate_address_checksum hs =
   let hex_len = String.length hs - 2 in (* strip 0x *)
   let hex_digits = String.sub hs 2 hex_len in
   let lower_hex_digits = String.lowercase_ascii hex_digits in
-  let hashed_digits = unparse_hex_string (hash lower_hex_digits) in
+  let hashed_digits = unparse_hex_string (keccak256_string lower_hex_digits) in
   let flag_error ndx =
     raise
       (Internal_error (Format.sprintf "Invalid address checksum at index %d for %s" (ndx + 2) hs))
@@ -53,56 +50,9 @@ let address_of_hex_string_with_checksum hs =
   validate_address_checksum hs ;
   Address.of_0x_string hs
 
-let hex_string_of_string s =
-  if s = "" then "0x0" else "0x" ^ unparse_hex_substring s 0 (String.length s)
-
-let string_of_hex_string hs =
-  if hs = "0x0" then "" else
-    (validate_0x_prefix hs ;
-     let len = String.length hs in
-     if len mod 2 != 0 then
-       raise (Internal_error "Odd number of digits in hex string") ;
-     parse_hex_substring hs 2 (len - 2))
-
-let hex_string_of_bytes bs = hex_string_of_string (Bytes.to_string bs)
-
-let bytes_of_hex_string hs = Bytes.of_string (string_of_hex_string hs)
-
 let bytes_of_address address = Bytes.of_string (Address.to_big_endian_bits address)
 
 module Test = struct
-
-  let%test "hex_string <-> UInt256" =
-    List.for_all
-      (fun (n, hex) -> let num = UInt256.of_int n in
-        UInt256.to_0x_string num = hex
-        && UInt256.equal num (UInt256.of_0x_string hex))
-      [(0,"0x0");(1,"0x1");(10,"0xa");(291,"0x123");(61453,"0xf00d");(0xabcde,"0xabcde")]
-
-  let%test "UInt256 <> hex_string errors" =
-    List.for_all
-      (fun (hex, err) -> try ignore (UInt256.of_0x_string hex) ; false with
-           Internal_error x -> x = err)
-      [("0x", "Hex string has no digits");
-       ("0x0400","Hex number starts with 0");
-       ("ff","Hex string does not strictly begin with 0x")]
-
-  let%test "hex_string_of_string" =
-    List.for_all
-      (fun (bits, hex) -> hex_string_of_string bits = hex
-                          && bits = string_of_hex_string hex)
-      [("","0x0");("\000","0x00");("\000\000","0x0000");("\001\035","0x0123");
-       ("abcd","0x61626364");("\r\n","0x0d0a");
-       ("\236\202\132key1\132val1\202\132key2\132val2\202\132key3\132val3\202\132key4\132val4",
-        "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34")]
-
-  let%test "string_of_hex_string error" =
-    List.for_all
-      (fun (hex, err) -> try ignore (string_of_hex_string hex) ; false with
-           Internal_error x -> x = err)
-      [("0x", "Hex string has no digits");
-       ("0xf0f0f","Odd number of digits in hex string");
-       ("004200","Hex string does not strictly begin with 0x")]
 
   let%test "0x_string <-> address" =
     List.for_all

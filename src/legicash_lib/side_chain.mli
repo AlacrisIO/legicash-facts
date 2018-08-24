@@ -1,7 +1,9 @@
 (* Types for LegiCash Facilitator side-chains *)
 open Legilogic_lib
-open Crypto
+open Digesting
+open Signing
 open Persisting
+open Types
 open Merkle_trie
 
 open Legilogic_ethereum
@@ -94,6 +96,7 @@ module Request : sig
   type t = {rx_header: RxHeader.t; operation: Operation.t}
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
+  include SignableS with type t := t
 end
 
 (** header for a confirmation from a facilitator:
@@ -217,6 +220,16 @@ exception Invalid_operation of Operation.t
 val challenge_duration : Duration.t
 
 val one_billion_tokens : TokenAmount.t
+
+(**
+   When signing a message, we want to prepend to the message a long unique tag
+   that makes it extremely hard for an attacker to pun messages
+   between two different protocols using the same keys (e.g. for two different side-chains).
+*)
+module SignaturePrefix : sig
+  include PersistableS
+  val state_update : t
+end
 
 module Test : sig
   val trent_fee_schedule : FacilitatorFeeSchedule.t

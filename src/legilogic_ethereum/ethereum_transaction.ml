@@ -2,9 +2,11 @@
 
 open Legilogic_lib
 open Lib
+open Hex
 open Yojsoning
-open Crypto
-open Persisting
+open Digesting
+open Signing
+open Types
 
 open Main_chain
 
@@ -13,10 +15,10 @@ let build_operation_parameters = function
   | Operation.TransferTokens recipient ->
     [("to", Address.to_yojson recipient)]
   | Operation.CreateContract code ->
-    [("data", `String (Ethereum_util.hex_string_of_bytes code))]
+    [("data", `String (unparse_0x_bytes code))]
   | Operation.CallFunction (recipient, data) ->
     [("to", Address.to_yojson recipient);
-     ("data", `String (Ethereum_util.hex_string_of_bytes data))]
+     ("data", `String (unparse_0x_bytes data))]
 
 let build_transaction_parameters transaction =
   let TxHeader.{ sender; gas_limit; gas_price; value } = transaction.Transaction.tx_header in
@@ -171,39 +173,20 @@ let rlp_of_signed_transaction transaction_rlp ~v ~r ~s =
 let get_transaction_hash signed_transaction private_key =
   let transaction = signed_transaction.payload in
   let transaction_rlp = rlp_of_transaction transaction in
-  (* step 1: RLP-encode and hash the transaction *)
-  let encoded_transaction = Ethereum_rlp.encode transaction_rlp in
-  let hashed_transaction = Ethereum_util.hash (Ethereum_rlp.to_string encoded_transaction) in
-  (* step 2: sign the hash with a private key, extract pieces of the signature *)
-  let hash_buffer = Cstruct.to_bigarray (Cstruct.of_string hashed_transaction) in
-  let msg =
-    match Secp256k1.Sign.msg_of_bytes hash_buffer with
-    | Some msg -> msg
-    | None -> raise (Internal_error "Couldn't get msg from hash buffer")
-  in
-  let signature_buffer, recid =
-    match Secp256k1.Sign.sign_recoverable ~sk:private_key secp256k1_ctx msg with
-    | Ok signature -> Secp256k1.Sign.to_bytes_recid secp256k1_ctx signature
-    | Error err -> raise (Internal_error ("Could not sign transaction hash: " ^ err))
-  in
-  let signature_cstruct = Cstruct.of_bigarray signature_buffer in
-  let string_from_signature_subarray start len =
-    let bytes = Bytes.create len in
-    Cstruct.blit_to_bytes signature_cstruct start bytes 0 len;
-    Bytes.to_string bytes
-  in
-  let v = String.make 1 (Char.chr (recid + 27)) in
-  let r = string_from_signature_subarray 0 32 in
-  let s = string_from_signature_subarray 32 32 in
+  (* step 1: RLP-encode the transaction *)
+  let encoded_transaction = transaction_rlp |> Ethereum_rlp.encoded_string in
+  (* step 2: Sign its hash with a private key, extract pieces of the signature *)
+  let signature = make_signature digest_of_string private_key encoded_transaction in
+  let (v, r, s) = signature_vrs signature in
   (* step 3: RLP-encode and hash the transaction augmented with the signature *)
   let signed_transaction_rlp = rlp_of_signed_transaction transaction_rlp ~v ~r ~s in
-  let encoded_signed_transaction = Ethereum_rlp.encode signed_transaction_rlp in
-  Ethereum_util.hash (Ethereum_rlp.to_string encoded_signed_transaction)
+  let encoded_signed_transaction = Ethereum_rlp.encoded_string signed_transaction_rlp in
+  keccak256_string encoded_signed_transaction
 
 module Test = struct
   open Lwt
   open Ethereum_json_rpc
-  open Keypair.Test
+  open Signing.Test
 
   let%test "move logs aside" = Logging.log_to_file "test.log"; true
 
@@ -419,8 +402,8 @@ module Test = struct
     Lwt_main.run (
       (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
       let private_key_hex = "0xc0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0de" in
-      let private_key_string = Ethereum_util.string_of_hex_string private_key_hex in
-      let private_key = Keypair.make_private_key private_key_string in
+      let private_key_string = parse_0x_string private_key_hex in
+      let private_key = Signing.make_private_key private_key_string in
       get_first_account ()
       >>= fun account_json ->
       let sender_account = YoJson.to_string account_json in
@@ -435,12 +418,12 @@ module Test = struct
       let operation =
         Operation.CallFunction
           ( Address.of_0x_string "0x687422eea2cb73b5d3e242ba5456b782919afc85"
-          , Ethereum_util.bytes_of_hex_string "0xc0de")
+          , parse_0x_bytes "0xc0de")
       in
       let transaction = {Transaction.tx_header; Transaction.operation} in
-      let signed_transaction = Crypto.signed Transaction.digest private_key transaction in
+      let signed_transaction = Signing.signed Transaction.digest private_key transaction in
       let transaction_hash = get_transaction_hash signed_transaction private_key in
-      return (Ethereum_util.hex_string_of_string transaction_hash
+      return (unparse_0x_string transaction_hash
               = "0x2b1cb46f0aa4ba7da55ef4928e925b2dd3e9af6908319306cf2593d0f911f9c9"))
 
   let%test "hello-solidity" =
@@ -450,7 +433,7 @@ module Test = struct
       let code =
         "0x608060405234801561001057600080fd5b506101a7806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806339a7aa4814610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60607fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd912260405180806020018281038252600d8152602001807f48656c6c6f2c20776f726c64210000000000000000000000000000000000000081525060200191505060405180910390a16040805190810160405280600881526020017f476f6f64627965210000000000000000000000000000000000000000000000008152509050905600a165627a7a7230582024923934849b0e74a5091ac4b5c65d9b3b93d74726aff49fd5763bc136dac5c60029"
       in
-      let code_bytes = Ethereum_util.bytes_of_hex_string code in
+      let code_bytes = parse_0x_bytes code in
       (* create a contract using "hello, world" EVM code *)
       get_first_account ()
       >>= fun account_json ->
@@ -530,14 +513,14 @@ module Test = struct
       assert (List.length log_topics = 1) ;
       let topic_event = YoJson.to_string (List.hd log_topics) in
       let hello_world = (String_value "Hello, world!", String) in
-      let signature = make_signature_bytes {function_name= "showResult"; parameters= [hello_world]} in
-      let signature_hash = Ethereum_util.hex_string_of_string (Ethereum_util.hash_bytes signature) in
-      assert (topic_event = signature_hash) ;
+      let function_signature = {function_name= "showResult"; parameters= [hello_world]} in
+      let function_signature_hash = function_signature |> function_signature_hash |> unparse_0x_string in
+      assert (topic_event = function_signature_hash) ;
       (* the log data is the encoding of the parameter passed to the event *)
       let data = YoJson.to_string (YoJson.member "data" log_json) in
       let hello_encoding =
         let tuple_value, tuple_ty = abi_tuple_of_abi_values [hello_world] in
-        Ethereum_util.hex_string_of_bytes (encode_abi_value tuple_value tuple_ty)
+        unparse_0x_bytes (encode_abi_value tuple_value tuple_ty)
       in
       return (data = hello_encoding))
 
@@ -549,7 +532,7 @@ module Test = struct
       let code =
         "0x608060405234801561001057600080fd5b50610108806100206000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000602082015190506c01000000000000000000000000810490509190505600a165627a7a7230582098fc57c39988f3dcf9f7168b876b9f491273775ea6b44db8cb9483966fa1adc10029"
       in
-      let code_string = Ethereum_util.string_of_hex_string code in
+      let code_string = parse_0x_string code in
       let code_bytes = Bytes.of_string code_string in
       (* create the contract *)
       get_first_account ()
@@ -613,6 +596,7 @@ module Test = struct
         Address.of_0x_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00"
       in
       let address_bytes = Ethereum_util.bytes_of_address facilitator_address in
+      (* TODO: This smells fishy; where is the hash of the function being called? *)
       let operation1 =
         Operation.CallFunction (Address.of_0x_string contract_address, address_bytes)
       in
@@ -644,16 +628,15 @@ module Test = struct
         [(Address_value facilitator_address, Address); abi_uint_of_int amount_to_transfer]
       in
       let event_signature =
-        Ethereum_util.hex_string_of_string
-          (Ethereum_util.hash_bytes
-             (make_signature_bytes {function_name= "logTransfer"; parameters= event_parameters}))
+        {function_name= "logTransfer"; parameters= event_parameters}
+        |> function_signature_hash |> unparse_0x_string
       in
       assert (logged_event = event_signature) ;
       (* the facilitator address is visible as data *)
       let data = YoJson.to_string (YoJson.member "data" log_json) in
       let logged_encoding =
         let tuple_value, tuple_ty = abi_tuple_of_abi_values event_parameters in
-        Ethereum_util.hex_string_of_bytes (encode_abi_value tuple_value tuple_ty)
+        unparse_0x_bytes (encode_abi_value tuple_value tuple_ty)
       in
       assert (logged_encoding = data) ;
       (* confirm contract has received amount transferred *)
@@ -665,7 +648,7 @@ module Test = struct
       in
       assert (ending_balance = amount_to_transfer) ;
       (* now try invalid address, make sure it's not logged *)
-      let bogus_address_bytes = Ethereum_util.bytes_of_hex_string "0xFF" in
+      let bogus_address_bytes = parse_0x_bytes "0xFF" in
       let operation2 =
         Operation.CallFunction
           (Address.of_0x_string contract_address, bogus_address_bytes)
