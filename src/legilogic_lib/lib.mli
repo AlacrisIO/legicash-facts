@@ -44,6 +44,10 @@ val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
 val (>>) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
 
+(** Simple counter *)
+val make_counter : ?start:int -> unit -> unit -> int
+
+
 (** Options *)
 module Option : sig
   type 'a t = 'a option
