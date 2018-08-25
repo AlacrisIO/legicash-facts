@@ -321,6 +321,11 @@ module Data160 = struct
   let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
 end
 
+module UInt128 = struct
+  include UIntZ (struct let size_in_bits = 128 end)
+  let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
+end
+
 module type PreUIntZableS = sig
   include Unsigned.S
   include PreUIntZS
