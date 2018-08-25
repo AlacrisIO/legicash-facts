@@ -33,7 +33,7 @@ open Side_chain
    If later geth complains that the key is not found, issue a notification,
    and probably persist in the desire for a while and retry a few times,
    before giving up on the desire and issuing a bigger notification.
- *)
+*)
 
 module KnowledgeStage = struct
   type t = Unknown | Pending | Confirmed | Rejected
@@ -54,19 +54,19 @@ module Episteme = struct
   [@warning "-39"]
   type t =
     { request: Request.t signed
-    ; confirmation_option: Confirmation.t option
+    ; transaction_option: Transaction.t option
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
   [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
       marshaling3
-        (fun { request; confirmation_option; main_chain_confirmation_option } ->
-           request, confirmation_option, main_chain_confirmation_option)
-        (fun request confirmation_option main_chain_confirmation_option ->
-           { request; confirmation_option; main_chain_confirmation_option })
+        (fun { request; transaction_option; main_chain_confirmation_option } ->
+           request, transaction_option, main_chain_confirmation_option)
+        (fun request transaction_option main_chain_confirmation_option ->
+           { request; transaction_option; main_chain_confirmation_option })
         (marshaling_signed Request.marshaling)
-        (option_marshaling Confirmation.marshaling)
+        (option_marshaling Transaction.marshaling)
         (option_marshaling Main_chain.Confirmation.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
@@ -166,17 +166,17 @@ let make_rx_header facilitator_address user_state =
       user_state
 
 let mk_rx_episteme rx =
-  Episteme.{request= rx; confirmation_option= None; main_chain_confirmation_option= None}
+  Episteme.{request= rx; transaction_option= None; main_chain_confirmation_option= None}
 
 let [@warning "-32"] mk_tx_episteme tx =
   Episteme.
-    { request= tx.payload.Confirmation.signed_request
-    ; confirmation_option= Some tx.payload
+    { request= tx.payload.Transaction.signed_request
+    ; transaction_option= Some tx.payload
     ; main_chain_confirmation_option= None }
 
 let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
   fun facilitator_address ->
-  UserState.lens_facilitators |--
+    UserState.lens_facilitators |--
     defaulting_lens (konstant UserAccountState.empty)
       (UserAccountStateMap.lens facilitator_address)
 
@@ -316,16 +316,15 @@ let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operat
   let transaction = Main_chain.{ Transaction.tx_header; Transaction.operation } in
   Main_chain.Transaction.signed facilitator_keys transaction
 
-(* an action made on the side chain may need a corresponding action on the main chain *)
 let push_side_chain_action_to_main_chain
       (facilitator_state : FacilitatorState.t)
-      (confirmation : Confirmation.t)
+      (transaction : Transaction.t)
       (user_state : UserState.t) =
   (*
      let facilitator_address = facilitator_state.keypair.address in
-     if not (is_signature_valid Confirmation.digest facilitator_address signed_confirmation.signature confirmation) then
-     raise (Internal_error "Invalid facilitator signature on signed confirmation");*)
-  let signed_request = confirmation.signed_request in
+     if not (is_signature_valid Transaction.digest facilitator_address signed_transaction.signature transaction) then
+     bork "Invalid facilitator signature on signed transaction";*)
+  let signed_request = transaction.signed_request in
   let request = signed_request.payload in
   let user_keys = user_state.main_chain_user_state.keypair in
   let user_address = user_keys.address in
@@ -340,7 +339,7 @@ let push_side_chain_action_to_main_chain
     return (main_chain_confirmation, { user_state with main_chain_user_state })
   | Payment _
   | Deposit _ ->
-    raise (Internal_error "Side chain confirmation does not need subsequent interaction with main chain")
+    bork "Side chain transaction does not need subsequent interaction with main chain"
 
 let collect_account_liquidation_funds = bottom
 

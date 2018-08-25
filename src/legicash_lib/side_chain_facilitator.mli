@@ -14,13 +14,15 @@ val facilitator_account_lens : Address.t -> account_lens
 (** start the background facilitator processes for given address *)
 val start_facilitator : Address.t -> unit Lwt.t
 
-(** Get a reference to the current state of the facilitator
-    NB: You're not allowed to write it, only the facilitator code is
+(** Backdoor to get a reference to the current state of the facilitator.
+    NB 1: You're not allowed to write it, only the facilitator code is (it's a pure value, anyway).
+    NB 2: Thou shalt only use it but by permission of the owner.
+    It is NOT OK to probe into other people's internals except for e.g. testing and debugging.
 *)
 val get_facilitator_state : unit -> FacilitatorState.t
 
 (** facilitator processes request *)
-val process_request : (Request.t signed * bool, Confirmation.t) Lwt_exn.arr
+val process_request : (Request.t signed * bool, Transaction.t) Lwt_exn.arr
 
 val commit_facilitator_state : (unit, unit) FacilitatorAsyncAction.arr
 (** For a facilitator, commit the state of the side-chain to the main-chain *)
