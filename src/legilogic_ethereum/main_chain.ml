@@ -10,11 +10,33 @@ open Persisting
 open Merkle_trie
 open Types
 
-module TokenAmount = UInt64
-module Nonce = UInt64
-module ContractAddress = Address
+(* The number of tokens will probably not go (much) over 87 bits (100M ethers, each 1e18 wei),
+   so UInt96 should be more than enough.
+   But the binary API specifies a maximum of 256 bits for value transfers.
+   So we make it 256 bits, at least for now.
+   Note that we could make it smaller just for our side-chain and contracts, and that
+   with Ethereum mostly uses variable-length encoding RLP for hashing and signing token amounts,
+   so that disk space isn't wasted too much for them.
+   Maybe we should also choose a representation that isn't too bad, maybe adopt RLP, too,
+   and then it's OK to use 256 in memory.
+*)
+module TokenAmount = UInt256
+
+(* Even though it'll most probably fit in 32 bits, definitely in 64 bits,
+   The API maximum is 256 bits, so we use that. *)
+module Nonce = UInt256
 
 module AccountMap = MerkleTrie (Address) (TokenAmount)
+
+(* The address of a contract.
+   For Ethereum, that's the same type as a plain old address,
+   though it is stripped from the digest of the creator address plus their creation nonce,
+   rather than of a Secp256k1 public key.
+   On other blockchains, it could be different (do we care?)
+
+   module ContractAddress = Address
+*)
+
 
 module State = struct
   (* TODO: have an actual model of the Ethereum main chain, marshaled the Ethereum way. *)
@@ -60,7 +82,7 @@ module Confirmation = struct
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
 
-(** TODO: have an actual confirmation
+(** TODO: have an actual confirmation that a contract could check.
     For Ethereum, we might check the transaction hashes match, or
     perform a Merkle proof using the transactionsRoot in the given block
 *)
@@ -68,6 +90,8 @@ let is_confirmation_valid _confirmation _transaction = true
 
 let genesis_state = State.{revision= Revision.zero; accounts= AccountMap.empty}
 
+(* TODO: use whichever way is used to compute on-chain hashes for marshaling.
+   Is that RLP? Find out! *)
 module TxHeader = struct
   [@warning "-39"]
   type t = { sender: Address.t
@@ -93,6 +117,8 @@ module TxHeader = struct
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
 
+(* TODO: use whichever way is used to compute on-chain hashes for marshaling.
+   Is that RLP? Find out! *)
 module Operation = struct
   [@warning "-39"]
   type t =
@@ -106,7 +132,8 @@ module Operation = struct
            end) : (PersistableS with type t := t))
 end
 
-(* contract, data *)
+(* TODO: use whichever way is used to compute on-chain hashes for marshaling.
+   Is that RLP? Find out! *)
 (** Transaction (to be) posted to the main chain (i.e. Ethereum) *)
 module Transaction = struct
   [@warning "-39"]
@@ -115,10 +142,13 @@ module Transaction = struct
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
-             end) : PersistableS with type t := t)
+           end) : PersistableS with type t := t)
   let signed = signed_of_digest digest
 end
 
+
+(* TODO: use whichever way is used to compute on-chain hashes for marshaling.
+   Is that RLP? Find out! *)
 module TransactionSigned = struct
   [@warning "-39"]
   type t = Transaction.t signed
@@ -138,11 +168,10 @@ module UserState = struct
     ; pending_transactions: TransactionSigned.t list
     ; nonce: Nonce.t }
   [@@deriving lens { prefix=true }, yojson]
-  module PrePersistable = YojsonPersistable (Yojsonable (struct
-                                               type nonrec t = t
-                                               let yojsoning = {to_yojson;of_yojson}
-                                             end))
-  include (Persistable (PrePersistable) : (PersistableS with type t := t))
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : PersistableS with type t := t)
   let init keypair =
     { keypair
     ; confirmed_state= Digest.zero

@@ -188,6 +188,11 @@ module Test = struct
   open Ethereum_json_rpc
   open Signing.Test
 
+  let expect_0x_string description expected string =
+    let hex = unparse_0x_string string in
+    if not (hex = expected) then
+      bork "Expected %s to be %s but instead got %s instead" description expected hex
+
   let%test "move logs aside" = Logging.log_to_file "test.log"; true
 
   let assert_json_error_free location json =
@@ -423,8 +428,10 @@ module Test = struct
       let transaction = {Transaction.tx_header; Transaction.operation} in
       let signed_transaction = Signing.signed Transaction.digest private_key transaction in
       let transaction_hash = get_transaction_hash signed_transaction private_key in
-      return (unparse_0x_string transaction_hash
-              = "0x2b1cb46f0aa4ba7da55ef4928e925b2dd3e9af6908319306cf2593d0f911f9c9"))
+      expect_0x_string "transaction hash"
+        "0x472703a1599c7f8ffb221715e2183c8736e38e46a9447f3fb69285407b71aec2"
+        transaction_hash;
+      return true)
 
   let%test "hello-solidity" =
     let open Ethereum_abi in

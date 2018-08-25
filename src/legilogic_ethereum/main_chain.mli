@@ -15,7 +15,7 @@ module AccountMap : (MerkleTrieS with type key = Address.t and type value = Toke
 (** State of a main chain block.
     TODO:
     1- Make it work with Ethereum, where it describes a block
-    2- Make it work for tezos, where it's a Block_header.t (?)
+    2- Make another variant work for tezos, where it's a Block_header.t (?)
     3- Abstract into a module signature that can be provided by one or the other.
 *)
 module State : sig
