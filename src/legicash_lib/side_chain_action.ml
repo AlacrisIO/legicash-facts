@@ -135,7 +135,7 @@ module Test = struct
                ; gas_limit= TokenAmount.of_int 1000000
                ; value= TokenAmount.zero }
     in
-    let operation = Operation.CreateContract Facilitator_contract_binary.facilitator_contract in
+    let operation = Operation.CreateContract Facilitator_contract_binary.contract_bytes in
     let transaction = { Transaction.tx_header; Transaction.operation } in
     let signed_transaction = Transaction.signed Signing.Test.alice_keys transaction in
     send_transaction_to_net signed_transaction
