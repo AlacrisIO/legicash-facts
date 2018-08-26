@@ -25,16 +25,22 @@ val transaction_execution_matches_transaction : string -> Main_chain.Transaction
 module Test : sig
   val assert_json_error_free : string -> yojson -> unit
   (** whether JSON record contains "error" field *)
+
   val json_result_to_int : yojson -> int
   (** convert "result" field, given as a string, to an int *)
+
   val list_accounts : unit -> yojson Lwt.t
   (** JSON list of account addresses on net *)
+
   val new_account : unit -> yojson Lwt.t
   (** creates new account with given JSON address on net *)
+
   val unlock_account : ?duration:int -> address -> yojson Lwt.t
   (** unlocks account for given duration (in seconds) on net *)
+
   val get_first_account : unit -> yojson Lwt.t
   (** get first account listed on net; for dev network, this is the prefunded account *)
+
   val wait_for_contract_execution : string -> unit Lwt.t
   (** return when contract has completed *)
 end

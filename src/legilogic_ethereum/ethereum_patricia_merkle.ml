@@ -7,6 +7,7 @@
    https://github.com/ethereum/pyethereum
    https://github.com/ethereum/go-ethereum/tree/master/trie
 
+   TODO: complete the implementation, and make it abide by our Lib.MapS interface.
 *)
 
 open Legilogic_lib
