@@ -112,7 +112,7 @@ let abi_string_of_string s = (String_value s, String)
 (* intN and uintN builders *)
 (* 2**n using Ocaml int *)
 let rec pow2 n =
-  if n < 0 then raise (Internal_error "pow2: expected nonnegative n") ;
+  if n < 0 then bork "pow2: expected nonnegative n" ;
   if n = 0 then 1 else 2 * pow2 (n - 1)
 
 and get_big_endian_int_bytes bits n =
@@ -213,10 +213,10 @@ and abi_int64_of_int64 n_64 =
 (* convert positive int64 values to ABI uint64 values *)
 let abi_uint64_of_int64 n_64 =
   if Int64.compare n_64 Int64.zero < 0 then
-    raise (Internal_error "Can't represent negative int64 value as ABI Uint") ;
+    bork "Can't represent negative int64 value as ABI Uint" ;
   match fst (abi_int64_of_int64 n_64) with
   | Int_value bytes -> (Uint_value bytes,Uint 64)
-  | v -> raise (Internal_error (Printf.sprintf "Expected Int_value, got %s" (show_abi_value v)))
+  | v -> bork "Expected Int_value, got %s" (show_abi_value v)
 
 (* TODO: have builders for larger bit-width types that take an int64, or maybe Signed/Unsigned from
    integers library
@@ -239,7 +239,7 @@ let abi_function_call_of_encoded_call address encoded_call =
 
 let abi_array_of_abi_values ty abi_typed_vals =
   if not (List.for_all (fun (_, ty') -> ty' = ty) abi_typed_vals) then
-    raise (Internal_error "Array elements don't all match specified type") ;
+    bork "Array elements don't all match specified type" ;
   let len = List.length abi_typed_vals in
   let vals = List.map fst abi_typed_vals in
   (Array_value vals, Array (len, ty))
@@ -247,7 +247,7 @@ let abi_array_of_abi_values ty abi_typed_vals =
 let abi_array_dynamic_of_abi_values ty abi_typed_vals =
   match fst (abi_array_of_abi_values ty abi_typed_vals) with
   | Array_value vals -> (vals, ArrayDynamic ty)
-  | v -> raise (Internal_error (Printf.sprintf "Expected Array value, got %s" (show_abi_value v)))
+  | v -> bork "Expected Array value, got %s" (show_abi_value v)
 
 let abi_tuple_of_abi_values abi_typed_vals =
   let vals = List.map fst abi_typed_vals in
@@ -257,7 +257,7 @@ let abi_tuple_of_abi_values abi_typed_vals =
 (* for Fixed encodings, num is an int or int64 which represents num * 10**n *)
 
 let expected_int v =
-  raise (Internal_error (Printf.sprintf "Expected Int value, got %s" (show_abi_value v)))
+  bork "Expected Int value, got %s" (show_abi_value v)
 
 let abi_fixed8n_of_int n num =
   match fst (abi_int8_of_int num) with
@@ -384,16 +384,14 @@ let rec encode_abi_value v ty =
   | Uint_value bytes, Uint m ->
     let bytes_len = Bytes.length bytes in
     if m / 8 != bytes_len then
-      raise
-        (Internal_error (Printf.sprintf "have type uint%d, got value with %d bytes" m bytes_len)) ;
+      bork "have type uint%d, got value with %d bytes" m bytes_len ;
     (* left-pad to 32 bytes *)
     let padding = Bytes.make (32 - bytes_len) '\000' in
     Bytes.cat padding bytes
   | Int_value bytes, Int m ->
     let bytes_len = Bytes.length bytes in
     if m / 8 != bytes_len then
-      raise
-        (Internal_error (Printf.sprintf "have type int%d, got value with %d bytes" m bytes_len)) ;
+      bork "have type int%d, got value with %d bytes" m bytes_len ;
     (* left-pad to 32 bytes *)
     let is_negative = Char.code (Bytes.get bytes 0) land 0b10000000 = 0 in
     let pad_byte = if is_negative then Char.chr 0xff else '\000' in
@@ -485,10 +483,8 @@ let rec encode_abi_value v ty =
     let tails_bytes = Array.fold_right Bytes.cat tails Bytes.empty in
     Bytes.cat heads_bytes tails_bytes
   | _ ->
-    raise
-      (Internal_error
-         (Printf.sprintf "Value to be encoded: %s\nDoes not match its type: %s"
-            (show_abi_value v) (show_abi_type ty)))
+    bork "Value to be encoded: %s\nDoes not match its type: %s"
+      (show_abi_value v) (show_abi_type ty)
 
 (* an encoding of the function call is what we pass to Ethereum in a transaction *)
 let encode_function_call function_call =

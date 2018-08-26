@@ -22,7 +22,7 @@ let hex_string_of_address_with_checksum address =
                   ch
                 else
                   Char.chr (Char.code ch - uppercase_difference)
-              | _ -> raise (Internal_error "Unexpected digit in hex string"))
+              | _ -> bork "Unexpected digit in hex string")
 
 let validate_address_checksum hs =
   (* see https://www.quora.com/How-can-we-do-Ethereum-address-validation *)
@@ -32,8 +32,7 @@ let validate_address_checksum hs =
   let lower_hex_digits = String.lowercase_ascii hex_digits in
   let hashed_digits = unparse_hex_string (keccak256_string lower_hex_digits) in
   let flag_error ndx =
-    raise
-      (Internal_error (Format.sprintf "Invalid address checksum at index %d for %s" (ndx + 2) hs))
+    bork "Invalid address checksum at index %d for %s" (ndx + 2) hs
   in
   for ndx = 0 to hex_len - 1 do
     match hex_digits.[ndx] with
@@ -41,9 +40,7 @@ let validate_address_checksum hs =
     | 'a'..'f' -> ( match hashed_digits.[ndx] with '0'..'7' -> () | _ -> flag_error ndx )
     | 'A'..'F' -> ( match hashed_digits.[ndx] with '0'..'7' -> flag_error ndx | _ -> () )
     | _ ->
-      raise
-        (Internal_error
-           (Format.sprintf "Invalid hex digit at index %d in address %s" (ndx + 2) hs))
+      bork "Invalid hex digit at index %d in address %s" (ndx + 2) hs
   done
 
 let address_of_hex_string_with_checksum hs =

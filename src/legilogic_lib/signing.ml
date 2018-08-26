@@ -45,7 +45,7 @@ let address_of_public_key public_key =
   let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
   (* uncompressed public key has an extra byte at the beginning, which we remove:
      https://bitcoin.stackexchange.com/questions/57855/c-secp256k1-what-do-prefixes-0x06-and-0x07-in-an-uncompressed-public-key-signif
-   *)
+  *)
   let pubkey_string = Cstruct.to_string (Cstruct.of_bigarray ~off:1 buffer) in
   let hash = keccak256_string pubkey_string in
   let hash_len = String.length hash in
@@ -106,7 +106,7 @@ module Keypair = struct
     { address: Address.t
     ; public_key: PublicKey.t
     ; private_key: PrivateKey.t }
-    [@@deriving lens {prefix=true}, yojson]
+  [@@deriving lens {prefix=true}, yojson]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -115,7 +115,7 @@ module Keypair = struct
         (marshaling2
            (fun {public_key; private_key} -> public_key, private_key)
            (fun public_key private_key ->
-             {address=address_of_public_key public_key; public_key; private_key})
+              {address=address_of_public_key public_key; public_key; private_key})
            PublicKey.marshaling PrivateKey.marshaling)
   end
   include (YojsonMarshalable(P) : YojsonMarshalableS with type t := t)
@@ -139,7 +139,7 @@ let make_private_key private_key_string =
   let private_key_buffer = Cstruct.to_bigarray (Cstruct.of_string private_key_string) in
   match Secp256k1.Key.read_sk secp256k1_ctx private_key_buffer with
   | Ok sk -> sk
-  | Error msg -> raise (Internal_error msg)
+  | Error msg -> bork "%s" msg
 
 type 'a signed = {payload: 'a; signature: signature}
 

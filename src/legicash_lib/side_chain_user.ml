@@ -39,7 +39,7 @@ module KnowledgeStage = struct
   type t = Unknown | Pending | Confirmed | Rejected
   let to_char = function Unknown -> 'U' | Pending -> 'P' | Confirmed -> 'C' | Rejected -> 'R'
   let of_char = function | 'U' -> Unknown | 'P' -> Pending | 'C' -> Confirmed | 'R' -> Rejected
-                         | _ -> raise (Internal_error "Invalid KnowledgeStage character")
+                         | _ -> bork "Invalid KnowledgeStage character"
   module PrePersistable = struct
     type nonrec t = t
     let marshaling = marshaling_map to_char of_char char_marshaling
@@ -225,16 +225,16 @@ let update_account_state_with_trusted_operation
   | Operation.Deposit {deposit_amount; deposit_fee=_deposit_fee} ->
     if true (* check that everything is correct *) then
       {f with balance= TokenAmount.add balance deposit_amount}
-    else raise (Internal_error "I mistrusted your deposit operation")
+    else bork "I mistrusted your deposit operation"
   | Operation.Payment {payment_invoice; payment_fee} ->
     let decrement = TokenAmount.add payment_invoice.amount payment_fee in
     if TokenAmount.compare balance decrement >= 0 then
       {f with balance= TokenAmount.sub balance decrement}
-    else raise (Internal_error "I mistrusted your payment operation")
+    else bork "I mistrusted your payment operation"
   | Operation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
     if true (* check that everything is correct *) then
       {f with balance= TokenAmount.sub balance (TokenAmount.add withdrawal_amount withdrawal_fee)}
-    else raise (Internal_error "I mistrusted your withdrawal operation")
+    else bork "I mistrusted your withdrawal operation"
 
 (** We assume most recent operation is to the left of the changes list,
 *)
@@ -329,7 +329,7 @@ let push_side_chain_action_to_main_chain
   let user_keys = user_state.main_chain_user_state.keypair in
   let user_address = user_keys.address in
   if not (is_signature_valid Request.digest user_address signed_request.signature request) then
-    raise (Internal_error "Invalid user signature on signed request");
+    bork "Invalid user signature on signed request";
   match request.operation with
   | Withdrawal details ->
     let open Lwt in

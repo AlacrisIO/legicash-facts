@@ -164,7 +164,7 @@ let rlp_of_signed_transaction transaction_rlp ~v ~r ~s =
   let signature_items = [RlpItem v; RlpItem r; RlpItem s] in
   match transaction_rlp with
   | RlpItems items -> RlpItems (items @ signature_items)
-  | _ -> raise (Internal_error "Expected RlpItems when creating signed transaction RLP")
+  | _ -> bork "Expected RlpItems when creating signed transaction RLP"
 
 
 (* https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f
@@ -255,7 +255,7 @@ module Test = struct
       transaction_executed transaction_hash
       >>= fun b ->
       if counter > max_counter then
-        raise (Internal_error "Could not verify contract execution")
+        bork "Could not verify contract execution"
       else if b then
         return ()
       else (
@@ -266,7 +266,7 @@ module Test = struct
     loop 0
 
   let%test "poll-for-testnet" =
-    is_testnet_up () || raise (Internal_error "Could not connect to Ethereum test net")
+    is_testnet_up () || bork "Could not connect to Ethereum test net"
 
   let%test "transfer-on-Ethereum-testnet" =
     Lwt_main.run (

@@ -101,7 +101,7 @@ end
 module ResultOrString = struct
   let get = function
     | Ok x -> x
-    | Error e -> raise (Internal_error e)
+    | Error e -> bork "%s" e
 end
 
 

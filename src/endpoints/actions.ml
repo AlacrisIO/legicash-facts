@@ -71,7 +71,7 @@ let add_main_chain_thread thread =
   let thread_find_limit = 100000 in
   let rec find_thread_id n =
     if n > thread_find_limit then
-      raise (Internal_error "Can't find id for main chain thread")
+      bork "Can't find id for main chain thread"
     else
       let id = Random.int 100000000 in
       if Hashtbl.mem id_to_thread_tbl id then
@@ -113,8 +113,7 @@ let user_state_from_address address_t =
   try
     Hashtbl.find address_to_user_state_tbl address_t
   with Not_found ->
-    raise (Internal_error (Format.sprintf "Could not find user state for address: 0x%s"
-                             (Address.to_hex_string address_t)))
+    bork "Could not find user state for address: %s" (Address.to_0x_string address_t)
 
 (* convert main chain confirmation to JSON-friendly types *)
 let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmation.t) =
@@ -143,7 +142,7 @@ let deposit_to_trent address amount =
     let main_chain_confirmation =
       match operation with
       | Deposit details -> jsonable_confirmation_of_confirmation details.main_chain_deposit_confirmation
-      | _ -> raise (Internal_error "Expected deposit request")
+      | _ -> bork "Expected deposit request"
     in
     (* get user account info on Trent *)
     let user_account_on_trent = get_user_account address_t in
@@ -167,7 +166,7 @@ let withdrawal_from_trent address amount =
   let user_account_on_trent = get_user_account address_t in
   let balance = user_account_on_trent.balance in
   if TokenAmount.compare (TokenAmount.of_int amount) balance > 0 then
-    raise (Internal_error "Insufficient balance to withdraw specified amount");
+    bork "Insufficient balance to withdraw specified amount";
   let thread =
     unlock_account address_t
     >>= fun _unlock_json ->
@@ -308,13 +307,13 @@ let payment_timestamp () =
 
 let payment_on_trent sender recipient amount =
   if sender = recipient then
-    raise (Internal_error "Sender and recipient are the same");
+    bork "Sender and recipient are the same";
   let sender_address_t = Address.of_0x_string sender in
   let recipient_address_t = Address.of_0x_string recipient in
   let sender_state = Hashtbl.find address_to_user_state_tbl sender_address_t in
   let sender_account = get_user_account sender_address_t in
   if (TokenAmount.to_int sender_account.balance) < amount then
-    raise (Internal_error "Sender has insufficient balance to make this payment");
+    bork "Sender has insufficient balance to make this payment";
   let sender_state_ref = ref sender_state in
   UserAsyncAction.run_lwt sender_state_ref payment
     (trent_address, recipient_address_t, TokenAmount.of_int amount)
@@ -362,7 +361,7 @@ let get_transaction_rate_on_trent () =
   let rec count_transactions ndx count =
     (* traversed entire array, shouldn't happen *)
     if ndx = current_cursor then
-      raise (Internal_error "Timestamps array is not big enough")
+      bork "Timestamps array is not big enough"
     else if payment_timestamps.(ndx) <= minute_ago then
       count
     else (* decrement, or wrap backwards *)

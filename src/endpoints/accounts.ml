@@ -64,7 +64,7 @@ let list_take elts n =
       (List.rev accum)
     else
       match elts with
-      | [] -> raise (Internal_error "list_take: list too short")
+      | [] -> bork "list_take: list too short"
       | (h :: t) ->
         loop t (h::accum) (count + 1)
   in
@@ -102,7 +102,7 @@ let _ =
 let get_user_name address_t =
   try
     Hashtbl.find address_to_account_tbl address_t
-  with Not_found -> raise (Internal_error (Format.sprintf "Can't find user name for address %s" (Address.to_0x_string address_t)))
+  with Not_found -> bork "Can't find user name for address %s" (Address.to_0x_string address_t)
 
 (* store keys on Ethereum test net. TODO: don't do this on real net!  *)
 let store_keys_on_testnet (name,keys) =
@@ -178,9 +178,7 @@ let user_accounts_from_trent_state address =
     in
     UserAccountStateMap.singleton trent_address account_state
   with Not_found ->
-    raise (Internal_error
-             (Format.sprintf "Could not find user state for address: %s"
-                (Address.to_0x_string address)))
+    bork "Could not find user state for address: %s" (Address.to_0x_string address)
 
 let load_trent_state () =
   Printf.printf "Loading the facilitator state...\n%!";
