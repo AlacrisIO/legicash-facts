@@ -54,6 +54,14 @@ let bytes_of_address address = Bytes.of_string (Address.to_big_endian_bits addre
 
 module Test = struct
 
+  let expect_0x_string description expected string =
+    let hex = unparse_0x_string string in
+    if not (hex = expected) then
+      bork "Expected %s to be %s but instead got %s instead" description expected hex
+
+  let expect_0x_bytes description expected bytes =
+    expect_0x_string description expected (Bytes.to_string bytes)
+
   let%test "0x_string <-> address" =
     List.for_all
       (fun (hex, ethhex) -> let address = Address.of_hex_string hex in

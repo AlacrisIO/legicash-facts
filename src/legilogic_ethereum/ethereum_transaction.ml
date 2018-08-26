@@ -187,11 +187,7 @@ module Test = struct
   open Lwt
   open Ethereum_json_rpc
   open Signing.Test
-
-  let expect_0x_string description expected string =
-    let hex = unparse_0x_string string in
-    if not (hex = expected) then
-      bork "Expected %s to be %s but instead got %s instead" description expected hex
+  open Ethereum_util.Test
 
   let%test "move logs aside" = Logging.log_to_file "test.log"; true
 
