@@ -347,6 +347,19 @@ let payment_on_trent sender recipient amount =
   in
   return (payment_result_to_yojson payment_result)
 
+(* Use a (subset) of ISO 8601 format, minus the timezone.
+   TODO: Use Jane Street's Core.Std.Time instead.
+*)
+let string_of_timeofday tod =
+  let tm = Unix.localtime tod in
+  Format.sprintf "%d-%02d-%02dT%02d:%02d:%02d"
+    (tm.tm_year + 1900)
+    (tm.tm_mon + 1)
+    tm.tm_mday
+    tm.tm_hour
+    tm.tm_min
+    tm.tm_sec
+
 let get_transaction_rate_on_trent () =
   (* start search from last timestamp *)
   let current_cursor = !payment_timestamps_cursor in
@@ -369,17 +382,6 @@ let get_transaction_rate_on_trent () =
   in
   let raw_count = count_transactions last_cursor 0 in
   let transactions_per_second = raw_count / 60 in
-  let tm = Unix.localtime now in
-  let time =
-    Format.sprintf "%d:%02d:%02d %02d:%02d:%02d"
-      (tm.tm_year + 1900)
-      (tm.tm_mon + 1)
-      tm.tm_mday
-      tm.tm_hour
-      tm.tm_min
-      tm.tm_sec
-  in
-  let tps_result = { transactions_per_second
-                   ; time
-                   } in
+  let time = string_of_timeofday now in
+  let tps_result = { transactions_per_second ; time } in
   tps_result_to_yojson tps_result
