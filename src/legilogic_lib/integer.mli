@@ -54,6 +54,7 @@ module type UIntMoreS = sig
   val has_bit : t -> int -> bool
   val is_numbits : int -> t -> bool
   val of_bits : string -> t
+  val to_bits : t -> string
   val of_hex_string : string -> t
   val to_hex_string : t -> string
 

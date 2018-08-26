@@ -49,6 +49,7 @@ module type UIntMoreS = sig
   val has_bit : t -> int -> bool
   val is_numbits : int -> t -> bool
   val of_bits : string -> t
+  val to_bits : t -> string
   val of_hex_string : string -> t
   val to_hex_string : t -> string
   val of_0x_string : string -> t
@@ -349,6 +350,7 @@ module UIntZable (P: PreUIntZableS) = struct
   let is_numbits n z = numbits z < n
   let has_bit key position = equal one (extract key position 1)
   let of_bits bits = Z.of_bits bits |> of_z
+  let to_bits n = n |> z_of |> Z.to_bits
   let of_hex_string = Nat.of_hex_string >> of_z
   let to_hex_string = z_of >> Nat.to_hex_string
   let of_big_endian_bits = nat_of_big_endian_bits size_in_bits >> of_z
