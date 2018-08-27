@@ -26,16 +26,17 @@ end
 
 (** an operation on a facilitator side-chain *)
 module Operation : sig
-  type payment_details =
-    {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
-  [@@deriving lens, yojson]
-
+  [@warning "-39"]
   type deposit_details =
     { deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t
     ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
     ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
     ; deposit_expedited: bool }
+  [@@deriving lens, yojson]
+
+  type payment_details =
+    {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
   [@@deriving lens, yojson]
 
   type withdrawal_details =
@@ -116,11 +117,32 @@ module TxHeader : sig
   include PersistableS with type t := t
 end
 
+(*
+   module AdminOperation : sig
+   type state_update_details =
+   { main_chain_revision : Revision.t }
+   [@@deriving lens { prefix=true }, yojson]
+   type t =
+   | StateUpdate of
+   { (* TODO *) }
+   include PersistableS with type t := t
+   end
+
+   module TxOperation : sig
+   type t =
+   | UserRequest of Request.t signed
+   | AdminOperation of AdminOperation.t
+   include PersistableS with type t := t
+   end
+*)
+
 (** A transaction confirmation from a facilitator:
     a request, plus headers that help validate against fraud.
 *)
-module Confirmation : sig
-  type t = {tx_header: TxHeader.t; signed_request: Request.t signed}
+module Transaction : sig
+  type t = {tx_header: TxHeader.t;
+            (* TODO: replace the below with tx_operation: TxOperation.t *)
+            signed_request: Request.t signed}
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
@@ -129,7 +151,12 @@ end
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
 (** public state of the account of a user with a facilitator as visible in the public side-chain *)
 module AccountState : sig
-  type t = {balance: TokenAmount.t; account_revision: Revision.t}
+  type t =
+    { balance: TokenAmount.t (* amount of tokens in the account *)
+    ; account_revision: Revision.t
+    (* number of operations so far that concern this account.
+       This both makes verification easier and prevents replay attacks
+       like the equivalent Ethereum "nonce" *) }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 
@@ -137,7 +164,7 @@ module AccountState : sig
   val empty : t
 end
 
-module ConfirmationMap : MerkleTrieS with type key = Revision.t and type value = Confirmation.t
+module TransactionMap : MerkleTrieS with type key = Revision.t and type value = Transaction.t
 
 module AccountMap : MerkleTrieS with type key = Address.t and type value = AccountState.t
 
@@ -147,7 +174,7 @@ module AccountMap : MerkleTrieS with type key = Address.t and type value = Accou
     ; confirmed_main_chain_state: digest (* Main_chain.State.t *)
     ; confirmed_side_chain_state: digest (* state previously posted on the above *)
     ; bond_posted: TokenAmount.t
-    Or "just" keep changes in this data in the ConfirmationMap as objects beside requests?
+    Or "just" keep changes in this data in the TransactionMap as objects beside requests?
     And keep a fast-access index to the latest entry numbers? As other trees?
     As parallel trees that share the same data structures?
     Index not just the confirmed, but also the pending confirmation?
@@ -157,7 +184,7 @@ module State : sig
            ; spending_limit: TokenAmount.t
            (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
            ; accounts: AccountMap.t
-           ; operations: ConfirmationMap.t
+           ; transactions: TransactionMap.t
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t

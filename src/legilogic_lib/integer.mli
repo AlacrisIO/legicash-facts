@@ -54,6 +54,7 @@ module type UIntMoreS = sig
   val has_bit : t -> int -> bool
   val is_numbits : int -> t -> bool
   val of_bits : string -> t
+  val to_bits : t -> string
   val of_hex_string : string -> t
   val to_hex_string : t -> string
 
@@ -108,6 +109,7 @@ module Data256 : UIntS (* with type t = UInt256.t *)
 
 module Data160 : UIntS (* with type t = Nat.t *)
 
+module UInt128 : UIntS (* with type t = Nat.t *)
 module UInt64 : UIntS (* with type t = Unsigned.UInt64.t *)
 module UInt32 : UIntS (* with type t = Unsigned.UInt32.t *)
 module UInt16 : UIntS (* with type t = Unsigned.UInt16.t *)

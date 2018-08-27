@@ -28,6 +28,12 @@ let zcompose x y z = x (y z)
 let (>>) x y z = y (x z)
 
 
+(** Simple counter *)
+let make_counter ?(start=0) () =
+  let r = ref start in
+  fun () -> let i = !r in r := i+1 ; i
+
+
 (** Options *)
 module Option = struct
   type 'a t = 'a option
@@ -95,7 +101,7 @@ end
 module ResultOrString = struct
   let get = function
     | Ok x -> x
-    | Error e -> raise (Internal_error e)
+    | Error e -> bork "%s" e
 end
 
 

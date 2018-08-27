@@ -60,7 +60,7 @@ let char_marshaling={marshal=marshal_char;unmarshal=unmarshal_char}
 let bool_of_char = function
   | '\000' -> false
   | '\001' -> true
-  | c -> raise (Internal_error (Printf.sprintf "Bad bool char %c" c))
+  | c -> bork "Bad bool char %c" c
 
 let char_of_bool = function
   | false -> '\000'
@@ -276,8 +276,8 @@ end
 let to_yojson_of_marshal_string marshal_string x =
   `String (x |> marshal_string |> Hex.unparse_hex_string)
 let of_yojson_of_unmarshal_string unmarshal_string = function
-    | `String a -> Ok (unmarshal_string (Hex.parse_hex_string a))
-    | _ -> Error "bad json"
+  | `String a -> Ok (unmarshal_string (Hex.parse_hex_string a))
+  | _ -> Error "bad json"
 let yojsoning_of_marshal_string_unmarshal_string marshal_string unmarshal_string =
   { to_yojson=to_yojson_of_marshal_string marshal_string
   ; of_yojson=of_yojson_of_unmarshal_string unmarshal_string }
@@ -393,7 +393,7 @@ let list_marshaling m = {marshal=marshal_list m.marshal; unmarshal=unmarshal_lis
 
 
 (** Object which can be marshaled based on json representation. Marshaled
-   representation must fit in a gigabyte (!) *)
+    representation must fit in a gigabyte (!) *)
 module MarshalableOfYojsonable (Y : YojsonableS) = struct
   include Y
   include (Marshalable (struct

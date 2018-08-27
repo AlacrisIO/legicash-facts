@@ -175,14 +175,14 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
          let d1 = Type.Trie.digest trie in
          let d2 = Type.trie_synth trie in
          if not (d1 = d2) then
-         raise (Internal_error (Printf.sprintf "Bad digest height=%d digest=%s synth=%s"
+         bork "Bad digest height=%d digest=%s synth=%s"
          (match trie with
          | Empty -> -1
          | Leaf _ -> 0
          | Branch {height} -> height
          | Skip {height} -> height)
-         (Digest.to_hex_string d1)
-         (Digest.to_hex_string d2)));
+         (Digest.to_0x_string d1)
+         (Digest.to_0x_string d2)));
          make trie *)
   end
   module Trie = Trie (Key) (Value) (DigestValueType) (Synth) (Type) (Wrap)
@@ -197,12 +197,12 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
       iterate_over_tree
         ~recursek:(fun ~i ~tree:t ~k ->
           if not (dv_digest t = get_synth t && dv_digest t = digest t) then
-            raise (Internal_error (Printf.sprintf "Bad digest at key %s height %d digest=%s dv_digest=%s get_synth=%s"
-                                     (Key.to_hex_string i)
-                                     (trie_height t)
-                                     (Digest.to_hex_string (digest t))
-                                     (Digest.to_hex_string (dv_digest t))
-                                     (Digest.to_hex_string (get_synth t))))
+            bork "Bad digest at key %s height %d digest=%s dv_digest=%s get_synth=%s"
+              (Key.to_0x_string i)
+              (trie_height t)
+              (Digest.to_0x_string (digest t))
+              (Digest.to_0x_string (dv_digest t))
+              (Digest.to_0x_string (get_synth t))
           else k())
         ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~synth:_ ~k -> k())
         ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~synth:_ ~k -> k())
@@ -237,7 +237,7 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
       let bits = yojson |> YoJson.member "bits" |> Key.of_yojson_exn in
       let length = yojson |> YoJson.member "length" |> UInt16int.of_yojson_exn in
       SkipChild {bits; length}
-    else raise (Internal_error "Bad json")
+    else bork "Bad json"
 
   module Proof = struct
     type nonrec key = key
@@ -558,7 +558,7 @@ module Test = struct
       (fun b ->
          let trie = trie_of_bindings b in
          p (force b, force trie) ||
-         raise (Internal_error (Printf.sprintf "Bad %s" name)))
+         bork "Bad %s" name)
       test_bindings
 
   let%test "find_opt_all" =
@@ -665,7 +665,7 @@ module Test = struct
   let bad_proof = lazy (match force proof_42_in_trie_100 with
     | Proof.{ key ; trie ; leaf ; steps = [s1;s2;s3;s4;s5;s6;s7] } ->
       Proof.{ key ; trie ; leaf ; steps = [s1;s2;s5;s4;s3;s6;s7] } (* steps 3 and 5 are swapped *)
-    | _ -> raise (Internal_error "Bad proof"))
+    | _ -> bork "Bad proof")
 
   let%test "proof" =
     Proof.get (n 42) (force trie_100) = Some (force proof_42_in_trie_100)

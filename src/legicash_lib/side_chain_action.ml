@@ -56,7 +56,7 @@ module Test = struct
       let error_json = YoJson.member "error" result_json in
       let error_message = YoJson.member "message" error_json |> YoJson.to_string in
       error_message = "account already exists" ||
-      raise (Internal_error error_message)
+      bork "%s" error_message
     in
     return ()
 
@@ -75,11 +75,11 @@ module Test = struct
     let json_keys = YoJson.keys json in
     if List.mem "error" json_keys then (
       let error = YoJson.member "error" json |> string_of_yojson in
-      raise (Internal_error error)
+      bork "%s" error
     );
     let balance = YoJson.member "result" json |> YoJson.to_string |> int_of_string in
     let deficit = min_balance - balance in
-    if deficit > 0 then (
+    if deficit > 0 then
       let tx_header =
         Main_chain.TxHeader.
           { sender= funding_account
@@ -94,12 +94,11 @@ module Test = struct
       send_transaction_to_net signed_transaction
       >>= fun json ->
       let json_keys = YoJson.keys json in
-      if List.mem "error" json_keys then (
+      if List.mem "error" json_keys then
         let error = YoJson.member "error" json |> string_of_yojson in
-        raise (Internal_error error))
-      else (
-        return ())
-    )
+        bork "%s" error
+      else
+        return ()
     else
       return ()
 
@@ -135,7 +134,7 @@ module Test = struct
                ; gas_limit= TokenAmount.of_int 1000000
                ; value= TokenAmount.zero }
     in
-    let operation = Operation.CreateContract Facilitator_contract_binary.facilitator_contract in
+    let operation = Operation.CreateContract Facilitator_contract_binary.contract_bytes in
     let transaction = { Transaction.tx_header; Transaction.operation } in
     let signed_transaction = Transaction.signed Signing.Test.alice_keys transaction in
     send_transaction_to_net signed_transaction
@@ -194,7 +193,7 @@ module Test = struct
       let trent_accounts_after_payment = trent_state2.current.accounts in
       let get_trent_account name address =
         try Side_chain.AccountMap.find address trent_accounts_after_payment with Not_found ->
-          raise (Internal_error (name ^ " has no account on Trent after payment")) in
+          bork "%s has no account on Trent after payment" name in
       let alice_account = get_trent_account "Alice" alice_address in
       let bob_account = get_trent_account "Bob" bob_address in
       (* Alice has payment debited from her earlier deposit; Bob has just the payment in his account *)

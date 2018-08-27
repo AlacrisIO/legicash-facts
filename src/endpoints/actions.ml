@@ -71,7 +71,7 @@ let add_main_chain_thread thread =
   let thread_find_limit = 100000 in
   let rec find_thread_id n =
     if n > thread_find_limit then
-      raise (Internal_error "Can't find id for main chain thread")
+      bork "Can't find id for main chain thread"
     else
       let id = Random.int 100000000 in
       if Hashtbl.mem id_to_thread_tbl id then
@@ -87,12 +87,12 @@ let add_main_chain_thread thread =
 let get_proof tx_revision : yojson =
   let tx_revision_t = Revision.of_int tx_revision in
   let trent_state = get_trent_state () in
-  let operations = trent_state.current.operations in
-  match ConfirmationMap.Proof.get tx_revision_t operations with
+  let transactions = trent_state.current.transactions in
+  match TransactionMap.Proof.get tx_revision_t transactions with
   | None ->
     `Assoc [("error",`String (Format.sprintf "Cannot provide proof for tx-revision: %d" tx_revision))]
   | Some proof ->
-    ConfirmationMap.Proof.to_yojson proof
+    TransactionMap.Proof.to_yojson proof
 
 (* lookup id in thread table; if completed, return result, else return boilerplate *)
 let apply_main_chain_thread id : yojson =
@@ -113,8 +113,7 @@ let user_state_from_address address_t =
   try
     Hashtbl.find address_to_user_state_tbl address_t
   with Not_found ->
-    raise (Internal_error (Format.sprintf "Could not find user state for address: 0x%s"
-                             (Address.to_hex_string address_t)))
+    bork "Could not find user state for address: %s" (Address.to_0x_string address_t)
 
 (* convert main chain confirmation to JSON-friendly types *)
 let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmation.t) =
@@ -143,7 +142,7 @@ let deposit_to_trent address amount =
     let main_chain_confirmation =
       match operation with
       | Deposit details -> jsonable_confirmation_of_confirmation details.main_chain_deposit_confirmation
-      | _ -> raise (Internal_error "Expected deposit request")
+      | _ -> bork "Expected deposit request"
     in
     (* get user account info on Trent *)
     let user_account_on_trent = get_user_account address_t in
@@ -167,7 +166,7 @@ let withdrawal_from_trent address amount =
   let user_account_on_trent = get_user_account address_t in
   let balance = user_account_on_trent.balance in
   if TokenAmount.compare (TokenAmount.of_int amount) balance > 0 then
-    raise (Internal_error "Insufficient balance to withdraw specified amount");
+    bork "Insufficient balance to withdraw specified amount";
   let thread =
     unlock_account address_t
     >>= fun _unlock_json ->
@@ -268,28 +267,28 @@ let get_recent_transactions_on_trent address maybe_limit =
   let exception Reached_limit of yojson list in
   let address_t = Address.of_0x_string address in
   let trent_state = get_trent_state () in
-  let all_operations = trent_state.current.operations in
-  let get_operation_for_address _rev (confirmation:Confirmation.t) ((count,operations) as accum) =
+  let all_transactions = trent_state.current.transactions in
+  let get_operation_for_address _rev (transaction:Transaction.t) ((count,transactions) as accum) =
     if Option.is_some maybe_limit &&
        count >= Option.get maybe_limit then
-      raise (Reached_limit operations);
-    let request = (confirmation.signed_request).payload in
+      raise (Reached_limit transactions);
+    let request = (transaction.signed_request).payload in
     let requester = request.rx_header.requester in
     if requester = address_t then
-      (count+1,make_operation_json address confirmation.tx_header.tx_revision request::operations)
+      (count+1,make_operation_json address transaction.tx_header.tx_revision request::transactions)
     else
       accum
   in
-  let operations =
+  let transactions =
     try
       let _,ops =
-        ConfirmationMap.fold_right
+        TransactionMap.fold_right
           get_operation_for_address
-          all_operations (0,[])
+          all_transactions (0,[])
       in ops
     with Reached_limit ops -> ops
   in
-  `List operations
+  `List transactions
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
@@ -308,24 +307,24 @@ let payment_timestamp () =
 
 let payment_on_trent sender recipient amount =
   if sender = recipient then
-    raise (Internal_error "Sender and recipient are the same");
+    bork "Sender and recipient are the same";
   let sender_address_t = Address.of_0x_string sender in
   let recipient_address_t = Address.of_0x_string recipient in
   let sender_state = Hashtbl.find address_to_user_state_tbl sender_address_t in
   let sender_account = get_user_account sender_address_t in
   if (TokenAmount.to_int sender_account.balance) < amount then
-    raise (Internal_error "Sender has insufficient balance to make this payment");
+    bork "Sender has insufficient balance to make this payment";
   let sender_state_ref = ref sender_state in
   UserAsyncAction.run_lwt sender_state_ref payment
     (trent_address, recipient_address_t, TokenAmount.of_int amount)
   >>= fun signed_request ->
   Hashtbl.replace address_to_user_state_tbl sender_address_t !sender_state_ref ;
   Lwt_exn.run_lwt process_request (signed_request, false)
-  >>= fun confirmation ->
+  >>= fun transaction ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
   (* remaining code is preparing response *)
-  let tx_revision = confirmation.tx_header.tx_revision in
+  let tx_revision = transaction.tx_header.tx_revision in
   let sender_name = get_user_name sender_address_t in
   let recipient_name = get_user_name recipient_address_t in
   let sender_account = get_user_account sender_address_t in
@@ -348,6 +347,19 @@ let payment_on_trent sender recipient amount =
   in
   return (payment_result_to_yojson payment_result)
 
+(* Use a (subset) of ISO 8601 format, minus the timezone.
+   TODO: Use Jane Street's Core.Std.Time instead.
+*)
+let string_of_timeofday tod =
+  let tm = Unix.localtime tod in
+  Format.sprintf "%d-%02d-%02dT%02d:%02d:%02d"
+    (tm.tm_year + 1900)
+    (tm.tm_mon + 1)
+    tm.tm_mday
+    tm.tm_hour
+    tm.tm_min
+    tm.tm_sec
+
 let get_transaction_rate_on_trent () =
   (* start search from last timestamp *)
   let current_cursor = !payment_timestamps_cursor in
@@ -362,7 +374,7 @@ let get_transaction_rate_on_trent () =
   let rec count_transactions ndx count =
     (* traversed entire array, shouldn't happen *)
     if ndx = current_cursor then
-      raise (Internal_error "Timestamps array is not big enough")
+      bork "Timestamps array is not big enough"
     else if payment_timestamps.(ndx) <= minute_ago then
       count
     else (* decrement, or wrap backwards *)
@@ -370,17 +382,6 @@ let get_transaction_rate_on_trent () =
   in
   let raw_count = count_transactions last_cursor 0 in
   let transactions_per_second = raw_count / 60 in
-  let tm = Unix.localtime now in
-  let time =
-    Format.sprintf "%d:%02d:%02d %02d:%02d:%02d"
-      (tm.tm_year + 1900)
-      (tm.tm_mon + 1)
-      tm.tm_mday
-      tm.tm_hour
-      tm.tm_min
-      tm.tm_sec
-  in
-  let tps_result = { transactions_per_second
-                   ; time
-                   } in
+  let time = string_of_timeofday now in
+  let tps_result = { transactions_per_second ; time } in
   tps_result_to_yojson tps_result

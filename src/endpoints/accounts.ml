@@ -53,9 +53,9 @@ let account_names = user_names
 (*  let rec loop count accum =
     if count < 0 then accum
     else
-      let names = List.map (fun name -> name ^ (string_of_int count)) user_names in
-      loop (count - 1) (names @ accum)
-  in
+    let names = List.map (fun name -> name ^ (string_of_int count)) user_names in
+    loop (count - 1) (names @ accum)
+    in
     loop 49 [] *)
 
 let list_take elts n =
@@ -64,7 +64,7 @@ let list_take elts n =
       (List.rev accum)
     else
       match elts with
-      | [] -> raise (Internal_error "list_take: list too short")
+      | [] -> bork "list_take: list too short"
       | (h :: t) ->
         loop t (h::accum) (count + 1)
   in
@@ -102,7 +102,7 @@ let _ =
 let get_user_name address_t =
   try
     Hashtbl.find address_to_account_tbl address_t
-  with Not_found -> raise (Internal_error (Format.sprintf "Can't find user name for address %s" (Address.to_0x_string address_t)))
+  with Not_found -> bork "Can't find user name for address %s" (Address.to_0x_string address_t)
 
 (* store keys on Ethereum test net. TODO: don't do this on real net!  *)
 let store_keys_on_testnet (name,keys) =
@@ -154,12 +154,12 @@ let new_facilitator_state facilitator_keypair =
     { facilitator_revision= Revision.of_int 0
     ; spending_limit= TokenAmount.of_int 100000000
     ; accounts= AccountMap.empty
-    ; operations= ConfirmationMap.empty
+    ; transactions= TransactionMap.empty
     ; main_chain_transactions_posted= Merkle_trie.DigestSet.empty } in
   FacilitatorState.
-  { keypair= facilitator_keypair
-  ; current= confirmed_state
-  ; fee_schedule= fee_schedule }
+    { keypair= facilitator_keypair
+    ; current= confirmed_state
+    ; fee_schedule= fee_schedule }
 
 let get_trent_state () =
   Side_chain_facilitator.get_facilitator_state ()
@@ -178,9 +178,7 @@ let user_accounts_from_trent_state address =
     in
     UserAccountStateMap.singleton trent_address account_state
   with Not_found ->
-    raise (Internal_error
-             (Format.sprintf "Could not find user state for address: %s"
-                (Address.to_0x_string address)))
+    bork "Could not find user state for address: %s" (Address.to_0x_string address)
 
 let load_trent_state () =
   Printf.printf "Loading the facilitator state...\n%!";
@@ -199,11 +197,11 @@ let load_trent_state () =
   (* update user states with retrieved trent state *)
   Hashtbl.iter
     (fun address user_state ->
-      try
-        let new_user_accounts = user_accounts_from_trent_state address in
-        Hashtbl.replace address_to_user_state_tbl address
-          { user_state with facilitators = new_user_accounts }
-      with _ -> ())
+       try
+         let new_user_accounts = user_accounts_from_trent_state address in
+         Hashtbl.replace address_to_user_state_tbl address
+           { user_state with facilitators = new_user_accounts }
+       with _ -> ())
     address_to_user_state_tbl;
   Lwt.return_unit
 
@@ -240,11 +238,11 @@ let _ =
   return_unit
   >>= fun () ->
 (*
-   Use this when we have all 1300 accounts
-Lwt_list.iter_s
-    (fun chunk ->
-      Lwt_list.iter_p store_keys_on_testnet chunk)
-    (chunk_list account_key_list 13) *)
+     Use this when we have all 1300 accounts
+     Lwt_list.iter_s
+     (fun chunk ->
+     Lwt_list.iter_p store_keys_on_testnet chunk)
+     (chunk_list account_key_list 13) *)
   Lwt_list.iter_s store_keys_on_testnet account_key_list
   >>= fun () ->
   store_keys_on_testnet ("Trent",trent_keys)
@@ -258,8 +256,8 @@ Lwt_list.iter_s
   >>= fun () ->
   Lwt_list.iter_s
     (fun (name,keys) ->
-      Lwt_io.printf "Funding account: %s\n%!" name
-      >>= (fun () -> fund_account prefunded_address keys))
+       Lwt_io.printf "Funding account: %s\n%!" name
+       >>= (fun () -> fund_account prefunded_address keys))
     account_key_list
   >>= fun () -> Lwt_io.printf "Installing facilitator contract\n%!"
   >>= install_contract

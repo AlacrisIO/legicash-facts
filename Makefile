@@ -41,7 +41,7 @@ CONTRACT:=src/legicash_lib/facilitator_contract_binary.ml
 contract: $(CONTRACT)
 $(CONTRACT) : contracts/deposit-withdraw.sol
 	$(SHOW) "Compiling facilitator contract"
-	$(HIDE) solc --bin $< | tail -n +4 | awk '{ printf ("let facilitator_contract = Bytes.of_string \"%s\"\n",$$1); }' > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
+	$(HIDE) solc --bin $< | tail -n +4 | awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
 
 LEGICASH_LIB:=$(BUILD_DIR)/legicash_lib/legicash_lib.cmxs
 legicash_lib: $(LEGICASH_LIB)

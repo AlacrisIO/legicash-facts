@@ -48,9 +48,10 @@ end
 module Episteme : sig
   type t =
     { request: Request.t signed
-    ; confirmation_option: Confirmation.t option
-    (* TODO: distinguish the TxRecord which will be the trie entry
-       from the Confirmation, which will include merkle path to a signed state. *)
+    ; transaction_option: Transaction.t option
+    (* TODO: as distinguished from the Transaction, a Confirmation, which will be
+       a merkle proof relating the transaction to a signed side-chain state.
+       When, further, said signed side-chain state confirmed on the Main_chain, we're gold. *)
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
@@ -124,34 +125,44 @@ module UserAsyncAction : AsyncActionS with type state = UserState.t
 
 val issue_user_request : (Operation.t, Request.t signed) UserAction.arr
 
+(** Actually do the deposit on the Main_chain *)
 val deposit : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
+(** Notify the facilitator that the deposit was confirmed on the Main_chain and should be acknowledged
+    on the Side_chain. *)
 val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) UserAction.arr
 
-(** reflect action on side chain on main chain *)
+(* An action made on the side chain may need a corresponding action on the main chain. Do them.
+   Specifically, while deposit and payment side-chain transactions require no follow up
+   (deposit does have pre-requisites, though), a withdrawal transaction requires
+   action on the main chain after the withdrawal was registered on the side-chain.
+   TODO: handle persistence and asynchronous action gracefully.
+*)
 val push_side_chain_action_to_main_chain :
-  FacilitatorState.t -> (Confirmation.t, Main_chain.Confirmation.t) UserAsyncAction.arr
+  FacilitatorState.t -> (Transaction.t, Main_chain.Confirmation.t) UserAsyncAction.arr
 
+(** Build a signed withdrawal request from specification *)
 val withdrawal : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
+(** Compute the suitable fee for a payment of given amount *)
 val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
 
+(** Build a signed payment request from specification *)
 val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
-(** post an account_activity_status request for closing the account on the *main chain*. *)
+(** post an account_activity_status request for closing the account on the *main chain*. TBD *)
 val initiate_individual_exit : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 
-val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) UserAsyncAction.arr
-(** Flow 3 Step 3: Alice, who can see the final state of her account,
+(** TBD Flow 3 Step 3: Alice, who can see the final state of her account,
     posts on the main chain a demand for the final funds.
     This is signed then posted on the *main chain* by invoking the contract.
     This puts Trent and all verifiers on notice to check that Alice isn't lying,
     and post a lawsuit within a timeout window.
 *)
+val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 
 val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 
 val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr
 
 val mark_request_rejected : (Request.t signed, unit) UserAction.arr
-

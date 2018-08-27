@@ -3,9 +3,10 @@
 
 open Legilogic_lib
 open Lib
-open Hex
 open Digesting
 open Signing
+
+(* TODO: somehow work with our static types UInt256, UInt64, etc.? Maybe using GADTs somehow? *)
 
 type abi_type =
   (* uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256 *)
@@ -74,13 +75,13 @@ let rec is_valid_type = function
   | Tuple tys -> List.for_all is_valid_type tys
   (* no constraints *)
   | FixedDefault | UfixedDefault | BytesDynamic | String | Address | Function | Bool
-  |UintDefault | IntDefault ->
+  | UintDefault | IntDefault ->
     true
 
 (* must get this right for hash of signature to work *)
 let rec show_type_for_function_selector ty =
   if not (is_valid_type ty) then
-    raise (Internal_error (Printf.sprintf "Invalid Solidity type: %s" (show_abi_type ty))) ;
+    bork "Invalid Solidity type: %s" (show_abi_type ty) ;
   match ty with
   | Uint m -> "uint" ^ string_of_int m
   | Int m -> "int" ^ string_of_int m
@@ -111,7 +112,7 @@ let abi_string_of_string s = (String_value s, String)
 (* intN and uintN builders *)
 (* 2**n using Ocaml int *)
 let rec pow2 n =
-  if n < 0 then raise (Internal_error "pow2: expected nonnegative n") ;
+  if n < 0 then bork "pow2: expected nonnegative n" ;
   if n = 0 then 1 else 2 * pow2 (n - 1)
 
 and get_big_endian_int_bytes bits n =
@@ -132,25 +133,24 @@ and get_big_endian_int_bytes bits n =
   Bytes.init num_bytes get_byte
 
 and make_abi_intN_of_int bits n =
-  if bits < 8 then raise (Internal_error (Printf.sprintf "bits = %d must be at least 8" bits)) ;
+  if bits < 8 then bork "bits = %d must be at least 8" bits ;
   if bits mod 8 != 0 then
-    raise (Internal_error (Printf.sprintf "bits = %d is not a multiple of 8" bits)) ;
+    bork "bits = %d is not a multiple of 8" bits ;
   let max_n = pow2 (bits - 1) - 1 in
   let min_n = -max_n - 1 in
   if n < min_n || n > max_n then
-    raise (Internal_error (Printf.sprintf "Value %d cannot be represented with type int%d" n bits)) ;
+    bork "Value %d cannot be represented with type int%d" n bits ;
   let bytes = get_big_endian_int_bytes bits n in
   (Int_value bytes, Int bits)
 
 and make_abi_uintN_of_int bits n =
-  if bits < 8 then raise (Internal_error (Printf.sprintf "bits = %d must be at least 8" bits)) ;
+  if bits < 8 then bork "bits = %d must be at least 8" bits ;
   if bits mod 8 != 0 then
-    raise (Internal_error (Printf.sprintf "bits = %d is not a multiple of 8" bits)) ;
+    bork "bits = %d is not a multiple of 8" bits ;
   let max_n = pow2 bits - 1 in
   let min_n = 0 in
   if n < min_n || n > max_n then
-    raise
-      (Internal_error (Printf.sprintf "Value %d cannot be represented with type uint%d" n bits)) ;
+    bork "Value %d cannot be represented with type uint%d" n bits ;
   let bytes = get_big_endian_int_bytes bits n in
   (Uint_value bytes, Uint bits)
 
@@ -213,10 +213,10 @@ and abi_int64_of_int64 n_64 =
 (* convert positive int64 values to ABI uint64 values *)
 let abi_uint64_of_int64 n_64 =
   if Int64.compare n_64 Int64.zero < 0 then
-    raise (Internal_error "Can't represent negative int64 value as ABI Uint") ;
+    bork "Can't represent negative int64 value as ABI Uint" ;
   match fst (abi_int64_of_int64 n_64) with
   | Int_value bytes -> (Uint_value bytes,Uint 64)
-  | v -> raise (Internal_error (Printf.sprintf "Expected Int_value, got %s" (show_abi_value v)))
+  | v -> bork "Expected Int_value, got %s" (show_abi_value v)
 
 (* TODO: have builders for larger bit-width types that take an int64, or maybe Signed/Unsigned from
    integers library
@@ -239,7 +239,7 @@ let abi_function_call_of_encoded_call address encoded_call =
 
 let abi_array_of_abi_values ty abi_typed_vals =
   if not (List.for_all (fun (_, ty') -> ty' = ty) abi_typed_vals) then
-    raise (Internal_error "Array elements don't all match specified type") ;
+    bork "Array elements don't all match specified type" ;
   let len = List.length abi_typed_vals in
   let vals = List.map fst abi_typed_vals in
   (Array_value vals, Array (len, ty))
@@ -247,7 +247,7 @@ let abi_array_of_abi_values ty abi_typed_vals =
 let abi_array_dynamic_of_abi_values ty abi_typed_vals =
   match fst (abi_array_of_abi_values ty abi_typed_vals) with
   | Array_value vals -> (vals, ArrayDynamic ty)
-  | v -> raise (Internal_error (Printf.sprintf "Expected Array value, got %s" (show_abi_value v)))
+  | v -> bork "Expected Array value, got %s" (show_abi_value v)
 
 let abi_tuple_of_abi_values abi_typed_vals =
   let vals = List.map fst abi_typed_vals in
@@ -257,7 +257,7 @@ let abi_tuple_of_abi_values abi_typed_vals =
 (* for Fixed encodings, num is an int or int64 which represents num * 10**n *)
 
 let expected_int v =
-  raise (Internal_error (Printf.sprintf "Expected Int value, got %s" (show_abi_value v)))
+  bork "Expected Int value, got %s" (show_abi_value v)
 
 let abi_fixed8n_of_int n num =
   match fst (abi_int8_of_int num) with
@@ -384,16 +384,14 @@ let rec encode_abi_value v ty =
   | Uint_value bytes, Uint m ->
     let bytes_len = Bytes.length bytes in
     if m / 8 != bytes_len then
-      raise
-        (Internal_error (Printf.sprintf "have type uint%d, got value with %d bytes" m bytes_len)) ;
+      bork "have type uint%d, got value with %d bytes" m bytes_len ;
     (* left-pad to 32 bytes *)
     let padding = Bytes.make (32 - bytes_len) '\000' in
     Bytes.cat padding bytes
   | Int_value bytes, Int m ->
     let bytes_len = Bytes.length bytes in
     if m / 8 != bytes_len then
-      raise
-        (Internal_error (Printf.sprintf "have type int%d, got value with %d bytes" m bytes_len)) ;
+      bork "have type int%d, got value with %d bytes" m bytes_len ;
     (* left-pad to 32 bytes *)
     let is_negative = Char.code (Bytes.get bytes 0) land 0b10000000 = 0 in
     let pad_byte = if is_negative then Char.chr 0xff else '\000' in
@@ -485,10 +483,8 @@ let rec encode_abi_value v ty =
     let tails_bytes = Array.fold_right Bytes.cat tails Bytes.empty in
     Bytes.cat heads_bytes tails_bytes
   | _ ->
-    raise
-      (Internal_error
-         (Printf.sprintf "Value to be encoded: %s\nDoes not match its type: %s"
-            (show_abi_value v) (show_abi_type ty)))
+    bork "Value to be encoded: %s\nDoes not match its type: %s"
+      (show_abi_value v) (show_abi_type ty)
 
 (* an encoding of the function call is what we pass to Ethereum in a transaction *)
 let encode_function_call function_call =
@@ -498,6 +494,8 @@ let encode_function_call function_call =
   Bytes.cat encoded_signature encoded_params
 
 module Test = struct
+  open Ethereum_util.Test
+
   let%test "int64-of-int64-encoding" =
     let ff = 0xff in
     let ff_64 = Int64.of_int ff in
@@ -541,13 +539,10 @@ module Test = struct
     let param1 = abi_uint32_of_int 69 in
     let param2 = abi_bool_of_bool true in
     let call = {function_name= "baz"; parameters= [param1; param2]} in
-    let bytes = encode_function_call call in
-    let expected_hex_string =
+    expect_0x_bytes "encode_function_call result"
       "0xcdcd77c000000000000000000000000000000000000000000000000000000000000000450000000000000000000000000000000000000000000000000000000000000001"
-    in
-    let expected_bytes = parse_0x_bytes expected_hex_string
-    in
-    bytes = expected_bytes
+      (encode_function_call call);
+    true
 
   let%test "contract-call-encoding-2" =
     (* second example from ABI spec *)
@@ -558,13 +553,10 @@ module Test = struct
     let array_ty = Array (2, ty1) in
     let param = (array_val, array_ty) in
     let call = {function_name= "bar"; parameters= [param]} in
-    let bytes = encode_function_call call in
-    let expected_hex_string =
+    expect_0x_bytes "encode_function_call result"
       "0xfce353f661626300000000000000000000000000000000000000000000000000000000006465660000000000000000000000000000000000000000000000000000000000"
-    in
-    let expected_bytes = parse_0x_bytes expected_hex_string
-    in
-    bytes = expected_bytes
+      (encode_function_call call);
+    true
 
   let%test "contract-call-encoding-3" =
     (* third example from ABI spec *)
@@ -575,13 +567,10 @@ module Test = struct
     (* For computing the function selector, uint256 and int256 have to be used. *)
     let param3 = (param3_val, ArrayDynamic (Uint 256)) in
     let call = {function_name= "sam"; parameters= [param1; param2; param3]} in
-    let bytes = encode_function_call call in
-    let expected_hex_string =
+    expect_0x_bytes "encode_function_call result"
       "0xa5643bf20000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000464617665000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003"
-    in
-    let expected_bytes = parse_0x_bytes expected_hex_string
-    in
-    bytes = expected_bytes
+      (encode_function_call call);
+    true
 
   let%test "contract-call-encoding-4" =
     (* fourth example from ABI spec *)
@@ -595,19 +584,16 @@ module Test = struct
     let param3 = abi_bytes_of_string "1234567890" in
     let param4 = abi_bytes_dynamic_of_string "Hello, world!" in
     let call = {function_name= "f"; parameters= [param1; param2; param3; param4]} in
-    let bytes = encode_function_call call in
-    let expected_hex_string =
+    expect_0x_bytes "encode_function_call result"
       "0x8be6524600000000000000000000000000000000000000000000000000000000000001230000000000000000000000000000000000000000000000000000000000000080313233343536373839300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000004560000000000000000000000000000000000000000000000000000000000000789000000000000000000000000000000000000000000000000000000000000000d48656c6c6f2c20776f726c642100000000000000000000000000000000000000"
-    in
-    let expected_bytes = parse_0x_bytes expected_hex_string
-    in
-    bytes = expected_bytes
+      (encode_function_call call);
+    true
 
   let%test "contract-parameters-encoding" =
     (* from our Solidity hello.sol example *)
     let parameters, ty = abi_tuple_of_abi_values [(String_value "Hello, world!", String)] in
-    let hello_encoding = encode_abi_value parameters ty in
-    let hello_hex = unparse_0x_bytes hello_encoding in
-    hello_hex
-    = "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d48656c6c6f2c20776f726c642100000000000000000000000000000000000000"
+    expect_0x_bytes "encode_abi_value"
+      "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d48656c6c6f2c20776f726c642100000000000000000000000000000000000000"
+      (encode_abi_value parameters ty);
+    true
 end

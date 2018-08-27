@@ -1,6 +1,6 @@
-(* ethereum_rlp.mli -- Ethereum's notion of RLP ("Recursive Length Prefix") encoding *)
+(** Ethereum's notion of RLP ("Recursive Length Prefix") encoding
 
-(** reference:
+    Reference:
 
     https://github.com/ethereum/wiki/wiki/[English]-RLP
 *)

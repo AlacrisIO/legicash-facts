@@ -202,39 +202,39 @@ module Trie
               Otherwise, a Branch with an Empty child is normalized to a Skip *)
     | Leaf {value; synth} ->
       synth = Synth.leaf value ||
-      raise (Internal_error "Bad leaf synth")
+      bork "Bad leaf synth"
     | Branch {left; right; height; synth} ->
       (synth = Synth.branch height (get_synth left) (get_synth right)
-       || raise (Internal_error "Bad branch synth"))
-      && (height > 0 || raise (Internal_error "Bad branch height"))
+       || bork "Bad branch synth")
+      && (height > 0 || bork "Bad branch height")
       && (height - 1 = trie_height left (* in particular, left isn't Empty *)
-          || raise (Internal_error "Bad left height"))
+          || bork "Bad left height")
       && check_invariant left
       && (height - 1 = trie_height right (* in particular, right isn't Empty *)
-          || raise (Internal_error "Bad right height"))
+          || bork "Bad right height")
       && check_invariant right
     | Skip {child; bits; length; height; synth} ->
       (synth = Synth.skip height length bits (get_synth child)
-       || raise (Internal_error "Bad skip synth"))
+       || bork "Bad skip synth")
       && (length > 0
-          || raise (Internal_error "Skip length too small"))
+          || bork "Skip length too small")
       && (height >= length
-          || raise (Internal_error "Skip length too large"))
+          || bork "Skip length too large")
       && (Key.sign bits >= 0
-          || raise (Internal_error "Skip bits negative"))
+          || bork "Skip bits negative")
       && (length >= Key.numbits bits
-          || raise (Internal_error "Skip bits longer than length"))
+          || bork "Skip bits longer than length")
       && (not (is_empty child)
-          || raise (Internal_error "Skip child empty"))
+          || bork "Skip child empty")
       && (height - length = trie_height child (* in particular, child isn't Empty *)
-          || raise (Internal_error "Skip child height mismatch"))
+          || bork "Skip child height mismatch")
       && check_invariant child
 
   let verify x =
     if check_invariant x then
       x
     else
-      raise (Internal_error "Invariant failed")
+      bork "Invariant failed"
 
   let find_opt key trie =
     let height = trie_height trie in
@@ -690,7 +690,7 @@ module Trie
   let find_path l t =
     let h = trie_height t in
     if Key.sign l < 0 then
-      raise (Internal_error "find_path negative index")
+      bork "find_path negative index"
     else
       let height = Key.numbits l in
       if Key.numbits l > h then
@@ -813,7 +813,7 @@ module Trie
           recursek ~i:(right_index isame (sameheight - 1)) ~treea:aright ~treeb:bright
             ~k:(fun right ->
               branchk ~i:isame ~height:sameheight ~leftr:left ~rightr:right ~k:samek))
-    | _ -> raise (Internal_error "iterate_over_tree_pair")
+    | _ -> bork "iterate_over_tree_pair"
 
   let merge f a b =
     let (a, b) = ensure_same_height a b in

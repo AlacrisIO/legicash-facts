@@ -7,6 +7,7 @@
    https://github.com/ethereum/pyethereum
    https://github.com/ethereum/go-ethereum/tree/master/trie
 
+   TODO: complete the implementation, and make it abide by our Lib.MapS interface.
 *)
 
 open Legilogic_lib
@@ -70,13 +71,13 @@ end = struct
     (* drop n nybbles in key *)
     let drop n key =
       if n > String.length key then
-        raise (Internal_error "drop_key: number of nybbles to drop greater than key length") ;
+        bork "drop_key: number of nybbles to drop greater than key length" ;
       String.sub key n (String.length key - n)
 
 
     (* split key into first nybble, rest *)
     let split key =
-      if key = empty_key then raise (Internal_error "next_key: got empty key") ;
+      if key = empty_key then bork "next_key: got empty key" ;
       (Char.code key.[0], drop 1 key)
 
 
@@ -113,13 +114,9 @@ end = struct
              let c_val = Char.code c in
              if ndx = len - 1 then (
                if c_val > nybble_terminator_val then
-                 raise
-                   (Internal_error
-                      "Unpacked.of_string: final character must be less than or equal to nybble terminator") )
+                 bork "Unpacked.of_string: final character must be less than or equal to nybble terminator")
              else if c_val > 0x0F then
-               raise
-                 (Internal_error "Unpacked.of_string: character must be less than or equal to 0x0F")
-          )
+               bork "Unpacked.of_string: character must be less than or equal to 0x0F")
           s
       in
       s

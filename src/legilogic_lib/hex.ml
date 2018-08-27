@@ -16,7 +16,7 @@ let int_of_hex_char hex =
   | '0'..'9' -> hex_code - zero_code (* assume ASCII / UTF-8 *)
   | 'a'..'f' -> hex_code - a_code + 0xa
   | 'A'..'F' -> hex_code - big_a_code + 0xa
-  | _ -> raise (Internal_error (Printf.sprintf "Invalid hex character %c" hex))
+  | _ -> bork "Invalid hex character %c" hex
 
 let parse_hex_nibble string pos =
   int_of_hex_char string.[pos]
@@ -40,7 +40,7 @@ let parse_hex_substring string pos len =
 let parse_hex_string string = parse_hex_substring string 0 (String.length string)
 
 let parse_coloned_hex_string hex_string =
-  let invalid () = raise (Internal_error (Printf.sprintf "Not a valid hex string: %s" hex_string)) in
+  let invalid () = bork "Not a valid hex string: %s" hex_string in
   let hex_len = String.length hex_string in
   if hex_len > 0 && (hex_len + 1) mod 3 <> 0 then invalid () ;
   let len = (hex_len + 1) / 3 in
@@ -53,7 +53,7 @@ let parse_coloned_hex_string hex_string =
 
 let hex_char_of_int ?(upper_case = false) digit =
   if (digit < 0 || digit > 16) then
-    raise (Internal_error (Printf.sprintf "Invalid hex digit %d" digit))
+    bork "Invalid hex digit %d" digit
   else
     Char.chr
       (if digit < 10 then
@@ -79,9 +79,9 @@ let unparse_coloned_hex_string string =
 let validate_0x_prefix hs =
   let len = String.length hs in
   if not (len >= 2 && hs.[0] = '0' && hs.[1] = 'x') then
-    raise (Internal_error "Hex string does not strictly begin with 0x") ;
+    bork "Hex string does not strictly begin with 0x" ;
   if len = 2 then
-    raise (Internal_error "Hex string has no digits") ;
+    bork "Hex string has no digits" ;
   ()
 
 let parse_0x_prefix parser hs =
@@ -98,7 +98,7 @@ let parse_0x_string hs =
     (validate_0x_prefix hs ;
      let len = String.length hs in
      if len mod 2 != 0 then
-       raise (Internal_error "Odd number of digits in hex string") ;
+       bork "Odd number of digits in hex string" ;
      parse_hex_substring hs 2 (len - 2))
 
 let parse_0x_bytes hs = Bytes.of_string (parse_0x_string hs)

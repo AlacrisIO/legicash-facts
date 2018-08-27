@@ -36,9 +36,6 @@ end
 
 module Operation = struct
   [@warning "-39"]
-  type payment_details =
-    {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
-  [@@deriving lens, yojson]
 
   type deposit_details =
     { deposit_amount: TokenAmount.t
@@ -46,6 +43,10 @@ module Operation = struct
     ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
     ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
     ; deposit_expedited: bool }
+  [@@deriving lens, yojson]
+
+  type payment_details =
+    {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
   [@@deriving lens, yojson]
 
   type withdrawal_details =
@@ -204,7 +205,7 @@ module TxHeader = struct
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
 
-module Confirmation = struct
+module Transaction = struct
   [@warning "-39"]
   type t = {tx_header: TxHeader.t; signed_request: Request.t signed}
   [@@deriving lens { prefix=true }, yojson ]
@@ -244,9 +245,9 @@ module AccountState = struct
 end
 
 
-(* Module for Maps from Side_chain.TxHeader.tx_revision to (unsigned) Confirmation *)
-module ConfirmationMap = struct
-  include MerkleTrie (Revision) (Confirmation)
+(* Module for Maps from Side_chain.TxHeader.tx_revision to (unsigned) Transaction *)
+module TransactionMap = struct
+  include MerkleTrie (Revision) (Transaction)
 end
 
 module AccountMap = struct
@@ -258,7 +259,7 @@ module State = struct
   type t = { facilitator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            ; accounts: AccountMap.t
-           ; operations: ConfirmationMap.t
+           ; transactions: TransactionMap.t
            ; main_chain_transactions_posted: DigestSet.t }
   [@@deriving lens { prefix=true }, yojson]
 
@@ -270,20 +271,20 @@ module State = struct
            (fun { facilitator_revision
                 ; spending_limit
                 ; accounts
-                ; operations
+                ; transactions
                 ; main_chain_transactions_posted } ->
-             (facilitator_revision, spending_limit, accounts, operations, main_chain_transactions_posted))
-           (fun facilitator_revision spending_limit accounts operations main_chain_transactions_posted ->
+             (facilitator_revision, spending_limit, accounts, transactions, main_chain_transactions_posted))
+           (fun facilitator_revision spending_limit accounts transactions main_chain_transactions_posted ->
               { facilitator_revision
               ; spending_limit
               ; accounts
-              ; operations
+              ; transactions
               ; main_chain_transactions_posted })
            Revision.marshaling TokenAmount.marshaling
-           AccountMap.marshaling ConfirmationMap.marshaling DigestSet.marshaling)
-    let walk_dependencies _methods context {accounts; operations; main_chain_transactions_posted} =
+           AccountMap.marshaling TransactionMap.marshaling DigestSet.marshaling)
+    let walk_dependencies _methods context {accounts; transactions; main_chain_transactions_posted} =
       walk_dependency AccountMap.dependency_walking context accounts
-      >>= (fun () -> walk_dependency ConfirmationMap.dependency_walking context operations)
+      >>= (fun () -> walk_dependency TransactionMap.dependency_walking context transactions)
       >>= (fun () -> walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted)
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
@@ -293,7 +294,7 @@ module State = struct
     { facilitator_revision= Revision.zero
     ; spending_limit= TokenAmount.zero
     ; accounts= AccountMap.empty
-    ; operations= ConfirmationMap.empty
+    ; transactions= TransactionMap.empty
     ; main_chain_transactions_posted= DigestSet.empty }
 end
 
@@ -356,10 +357,10 @@ module FacilitatorState = struct
   let load facilitator_address =
     facilitator_address |> facilitator_state_key |> Db.get
     |> (function
-        | Some x -> x
-        | None -> raise (Facilitator_not_found
-                           (Printf.sprintf "Facilitator %s not found in the database"
-                              (Address.to_0x_string facilitator_address))))
+      | Some x -> x
+      | None -> raise (Facilitator_not_found
+                         (Printf.sprintf "Facilitator %s not found in the database"
+                            (Address.to_0x_string facilitator_address))))
     |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
 end
 
@@ -408,7 +409,7 @@ module Test = struct
     State.{ facilitator_revision= Revision.of_int 0
           ; spending_limit= TokenAmount.of_int 1000000
           ; accounts= AccountMap.empty
-          ; operations= ConfirmationMap.empty
+          ; transactions= TransactionMap.empty
           ; main_chain_transactions_posted= DigestSet.empty }
 
   let trent_state =

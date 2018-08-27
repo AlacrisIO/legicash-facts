@@ -20,9 +20,10 @@
     style, except that flagging an object as persisted for walk optimization can be done directly.
     A conceptual mess? Yes it is! All because OCaml's type system can't deal with this kind of abstraction.
 *)
+open Lwt.Infix
+
 open Lib
 open Action
-open Lwt.Infix
 
 type db = LevelDB.db
 type transaction = LevelDB.writebatch
@@ -84,7 +85,7 @@ let check_connection () =
     [Commit] is currently in progress. If so, it's false. *)
 let start_server ~db_name ~db () =
   let open Lwt_monad in
-  Lwt_io.printf "Opening LevelDB connection to db %s\n%!" db_name >>=
+  Logging.log "Opening LevelDB connection to db %s\n%!" db_name;
   let rec outer_loop batch_id previous () =
     let transaction = LevelDB.Batch.make () in
     let (wait_on_batch_commit, notify_batch_commit) = Lwt.task () in
@@ -92,6 +93,8 @@ let start_server ~db_name ~db () =
     let rec inner_loop ~ready ~triggered =
       if triggered && ready then
         begin
+          (* Fork a system thread to handle the commit;
+             when it's done, wakeup the wait_on_batch_commit promise *)
           Lwt.async ((fun () -> Lwt_preemptive.detach
                                   (fun () -> LevelDB.Batch.write db ~sync:true transaction) ())
                      >>> Lwt_monad.arr (Lwt.wakeup_later notify_batch_commit));
@@ -114,7 +117,7 @@ let start_server ~db_name ~db () =
           assert (n = batch_id);
           inner_loop ~ready:true ~triggered in
     inner_loop ~ready:false ~triggered:false in
-  outer_loop 0 Lwt.return_unit
+  outer_loop 0 Lwt.return_unit ()
 
 let open_connection ~db_name =
   match !the_connection_ref with
@@ -156,7 +159,7 @@ let has_key key =
 let get key =
   LevelDB.get (the_db ()) key
 (* Uncomment this line to spy on db read accesses:
-  |> function None -> Printf.printf "key %s not found\n%!" (Hex.unparse_hex_string key) ; None | Some data -> Printf.printf "key %s data %s\n%!" (Hex.unparse_hex_string key) (Hex.unparse_hex_string data); Some data *)
+   |> function None -> Printf.printf "key %s not found\n%!" (Hex.unparse_hex_string key) ; None | Some data -> Printf.printf "key %s data %s\n%!" (Hex.unparse_hex_string key) (Hex.unparse_hex_string data); Some data *)
 
 let put key data =
   request (Put {key; data})

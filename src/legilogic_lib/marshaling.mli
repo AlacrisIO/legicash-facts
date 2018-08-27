@@ -212,8 +212,8 @@ module Length1G : LengthS
 (** Marshalable as length-prefixed string of constrained length [L] *)
 module StringL (L: LengthS) : MarshalableS with type t = string
 
-(** Marshalable as length-prefixed string of length expressible in 30 bits *)
-module String1G : MarshalableS with type t = string
-
 (** Marshalable as length-prefixed string of length expressible in 6 bits *)
 module String63 : MarshalableS with type t = string
+
+(** Marshalable as length-prefixed string of length expressible in 30 bits *)
+module String1G : MarshalableS with type t = string

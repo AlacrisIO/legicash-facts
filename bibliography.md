@@ -93,3 +93,6 @@
 * Building secure software:
   [Some thoughts on security after ten years of qmail 1.0 (2007)](https://cr.yp.to/qmail/qmailsec-20071101.pdf),
   ...
+
+* UI tools for Crypto-currency dApps:
+  [MetaMask Browser Extension](https://github.com/MetaMask/metamask-extension)

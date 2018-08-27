@@ -47,6 +47,7 @@ let transfer_gas_limit = TokenAmount.of_int 21000
 let transfer_tokens (recipient, amount) =
   issue_transaction (TransferTokens recipient, amount, transfer_gas_limit)
 
+(* TODO: move to Action? *)
 let rec retry_until_some interval_seconds x action =
   let open Lwt in
   x |> action >>=
@@ -65,12 +66,11 @@ let confirmation_of_transaction_receipt receipt_json =
       None
     else
       (* remove leading 0x; shouldn't need to validate that the prefix exists, should always be well-formed *)
-      let remove_0x hex_string = String.sub hex_string 2 (String.length hex_string - 2) in
-      let transaction_hash = YoJson.member "transactionHash" result_json |> YoJson.to_string |> remove_0x |> Digest.of_hex_string in
+      let transaction_hash = YoJson.member "transactionHash" result_json |> YoJson.to_string |> Digest.of_0x_string in
       (* Revision, UInt64 "of_string" reads hex numbers as 0, so convert to OCaml int *)
       let transaction_index = YoJson.member "transactionIndex" result_json |> YoJson.to_string |> int_of_string |> UInt64.of_int in
       let block_number = YoJson.member "blockNumber" result_json |> YoJson.to_string |> int_of_string |> Revision.of_int in
-      let block_hash = YoJson.member "blockHash" result_json |> YoJson.to_string |> remove_0x |> Digest.of_hex_string in
+      let block_hash = YoJson.member "blockHash" result_json |> YoJson.to_string |> Digest.of_0x_string in
       Some (Ok Confirmation.{transaction_hash; transaction_index; block_number; block_hash})
 
 let get_confirmation transaction_hash =

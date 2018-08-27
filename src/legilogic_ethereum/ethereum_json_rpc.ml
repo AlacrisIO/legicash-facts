@@ -3,6 +3,7 @@ open Cohttp
 open Cohttp_lwt_unix
 
 open Legilogic_lib
+open Lib
 open Yojsoning
 open Logging
 
@@ -25,8 +26,8 @@ let ethereum_net = Uri.make ~scheme:"http" ~host:"localhost" ~port:8545 ()
 
 let json_rpc_version = "2.0"
 
-(* global state *)
-let id_counter = ref 1
+(* Global state, e.g. to correlate responses and answers in logs. *)
+let id_counter = make_counter ()
 
 let send_rpc_call_to_net json =
   let json_str = string_of_yojson json in
@@ -66,7 +67,7 @@ let build_json_rpc_call call params : yojson =
     [ ("jsonrpc", `String json_rpc_version)
     ; ("method", `String (json_rpc_callname call))
     ; ("params", `List string_params)
-    ; ("id", `Int !id_counter) ]
+    ; ("id", `Int (id_counter ())) ]
 
 
 (* less common case: some parameters are not strings, so they're type-tagged *)
@@ -75,4 +76,4 @@ let build_json_rpc_call_with_tagged_parameters call params =
     [ ("jsonrpc", `String json_rpc_version)
     ; ("method", `String (json_rpc_callname call))
     ; ("params", `List params)
-    ; ("id", `Int !id_counter) ]
+    ; ("id", `Int (id_counter ())) ]

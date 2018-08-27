@@ -84,6 +84,7 @@ let transaction_executed transaction_hash =
   in
   return retval
 
+(* TODO: factor this function into parsing a transaction and comparing transaction objects. *)
 let transaction_execution_matches_transaction transaction_hash
       (signed_transaction: TransactionSigned.t) =
   let open Lwt in
@@ -110,7 +111,7 @@ let transaction_execution_matches_transaction transaction_hash
       let actual_value = TokenAmount.of_0x_string (get_result_json "value") in
       let tx_header = transaction.tx_header in
       let expected_sender = Address.to_0x_string tx_header.sender in
-      let expected_nonce = "0x" ^ (Main_chain.Nonce.to_hex_string tx_header.nonce) in
+      let expected_nonce = Main_chain.Nonce.to_0x_string tx_header.nonce in
       let expected_gas_limit = tx_header.gas_limit in
       let expected_gas_price = tx_header.gas_price in
       let expected_value = tx_header.value in
@@ -133,7 +134,9 @@ let transaction_execution_matches_transaction transaction_hash
     in
     return retval
 
-(* convert transaction record to rlp_item suitable for encoding *)
+(* convert transaction record to rlp_item suitable for encoding
+   TODO: make that our marshaling strategy.
+*)
 let rlp_of_transaction transaction =
   let open Main_chain in
   let open Ethereum_rlp in
@@ -164,11 +167,13 @@ let rlp_of_signed_transaction transaction_rlp ~v ~r ~s =
   let signature_items = [RlpItem v; RlpItem r; RlpItem s] in
   match transaction_rlp with
   | RlpItems items -> RlpItems (items @ signature_items)
-  | _ -> raise (Internal_error "Expected RlpItems when creating signed transaction RLP")
+  | _ -> bork "Expected RlpItems when creating signed transaction RLP"
 
 
 (* https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f
    describes the transaction hashing algorithm
+
+   TODO: make it so our marshaling of transactions looks exactly like this.
 *)
 let get_transaction_hash signed_transaction private_key =
   let transaction = signed_transaction.payload in
@@ -187,6 +192,7 @@ module Test = struct
   open Lwt
   open Ethereum_json_rpc
   open Signing.Test
+  open Ethereum_util.Test
 
   let%test "move logs aside" = Logging.log_to_file "test.log"; true
 
@@ -242,30 +248,27 @@ module Test = struct
     get_transaction_count address
     >>= fun contract_count_json ->
     assert_json_error_free __LOC__ contract_count_json;
-    let result = YoJson.member "result" contract_count_json
-                 |> YoJson.to_string
-    in
-    return (Nonce.of_int64 (Int64.of_string result))
+    YoJson.member "result" contract_count_json
+    |> YoJson.to_string
+    |> Nonce.of_string
+    |> return
 
   let wait_for_contract_execution transaction_hash =
     let max_counter = 20 in
     (* wait for transaction to appear in block *)
-    let rec loop counter =
+    let rec loop counter () =
       transaction_executed transaction_hash
       >>= fun b ->
       if counter > max_counter then
-        raise (Internal_error "Could not verify contract execution")
+        bork "Could not verify contract execution"
       else if b then
-        return ()
-      else (
-        Unix.sleepf 0.1 ;
-        loop (counter + 1)
-      )
+        return_unit
+      else (Lwt_unix.sleep 0.1 >>= loop (counter + 1))
     in
-    loop 0
+    loop 0 ()
 
   let%test "poll-for-testnet" =
-    is_testnet_up () || raise (Internal_error "Could not connect to Ethereum test net")
+    is_testnet_up () || bork "Could not connect to Ethereum test net"
 
   let%test "transfer-on-Ethereum-testnet" =
     Lwt_main.run (
@@ -423,8 +426,10 @@ module Test = struct
       let transaction = {Transaction.tx_header; Transaction.operation} in
       let signed_transaction = Signing.signed Transaction.digest private_key transaction in
       let transaction_hash = get_transaction_hash signed_transaction private_key in
-      return (unparse_0x_string transaction_hash
-              = "0x2b1cb46f0aa4ba7da55ef4928e925b2dd3e9af6908319306cf2593d0f911f9c9"))
+      expect_0x_string "transaction hash"
+        "0x472703a1599c7f8ffb221715e2183c8736e38e46a9447f3fb69285407b71aec2"
+        transaction_hash;
+      return true)
 
   let%test "hello-solidity" =
     let open Ethereum_abi in

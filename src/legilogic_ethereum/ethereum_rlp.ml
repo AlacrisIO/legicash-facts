@@ -1,12 +1,10 @@
-(* ethereum_rlp.ml -- Ethereum's notion of RLP ("Recursive Length Prefix") encoding *)
-(* reference:
-
-   https://github.com/ethereum/wiki/wiki/RLP
-*)
-
 open Legilogic_lib
 open Lib
 open Hex
+
+(* TO DO: save ourselves an intermediate representation and offer combinators
+   to directly encode and decode data as RLP.
+*)
 
 type rlp_item = RlpItem of string | RlpItems of rlp_item list
 
@@ -15,6 +13,7 @@ type t = RlpEncoding of string [@@deriving show]
 (* convert number to string, used for
    - encoding lengths within RLP-encodings
    - encoding integers to string, which can then be RLP-encoded
+   TODO: make it O(n^2) no more.
 *)
 let rec encode_int_as_string n =
   if n == 0 then "" else encode_int_as_string (n / 0x100) ^ String.make 1 (Char.chr (n mod 0x100))
@@ -101,7 +100,10 @@ let decode_length input =
       RlpItemsLengthDecoded {start= 1 + len_of_items_len; length= items_len}
     else bork "decode_length: nonconforming RLP encoding"
 
-(* entry point for RLP decoding *)
+(* entry point for RLP decoding
+   TODO: make it O(N) instead of O(N^2) by not extracting substrings N times,
+   instead maintaining start and end indexes.
+*)
 let decode (RlpEncoding s as encoding) =
   (* for string, return the decoded part paired with unconsumed part of the string *)
   let rec decode_with_leftover s =
