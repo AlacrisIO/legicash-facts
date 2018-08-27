@@ -98,7 +98,7 @@ module type TrieS = sig
   type costep = { height: int ; index: key }
 
   (** [costep] is the current location, given that we've followed the given
-     [steps]. *)
+     [step]s. *)
   type (+'a) path = {costep: costep; steps: 'a step list}
 
   (** Methods for going back up the tree, from child to parent *)
