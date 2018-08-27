@@ -1,4 +1,5 @@
-(* actions.eliom -- actions behind the endpoints *)
+(* actions.ml -- actions behind the endpoints *)
+
 (* TODO: actually separate actions between client-side actions and facilitator-side actions,
    running in two different sets of threads,
    if possible on two different processes on two different machines,
@@ -22,13 +23,26 @@ open Side_chain_user
 
 open Accounts
 
-(* types have to be JSON-friendly, so don't use, for example, TokenAmount.t *)
-
 (* user account balance on Trent *)
-type user_account_state =
-  { address : string
+type side_chain_account_state =
+  { address : Address.t
   ; user_name : string
-  ; balance : int
+  ; balance : TokenAmount.t
+  ; revision : Revision.t
+  }
+[@@deriving yojson]
+
+(* user account on Ethereum *)
+type main_chain_account_state =
+  { address : Address.t
+  ; balance : TokenAmount.t
+  ; revision : Revision.t
+  }
+[@@deriving yojson]
+
+type user_status =
+  { side_chain_account : side_chain_account_state
+  ; main_chain_account : main_chain_account_state
   }
 [@@deriving yojson]
 
@@ -43,15 +57,15 @@ type main_chain_confirmation =
 
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
-  { user_account_state : user_account_state
+  { side_chain_account_state : side_chain_account_state
   ; side_chain_tx_revision : int64
   ; main_chain_confirmation : main_chain_confirmation
   }
 [@@deriving yojson]
 
 type payment_result =
-  { sender_account : user_account_state
-  ; recipient_account : user_account_state
+  { sender_account : side_chain_account_state
+  ; recipient_account : side_chain_account_state
   ; amount_transferred : int
   ; side_chain_tx_revision : int64
   }
@@ -146,13 +160,16 @@ let deposit_to_trent address amount =
     in
     (* get user account info on Trent *)
     let user_account_on_trent = get_user_account address_t in
-    let balance = TokenAmount.to_int (user_account_on_trent.balance) in
+    let balance = user_account_on_trent.balance in
+    let revision = user_account_on_trent.account_revision in
     let user_name = get_user_name address_t in
-    let user_account_state = { address
-                             ; user_name
-                             ; balance } in
+    let side_chain_account_state = { address = address_t
+                                   ; user_name
+                                   ; balance
+                                   ; revision
+                                   } in
     let side_chain_tx_revision = Revision.to_int64 tx_revision in
-    let deposit_result = { user_account_state
+    let deposit_result = { side_chain_account_state
                          ; side_chain_tx_revision
                          ; main_chain_confirmation } in
     return (transaction_result_to_yojson deposit_result)
@@ -188,15 +205,17 @@ let withdrawal_from_trent address amount =
       | Ok confirmation -> jsonable_confirmation_of_confirmation confirmation
     in
     let user_account_on_trent = get_user_account address_t in
-    let balance = TokenAmount.to_int (user_account_on_trent.balance) in
+    let balance = user_account_on_trent.balance in
+    let revision = user_account_on_trent.account_revision in
     let user_name = get_user_name address_t in
-    let user_account_state = { address
-                             ; user_name
-                             ; balance
-                             }
+    let side_chain_account_state = { address = address_t
+                                   ; user_name
+                                   ; balance
+                                   ; revision
+                                   }
     in
     let side_chain_tx_revision = Revision.to_int64 tx_revision in
-    let withdrawal_result = { user_account_state
+    let withdrawal_result = { side_chain_account_state
                             ; side_chain_tx_revision
                             ; main_chain_confirmation
                             }
@@ -208,32 +227,71 @@ let withdrawal_from_trent address amount =
 let get_balance_on_trent address =
   let address_t = Address.of_0x_string address in
   let user_account_on_trent = get_user_account address_t in
-  let balance = TokenAmount.to_int (user_account_on_trent.balance) in
+  let balance = user_account_on_trent.balance in
   let user_name = get_user_name address_t in
-  let user_account_state = { address
-                           ; user_name
-                           ; balance
-                           }
+  let revision = user_account_on_trent.account_revision in
+  let side_chain_account_state = { address = address_t
+                                 ; user_name
+                                 ; balance
+                                 ; revision
+                                 }
   in
-  user_account_state_to_yojson user_account_state
+  side_chain_account_state_to_yojson side_chain_account_state
+
+let get_status_on_trent_and_main_chain address =
+  let open Ethereum_transaction in
+  let side_chain_json = get_balance_on_trent address in
+  let address_t = Address.of_0x_string address in
+  send_balance_request_to_net address_t
+  >>= fun balance_json ->
+  if YoJson.mem "error" balance_json then
+    let error_msg = Format.sprintf "Could not get main chain balance for address %s: %s"
+        address (YoJson.(member "error" balance_json |> to_string))
+    in
+    return (`Assoc [("error",`String error_msg)])
+  else
+    let balance =
+      TokenAmount.of_string (YoJson.to_string (YoJson.member "result" balance_json))
+    in
+    get_transaction_count address_t
+    >>= fun revision_json ->
+    if YoJson.mem "error" revision_json then
+      let error_msg = Format.sprintf "Could not get main chain revision for address %s: %s"
+          address YoJson.(member "error" revision_json |> to_string)
+      in
+      return (`Assoc [("error",`String error_msg)])
+    else
+      let revision =
+        Revision.of_string (YoJson.(member "result" revision_json |> to_string))
+      in
+      let main_chain_account =
+        { address = address_t
+        ; balance
+        ; revision
+        }
+      in
+      return (`Assoc [("side_chain_account",side_chain_json)
+             ; ("main_chain_account",main_chain_account_state_to_yojson main_chain_account)
+             ])
 
 let get_all_balances_on_trent () =
   let make_balance_json address_t (account : Side_chain.AccountState.t) accum =
     let user_name = get_user_name address_t in
-    let account_state = { address = Address.to_0x_string address_t
+    let account_state = { address = address_t
                         ; user_name
-                        ; balance = TokenAmount.to_int account.balance
+                        ; balance = account.balance
+                        ; revision = account.account_revision
                         }
     in account_state::accum
   in
   let trent_state = get_trent_state () in
-  let user_account_states = AccountMap.fold make_balance_json trent_state.current.accounts [] in
-  let sorted_user_account_states =
+  let side_chain_account_states = AccountMap.fold make_balance_json trent_state.current.accounts [] in
+  let sorted_side_chain_account_states =
     List.sort
       (fun bal1 bal2 -> String.compare bal1.user_name bal2.user_name)
-      user_account_states
+      side_chain_account_states
   in
-  let sorted_balances_json = List.map user_account_state_to_yojson sorted_user_account_states in
+  let sorted_balances_json = List.map side_chain_account_state_to_yojson sorted_side_chain_account_states in
   return (`List sorted_balances_json)
 
 (* convert Request to nice JSON *)
@@ -330,9 +388,10 @@ let payment_on_trent sender recipient amount =
   let sender_account = get_user_account sender_address_t in
   let recipient_account = get_user_account recipient_address_t in
   let make_account_state address_t name (account : AccountState.t) =
-    { address = Address.to_0x_string address_t
+    { address = address_t
     ; user_name = name
-    ; balance = TokenAmount.to_int account.balance
+    ; balance = account.balance
+    ; revision = account.account_revision
     }
   in
   let sender_account = make_account_state sender_address_t sender_name sender_account in
