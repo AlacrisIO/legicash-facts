@@ -35,7 +35,7 @@ The type "main\_chain\_confirmation" is a JSON record of the form:
 The type user\_status is a JSON record of the form:
 
      { "side_chain_account" : side_chain_account,
-	   "main_chain_account" : main_chain_account
+       "main_chain_account" : main_chain_account
      }
 
 The type "proof" is a JSON record of the form:
