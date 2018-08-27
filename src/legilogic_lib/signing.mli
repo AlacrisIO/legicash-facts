@@ -78,11 +78,11 @@ val keypair_of_address : address -> keypair
 
 val address_of_public_key : public_key -> address
 
-val is_signature_valid : ('a -> digest) -> address -> signature -> 'a -> bool
 (** check signature for given value *)
+val is_signature_valid : ('a -> digest) -> address -> signature -> 'a -> bool
 
-val is_signed_value_valid : ('a -> digest) -> address -> 'a signed -> bool
 (** check signature for payload within a signed value *)
+val is_signed_value_valid : ('a -> digest) -> address -> 'a signed -> bool
 
 val make_signature : ('a -> digest) -> private_key -> 'a -> signature
 
@@ -91,11 +91,11 @@ val signature_vrs : signature -> string * string * string
 
 val signed : ('a -> digest) -> private_key -> 'a -> 'a signed
 
-val marshal_signed : 'a marshaler -> 'a signed marshaler
 (** marshaler for 'a signed, parameterized by the marshaler for the payload of type 'a *)
+val marshal_signed : 'a marshaler -> 'a signed marshaler
 
-val unmarshal_signed : 'a unmarshaler -> 'a signed unmarshaler
 (** unmarshaler for 'a signed, parameterized by the unmarshaler for the payload of type 'a *)
+val unmarshal_signed : 'a unmarshaler -> 'a signed unmarshaler
 
 val marshaling_signed : 'a marshaling -> 'a signed marshaling
 
