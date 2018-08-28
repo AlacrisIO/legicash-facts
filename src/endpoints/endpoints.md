@@ -7,12 +7,20 @@ The type "hex-string" is a string beginning with "0x", followed by hex digits.
 
 The type "address" is a hex-string with 20 hex-digit pairs.
 
-The type "account" is a JSON record of the form:
+The type "side\_chain\_account" is a JSON record of the form:
 
      { "address" : address,
        "user_name" : string,
-       "balance" : integer
+       "balance" : hex-string,
+       "revision" : hex-string
      }
+
+The type main\_chain\_account is a JSON record of the form:
+
+     { "address" : address,
+	 ; "balance" : hex-string,
+	 ; "revision : hex-string
+	 }
 
 The type "hash" is a hex-string with 32 hex-digit pairs.
 
@@ -22,6 +30,12 @@ The type "main\_chain\_confirmation" is a JSON record of the form:
        "transaction_index" : int,
 	   "block_number" : int,
 	   "block_hash" : hash
+     }
+
+The type user\_status is a JSON record of the form:
+
+     { "side_chain_account" : side_chain_account,
+       "main_chain_account" : main_chain_account
      }
 
 The type "proof" is a JSON record of the form:
@@ -39,7 +53,7 @@ where a "step" is a JSON record of one of the following forms:
      { "right" : hash }, or
 
      { "bits" : hex-string,
-	   "length" : int
+	   "length" : number
 	 }
 
 Deposit
@@ -52,7 +66,7 @@ Deposit
   The body is a JSON record of the form:
 
     { "address" : address,
-      "amount" : integer
+      "amount" : hex-string
     }
 
   The result is a JSON record of the form
@@ -71,7 +85,7 @@ Withdrawal
   The body is a JSON record of the form:
 
     { "address" : address,
-      "amount" : integer
+      "amount" : hex-string
     }
 
   The result is a JSON record of the form
@@ -95,15 +109,15 @@ Payment
 
     { "sender" : address,
       "recipient" : address,
-      "amount" : integer
+      "amount" : hex-string
     }
 
   The result is a JSON record of the form:
 
-  { "sender_account" : account,
-    "recipient_account" : account,
-    "amount_transferred" : integer,
-    "side_chain_tx_revision" : integer
+  { "sender_account" : side_chain_account,
+    "recipient_account" : side_chain_account,
+    "amount_transferred" : hex-string,
+    "side_chain_tx_revision" : hex-string
   }
 
   reflecting the accounts after payment has been made.
@@ -119,7 +133,7 @@ Balance
 
     { "address" : address }
 
-  The result is a JSON record of type "account".
+  The result is a JSON record of type "side\_chain\_account".
 
 Balances
 --------
@@ -128,7 +142,20 @@ Balances
 
   GET
 
-  The result is a JSON list of "account" records, sorted by user name.
+  The result is a JSON list of "side\_chain\_account" records, sorted by user name.
+
+Status
+------
+
+  URL: api/status
+
+  POST / Content-Type: application/json
+
+  The body is a JSON record of the form:
+
+    { "address" : address }
+
+  The result is a JSON record of type "user\_status".
 
 Transaction rate
 ----------------
@@ -139,7 +166,7 @@ Transaction rate
 
   The result is a JSON record of the form:
 
-    { "transaction_rate" : int
+    { "transaction_rate" : number
       "time" : string
 	}
 
@@ -192,8 +219,8 @@ Deposit/withdrawal threads
 
   If the thread has completed for a deposit or withdrawal, the result is a JSON record:
 
-    { "user_account_state" : account_state,
-      "side_chain_tx_revision" : integer,
+    { "user_account_state" : side_chain_account,
+      "side_chain_tx_revision" : hex-string,
       "main_chain_confirmation" : main_chain_confirmation
     }
 
