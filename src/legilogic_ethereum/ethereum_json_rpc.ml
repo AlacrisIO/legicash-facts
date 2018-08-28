@@ -29,22 +29,30 @@ let json_rpc_version = "2.0"
 (* Global state, e.g. to correlate responses and answers in logs. *)
 let id_counter = make_counter ()
 
+let rcp_timeout = 2.0 (* seconds *)
+
 let send_rpc_call_to_net json =
   let json_str = string_of_yojson json in
   (* For debugging, uncomment this line: *)
   log "Sending rpc call to geth: %s" json_str;
-  Client.post
-    ~body:(Cohttp_lwt__.Body.of_string json_str)
-    ~headers:(Cohttp.Header.add (Cohttp.Header.init ()) "Content-Type" "application/json")
-    ethereum_net
-  >>= fun (resp, body) ->
-  let _ = resp |> Response.status |> Code.code_of_status in
-  Cohttp_lwt.Body.to_string body
-  >>= fun response_str ->
-  (* For debugging, uncomment this line: *)
-  log "Receive rpc response from geth: %s" response_str;
-  Lwt.return (yojson_of_string response_str)
-
+  let timeout =
+    Lwt_unix.sleep rcp_timeout >>= fun () ->
+    Lwt.return (`Assoc[("error",`String "Timed out")])
+  in
+  let post =
+    Client.post
+      ~body:(Cohttp_lwt__.Body.of_string json_str)
+      ~headers:(Cohttp.Header.add (Cohttp.Header.init ()) "Content-Type" "application/json")
+      ethereum_net
+    >>= fun (resp, body) ->
+    let _ = resp |> Response.status |> Code.code_of_status in
+    Cohttp_lwt.Body.to_string body
+    >>= fun response_str ->
+    (* For debugging, uncomment this line: *)
+    log "Receive rpc response from geth: %s" response_str;
+    Lwt.return (yojson_of_string response_str)
+  in
+  Lwt.pick [timeout; post]
 
 (* given constructor, build JSON RPC call name *)
 let json_rpc_callname call =
