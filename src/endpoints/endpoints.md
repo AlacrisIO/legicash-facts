@@ -7,7 +7,7 @@ The type "hex-string" is a string beginning with "0x", followed by hex digits.
 
 The type "address" is a hex-string with 20 hex-digit pairs.
 
-The type "side_\_chain\_account" is a JSON record of the form:
+The type "side\_chain\_account" is a JSON record of the form:
 
      { "address" : address,
        "user_name" : string,

@@ -45,20 +45,11 @@ type user_status =
   ; main_chain_account : main_chain_account_state
   }
 
-(* confirmed transaction on main chain *)
-type main_chain_confirmation =
-  { transaction_hash : string
-  ; transaction_index : int
-  ; block_number : int
-  ; block_hash : string
-  }
-[@@deriving to_yojson]
-
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
   { side_chain_account_state : side_chain_account_state
   ; side_chain_tx_revision : Revision.t
-  ; main_chain_confirmation : main_chain_confirmation
+  ; main_chain_confirmation : Main_chain.Confirmation.t
   }
 [@@deriving to_yojson]
 
@@ -133,13 +124,6 @@ let user_state_from_address address_t =
 let update_user_state address_t user_state =
   Hashtbl.replace address_to_user_state_tbl address_t user_state
 
-(* convert main chain confirmation to JSON-friendly types *)
-let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmation.t) =
-  { transaction_hash = confirmation.transaction_hash |> Digest.to_0x_string
-  ; transaction_index = confirmation.transaction_index |> UInt64.to_int
-  ; block_number = confirmation.block_number |> Revision.to_int
-  ; block_hash = confirmation.block_hash |> Digest.to_0x_string }
-
 let deposit_to_trent address amount =
   let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address address) in
@@ -156,7 +140,7 @@ let deposit_to_trent address amount =
     let operation = signed_request.payload.operation in
     let main_chain_confirmation =
       match operation with
-      | Deposit details -> jsonable_confirmation_of_confirmation details.main_chain_deposit_confirmation
+      | Deposit details -> details.main_chain_deposit_confirmation
       | _ -> bork "Expected deposit request"
     in
     (* get user account info on Trent *)
@@ -203,7 +187,7 @@ let withdrawal_from_trent address amount =
     let main_chain_confirmation =
       match maybe_main_chain_confirmation with
       | Error exn -> raise exn
-      | Ok confirmation -> jsonable_confirmation_of_confirmation confirmation
+      | Ok confirmation -> confirmation
     in
     let user_account_on_trent = get_user_account address in
     let balance = user_account_on_trent.balance in
@@ -245,12 +229,12 @@ let get_status_on_trent_and_main_chain address =
   >>= fun balance_json ->
   if YoJson.mem "error" balance_json then
     let error_msg = Format.sprintf "Could not get main chain balance for address %s: %s"
-        (Address.to_0x_string address) (YoJson.(member "error" balance_json |> to_string))
+        (Address.to_0x_string address) YoJson.(member "error" balance_json |> to_string)
     in
     return (error_json error_msg)
   else
     let balance =
-      TokenAmount.of_string (YoJson.to_string (YoJson.member "result" balance_json))
+      TokenAmount.of_string YoJson.(member "result" balance_json |> to_string)
     in
     get_transaction_count address
     >>= fun revision_json ->
@@ -261,7 +245,7 @@ let get_status_on_trent_and_main_chain address =
       return (error_json error_msg)
     else
       let revision =
-        Revision.of_string (YoJson.(member "result" revision_json |> to_string))
+        Revision.of_string YoJson.(member "result" revision_json |> to_string)
       in
       let main_chain_account =
         { address
