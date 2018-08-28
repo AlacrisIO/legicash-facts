@@ -13,10 +13,15 @@ type t = RlpEncoding of string [@@deriving show]
 (* convert number to string, used for
    - encoding lengths within RLP-encodings
    - encoding integers to string, which can then be RLP-encoded
-   TODO: make it O(n^2) no more.
 *)
-let rec encode_int_as_string n =
-  if n == 0 then "" else encode_int_as_string (n / 0x100) ^ String.make 1 (Char.chr (n mod 0x100))
+let encode_int_as_string n =
+  let rec loop n accum =
+    if n == 0 then
+      String.concat "" accum
+    else
+      loop (n / 0x100) (String.make 1 (Char.chr (n mod 0x100)) :: accum)
+  in
+  loop n []
 
 (* encode length of string to prepend to RLP-encoding *)
 let encode_length len offset =
@@ -72,65 +77,60 @@ type rlp_decoded_length =
   | RlpItemsLengthDecoded of rlp_length_bounds
 
 (* decode encoded length, determining whether we have an item or items *)
-let decode_length input =
+let decode_length input offset =
   let len = String.length input in
-  if len = 0 then bork "decode_length: empty input"
+  if offset >= len then bork "decode_length: empty input"
   else
-    let prefix = Char.code input.[0] in
+    let prefix = Char.code input.[offset] in
     if prefix <= 0x7F then RlpItemLengthDecoded {start= 0; length= 1}
     else if prefix <= 0xB7 && len > prefix - 0x80 then
       RlpItemLengthDecoded {start= 1; length= prefix - 0x80}
     else if
       prefix <= 0xbf
       && len > prefix - 0xb7
-      && len > prefix - 0xB7 + decode_int_string (String.sub input 1 (prefix - 0xB7))
+      && len > prefix - 0xB7 + decode_int_string (String.sub input (offset + 1) (prefix - 0xB7))
     then
       let len_of_strlen = prefix - 0xB7 in
-      let strlen = decode_int_string (String.sub input 1 len_of_strlen) in
+      let strlen = decode_int_string (String.sub input (offset + 1) len_of_strlen) in
       RlpItemLengthDecoded {start= 1 + len_of_strlen; length= strlen}
     else if prefix <= 0xF7 && len > prefix - 0xC0 then
       RlpItemsLengthDecoded {start= 1; length= prefix - 0xC0}
     else if
       prefix <= 0xFF
       && len > prefix - 0xF7
-      && len > prefix - 0xF7 + decode_int_string (String.sub input 1 (prefix - 0xF7))
+      && len > prefix - 0xF7 + decode_int_string (String.sub input (offset + 1) (prefix - 0xF7))
     then
       let len_of_items_len = prefix - 0xF7 in
-      let items_len = decode_int_string (String.sub input 1 len_of_items_len) in
+      let items_len = decode_int_string (String.sub input (offset + 1) len_of_items_len) in
       RlpItemsLengthDecoded {start= 1 + len_of_items_len; length= items_len}
     else bork "decode_length: nonconforming RLP encoding"
 
-(* entry point for RLP decoding
-   TODO: make it O(N) instead of O(N^2) by not extracting substrings N times,
-   instead maintaining start and end indexes.
-*)
+(* entry point for RLP decoding *)
 let decode (RlpEncoding s as encoding) =
+  let len = String.length s in
   (* for string, return the decoded part paired with unconsumed part of the string *)
-  let rec decode_with_leftover s =
-    let len = String.length s in
-    if len = 0 then (RlpItem "", "")
+  let rec decode_with_leftover offset =
+    if offset >= len then (RlpItem "", 0)
     else
-      match decode_length s with
+      match decode_length s offset with
       | RlpItemLengthDecoded {start; length} ->
-        let decoded_len = start + length in
         (* prefix and data *)
-        (RlpItem (String.sub s start length), String.sub s decoded_len (len - decoded_len))
+        (RlpItem (String.sub s (offset + start) length), offset + start + length)
       | RlpItemsLengthDecoded {start; length} ->
-        let rec item_loop s0 accum =
+        let rec item_loop offs limit accum =
           (* decode items until string consumed *)
-          if s0 = "" then List.rev accum
+          if offs >= limit then List.rev accum
           else
-            let item, leftover = decode_with_leftover s0 in
-            item_loop leftover (item :: accum)
+            let item, new_offset = decode_with_leftover offs in
+            item_loop new_offset limit (item :: accum)
         in
-        let decoded_len = start + length in
         (* prefix and data for all items *)
-        let items = String.sub s start length in
-        (RlpItems (item_loop items []), String.sub s decoded_len (len - decoded_len))
+        let decoded_len = offset + start + length in
+        (RlpItems (item_loop (offset + start) decoded_len []), decoded_len)
   in
-  let decoded, leftover = decode_with_leftover s in
-  if leftover = "" then decoded
-  else bork "For encoding: %s, got leftover data: %s" (show encoding) leftover
+  let decoded, offset = decode_with_leftover 0 in
+  if offset >= len then decoded
+  else bork "For encoding: %s, got leftover data: %s" (show encoding) (String.sub s offset (len - offset))
 
 module Test = struct
   (* tests of encoding, from reference given at top *)
