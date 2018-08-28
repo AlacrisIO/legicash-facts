@@ -6,7 +6,7 @@ open Legicash_lib
 open Side_chain
 open Signing
 
-val error_json : string -> Yojsoning.yojson
+val error_json : ('a, unit, string, Yojsoning.yojson) format4 -> 'a
 (** make JSON record with error *)
 
 val get_all_balances_on_trent : unit -> Yojsoning.yojson Lwt.t

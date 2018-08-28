@@ -44,8 +44,8 @@ let address = "127.0.0.1"
 let return_json id status json =
   let response =
     Response.{ status
-    ; headers = [`Content_type "application/json"]
-    ; body = `String (string_of_yojson json) } in
+             ; headers = [`Content_type "application/json"]
+             ; body = `String (string_of_yojson json) } in
   log "[\"RESPONSE\", %d, %s]" id (Response.to_debug_string response);
   Lwt.return response
 
@@ -56,27 +56,24 @@ let bad_request id json = return_json id `Bad_request json
 let internal_error id json = return_json id `Internal_server_error json
 
 let bad_request_method id methodz =
-  let json = error_json ("Invalid HTTP method: " ^ (Http_method.to_string methodz)) in
+  let json = error_json "Invalid HTTP method: %s" (Http_method.to_string methodz) in
   bad_request id json
 
 let invalid_api_call id methodz call =
-  let json = error_json ("No such " ^ methodz ^ " API call: " ^ call) in
+  let json = error_json "No such %s API call: %s" methodz call in
   bad_request id json
 
 let invalid_get_api_call id call = invalid_api_call id "GET" call
 let invalid_post_api_call id call = invalid_api_call id "POST" call
 
 let bad_request_response id msg =
-  let json = error_json msg in
-  bad_request id json
+  bad_request id (error_json "%s" msg)
 
 let error_response id msg =
-  let json = error_json msg in
-  ok_json id json
+  ok_json id (error_json "%s" msg)
 
 let internal_error_response id msg =
-  let json = error_json msg in
-  internal_error id json
+  internal_error id (error_json "%s" msg)
 
 let _ =
   let request_counter =
@@ -110,7 +107,7 @@ let _ =
                 bad_request_response id ("Invalid tx-revision: " ^ param)
               | exn ->
                 internal_error_response id (Printexc.to_string exn))
-           | None -> bad_request_response id ("Expected one parameter, tx-revision"))
+           | None -> bad_request_response id "Expected one parameter, tx-revision")
         | "thread" ->
           (match Request.param request "id" with
              Some param ->
