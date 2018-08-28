@@ -107,7 +107,8 @@ module ResultOrString : sig
   val get : ('a, string) result -> 'a
 end
 
-(** list fold left in CPS *)
+(** [list_foldlk f a l k] is the same as [k @@ List.fold_left f a l]. (CPS for
+   [List.fold_left].) *)
 val list_foldlk : ('a -> 'b -> ('a -> 'r) -> 'r) -> 'a -> 'b list -> ('a -> 'r) -> 'r
 
 (** Base interface for a type
