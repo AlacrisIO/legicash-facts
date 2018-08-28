@@ -1,8 +1,5 @@
 open Legilogic_lib
-open Action
 open Signing
-
-open Legibase
 
 (* the "flows" mentioned here are those mentioned in the file "demo.md" *)
 
@@ -39,12 +36,12 @@ open Legibase
 *)
 
 (** message-sending operations *)
-
-val send_message : 'a -> conversation -> unit or_exn
-(** Send a message
-    TODO: somehow use bounded polymorphism to restrict 'a to marshallizable classes?
-    TODO: To be implemented but not exposed
-*)
+(*
+   val send_message : 'a -> conversation -> unit or_exn
+   (** Send a message
+   TODO: somehow use bounded polymorphism to restrict 'a to marshallizable classes?
+   TODO: To be implemented but not exposed
+ *)*)
 
 (*
    val send_user_request : UserState.t -> Request.t signed -> conversation -> unit or_exn

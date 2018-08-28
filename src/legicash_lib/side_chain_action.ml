@@ -15,12 +15,6 @@ open Side_chain_user
 
 (** missing types to be implemented *)
 
-type facilitator_to_facilitator_message
-
-type user_to_user_message
-
-let send_message = bottom
-
 module Test = struct
   open Lwt
   open Signing.Test

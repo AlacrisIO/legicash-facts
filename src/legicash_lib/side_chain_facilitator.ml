@@ -300,10 +300,6 @@ let process_request : (Request.t signed * bool, Transaction.t) Lwt_exn.arr =
     let open Lwt in
     wait_for_commit >>= Lwt_exn.const confirmation
 
-let commit_facilitator_state = bottom
-
-let check_main_chain_for_exits = bottom
-
 (** Take messages from the user_request_mailbox, and process them in parallel *)
 let user_request_loop =
   let open Lwt_monad in

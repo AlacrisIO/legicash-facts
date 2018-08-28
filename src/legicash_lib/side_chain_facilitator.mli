@@ -25,14 +25,16 @@ val get_facilitator_state : unit -> FacilitatorState.t
    according to whether it [is_forced], returning a [Transaction] on success. *)
 val process_request : (Request.t signed * bool, Transaction.t) Lwt_exn.arr
 
-val commit_facilitator_state : (unit, unit) FacilitatorAsyncAction.arr
-(** For a facilitator, commit the state of the side-chain to the main-chain *)
+(*
+   val commit_facilitator_state : (unit, unit) FacilitatorAsyncAction.arr
+   (** For a facilitator, commit the state of the side-chain to the main-chain *)
 
-(* val embed_request: (user_request, Main_chain.transaction) user_action *)
+   (* val embed_request: (user_request, Main_chain.transaction) user_action *)
 
-val check_main_chain_for_exits : (unit, Request.t list) FacilitatorAsyncAction.arr
-(** Flow 3 Step 2: Trent, who follows the main chain, checks for such exit requests.
-    When one is found, Trent is on notice to post an update of his side-chain within
-    an allowed deadline, that features a confirmation for these requests.
-    Alternatively, Trent fails, and bankruptcy proceedings start — see Flow 6, 7 and 8.
+   val check_main_chain_for_exits : (unit, Request.t list) FacilitatorAsyncAction.arr
+   (** Flow 3 Step 2: Trent, who follows the main chain, checks for such exit requests.
+   When one is found, Trent is on notice to post an update of his side-chain within
+   an allowed deadline, that features a confirmation for these requests.
+   Alternatively, Trent fails, and bankruptcy proceedings start — see Flow 6, 7 and 8.
+ *)
 *)

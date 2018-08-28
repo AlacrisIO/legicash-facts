@@ -340,12 +340,3 @@ let push_side_chain_action_to_main_chain
   | Payment _
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"
-
-let collect_account_liquidation_funds = bottom
-
-let request_account_liquidation = bottom
-
-let initiate_individual_exit = bottom
-
-let request_deposit = bottom
-
