@@ -58,7 +58,7 @@ let account_names = user_names
     in
     loop 49 [] *)
 
-let list_take elts n =
+(* let list_take elts n =
   let rec loop elts accum count =
     if count >= n then
       (List.rev accum)
@@ -69,6 +69,7 @@ let list_take elts n =
         loop t (h::accum) (count + 1)
   in
   loop elts [] 0
+*)
 
 (* let account_key_list = List.map2 (fun name keys -> (name, keys)) (list_take account_names 13) (list_take account_keys 13) *)
 let account_key_list = List.map2 (fun name keys -> (name, keys)) account_names account_keys
@@ -205,7 +206,7 @@ let load_trent_state () =
     address_to_user_state_tbl;
   Lwt.return_unit
 
-let chunk_list elts chunk_size =
+(* let chunk_list elts chunk_size =
   let rec mk_chunk elts accum count =
     if count >= chunk_size then
       (List.rev accum,elts) (* chunk, remaining elts *)
@@ -223,7 +224,7 @@ let chunk_list elts chunk_size =
       loop remaining (chunk::accum)
   in
   loop elts []
-
+*)
 
 let _ =
   let open Lwt in

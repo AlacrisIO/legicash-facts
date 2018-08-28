@@ -2,32 +2,39 @@ open Scgi
 open Lwt
 
 open Legilogic_lib
+open Signing
 open Yojsoning
 open Logging
+
+open Legicash_lib
+open Side_chain
 
 open Endpoints
 open Actions
 
+(* Side_chain also has a Request module *)
+module Request = Scgi.Request
+
 let _ = log_to_file "nginx/logs/legicash.log"
 
 type deposit_json =
-  { address: string
-  ; amount: int
+  { address: Address.t
+  ; amount: TokenAmount.t
   } [@@deriving yojson]
 
 type withdrawal_json =
-  { address: string
-  ; amount: int
+  { address: Address.t
+  ; amount: TokenAmount.t
   } [@@deriving yojson]
 
 type payment_json =
-  { sender: string
-  ; recipient: string
-  ; amount: int
+  { sender: Address.t
+  ; recipient: Address.t
+  ; amount: TokenAmount.t
   } [@@deriving yojson]
 
 type address_json =
-  { address: string
+  { address: Address.t
   } [@@deriving yojson]
 
 (* port and address must match "scgi_pass" in nginx/conf/scgi.conf *)
@@ -146,7 +153,6 @@ let _ =
               | exn -> internal_error_response id (Printexc.to_string exn))
            | Error msg -> error_response id msg)
         | "payment" ->
-          Printf.eprintf "ENTERED PAYMENT\n%!";
           let maybe_payment = payment_json_of_yojson json in
           (match maybe_payment with
            | Ok payment ->
