@@ -48,8 +48,6 @@ let bad_request id json = return_json id `Bad_request json
 
 let internal_error id json = return_json id `Internal_server_error json
 
-let error_json msg = `Assoc [("error",`String msg)]
-
 let bad_request_method id methodz =
   let json = error_json ("Invalid HTTP method: " ^ (Http_method.to_string methodz)) in
   bad_request id json

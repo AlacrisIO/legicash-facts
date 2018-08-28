@@ -77,6 +77,10 @@ type tps_result =
   }
 [@@deriving yojson]
 
+let error_json msg = `Assoc [("error",`String msg)]
+
+let json_of_exn exn = error_json (Printexc.to_string exn)
+
 (* table of id's to Lwt threads *)
 let (id_to_thread_tbl : (int,yojson Lwt.t) Hashtbl.t) = Hashtbl.create 1031
 
@@ -104,7 +108,7 @@ let get_proof tx_revision : yojson =
   let transactions = trent_state.current.transactions in
   match TransactionMap.Proof.get tx_revision_t transactions with
   | None ->
-    `Assoc [("error",`String (Format.sprintf "Cannot provide proof for tx-revision: %d" tx_revision))]
+    error_json (Format.sprintf "Cannot provide proof for tx-revision: %d" tx_revision)
   | Some proof ->
     TransactionMap.Proof.to_yojson proof
 
@@ -115,13 +119,13 @@ let apply_main_chain_thread id : yojson =
     match state thread with
     | Return json -> json
     | Fail exn ->
-      `Assoc [("error",`String (Format.sprintf "Thread exception: %s\nStack: %s"
-                                  (Printexc.to_string exn)
-                                  (Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ()))))]
+      error_json (Format.sprintf "Thread exception: %s\nStack: %s"
+                    (Printexc.to_string exn)
+                    (Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ())))
     | Sleep ->
       `Assoc [("result",`String "The operation is pending")]
   with Not_found ->
-    `Assoc [("error",`String (Format.sprintf "Thread %d not found" id))]
+    error_json (Format.sprintf "Thread %d not found" id)
 
 let user_state_from_address address_t =
   try
@@ -135,8 +139,6 @@ let jsonable_confirmation_of_confirmation (confirmation : Main_chain.Confirmatio
   ; transaction_index = confirmation.transaction_index |> UInt64.to_int
   ; block_number = confirmation.block_number |> Revision.to_int
   ; block_hash = confirmation.block_hash |> Digest.to_0x_string }
-
-let json_of_exn exn = `Assoc [("error",`String (Printexc.to_string exn))]
 
 let deposit_to_trent address amount =
   let open Ethereum_transaction.Test in
@@ -248,7 +250,7 @@ let get_status_on_trent_and_main_chain address =
     let error_msg = Format.sprintf "Could not get main chain balance for address %s: %s"
         address (YoJson.(member "error" balance_json |> to_string))
     in
-    return (`Assoc [("error",`String error_msg)])
+    return (error_json error_msg)
   else
     let balance =
       TokenAmount.of_string (YoJson.to_string (YoJson.member "result" balance_json))
@@ -259,7 +261,7 @@ let get_status_on_trent_and_main_chain address =
       let error_msg = Format.sprintf "Could not get main chain revision for address %s: %s"
           address YoJson.(member "error" revision_json |> to_string)
       in
-      return (`Assoc [("error",`String error_msg)])
+      return (error_json error_msg)
     else
       let revision =
         Revision.of_string (YoJson.(member "result" revision_json |> to_string))
