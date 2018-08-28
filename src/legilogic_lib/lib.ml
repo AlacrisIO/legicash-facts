@@ -27,11 +27,17 @@ let zcompose x y z = x (y z)
 
 let (>>) x y z = y (x z)
 
+let curry f x y = f (x, y)
+let uncurry f (x, y) = f x y
+let curry3 f x y z = f (x, y, z)
+let uncurry3 f (x, y, z) = f x y z
+let curry4 f x y z t = f (x, y, z, t)
+let uncurry4 f (x, y, z, t) = f x y z t
 
-(** Simple counter *)
 let make_counter ?(start=0) () =
   let r = ref start in
   fun () -> let i = !r in r := i+1 ; i
+
 
 
 (** Options *)

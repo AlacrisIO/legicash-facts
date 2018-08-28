@@ -44,6 +44,14 @@ val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
 val (>>) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
 
+(** Currying and uncurrying *)
+val curry : ('a * 'b -> 'c) -> 'a -> 'b -> 'c
+val uncurry : ('a -> 'b -> 'c) -> 'a * 'b -> 'c
+val curry3 : ('a * 'b * 'c -> 'd) -> 'a -> 'b -> 'c -> 'd
+val uncurry3 : ('a -> 'b -> 'c -> 'd) -> 'a * 'b * 'c -> 'd
+val curry4 : ('a * 'b * 'c * 'd -> 'e) -> 'a -> 'b -> 'c -> 'd -> 'e
+val uncurry4 : ('a -> 'b -> 'c -> 'd -> 'e) -> 'a * 'b * 'c * 'd -> 'e
+
 (** Simple counter *)
 val make_counter : ?start:int -> unit -> unit -> int
 
