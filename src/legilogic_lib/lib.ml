@@ -5,8 +5,6 @@ exception Not_implemented
 
 exception Internal_error of string
 
-let spf = Printf.sprintf
-
 let bork fmt = Printf.ksprintf (fun x -> raise (Internal_error x)) fmt
 
 let bottom : 'a -> 'b = fun _ -> raise Not_implemented
@@ -395,7 +393,7 @@ module StateMonad (State: TypeS) = struct
     type state = State.t
     type 'a t = state -> ('a * state)
     let return x s = (x, s)
-    let bind m fm s = m s |> fun (x, s) -> fm x s
+    let bind m fm s = m s |> uncurry fm
     let state s = (s, s)
     let put_state s _ = ((), s)
     type ('i, 'o) readonly = 'i -> state -> 'o

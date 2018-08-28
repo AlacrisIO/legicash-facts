@@ -15,9 +15,6 @@ exception Internal_error of string
 (** bork raises an Internal_error with the format string and arguments *)
 val bork : ('a, unit, string, 'b) format4 -> 'a
 
-(** spf is short for Printf.sprintf. Only use spf as shorthand while debugging *)
-val spf : ('a, unit, string) format -> 'a
-
 (** the bottom function turns anything into anything, by raising a Not_implemented exception *)
 val bottom : 'a -> 'b
 
