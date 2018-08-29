@@ -5,7 +5,7 @@ exception Marshaling_error of string
 exception Unmarshaling_error of string*int*Bytes.t
 
 type 'a marshaler = Buffer.t -> 'a -> unit
-type 'a unmarshaler = ?start:int -> Bytes.t -> 'a * int
+type 'a unmarshaler = int -> Bytes.t -> 'a * int
 type 'a marshaling = {marshal: 'a marshaler; unmarshal: 'a unmarshaler}
 
 let marshal_of_sized_string_of num_bytes string_of b x =
@@ -16,7 +16,7 @@ let marshal_of_sized_string_of num_bytes string_of b x =
                 num_bytes s (String.length s)));
   Buffer.add_string b s
 
-let unmarshal_of_sized_of_string num_bytes of_string ?start:(start=0) b =
+let unmarshal_of_sized_of_string num_bytes of_string start b =
   let s = Bytes.sub_string b start num_bytes in
   (of_string s, start + num_bytes)
 
@@ -32,7 +32,7 @@ let marshal_bytes_of_marshal marshal x =
   Buffer.to_bytes buffer
 
 let unmarshal_bytes_of_unmarshal (unmarshal: 'value unmarshaler) buffer =
-  let (value, length) = unmarshal buffer in
+  let (value, length) = unmarshal 0 buffer in
   assert (length = Bytes.length buffer) ;
   value
 
@@ -47,14 +47,14 @@ let unmarshal_string_of_unmarshal unmarshal x =
 let marshal_string_of_any value = Marshal.to_string value [Marshal.Compat_32]
 
 let marshal_map f marshal buffer x = marshal buffer (f x)
-(*let unmarshal_map f unmarshal ?(start=0) bytes = unmarshal ~start bytes |> map_fst f*)
-let unmarshal_map f (unmarshal : 'a unmarshaler) ?(start=0) bytes =
-  unmarshal ~start bytes |> map_fst f
+(*let unmarshal_map f unmarshal start bytes = unmarshal start bytes |> map_fst f*)
+let unmarshal_map f (unmarshal : 'a unmarshaler) start bytes =
+  unmarshal start bytes |> map_fst f
 let marshaling_map f g marshaling =
   {marshal=marshal_map f marshaling.marshal;unmarshal=unmarshal_map g marshaling.unmarshal}
 
 let marshal_char buffer ch = Buffer.add_char buffer ch
-let unmarshal_char ?(start=0) bytes = (Bytes.get bytes start, start + 1)
+let unmarshal_char start bytes = (Bytes.get bytes start, start + 1)
 let char_marshaling={marshal=marshal_char;unmarshal=unmarshal_char}
 
 let bool_of_char = function
@@ -71,15 +71,15 @@ let unmarshal_bool = unmarshal_map bool_of_char unmarshal_char
 let bool_marshaling={marshal=marshal_bool;unmarshal=unmarshal_bool}
 
 let marshal_not_implemented _buffer _x = bottom ()
-let unmarshal_not_implemented ?start:(_start=0) _bytes = bottom ()
+let unmarshal_not_implemented _start _bytes = bottom ()
 let marshaling_not_implemented = {marshal=marshal_not_implemented;unmarshal=unmarshal_not_implemented}
 
 let marshal2 f m1 m2 buffer x =
   match f x with (x1, x2) -> m1 buffer x1 ; m2 buffer x2
 let unmarshal2 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) : 'x unmarshaler =
-  fun ?(start=0) bytes ->
-    let (x1, p) = u1 ~start bytes in
-    let (x2, p) = u2 ~start:p bytes in
+  fun start bytes ->
+    let (x1, p) = u1 start bytes in
+    let (x2, p) = u2 p bytes in
     (f x1 x2, p)
 let marshaling2 f g a b =
   {marshal=marshal2 f a.marshal b.marshal
@@ -87,10 +87,10 @@ let marshaling2 f g a b =
 
 let marshal3 f m1 m2 m3 buffer x =
   match f x with (x1, x2, x3) -> m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3
-let unmarshal3 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler) ?(start=0) bytes =
-  let (x1, p) = u1 ~start bytes in
-  let (x2, p) = u2 ~start:p bytes in
-  let (x3, p) = u3 ~start:p bytes in
+let unmarshal3 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler) start bytes =
+  let (x1, p) = u1 start bytes in
+  let (x2, p) = u2 p bytes in
+  let (x3, p) = u3 p bytes in
   (f x1 x2 x3, p)
 let marshaling3 f g a b c =
   {marshal=marshal3 f a.marshal b.marshal c.marshal
@@ -99,11 +99,11 @@ let marshaling3 f g a b c =
 let marshal4 f m1 m2 m3 m4 buffer x =
   match f x with (x1, x2, x3, x4) -> m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4
 let unmarshal4 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler) (u4: 'd unmarshaler)
-      ?(start=0) bytes =
-  let (x1, p) = u1 ~start bytes in
-  let (x2, p) = u2 ~start:p bytes in
-  let (x3, p) = u3 ~start:p bytes in
-  let (x4, p) = u4 ~start:p bytes in
+      start bytes =
+  let (x1, p) = u1 start bytes in
+  let (x2, p) = u2 p bytes in
+  let (x3, p) = u3 p bytes in
+  let (x4, p) = u4 p bytes in
   (f x1 x2 x3 x4, p)
 let marshaling4 f g a b c d =
   {marshal=marshal4 f a.marshal b.marshal c.marshal d.marshal
@@ -114,12 +114,12 @@ let marshal5 f m1 m2 m3 m4 m5 buffer x =
     m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4 ; m5 buffer x5
 let unmarshal5 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler)
-      ?(start=0) bytes =
-  let (x1, p) = u1 ~start bytes in
-  let (x2, p) = u2 ~start:p bytes in
-  let (x3, p) = u3 ~start:p bytes in
-  let (x4, p) = u4 ~start:p bytes in
-  let (x5, p) = u5 ~start:p bytes in
+      start bytes =
+  let (x1, p) = u1 start bytes in
+  let (x2, p) = u2 p bytes in
+  let (x3, p) = u3 p bytes in
+  let (x4, p) = u4 p bytes in
+  let (x5, p) = u5 p bytes in
   (f x1 x2 x3 x4 x5, p)
 let marshaling5 f g a b c d e =
   {marshal=marshal5 f a.marshal b.marshal c.marshal d.marshal e.marshal
@@ -130,13 +130,13 @@ let marshal6 f m1 m2 m3 m4 m5 m6 buffer x =
     m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4 ; m5 buffer x5 ; m6 buffer x6
 let unmarshal6 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler) (u6: 'f unmarshaler)
-      ?(start=0) bytes =
-  let (x1, p) = u1 ~start bytes in
-  let (x2, p) = u2 ~start:p bytes in
-  let (x3, p) = u3 ~start:p bytes in
-  let (x4, p) = u4 ~start:p bytes in
-  let (x5, p) = u5 ~start:p bytes in
-  let (x6, p) = u6 ~start:p bytes in
+      start bytes =
+  let (x1, p) = u1 start bytes in
+  let (x2, p) = u2 p bytes in
+  let (x3, p) = u3 p bytes in
+  let (x4, p) = u4 p bytes in
+  let (x5, p) = u5 p bytes in
+  let (x6, p) = u6 p bytes in
   (f x1 x2 x3 x4 x5 x6, p)
 let marshaling6 xt tx a b c d e f =
   {marshal=marshal6 xt a.marshal b.marshal c.marshal d.marshal e.marshal f.marshal
@@ -148,14 +148,14 @@ let marshal7 f m1 m2 m3 m4 m5 m6 m7 buffer x =
     m6 buffer x6 ; m7 buffer x7
 let unmarshal7 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler) (u6: 'f unmarshaler) (u7: 'g unmarshaler)
-      ?(start=0) bytes =
-  let (x1, p) = u1 ~start bytes in
-  let (x2, p) = u2 ~start:p bytes in
-  let (x3, p) = u3 ~start:p bytes in
-  let (x4, p) = u4 ~start:p bytes in
-  let (x5, p) = u5 ~start:p bytes in
-  let (x6, p) = u6 ~start:p bytes in
-  let (x7, p) = u7 ~start:p bytes in
+      start bytes =
+  let (x1, p) = u1 start bytes in
+  let (x2, p) = u2 p bytes in
+  let (x3, p) = u3 p bytes in
+  let (x4, p) = u4 p bytes in
+  let (x5, p) = u5 p bytes in
+  let (x6, p) = u6 p bytes in
+  let (x7, p) = u7 p bytes in
   (f x1 x2 x3 x4 x5 x6 x7, p)
 let marshaling7 xt tx a b c d e f g =
   {marshal=marshal7 xt a.marshal b.marshal c.marshal d.marshal e.marshal f.marshal g.marshal
@@ -169,15 +169,15 @@ let marshal8 f m1 m2 m3 m4 m5 m6 m7 m8 buffer x =
 let unmarshal8 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler) (u6: 'f unmarshaler)
       (u7: 'g unmarshaler) (u8: 'h unmarshaler)
-      ?(start=0) bytes =
-  let (x1, p) = u1 ~start bytes in
-  let (x2, p) = u2 ~start:p bytes in
-  let (x3, p) = u3 ~start:p bytes in
-  let (x4, p) = u4 ~start:p bytes in
-  let (x5, p) = u5 ~start:p bytes in
-  let (x6, p) = u6 ~start:p bytes in
-  let (x7, p) = u7 ~start:p bytes in
-  let (x8, p) = u8 ~start:p bytes in
+      start bytes =
+  let (x1, p) = u1 start bytes in
+  let (x2, p) = u2 p bytes in
+  let (x3, p) = u3 p bytes in
+  let (x4, p) = u4 p bytes in
+  let (x5, p) = u5 p bytes in
+  let (x6, p) = u6 p bytes in
+  let (x7, p) = u7 p bytes in
+  let (x8, p) = u8 p bytes in
   (f x1 x2 x3 x4 x5 x6 x7 x8, p)
 let marshaling8 xt tx a b c d e f g h =
   {marshal=marshal8 xt a.marshal b.marshal c.marshal d.marshal e.marshal
@@ -192,16 +192,16 @@ let marshal9 f m1 m2 m3 m4 m5 m6 m7 m8 m9 buffer x =
 let unmarshal9 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler) (u6: 'f unmarshaler)
       (u7: 'g unmarshaler) (u8: 'h unmarshaler) (u9: 'i unmarshaler)
-      ?(start=0) bytes =
-  let (x1, p) = u1 ~start bytes in
-  let (x2, p) = u2 ~start:p bytes in
-  let (x3, p) = u3 ~start:p bytes in
-  let (x4, p) = u4 ~start:p bytes in
-  let (x5, p) = u5 ~start:p bytes in
-  let (x6, p) = u6 ~start:p bytes in
-  let (x7, p) = u7 ~start:p bytes in
-  let (x8, p) = u8 ~start:p bytes in
-  let (x9, p) = u9 ~start:p bytes in
+      start bytes =
+  let (x1, p) = u1 start bytes in
+  let (x2, p) = u2 p bytes in
+  let (x3, p) = u3 p bytes in
+  let (x4, p) = u4 p bytes in
+  let (x5, p) = u5 p bytes in
+  let (x6, p) = u6 p bytes in
+  let (x7, p) = u7 p bytes in
+  let (x8, p) = u8 p bytes in
+  let (x9, p) = u9 p bytes in
   (f x1 x2 x3 x4 x5 x6 x7 x8 x9, p)
 let marshaling9 xt tx a b c d e f g h i =
   {marshal=marshal9 xt a.marshal b.marshal c.marshal d.marshal e.marshal
@@ -216,12 +216,12 @@ let marshaling9 xt tx a b c d e f g h i =
    else
    melse buffer x
 
-   let unmarshal_if tag u uelse ?(start=0) bytes =
-   let (t, p) = Tag.unmarshal ~start bytes in
+   let unmarshal_if tag u uelse start bytes =
+   let (t, p) = Tag.unmarshal start bytes in
    if t = tag then
-   u ~start:p bytes
+   u p bytes
    else
-   ufalse ~start bytes
+   ufalse start bytes
 
    let marshaling_if f tag m melse =
    {marshal = marshal_if f tag m.marshal melse.marshal
@@ -257,7 +257,7 @@ module OCamlMarshaling (T: TypeS) = struct
   include T
   let marshaling =
     { marshal = (fun buffer value -> Buffer.add_string buffer (marshal_string_of_any value))
-    ; unmarshal = fun ?(start=0) buffer ->
+    ; unmarshal = fun start buffer ->
         let value = Marshal.from_bytes buffer start in
         let size = Marshal.total_size buffer start in
         value, start + size }
@@ -323,8 +323,8 @@ module StringL (L : LengthS) = struct
       let len = checked_string_length ~fail:(fun x -> raise (Marshaling_error x)) string in
       L.marshaling.marshal buffer len;
       Buffer.add_string buffer string
-    let unmarshal ?(start=0) bytes =
-      let len, p = L.marshaling.unmarshal ~start bytes in
+    let unmarshal start bytes =
+      let len, p = L.marshaling.unmarshal start bytes in
       let fail x = raise (Unmarshaling_error (x, start, bytes)) in
       check_length ~fail len;
       if len + p <= Bytes.length bytes then
@@ -361,7 +361,7 @@ module Length1G = struct
     Buffer.add_char buffer (Char.chr (255 land (len lsr 16)));
     Buffer.add_char buffer (Char.chr (255 land (len lsr 8)));
     Buffer.add_char buffer (Char.chr (255 land len))
-  let unmarshal ?(start=0) bytes =
+  let unmarshal start bytes =
     if start + 4 > Bytes.length bytes then
       raise (Unmarshaling_error ("not enough length to read a 30-bit integer", start, bytes))
     else
@@ -382,11 +382,11 @@ let marshal_list m buffer l =
   let len = List.length l in
   Length1G.marshal buffer len;
   List.iter (m buffer) l
-let unmarshal_list (u : 'a unmarshaler) ?(start=0) bytes =
-  let (len, p) = Length1G.unmarshal ~start bytes in
+let unmarshal_list (u : 'a unmarshaler) start bytes =
+  let (len, p) = Length1G.unmarshal start bytes in
   let rec loop i start acc =
     if i = 0 then (List.rev acc, start) else
-      let (v, p) = u ~start bytes in
+      let (v, p) = u start bytes in
       loop (i - 1) p (v::acc) in
   loop len p []
 let list_marshaling m = {marshal=marshal_list m.marshal; unmarshal=unmarshal_list m.unmarshal}

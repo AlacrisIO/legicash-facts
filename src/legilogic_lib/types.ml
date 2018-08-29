@@ -105,8 +105,8 @@ module StringT = struct
           assert Nat.(compare len (shift_left one 32) < 0);
           Buffer.add_string buffer (big_endian_bits_of_nat 32 len);
           Buffer.add_string buffer x)
-      ; unmarshal = (fun ?start:(start=0) b ->
-          let (l, p) = unmarshal_map UInt32.to_int UInt32.unmarshal ~start b in
+      ; unmarshal = (fun start b ->
+          let (l, p) = unmarshal_map UInt32.to_int UInt32.unmarshal start b in
           assert (l >= 0);
           Bytes.sub_string b p l, p + l) }
     let make_persistent = normal_persistent
@@ -124,7 +124,7 @@ module Unit = struct
   module PrePersistable = struct
     type t = unit
     let marshaling = { marshal = (fun _buffer () -> ())
-                     ; unmarshal = (fun ?(start=0) _bytes -> ((), start)) }
+                     ; unmarshal = (fun start _bytes -> ((), start)) }
     let make_persistent = already_persistent
     let walk_dependencies = no_dependencies
     let yojsoning =
