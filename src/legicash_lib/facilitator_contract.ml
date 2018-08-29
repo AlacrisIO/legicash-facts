@@ -2,6 +2,7 @@
 
 open Legilogic_lib
 open Types
+open Signing
 
 open Legilogic_ethereum
 open Main_chain

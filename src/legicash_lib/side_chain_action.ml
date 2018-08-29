@@ -4,7 +4,6 @@ open Hex
 open Action
 open Yojsoning
 open Signing
-open Types
 
 open Legilogic_ethereum
 open Main_chain

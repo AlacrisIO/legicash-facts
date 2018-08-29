@@ -2,9 +2,10 @@ open Lib
 open Hex
 open Yojsoning
 open Marshaling
-open Integer
 open Tag
 open Digesting
+open Persisting
+open Types
 
 module Address = struct
   include Data160
@@ -78,8 +79,7 @@ let string_of_signature signature =
   (Buffer.contents buffer) ^ (Cstruct.to_string (Cstruct.of_bigarray bytes))
 
 let signature_of_string string =
-  let recid_bytes = Bytes.of_string (String.sub string 0 8) in
-  let recid64,_ = UInt64.marshaling.unmarshal 0 recid_bytes in
+  let recid64 = UInt64.unmarshal_string (String.sub string 0 8) in
   let recid = UInt64.to_int recid64 in
   let signature_string = String.sub string 8 (String.length string - 8) in
   match Secp256k1.Sign.read_recoverable ~recid secp256k1_ctx
@@ -95,8 +95,7 @@ module Signature = struct
     let marshaling = marshaling_sized_string width string_of_signature signature_of_string
     let yojsoning = yojsoning_map string_of_signature signature_of_string string_0x_yojsoning
   end
-  include Marshalable(P)
-  include (Yojsonable(P) : YojsonableS with type t := t)
+  include TrivialPersistable (P)
 end
 type signature = Signature.t
 

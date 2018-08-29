@@ -13,6 +13,7 @@ open Lib
 open Action
 open Yojsoning
 open Types
+open Signing
 
 open Legilogic_ethereum
 

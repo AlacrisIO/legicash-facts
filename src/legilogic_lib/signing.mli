@@ -1,14 +1,15 @@
 (** Signing data using Secp256k1 public-key cryptography *)
 open Yojsoning
 open Marshaling
-open Integer
 open Digesting
+open Persisting
+open Types
 
 (** Address identifying a party (user, facilitator).
     Per Ethereum, use the low 160-bits of the Keccak256 digest of the party's public key *)
 module Address : sig
   include UIntS
-  include YojsonMarshalableS with type t := t
+  include PersistableS with type t := t
 end
 type address = Address.t
 
@@ -31,7 +32,7 @@ type keypair = Keypair.t
 
 (** Signature of a message per Secp256k1 public-key cryptography *)
 type signature
-module Signature : YojsonMarshalableS with type t = signature
+module Signature : PersistableS with type t = signature
 
 (** Record of an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: signature}

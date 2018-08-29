@@ -7,9 +7,9 @@ open Lib
 open Yojsoning
 open Marshaling
 open Tag
-open Signing
 open Persisting
 open Types
+open Signing
 open Merkle_trie
 
 open Legilogic_ethereum

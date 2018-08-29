@@ -31,9 +31,10 @@ let marshal_bytes_of_marshal marshal x =
   marshal buffer x ;
   Buffer.to_bytes buffer
 
-let unmarshal_bytes_of_unmarshal (unmarshal: 'value unmarshaler) buffer =
-  let (value, length) = unmarshal 0 buffer in
-  assert (length = Bytes.length buffer) ;
+let unmarshal_bytes_of_unmarshal (unmarshal: 'value unmarshaler) bytes =
+  let (value, length) = unmarshal 0 bytes in
+  if not (length = Bytes.length bytes) then
+    raise (Unmarshaling_error ("leftover bytes while unmarshaling", length, bytes));
   value
 
 let marshal_string_of_marshal marshal x =
