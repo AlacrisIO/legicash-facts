@@ -113,19 +113,16 @@ module type TypeS = sig
   type t
 end
 
-(** Interface analogous to Map.S from the stdlib, but monomorphic in value *)
 module type MapS = sig
   type key
   type value
   type t
 
-  (* Constructing a map *)
   val empty: t
   val add: key -> value -> t -> t
   val remove: key -> t -> t
   val singleton: key -> value -> t
 
-  (* Consulting a map *)
   val is_empty: t -> bool
   val mem: key -> t -> bool
   val find: key -> t -> value
@@ -145,29 +142,21 @@ module type MapS = sig
 
   val cardinal: t -> int
 
-  (* Iterating over a map *)
   val iter: (key -> value -> unit) -> t -> unit
   val fold: (key -> value -> 'r -> 'r) -> t -> 'r -> 'r
   val for_all: (key -> value -> bool) -> t -> bool
   val exists: (key -> value -> bool) -> t -> bool
   val filter: (key -> value -> bool) -> t -> t
 
-  (** General variant of fold-left in CPS *)
   val foldlk : (key -> value -> 'acc -> ('acc -> 'res) -> 'res) -> t -> 'acc -> ('acc -> 'res) -> 'res
-
-  (** General variant of fold-right in continuation-passing style *)
   val foldrk : (key -> value -> 'acc -> ('acc -> 'res) -> 'res) -> t -> 'acc -> ('acc -> 'res) -> 'res
-
-  (** fold in reverse order (top index to bottom index), fold right *)
   val fold_right : (key -> value -> 'acc -> 'acc) -> t -> 'acc -> 'acc
-
-  (** Zipping through a Map *)
   type (+'a) step
   val step_map : ('a -> 'b) -> 'a step -> 'b step
   type (+'a) path
   val path_map: ('a -> 'b) -> 'a path -> 'b path
 
-  (* Flesh it out?
+  (* Flesh it out?  Currently this exists in [Trie].
      type (+'a) unstep
      type (+'a) costep
      val step_apply : 'a unstep -> 'a step -> ('a * 'a costep) -> ('a * 'a costep)
@@ -176,52 +165,26 @@ module type MapS = sig
 
   exception Inconsistent_path
 
-  (** a zipper is a pair of a focused submap and a path,
-      from which to retrieve the complete map *)
   type zipper = t * t path
-
-  (** given a map, return the zipper for the top of map *)
   val zip : t -> zipper
-
-  (** apply a path to a focused submap to retrive the complete map *)
   val unzip : zipper -> t
-
-  (** Given a focus on a subtrie, return focuses on the next level of subtries
-      TODO: also return a (t list -> zipper) to reconstruct the zipper from the next submaps?
-  *)
   val next: zipper -> zipper list
-
-  (** Focus on the closest sub map of a map that matches given index *)
   val find_path : key -> t -> zipper
 
-  (* Modifying a map
-     NB: unlike the corresponding standard library operations, these are not polymorphic
-     in the second value types, because that would require more module scaffolding :-/ *)
   val update: key -> (value option -> value option) -> t -> t
   val map: (value -> value) -> t -> t
   val mapi: (key -> value -> value) -> t -> t
 
   val mapiopt : (key -> value -> value option) -> t -> t
-  (** Variant of map that takes key into account and allows for element removal *)
-
-  (* Binary operations on maps.
-     NB: unlike the corresponding standard library operations, merge and union are not polymorphic
-     in the value types, because that would require more module scaffolding :-/ *)
   val merge: (key -> value option -> value option -> value option) -> t -> t -> t
+
   val union: (key -> value -> value -> value option) -> t -> t -> t
   val compare: (value -> value -> int) -> t -> t -> int
   val equal: (value -> value -> bool) -> t -> t -> bool
 
-  (* Splitting a map *)
   val partition: (key -> value -> bool) -> t -> t * t
   val split: key -> t -> t * value option * t
 
-  (* 4.07.0 and later
-     val to_seq : t -> (key * value) Seq.t
-     val to_seq_from : key -> t -> (key * value) Seq.t
-     val add_seq : (key * value) Seq.t -> t -> t
-     val of_seq : (key * value) Seq.t -> t
-  *)
 
   val lens : key -> (t, value) Lens.t
   val find_defaulting : (unit -> value) -> key -> t -> value

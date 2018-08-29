@@ -78,11 +78,15 @@ module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type val
     Because the system is asynchronous and trustless, we must always maintain multiple views
     of the state of the system, and the status of each change in the system.
 
+    In what follows, the numerals represent the corresponding branches of
+    [KnowledgeStage.t]
+
     main chain status:
     J0 => J1, J2, J3; J1 => J2, J3; J2; J3
 
     side chain status:
-    T0 => T1, T2, T3; T1 => T2, T3; T2 => T3 (ouch); T3 pulls in Ursula(!), with *a separate data structure*
+    T0 => T1, T2, T3; T1 => T2, T3; T2 => T3 (ouch); T3 pulls in Ursula, a
+    substitute facilitator(!), with *a separate data structure*
     (T2.J0: unknown to Judy yet
     OR T2.J1: almost confirmed by Judy (seen on the main blockchain, not confirmed yet)
     OR T2.J2: confirmed all the way to Judy

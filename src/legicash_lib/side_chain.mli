@@ -62,20 +62,21 @@ end
 *)
 
 (** Headers for a request to a facilitator
-    Every client request that initiates a transaction comes with a request window,
-    that puts a cap on the validity of the request in terms of inclusion in the main chain.
-    Thus, the other parties cannot hold the requestor's resource indefinitely on hold.
-    Additionally, the request may contains reference to the root of the main chain consensus,
-    so that it is clear which fork the transaction happens in;
-    in some cases, it might be OK to be active in multiple forks;
-    in other cases, it might lead to the requestor being punished in both.
-    Note that the request_window_t data could be summarized in a hash,
-    so the details can be omitted in future state logs, saving space;
-    but the content would still need to be published for present validation,
-    so that is a space loss in the short run (and/or for long-term archivers).
-    Alternatively, to save space, the root may not be stored in places where the validity
-    requires the root to be the same as *the* known consensual root at the given date.
-*)
+
+    Every client request that initiates a transaction comes with a request
+    window, that puts a cap on the validity of the request in terms of inclusion
+    in the main chain. Thus, the other parties cannot keep the requestor's
+    resource on hold indefinitely. Additionally, the request may contain
+    reference to the root of the main chain consensus, so that it is clear which
+    fork the transaction happens in; in some cases, it might be OK to be active
+    in multiple forks; in other cases, it might lead to the requestor being
+    punished in both. Note that the request_window_t data could be summarized in
+    a hash, so the details can be omitted in future state logs, saving space; 
+    but the content would still need to be published for present validation, so 
+    that is a space loss in the short run (and/or for long-term archivers).
+    Alternatively, to save space, the root may not be stored in places where the
+    validity requires the root to be the same as *the* known consensual root at
+    the given date. *)
 module RxHeader : sig
   type t =
     { facilitator: Address.t
@@ -147,7 +148,7 @@ module Transaction : sig
   include PersistableS with type t := t
 end
 
-(* TODO: actually maintain the user_revision;
+(* TODO: actually maintain the user_revfision;
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
 (** public state of the account of a user with a facilitator as visible in the public side-chain *)
 module AccountState : sig

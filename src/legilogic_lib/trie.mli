@@ -37,20 +37,41 @@ module TrieSynthComputeSkip (Key : UIntS) (Synth: TrieSynthS) : sig
   include TrieSynthS with type key := Key.t
 end
 
+(* For a concrete usage of this, see [Merkle_trie.TrieS]. *)
 module type TrieTypeS = sig
+  (** Type of digests in the content-addressing system *)
   type key
+  (** Type of leaves *)
   type value
+  (** Type of synthesized attribute, which is recursively computed from the leaf
+     values. E.g., the cardinality of the leaves. *)
   type synth
+  (* This is really a trie with ['a] nodes, but we wrap those in a lazy data
+     structure so that they can be asynchronously loaded from the db as needed.
+     We abstract over this wrap type in order to decomplect the logical node
+     structure from database handling. In [Merkle_trie.MerkleTrieType], [wrap]
+     is ['a Types.dv]. *)
   type +'a wrap
+  (* Because we will be recursing down the nodes of the tree as they are
+     restored from the database, we also need to wrap the trie type itself in an
+     asychronous db access. *)
   type t = trie wrap
   and trie =
     | Empty
     | Leaf of {value: value; synth: synth}
     | Branch of {left: t; right: t; height: int; synth: synth}
+    (** Skips [length] nodes down the tree according to the path in [bits]. Used
+       when there is a sequence of nodes with only one child. *)
     | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
+  (** Accessor for synthesized attribute. *)
   val trie_synth : trie -> synth
+  (** Constructor for a trie with a single leaf, of type [value] *)
   val trie_leaf : value -> trie
+  (** [trie_branch get height left right] is a [TrieTypeS] with the given [left]
+     and [right] children, and [synth] values for them accessed by [get] *)
   val trie_branch : (t -> trie) -> int -> t -> t -> trie
+  (** [trie_skip get height length bits child] is a node with [Skip]ping the
+     path given by [length] and [bits], and [synth] values accessed by [get] *)
   val trie_skip : (t -> trie) -> int -> int -> key -> t -> trie
 end
 
@@ -66,25 +87,46 @@ module TrieType
 module type TrieS = sig
   include TrieTypeS
 
+  (** Represents a movement down the tree. Here [`a] is the concrete type, not
+     an asynchronous accessor. E.g., a digest. *)
   type (+'a) step =
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
 
+  (** Context for a step: Where you are in the tree *)
   type costep = { height: int ; index: key }
 
+  (** [costep] is the current location, given that we've followed the given
+     [step]s. *)
   type (+'a) path = {costep: costep; steps: 'a step list}
 
+  (** Methods for going back up the tree, from child to parent *)
   type 'a unstep =
-    { unstep_left: key -> int -> 'a -> 'a -> 'a
+    {
+      (** [unstep_left k h d1 d2] is the digest for a node at height [h-1] from
+         path [k], given that the digest for its children are [d1] and [d2]. *)
+      unstep_left: key -> int -> 'a -> 'a -> 'a
+      (** [unstep_right k h d1 d2] is the digest for a node at height [h-1] from
+         path [k], given that the digest for its children are [d1] and [d2]. *)
     ; unstep_right: key -> int -> 'a -> 'a -> 'a
+    (** [unstep_skip k h l p d] is the digest for a node at height [h-l] from
+       path [k], given that it's got a sole ancestral line [p], and the digest
+       for its next extant child is [d] *)
     ; unstep_skip: key -> int -> int -> key -> 'a -> 'a }
 
+  (** Constructor for a [unstep], assuming equal treatment of left and right. *)
   val symmetric_unstep:
     branch:(key -> int -> 'a -> 'a -> 'a) ->
     skip:(key -> int -> int -> key -> 'a -> 'a) -> 'a unstep
 
+  (** [step_apply unstep (trie, {height, index}) step] is [(value, context)],
+     where [value] is the recursively determined value at the parent node, and
+      [costep] is the context corresponding to the parent. *)
   val step_apply : 'a unstep -> ('a * costep) -> 'a step -> ('a * costep)
+  (** [step_apply unstep [value] ({height, index}, path)] is the result of
+     applying the [step]s in [path] in sequence to the tree location specified
+     by [{height, index}] *)
   val path_apply : 'a unstep -> 'a -> 'a path -> ('a * costep)
 
   include MapS
@@ -95,12 +137,19 @@ module type TrieS = sig
      and type (+'a) path := 'a path
 
   val trie_height : t -> int
+  (** [ensure_height h t] is a tree of height at least [h] *)
   val ensure_height : int -> t -> t
+  (** A pair of trees of the same height *)
   val ensure_same_height : t -> t -> t*t
+  (** Asynchronously compute the value associated with a node *)
   val get_synth : t -> synth
+  (** Assert consistent values across all nodes in tree *)
   val check_invariant : t -> bool
+  (** Assert consistent values across all nodes in tree, and return tree *)
   val verify : t -> t
+  (** How many levels of a tree the step traverses *)
   val step_length : 'a step -> int
+  (** True if path is consistent with tree context at start of path *)
   val check_path_consistency : 'a path -> bool
 
   (** [iterate_over_tree ~recursek ~branchk ~skipk ~leafk ~empty ~i ~tree ~k]
