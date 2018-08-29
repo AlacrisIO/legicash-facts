@@ -55,21 +55,21 @@ module Tag = struct
   include UInt16int
   let marshaling =
     { marshal = marshal
-    ; unmarshal = fun ?(start=0) bytes ->
+    ; unmarshal = fun start bytes ->
         unmarshal_map
           (fun u -> if u < tag_limit then u else
               raise (Unmarshaling_error
                        (Printf.sprintf "bad tag %d" u, start, bytes)))
-          unmarshal ~start bytes }
+          unmarshal start bytes }
 end
 include Marshalable (Tag)
 
 let marshal_tagged value m buffer x =
   Tag.marshal buffer value; m buffer x
-let unmarshal_tagged value (u: 'a unmarshaler) ?(start=0) bytes =
-  let (v, p) = unmarshal ~start bytes in
+let unmarshal_tagged value (u: 'a unmarshaler) start bytes =
+  let (v, p) = unmarshal start bytes in
   (if not (v = value) then bad_tag_error start bytes);
-  u ~start:p bytes
+  u p bytes
 let marshaling_tagged (tag: t) (m: 'a marshaling) : 'a marshaling =
   { marshal=marshal_tagged tag m.marshal
   ; unmarshal=unmarshal_tagged tag m.unmarshal}
@@ -79,12 +79,12 @@ let marshal_2cases f tag1 tag2 m1 m2 buffer x =
     marshal_tagged tag1 m1 buffer x
   else
     marshal_tagged tag2 m2 buffer x
-let unmarshal_2cases tag1 tag2 (u1: 'a unmarshaler) (u2: 'a unmarshaler) ?(start=0) bytes =
-  let (tag, p) = unmarshal ~start:start bytes in
+let unmarshal_2cases tag1 tag2 (u1: 'a unmarshaler) (u2: 'a unmarshaler) start bytes =
+  let (tag, p) = unmarshal start bytes in
   if tag = tag1 then
-    u1 ~start:p bytes
+    u1 p bytes
   else if tag = tag2 then
-    u2 ~start:p bytes
+    u2 p bytes
   else
     bad_tag_error start bytes
 let marshaling_2cases f tag1 tag2 m1 m2 =
@@ -96,11 +96,11 @@ let marshal_cases tag_of base_tag (cases : 'a marshaling array) buffer x =
   let tag = tag_of x in
   marshal buffer tag;
   cases.(tag - base_tag).marshal buffer x
-let unmarshal_cases base_tag (cases : 'a marshaling array) ?(start=0) bytes =
-  let (tag, p) = unmarshal ~start:start bytes in
+let unmarshal_cases base_tag (cases : 'a marshaling array) start bytes =
+  let (tag, p) = unmarshal start bytes in
   let i = tag - base_tag in
   if i >= Array.length cases then bad_tag_error start bytes;
-  cases.(i).unmarshal ~start:p bytes
+  cases.(i).unmarshal p bytes
 let marshaling_cases tag_of base_tag (cases : 'a marshaling array) =
   { marshal = marshal_cases tag_of base_tag cases
   ; unmarshal = unmarshal_cases base_tag cases }
@@ -116,12 +116,12 @@ let init_marshaling_cases base_tag (cases : 'a marshaling array) l =
 let marshal_option m buffer = function
   | None -> marshal buffer none
   | Some x -> marshal buffer some; m buffer x
-let unmarshal_option (u : 'a unmarshaler) ?(start=0) bytes =
-  let (tag, p) = unmarshal ~start bytes in
+let unmarshal_option (u : 'a unmarshaler) start bytes =
+  let (tag, p) = unmarshal start bytes in
   if tag = none then
     (None, p)
   else if tag = some then
-    unmarshal_map (fun x -> Some x) u ~start:p bytes
+    unmarshal_map (fun x -> Some x) u p bytes
   else
     bad_tag_error start bytes
 let option_marshaling m = {marshal=marshal_option m.marshal; unmarshal=unmarshal_option m.unmarshal}

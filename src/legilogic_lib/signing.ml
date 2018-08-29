@@ -29,7 +29,7 @@ module PublicKey = struct
     type t = Secp256k1.Key.public Secp256k1.Key.t
     let marshal buffer (public_key : t) =
       Buffer.add_bytes buffer (bytes_of_key public_key)
-    let unmarshal ?(start=0) bytes =
+    let unmarshal start bytes =
       let public_buffer = Cstruct.create public_key_length in
       Cstruct.blit_from_bytes bytes start public_buffer 0 public_key_length;
       match Secp256k1.Key.read_pk secp256k1_ctx (Cstruct.to_bigarray public_buffer) with
@@ -56,7 +56,7 @@ module PrivateKey = struct
     type t = Secp256k1.Key.secret Secp256k1.Key.t
     let marshal buffer (private_key: t) =
       Buffer.add_bytes buffer (bytes_of_key private_key)
-    let unmarshal ?(start=0) bytes =
+    let unmarshal start bytes =
       let private_buffer = Cstruct.create private_key_length in
       Cstruct.blit_from_bytes bytes start private_buffer 0 private_key_length;
       match Secp256k1.Key.read_sk secp256k1_ctx (Cstruct.to_bigarray private_buffer) with
@@ -79,7 +79,7 @@ let string_of_signature signature =
 
 let signature_of_string string =
   let recid_bytes = Bytes.of_string (String.sub string 0 8) in
-  let recid64,_ = UInt64.marshaling.unmarshal recid_bytes in
+  let recid64,_ = UInt64.marshaling.unmarshal 0 recid_bytes in
   let recid = UInt64.to_int recid64 in
   let signature_string = String.sub string 8 (String.length string - 8) in
   match Secp256k1.Sign.read_recoverable ~recid secp256k1_ctx
@@ -218,9 +218,9 @@ let signed make_digest private_key data =
 let marshal_signed marshal buffer {payload; signature} =
   marshal buffer payload; Signature.marshal buffer signature
 
-let unmarshal_signed (unmarshal:'a unmarshaler) ?(start=0) bytes : 'a signed * int =
-  let payload,payload_offset = unmarshal ~start bytes in
-  let signature,final_offset = Signature.unmarshal ~start:payload_offset bytes in
+let unmarshal_signed (unmarshal:'a unmarshaler) start bytes : 'a signed * int =
+  let payload,payload_offset = unmarshal start bytes in
+  let signature,final_offset = Signature.unmarshal payload_offset bytes in
   ( { payload
     ; signature
     }

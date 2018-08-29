@@ -10,7 +10,7 @@ exception Unmarshaling_error of string*int*Bytes.t
 type 'a marshaler = Buffer.t -> 'a -> unit
 
 (** Unmarshaler: purely read bytes from a Bytes.t from a start position, return object and next position. *)
-type 'a unmarshaler = ?start:int -> Bytes.t -> 'a*int
+type 'a unmarshaler = int -> Bytes.t -> 'a*int
 
 type 'a marshaling =
   { marshal: 'a marshaler; unmarshal: 'a unmarshaler }
