@@ -120,7 +120,7 @@ module Test = struct
          let alice_state_ref = ref (make_alice_state ()) in
          UserAsyncAction.run_lwt_exn alice_state_ref deposit (trent_address, amount_to_deposit)
          >>= fun signed_request1 ->
-         process_request (signed_request1, false)
+         process_transaction_request (signed_request1, false)
          >>= fun _confirmation ->
          let trent_state1 = get_facilitator_state () in
          (* TODO: maybe examine the log for the contract call *)
@@ -133,7 +133,7 @@ module Test = struct
          let payment_amount = TokenAmount.of_int 17 in
          UserAsyncAction.run_lwt_exn alice_state_ref payment (trent_address, bob_address, payment_amount)
          >>= fun signed_request2 ->
-         process_request (signed_request2, false)
+         process_transaction_request (signed_request2, false)
          >>= fun _signed_confirmation2 ->
          (* verify the payment to Bob's account on Trent *)
          let trent_state2 = get_facilitator_state () in
@@ -182,7 +182,7 @@ module Test = struct
          (* deposit *)
          UserAsyncAction.run_lwt_exn alice_state_ref deposit (trent_address, amount_to_deposit)
          >>= fun signed_request1 ->
-         process_request (signed_request1, false)
+         process_transaction_request (signed_request1, false)
          >>= fun _confirmation1 ->
          let trent_state1 = get_facilitator_state () in
          (* verify the deposit to Alice's account on Trent *)
@@ -198,7 +198,7 @@ module Test = struct
          let withdrawal_fee = fee_schedule.withdrawal_fee in
          UserAsyncAction.run_lwt_exn alice_state_ref withdrawal (trent_address, amount_to_withdraw)
          >>= fun signed_request2 ->
-         process_request (signed_request2, false)
+         process_transaction_request (signed_request2, false)
          >>= fun confirmation2 ->
          let trent_state2 = get_facilitator_state () in
          let trent_accounts_after_withdrawal = trent_state2.current.accounts in

@@ -4,9 +4,10 @@
  (name legicash_lib)
  (modules
   legibase
-  main_chain_action
-  side_chain side_chain_facilitator side_chain_user side_chain_action
-  court_registry facilitator_contract facilitator_contract_binary)
+  facilitator_contract facilitator_contract_binary main_chain_action
+  side_chain_tag side_chain side_chain_facilitator side_chain_user side_chain_action
+  court_registry
+  )
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  ;; -9 : all fields mentioned in a pattern
  ;; -27 : unused variable

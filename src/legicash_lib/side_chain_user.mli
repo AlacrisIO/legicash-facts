@@ -47,7 +47,7 @@ end
 (** side chain operation + knowledge about the operation *)
 module Episteme : sig
   type t =
-    { request: Request.t signed
+    { request: UserRequest.t signed
     ; transaction_option: Transaction.t option
     (* TODO: as distinguished from the Transaction, a Confirmation, which will be
        a merkle proof relating the transaction to a signed side-chain state.
@@ -127,15 +127,15 @@ end
 module UserAction : ActionS with type state = UserState.t
 module UserAsyncAction : AsyncActionS with type state = UserState.t
 
-val issue_user_request : (Operation.t, Request.t signed) UserAction.arr
+val issue_user_request : (UserOperation.t, UserRequest.t signed) UserAction.arr
 
 (** Actually do the deposit on the Main_chain *)
-val deposit : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
+val deposit : (Address.t * TokenAmount.t, UserRequest.t signed) UserAsyncAction.arr
 
 (*
    (** Notify the facilitator that the deposit was confirmed on the Main_chain and should be acknowledged
    on the Side_chain. *)
-   val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) UserAction.arr
+   val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, UserRequest.t signed) UserAction.arr
 *)
 
 (* An action made on the side chain may need a corresponding action on the main chain. Do them.
@@ -148,13 +148,13 @@ val push_side_chain_action_to_main_chain :
   FacilitatorState.t -> (Transaction.t, Main_chain.Confirmation.t) UserAsyncAction.arr
 
 (** Build a signed withdrawal request from specification *)
-val withdrawal : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
+val withdrawal : (Address.t * TokenAmount.t, UserRequest.t signed) UserAsyncAction.arr
 
 (** Compute the suitable fee for a payment of given amount *)
 val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
 
 (** Build a signed payment request from specification *)
-val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
+val payment : (Address.t * Address.t * TokenAmount.t, UserRequest.t signed) UserAsyncAction.arr
 
 (*
    (** post an account_activity_status request for closing the account on the *main chain*. TBD *)
@@ -173,4 +173,4 @@ val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyn
 
 val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr
 
-val mark_request_rejected : (Request.t signed, unit) UserAction.arr
+val mark_request_rejected : (UserRequest.t signed, unit) UserAction.arr

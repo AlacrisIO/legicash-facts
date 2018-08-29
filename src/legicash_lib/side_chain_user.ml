@@ -53,7 +53,7 @@ end
 module Episteme = struct
   [@warning "-39"]
   type t =
-    { request: Request.t signed
+    { request: UserRequest.t signed
     ; transaction_option: Transaction.t option
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
   [@@deriving lens { prefix=true }, yojson]
@@ -65,7 +65,7 @@ module Episteme = struct
            request, transaction_option, main_chain_confirmation_option)
         (fun request transaction_option main_chain_confirmation_option ->
            { request; transaction_option; main_chain_confirmation_option })
-        (marshaling_signed Request.marshaling)
+        (marshaling_signed UserRequest.marshaling)
         (option_marshaling Transaction.marshaling)
         (option_marshaling Main_chain.Confirmation.marshaling)
     let walk_dependencies = no_dependencies
@@ -168,11 +168,15 @@ let make_rx_header facilitator_address user_state =
 let mk_rx_episteme rx =
   Episteme.{request= rx; transaction_option= None; main_chain_confirmation_option= None}
 
-let [@warning "-32"] mk_tx_episteme tx =
-  Episteme.
-    { request= tx.payload.Transaction.signed_request
-    ; transaction_option= Some tx.payload
-    ; main_chain_confirmation_option= None }
+(*
+   let mk_tx_episteme tx =
+   Episteme.
+   { request= (match tx.Transaction.tx_request with
+   | `UserTransaction signed_request -> signed_request
+   | _ -> bottom ())
+   ; transaction_option= Some tx
+   ; main_chain_confirmation_option= None }
+*)
 
 let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
   fun facilitator_address ->
@@ -182,26 +186,32 @@ let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
 
 (** TODO: Handle cases of updates to previous epistemes, rather than just new ones *)
 let add_user_episteme episteme user_state =
-  let facilitator = episteme.Episteme.request.payload.rx_header.facilitator in
-  Lens.modify
+  bottom ()
+(*  let facilitator = episteme.Episteme.request.payload.rx_header.facilitator in
+    Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
     (fun ops -> episteme::ops) (* TODO: replays, retries...*)
     user_state
+*)
 
 let remove_user_request request user_state =
-  let facilitator = request.payload.Request.rx_header.facilitator in
-  Lens.modify
+  bottom ()
+(*  let facilitator = request.payload.UserRequest.rx_header.facilitator in
+    Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
     (List.filter (fun x -> x.Episteme.request != request))
     user_state
-
+*)
 let sign_request request user_state =
-  UserAction.return
-    (Request.signed user_state.UserState.main_chain_user_state.keypair request)
-    user_state
-
+  bottom ()
+(*
+   UserAction.return
+   (UserRequest.signed user_state.UserState.main_chain_user_state.keypair request)
+   user_state
+*)
 let add_pending_request request state =
-  UserAction.return request (add_user_episteme (mk_rx_episteme request) state)
+  bottom ()
+(*  UserAction.return request (add_user_episteme (mk_rx_episteme request) state)*)
 
 let mark_request_rejected request state =
   UserAction.return () (remove_user_request request state)
@@ -210,7 +220,7 @@ let issue_user_request operation =
   let open UserAction in
   get_first_facilitator ()
   >>= make_rx_header
-  >>= fun rx_header -> return Request.{rx_header; operation}
+  >>= fun rx_header -> return UserRequest.{rx_header; operation}
   >>= sign_request
   >>= add_pending_request
 
@@ -297,7 +307,8 @@ let payment (facilitator_address, recipient_address, payment_amount) =
     (Payment {payment_invoice; payment_fee; payment_expedited= false})
 
 (** We should be signing the RLP, not the marshaling! *)
-let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operation.withdrawal_fee} user_address facilitator_keys =
+let make_main_chain_withdrawal_transaction
+      UserOperation.{withdrawal_amount;withdrawal_fee} user_address facilitator_keys =
   (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
   let ticket = Revision.zero in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
@@ -322,11 +333,11 @@ let push_side_chain_action_to_main_chain
      let facilitator_address = facilitator_state.keypair.address in
      if not (is_signature_valid Transaction.digest facilitator_address signed_transaction.signature transaction) then
      bork "Invalid facilitator signature on signed transaction";*)
-  let signed_request = transaction.signed_request in
+  let UserOperation signed_request = transaction in
   let request = signed_request.payload in
   let user_keys = user_state.main_chain_user_state.keypair in
   let user_address = user_keys.address in
-  if not (is_signature_valid Request.digest user_address signed_request.signature request) then
+  if not (is_signature_valid UserRequest.digest user_address signed_request.signature request) then
     bork "Invalid user signature on signed request";
   match request.operation with
   | Withdrawal details ->
