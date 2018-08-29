@@ -5,8 +5,6 @@ exception Not_implemented
 
 exception Internal_error of string
 
-let spf = Printf.sprintf
-
 let bork fmt = Printf.ksprintf (fun x -> raise (Internal_error x)) fmt
 
 let bottom : 'a -> 'b = fun _ -> raise Not_implemented
@@ -27,11 +25,17 @@ let zcompose x y z = x (y z)
 
 let (>>) x y z = y (x z)
 
+let curry f x y = f (x, y)
+let uncurry f (x, y) = f x y
+let curry3 f x y z = f (x, y, z)
+let uncurry3 f (x, y, z) = f x y z
+let curry4 f x y z t = f (x, y, z, t)
+let uncurry4 f (x, y, z, t) = f x y z t
 
-(** Simple counter *)
 let make_counter ?(start=0) () =
   let r = ref start in
   fun () -> let i = !r in r := i+1 ; i
+
 
 
 (** Options *)
@@ -389,7 +393,7 @@ module StateMonad (State: TypeS) = struct
     type state = State.t
     type 'a t = state -> ('a * state)
     let return x s = (x, s)
-    let bind m fm s = m s |> fun (x, s) -> fm x s
+    let bind m fm s = m s |> uncurry fm
     let state s = (s, s)
     let put_state s _ = ((), s)
     type ('i, 'o) readonly = 'i -> state -> 'o

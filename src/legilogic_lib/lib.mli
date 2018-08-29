@@ -15,9 +15,6 @@ exception Internal_error of string
 (** bork raises an Internal_error with the format string and arguments *)
 val bork : ('a, unit, string, 'b) format4 -> 'a
 
-(** spf is short for Printf.sprintf. Only use spf as shorthand while debugging *)
-val spf : ('a, unit, string) format -> 'a
-
 (** the bottom function turns anything into anything, by raising a Not_implemented exception *)
 val bottom : 'a -> 'b
 
@@ -43,6 +40,14 @@ val transpose : ('a -> 'b -> 'c) -> 'b -> 'a -> 'c
 val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
 val (>>) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
+
+(** Currying and uncurrying *)
+val curry : ('a * 'b -> 'c) -> 'a -> 'b -> 'c
+val uncurry : ('a -> 'b -> 'c) -> 'a * 'b -> 'c
+val curry3 : ('a * 'b * 'c -> 'd) -> 'a -> 'b -> 'c -> 'd
+val uncurry3 : ('a -> 'b -> 'c -> 'd) -> 'a * 'b * 'c -> 'd
+val curry4 : ('a * 'b * 'c * 'd -> 'e) -> 'a -> 'b -> 'c -> 'd -> 'e
+val uncurry4 : ('a -> 'b -> 'c -> 'd -> 'e) -> 'a * 'b * 'c * 'd -> 'e
 
 (** Simple counter *)
 val make_counter : ?start:int -> unit -> unit -> int

@@ -499,7 +499,7 @@ module Trie
 
   let bindings t = fold_right (fun i v acc -> (i, v) :: acc) t []
 
-  let of_bindings bindings = List.fold_right (fun (k, v) m -> add k v m) bindings empty
+  let of_bindings bindings = List.fold_right (uncurry add) bindings empty
 
   let min_binding_opt t =
     foldlk (fun i v _acc _k -> Some (i, v)) t None identity
