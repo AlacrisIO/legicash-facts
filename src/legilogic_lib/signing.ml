@@ -152,16 +152,39 @@ let make_keypair private_key_string public_key_string =
 let make_keypair_from_hex private_key_hex public_key_hex =
   make_keypair (parse_coloned_hex_string private_key_hex) (parse_coloned_hex_string public_key_hex)
 
-let registered_keypairs = Hashtbl.create 8
+(* TODO: handle collisions, exceptions *)
+let address_by_nickname = Hashtbl.create 8
+let nickname_by_address = Hashtbl.create 8
+let register_address nickname address =
+  Hashtbl.replace nickname_by_address address nickname;
+  Hashtbl.replace address_by_nickname nickname address
+let unregister_address nickname =
+  let address = Hashtbl.find address_by_nickname nickname in
+  Hashtbl.remove address_by_nickname nickname;
+  Hashtbl.remove nickname_by_address address
+let nickname_of_address address =
+  Hashtbl.find nickname_by_address address
+let address_of_nickname nickname =
+  Hashtbl.find address_by_nickname nickname
 
-let register_keypair keypair =
-  Hashtbl.replace registered_keypairs keypair.Keypair.address keypair
-
-let unregister_keypair keypair =
-  Hashtbl.remove registered_keypairs keypair.Keypair.address
-
+let keypair_by_address = Hashtbl.create 8
+let register_keypair nickname keypair =
+  let address = keypair.Keypair.address in
+  Hashtbl.replace keypair_by_address address keypair;
+  register_address nickname address
+let unregister_keypair nickname =
+  let address = Hashtbl.find address_by_nickname nickname in
+  Hashtbl.remove keypair_by_address address;
+  unregister_address nickname
 let keypair_of_address address =
-  Hashtbl.find registered_keypairs address
+  Hashtbl.find keypair_by_address address
+
+(** TODO: This is for demo use only. For production, we want all key files to be encrypted *)
+let register_file_keypairs ~path =
+  let keypairs = Yojson.Safe.from_file path |> YoJson.to_assoc in
+  List.iter
+    (fun (nickname, kpjson) -> register_keypair nickname (Keypair.of_yojson_exn kpjson))
+    keypairs
 
 
 (* convert OCaml string of suitable length (32 only?) to Secp256k1 msg format

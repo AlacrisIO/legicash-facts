@@ -370,3 +370,15 @@ module StateMonad (State: TypeS) = struct
   let map_state f x s = (x, f s)
 end
 
+let write_file ~path content =
+  let oc = open_out path in
+  output_string oc content;
+  close_out oc
+
+let read_file path =
+  let ic = open_in path in
+  let n = in_channel_length ic in
+  let b = Bytes.create n in
+  really_input ic b 0 n;
+  close_in ic;
+  Bytes.to_string b

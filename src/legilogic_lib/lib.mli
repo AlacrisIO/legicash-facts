@@ -523,3 +523,7 @@ module StateMonad (State: TypeS) : StateMonadS
   with type state := State.t
    and type 'a t = State.t -> ('a * State.t)
    and type ('i, 'o) readonly = 'i -> State.t -> 'o
+
+val write_file : path:string -> string -> unit
+
+val read_file : string -> string

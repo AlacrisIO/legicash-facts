@@ -1,5 +1,7 @@
 open Legilogic_lib
 
+(* TODO: move them to a keyfile and use Signing.register_file_keypairs ~path:keyfile *)
+
 let account_keys =
   List.map (Lib.uncurry Signing.make_keypair_from_hex)
     [ ( "fd:c8:f1:5b:2d:d9:22:9b:0b:92:46:09:43:93:af:c2:3b:3b:70:5c:07:e6:74:f6:cb:61:41:20:d1:62:78:18"
