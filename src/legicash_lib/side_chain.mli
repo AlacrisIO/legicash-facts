@@ -148,7 +148,7 @@ module Transaction : sig
   include PersistableS with type t := t
 end
 
-(* TODO: actually maintain the user_revfision;
+(* TODO: actually maintain the user_revision;
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
 (** public state of the account of a user with a facilitator as visible in the public side-chain *)
 module AccountState : sig

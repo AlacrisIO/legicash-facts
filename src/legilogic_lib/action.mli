@@ -1,13 +1,13 @@
 open Lib
 
 (** 'output or exception *)
-type 'output or_exn = ('output, exn) result
+type +'output or_exn = ('output, exn) result
 
 (** function from 'input to 'output that acts on a 'state and may return an exception *)
-type ('input, 'output, 'state) action = 'input -> 'state -> 'output or_exn * 'state
+type (-'input, +'output, 'state) action = 'input -> 'state -> 'output or_exn * 'state
 
 (** asynchronous function from 'input to 'output that acts on a 'state and may return an exception *)
-type ('input, 'output, 'state) async_action = 'input -> 'state -> ('output or_exn * 'state) Lwt.t
+type (-'input, +'output, 'state) async_action = 'input -> 'state -> ('output or_exn * 'state) Lwt.t
 
 exception Assertion_failed of string
 

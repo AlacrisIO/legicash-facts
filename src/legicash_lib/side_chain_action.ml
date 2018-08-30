@@ -4,7 +4,6 @@ open Hex
 open Action
 open Yojsoning
 open Signing
-open Types
 
 open Legilogic_ethereum
 open Main_chain
@@ -14,12 +13,6 @@ open Side_chain_facilitator
 open Side_chain_user
 
 (** missing types to be implemented *)
-
-type facilitator_to_facilitator_message
-
-type user_to_user_message
-
-let send_message = bottom
 
 module Test = struct
   open Lwt

@@ -32,7 +32,7 @@ module type MarshalableS = sig
 end
 
 (** Auto-generated methods for object which can be converted to and from binary
-   representation *)
+    representation *)
 module Marshalable (P : PreMarshalableS) : MarshalableS with type t = P.t
 
 val marshal_of_sized_string_of : int -> ('a -> string) -> 'a marshaler
@@ -59,7 +59,7 @@ val list_marshaling : 'a marshaling -> 'a list marshaling
 val marshal_map : ('x -> 'a) -> 'a marshaler -> 'x marshaler
 val unmarshal_map : ('a -> 'x) -> 'a unmarshaler -> 'x unmarshaler
 (** [marshaling_map f g marshaling] is a marshaler which marshals ['x]s as
-   ['a]s. Assumes [g] is the inverse of [f] on [f]'s image, and vice versa.) *)
+    ['a]s. Assumes [g] is the inverse of [f] on [f]'s image, and vice versa.) *)
 val marshaling_map : ('x -> 'a) -> ('a -> 'x) -> 'a marshaling -> 'x marshaling
 
 val marshal2 : ('x -> 'a*'b) -> 'a marshaler -> 'b marshaler
@@ -188,6 +188,7 @@ val to_yojson_of_marshal_string : ('a -> string) -> 'a -> yojson
 val of_yojson_of_unmarshal_string : (string -> 'a) -> yojson -> ('a, string) result
 val yojsoning_of_marshal_string_unmarshal_string : ('a -> string) -> (string -> 'a) -> 'a yojsoning
 val yojsoning_of_marshaling : 'a marshaling -> 'a yojsoning
+val marshaling_of_yojsoning : 'a yojsoning -> 'a marshaling
 
 (** JSON-encodes an PreMarshable object as its marshaled string *)
 module YojsonableOfPreMarshalable (P : PreMarshalableS) : YojsonMarshalableS with type t = P.t

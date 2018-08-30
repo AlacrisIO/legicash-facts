@@ -4,7 +4,7 @@
  (name legilogic_lib)
  (modules
   lib action hex logging
-  yojsoning marshaling integer tag digesting signing db persisting types
+  yojsoning marshaling integer tag digesting db persisting types signing
   trie merkle_trie)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  ;; -9 : all fields mentioned in a pattern

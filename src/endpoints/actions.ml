@@ -13,6 +13,7 @@ open Lib
 open Action
 open Yojsoning
 open Types
+open Signing
 
 open Legilogic_ethereum
 
@@ -67,7 +68,8 @@ type tps_result =
   }
 [@@deriving to_yojson]
 
-let error_json msg = `Assoc [("error",`String msg)]
+let error_json fmt =
+  Printf.ksprintf (fun x -> `Assoc [("error",`String x)]) fmt
 
 (* table of id's to Lwt threads *)
 let (id_to_thread_tbl : (int,yojson Lwt.t) Hashtbl.t) = Hashtbl.create 1031
@@ -96,7 +98,7 @@ let get_proof tx_revision : yojson =
   let transactions = trent_state.current.transactions in
   match TransactionMap.Proof.get tx_revision_t transactions with
   | None ->
-    error_json (Format.sprintf "Cannot provide proof for tx-revision: %d" tx_revision)
+    error_json "Cannot provide proof for tx-revision: %d" tx_revision
   | Some proof ->
     TransactionMap.Proof.to_yojson proof
 
@@ -107,13 +109,13 @@ let apply_main_chain_thread id : yojson =
     match state thread with
     | Return json -> json
     | Fail exn ->
-      error_json (Format.sprintf "Thread exception: %s\nStack: %s"
-                    (Printexc.to_string exn)
-                    (Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ())))
+      error_json "Thread exception: %s\nStack: %s"
+        (Printexc.to_string exn)
+        (Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ()))
     | Sleep ->
       `Assoc [("result",`String "The operation is pending")]
   with Not_found ->
-    error_json (Format.sprintf "Thread %d not found" id)
+    error_json "Thread %d not found" id
 
 let user_state_from_address address_t =
   try
@@ -228,10 +230,8 @@ let get_status_on_trent_and_main_chain address =
   send_balance_request_to_net address
   >>= fun balance_json ->
   if YoJson.mem "error" balance_json then
-    let error_msg = Format.sprintf "Could not get main chain balance for address %s: %s"
-        (Address.to_0x_string address) YoJson.(member "error" balance_json |> to_string)
-    in
-    return (error_json error_msg)
+    return (error_json "Could not get main chain balance for address %s: %s"
+              (Address.to_0x_string address) YoJson.(member "error" balance_json |> to_string))
   else
     let balance =
       TokenAmount.of_string YoJson.(member "result" balance_json |> to_string)
@@ -239,10 +239,8 @@ let get_status_on_trent_and_main_chain address =
     get_transaction_count address
     >>= fun revision_json ->
     if YoJson.mem "error" revision_json then
-      let error_msg = Format.sprintf "Could not get main chain revision for address %s: %s"
-          (Address.to_0x_string address) YoJson.(member "error" revision_json |> to_string)
-      in
-      return (error_json error_msg)
+      return (error_json "Could not get main chain revision for address %s: %s"
+                (Address.to_0x_string address) YoJson.(member "error" revision_json |> to_string))
     else
       let revision =
         Revision.of_string YoJson.(member "result" revision_json |> to_string)
@@ -254,8 +252,8 @@ let get_status_on_trent_and_main_chain address =
         }
       in
       return (`Assoc [("side_chain_account",side_chain_json)
-             ; ("main_chain_account",main_chain_account_state_to_yojson main_chain_account)
-             ])
+                     ; ("main_chain_account",main_chain_account_state_to_yojson main_chain_account)
+                     ])
 
 let get_all_balances_on_trent () =
   let make_balance_json address_t (account : Side_chain.AccountState.t) accum =

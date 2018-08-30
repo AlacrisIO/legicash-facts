@@ -3,8 +3,11 @@
 
 open Legilogic_lib
 open Lib
+open Integer
 open Digesting
+open Types
 open Signing
+open Main_chain
 
 (* TODO: somehow work with our static types UInt256, UInt64, etc.? Maybe using GADTs somehow? *)
 
@@ -107,7 +110,7 @@ let rec show_type_for_function_selector ty =
 
 (* build ABI values and types from OCaml values *)
 
-let abi_string_of_string s = (String_value s, String)
+let abi_string s = (String_value s, String)
 
 (* intN and uintN builders *)
 (* 2**n using Ocaml int *)
@@ -115,124 +118,92 @@ let rec pow2 n =
   if n < 0 then bork "pow2: expected nonnegative n" ;
   if n = 0 then 1 else 2 * pow2 (n - 1)
 
-and get_big_endian_int_bytes bits n =
-  (* create byte array representing big-endian representation *)
-  let num_bytes = bits / 8 in
-  let ff = 0xff in
-  let get_byte ndx =
-    (* if big-endian, preserve order, else reverse it *)
-    let ndx1 = if Sys.big_endian then ndx else num_bytes - 1 - ndx in
-    let bitshift = ndx1 * 8 in
-    let shifted =
-      (* check amount of shift; OCaml may return bogus result for too-large shift *)
-      if bitshift < Sys.word_size then n lsr bitshift else 0
-    in
-    let c = shifted land ff in
-    Char.chr c
-  in
-  Bytes.init num_bytes get_byte
+let big_endian_bytes_of_nat xint_name num_bits z nat =
+  if num_bits < 8 then
+    bork "num_bits = %d must be at least 8" num_bits ;
+  if num_bits mod 8 != 0 then
+    bork "num_bits = %d is not a multiple of 8" num_bits ;
+  if num_bits > 256 then
+    bork "num_bits = %d is too large" num_bits ;
+  if Z.sign nat < 0 || Z.numbits nat > num_bits then
+    bork "Value %s cannot be represented with type %s%d" (Z.to_string z) xint_name num_bits ;
+  Bytes.of_string (big_endian_bits_of_nat num_bits nat)
 
-and make_abi_intN_of_int bits n =
-  if bits < 8 then bork "bits = %d must be at least 8" bits ;
-  if bits mod 8 != 0 then
-    bork "bits = %d is not a multiple of 8" bits ;
-  let max_n = pow2 (bits - 1) - 1 in
-  let min_n = -max_n - 1 in
-  if n < min_n || n > max_n then
-    bork "Value %d cannot be represented with type int%d" n bits ;
-  let bytes = get_big_endian_int_bytes bits n in
-  (Int_value bytes, Int bits)
+let big_endian_bytes_of_uint num_bits nat =
+  big_endian_bytes_of_nat "uint" num_bits nat nat
 
-and make_abi_uintN_of_int bits n =
-  if bits < 8 then bork "bits = %d must be at least 8" bits ;
-  if bits mod 8 != 0 then
-    bork "bits = %d is not a multiple of 8" bits ;
-  let max_n = pow2 bits - 1 in
-  let min_n = 0 in
-  if n < min_n || n > max_n then
-    bork "Value %d cannot be represented with type uint%d" n bits ;
-  let bytes = get_big_endian_int_bytes bits n in
-  (Uint_value bytes, Uint bits)
+let big_endian_bytes_of_int num_bits z =
+  let open Z in
+  let nat = if sign z >= 0 then z else add z (one lsl num_bits) in
+  big_endian_bytes_of_nat "int" num_bits z nat
 
-let abi_int8_of_int = make_abi_intN_of_int 8
+let abi_intN num_bits z =
+  Int_value (big_endian_bytes_of_int num_bits z), Int num_bits
 
-let abi_int16_of_int = make_abi_intN_of_int 16
+let abi_uintN num_bits nat =
+  Uint_value (big_endian_bytes_of_uint num_bits nat), Uint num_bits
 
-let abi_int24_of_int = make_abi_intN_of_int 24
+let abi_int8 = abi_intN 8
 
-let abi_int32_of_int = make_abi_intN_of_int 32
+let abi_int16 = abi_intN 16
 
-let abi_int40_of_int = make_abi_intN_of_int 40
+let abi_int24 = abi_intN 24
 
-let abi_int48_of_int = make_abi_intN_of_int 48
+let abi_int32 = abi_intN 32
 
-let abi_int56_of_int = make_abi_intN_of_int 56
+let abi_int40 = abi_intN 40
+
+let abi_int48 = abi_intN 48
+
+let abi_int56 = abi_intN 56
+
+let abi_int64 = abi_intN 64
 
 (* int is synonym for int256
    don't use make... because bounds checks will fail,
    and any int can be represented in 256 bits
 *)
-let abi_int_of_int n = (Int_value (get_big_endian_int_bytes 256 n), IntDefault)
+let abi_int z = Int_value (big_endian_bytes_of_int 256 z), IntDefault
 
-let abi_uint8_of_int = make_abi_uintN_of_int 8
+let abi_uint8 = abi_uintN 8
 
-let abi_uint16_of_int = make_abi_uintN_of_int 16
+let abi_uint16 = abi_uintN 16
 
-let abi_uint24_of_int = make_abi_uintN_of_int 24
+let abi_uint24 = abi_uintN 24
 
-let abi_uint32_of_int = make_abi_uintN_of_int 32
+let abi_uint32 = abi_uintN 32
 
-let abi_uint40_of_int = make_abi_uintN_of_int 40
+let abi_uint40 = abi_uintN 40
 
-let abi_uint48_of_int = make_abi_uintN_of_int 48
+let abi_uint48 = abi_uintN 48
 
-let abi_uint56_of_int = make_abi_uintN_of_int 56
+let abi_uint56 = abi_uintN 56
+
+let abi_uint64 = abi_uintN 64
 
 (* uint is synonym for uint256
    don't use make... because bounds checks will fail,
    and any int can be represented in 256 bits
 *)
-let abi_uint_of_int n = (Uint_value (get_big_endian_int_bytes 256 n), UintDefault)
+let abi_uint nat = Uint_value (big_endian_bytes_of_uint 256 nat), UintDefault
 
-let rec get_big_endian_int64_bytes n_64 =
-  let ff_64 = Int64.of_int 0xff in
-  let get_byte ndx =
-    (* if big-endian, preserve order, else reverse it *)
-    let ndx1 = if Sys.big_endian then ndx else 7 - ndx in
-    let shifted = Int64.shift_right n_64 (ndx1 * 8) in
-    let c_64 = Int64.logand shifted ff_64 in
-    let c = Int64.to_int c_64 in
-    Char.chr c
-  in
-  Bytes.init 8 get_byte
+let abi_bytes bytes = (Bytes_value bytes, Bytes (Bytes.length bytes))
 
-and abi_int64_of_int64 n_64 =
-  let bytes = get_big_endian_int64_bytes n_64 in
-  (Int_value bytes, Int 64)
+let abi_bytes_of_string s = abi_bytes (Bytes.of_string s)
 
-(* convert positive int64 values to ABI uint64 values *)
-let abi_uint64_of_int64 n_64 =
-  if Int64.compare n_64 Int64.zero < 0 then
-    bork "Can't represent negative int64 value as ABI Uint" ;
-  match fst (abi_int64_of_int64 n_64) with
-  | Int_value bytes -> (Uint_value bytes,Uint 64)
-  | v -> bork "Expected Int_value, got %s" (show_abi_value v)
+let abi_bytes_dynamic bytes = (Bytes_value bytes, BytesDynamic)
 
-(* TODO: have builders for larger bit-width types that take an int64, or maybe Signed/Unsigned from
-   integers library
-*)
+let abi_bytes_dynamic_of_string s = abi_bytes_dynamic (Bytes.of_string s)
 
-let abi_bytes_of_bytes bytes = (Bytes_value bytes, Bytes (Bytes.length bytes))
+let abi_bool b = (Bool_value b, Bool)
 
-let abi_bytes_of_string s = abi_bytes_of_bytes (Bytes.of_string s)
+let abi_address address = (Address_value address, Address)
 
-let abi_bytes_dynamic_of_bytes bytes = (Bytes_value bytes, BytesDynamic)
+let abi_digest = Digest.to_big_endian_bits >> abi_bytes_of_string
 
-let abi_bytes_dynamic_of_string s = abi_bytes_dynamic_of_bytes (Bytes.of_string s)
+let abi_revision revision = abi_uintN Revision.size_in_bits (Revision.z_of revision)
 
-let abi_bool_of_bool b = (Bool_value b, Bool)
-
-let abi_address_of_address address = (Address_value address, Address)
+let abi_token_amount amount = abi_uintN TokenAmount.size_in_bits (TokenAmount.z_of amount)
 
 let abi_function_call_of_encoded_call address encoded_call =
   (Function_value (address, encoded_call), Function)
@@ -254,88 +225,88 @@ let abi_tuple_of_abi_values abi_typed_vals =
   let tys = List.map snd abi_typed_vals in
   (Tuple_value vals, Tuple tys)
 
-(* for Fixed encodings, num is an int or int64 which represents num * 10**n *)
+(* for Fixed encodings, num is an Int.t or Nat.t which represents num * 10**n *)
 
 let expected_int v =
   bork "Expected Int value, got %s" (show_abi_value v)
 
-let abi_fixed8n_of_int n num =
-  match fst (abi_int8_of_int num) with
+let abi_fixed8n n num =
+  match fst (abi_int8 num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (8, n))
   | v -> expected_int v
 
-let abi_fixed16n_of_int n num =
-  match fst (abi_int16_of_int num) with
+let abi_fixed16n n num =
+  match fst (abi_int16 num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (16, n))
   | v -> expected_int v
 
-let abi_fixed24_of_int n num =
-  match fst (abi_int24_of_int num) with
+let abi_fixed24 n num =
+  match fst (abi_int24 num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (24, n))
   | v -> expected_int v
 
-let abi_fixed32_of_int n num =
-  match fst (abi_int32_of_int num) with
+let abi_fixed32 n num =
+  match fst (abi_int32 num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (32, n))
   | v -> expected_int v
 
-let abi_fixed40_of_int n num =
-  match fst (abi_int40_of_int num) with
+let abi_fixed40 n num =
+  match fst (abi_int40 num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (40, n))
   | v -> expected_int v
 
-let abi_fixed48_of_int n num =
-  match fst (abi_int48_of_int num) with
+let abi_fixed48 n num =
+  match fst (abi_int48 num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (48, n))
   | v -> expected_int v
 
-let abi_fixed56_of_int n num =
-  match fst (abi_int56_of_int num) with
+let abi_fixed56 n num =
+  match fst (abi_int56 num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (56, n))
   | v -> expected_int v
 
-let abi_fixed64_of_int64 n num =
-  match fst (abi_int64_of_int64 num) with
+let abi_fixed64 n num =
+  match fst (abi_int64 num) with
   | Int_value bytes -> (Fixed_value bytes, Fixed (64, n))
   | v -> expected_int v
 
-let abi_ufixed8n_of_int n num =
-  match fst (abi_int8_of_int num) with
+let abi_ufixed8n n num =
+  match fst (abi_int8 num) with
   | Int_value bytes -> (Ufixed (8, n), Ufixed_value bytes)
   | v -> expected_int v
 
-let abi_ufixed16n_of_int n num =
-  match fst (abi_int16_of_int num) with
+let abi_ufixed16n n num =
+  match fst (abi_int16 num) with
   | Int_value bytes -> (Ufixed (16, n), Ufixed_value bytes)
   | v -> expected_int v
 
-let abi_ufixed24_of_int n num =
-  match fst (abi_int24_of_int num) with
+let abi_ufixed24 n num =
+  match fst (abi_int24 num) with
   | Int_value bytes -> (Ufixed (24, n), Ufixed_value bytes)
   | v -> expected_int v
 
-let abi_ufixed32_of_int n num =
-  match fst (abi_int32_of_int num) with
+let abi_ufixed32 n num =
+  match fst (abi_int32 num) with
   | Int_value bytes -> (Ufixed (32, n), Ufixed_value bytes)
   | v -> expected_int v
 
-let abi_ufixed40_of_int n num =
-  match fst (abi_int40_of_int num) with
+let abi_ufixed40 n num =
+  match fst (abi_int40 num) with
   | Int_value bytes -> (Ufixed (40, n), Ufixed_value bytes)
   | v -> expected_int v
 
-let abi_ufixed48_of_int n num =
-  match fst (abi_int48_of_int num) with
+let abi_ufixed48 n num =
+  match fst (abi_int48 num) with
   | Int_value bytes -> (Ufixed (48, n), Ufixed_value bytes)
   | v -> expected_int v
 
-let abi_ufixed56_of_int n num =
-  match fst (abi_int56_of_int num) with
+let abi_ufixed56 n num =
+  match fst (abi_int56 num) with
   | Int_value bytes -> (Ufixed (56, n), Ufixed_value bytes)
   | v -> expected_int v
 
-let abi_ufixed64_of_int64 n num =
-  match fst (abi_int64_of_int64 num) with
+let abi_ufixed64 n num =
+  match fst (abi_int64 num) with
   | Int_value bytes -> (Ufixed (64, n), Ufixed_value bytes)
   | v -> expected_int v
 
@@ -404,8 +375,8 @@ let rec encode_abi_value v ty =
     let bytes = Bytes.of_string s in
     encode_abi_value (Bytes_value bytes) BytesDynamic
   | Bool_value b, Bool ->
-    let num = if b then 1 else 0 in
-    let uint8_val, uint8_ty = abi_uint8_of_int num in
+    let num = if b then Nat.one else Nat.zero in
+    let uint8_val, uint8_ty = abi_uint8 num in
     encode_abi_value uint8_val uint8_ty
   | Ufixed_value bys, Ufixed (m, _n) when Bytes.length bys = m / 8 ->
     encode_abi_value (Uint_value bys) (Uint 256)
@@ -420,17 +391,9 @@ let rec encode_abi_value v ty =
   | Bytes_value bys, BytesDynamic ->
     (* uint256 encoding of length of bys, then bys, then padding to make multiple of 32 bytes *)
     let len = Bytes.length bys in
-    (* use 64 bits to make uniform on all architectures *)
-    let len_64 = Int64.of_int len in
-    let lo_8_bytes = get_big_endian_int64_bytes len_64 in
-    let len_padding = Bytes.make 24 '\000' in
-    let bytes_32 = Bytes.cat len_padding lo_8_bytes in
-    let len_encoding = encode_abi_value (Uint_value bytes_32) (Uint 256) in
+    let len_encoding = big_endian_bytes_of_uint 256 (Nat.of_int len) in
     let total_len = Bytes.length len_encoding + len in
-    let extra_padding_len =
-      let mod32 = total_len mod 32 in
-      if mod32 = 0 then 0 else 32 - mod32
-    in
+    let extra_padding_len = (~- total_len) land 31 in
     let extra_padding = Bytes.make extra_padding_len '\000' in
     Bytes.concat Bytes.empty [len_encoding; bys; extra_padding]
   | Fixed_value _, Fixed (_m, _n) -> bottom () (* TODO *)
@@ -448,9 +411,9 @@ let rec encode_abi_value v ty =
     Bytes.concat Bytes.empty element_encodings
   | Array_value elts, ArrayDynamic ty ->
     let len = List.length elts in
-    let len_encoding = get_big_endian_int_bytes 256 len in
+    let len_encoding = big_endian_bytes_of_uint 256 (Nat.of_int len) in
     let element_encodings = List.map (fun elt -> encode_abi_value elt ty) elts in
-    Bytes.cat len_encoding (Bytes.concat Bytes.empty element_encodings)
+    Bytes.concat Bytes.empty (len_encoding :: element_encodings)
   | Tuple_value vals, Tuple tys ->
     let val_tys = List.map2 (fun v ty -> (v, ty)) vals tys in
     let arrays_len = List.length val_tys in
@@ -469,7 +432,7 @@ let rec encode_abi_value v ty =
                let offset =
                  if ndx = 0 then total_head_space else total_head_space + cum_tail_lens.(ndx - 1)
                in
-               let offset_bytes = get_big_endian_int_bytes 256 offset in
+               let offset_bytes = big_endian_bytes_of_uint 256 (Nat.of_int offset) in
                heads.(ndx) <- offset_bytes ; tails.(ndx) <- encoding )
              else (* tails already initialized with empty bytes *)
                heads.(ndx) <- encoding
@@ -497,28 +460,17 @@ module Test = struct
   open Ethereum_util.Test
 
   let%test "int64-of-int64-encoding" =
-    let ff = 0xff in
-    let ff_64 = Int64.of_int ff in
-    match abi_int64_of_int64 ff_64 with
+    let ff = Z.of_int 0xff in
+    match abi_int64 ff with
     | Int_value bytes, Int 64 ->
-      (* ff_64 has an all-1s lo byte on little-endian Intel CPU
-         in big-endian representation, should have all-1s hi byte
-         all other bytes should be 0
-      *)
-      let hi_byte = Char.code (Bytes.get bytes 7) in
-      let other_bytes_64 =
-        let rec get_byte ndx accum =
-          if ndx < 0 then accum else get_byte (ndx - 1) (Bytes.get bytes ndx :: accum)
-        in
-        get_byte 6 []
-      in
-      Bytes.length bytes = 8 && hi_byte = ff && List.for_all (Char.equal '\000') other_bytes_64
-    | _ -> false
+      expect_0x_bytes "abi_int64 ff" "0x00000000000000ff" bytes;
+      true
+    | (v, ty) -> bork "bytes=%s type=%s" (show_abi_value v) (show_abi_type ty)
 
   (* similar test, but provide int that fits in 56 bits instead of int64 *)
   let%test "int64-of-int-encoding" =
-    let ff = 0xff in
-    match abi_int56_of_int ff with
+    let ff = Z.of_int 0xff in
+    match abi_int56 ff with
     | Int_value bytes, Int 56 ->
       (* ff has an all-1s lo byte on little-endian Intel CPU
          in big-endian representation, should have all-1s hi byte
@@ -531,13 +483,13 @@ module Test = struct
         in
         get_byte 5 []
       in
-      Bytes.length bytes = 7 && hi_byte = ff && List.for_all (Char.equal '\000') other_bytes
+      Bytes.length bytes = 7 && hi_byte = 0xff && List.for_all (Char.equal '\000') other_bytes
     | _ -> false
 
   let%test "contract-call-encoding-1" =
     (* first example from ABI spec *)
-    let param1 = abi_uint32_of_int 69 in
-    let param2 = abi_bool_of_bool true in
+    let param1 = abi_uint32 (Nat.of_int 69) in
+    let param2 = abi_bool true in
     let call = {function_name= "baz"; parameters= [param1; param2]} in
     expect_0x_bytes "encode_function_call result"
       "0xcdcd77c000000000000000000000000000000000000000000000000000000000000000450000000000000000000000000000000000000000000000000000000000000001"
@@ -561,8 +513,8 @@ module Test = struct
   let%test "contract-call-encoding-3" =
     (* third example from ABI spec *)
     let param1 = abi_bytes_dynamic_of_string "dave" in
-    let param2 = abi_bool_of_bool true in
-    let param3_array = List.map (fun n -> fst (abi_uint_of_int n)) [1; 2; 3] in
+    let param2 = abi_bool true in
+    let param3_array = List.map (fun n -> fst (abi_uint (Nat.of_int n))) [1; 2; 3] in
     let param3_val = Array_value param3_array in
     (* For computing the function selector, uint256 and int256 have to be used. *)
     let param3 = (param3_val, ArrayDynamic (Uint 256)) in
@@ -574,10 +526,10 @@ module Test = struct
 
   let%test "contract-call-encoding-4" =
     (* fourth example from ABI spec *)
-    let param1 = abi_uint_of_int 0x123 in
+    let param1 = abi_uint (Nat.of_int 0x123) in
     let param2 =
-      let num1, ty1 = abi_uint32_of_int 0x456 in
-      let num2, ty2 = abi_uint32_of_int 0x789 in
+      let num1, ty1 = abi_uint32 (Nat.of_int 0x456) in
+      let num2, ty2 = abi_uint32 (Nat.of_int 0x789) in
       assert (ty1 = ty2 && ty1 = Uint 32) ;
       (Array_value [num1; num2], ArrayDynamic ty1)
     in

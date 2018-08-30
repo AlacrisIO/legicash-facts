@@ -586,7 +586,7 @@ module Test = struct
       >>= fun matches ->
       assert matches;
       (* call the fallback in the contract we've created *)
-      let amount_to_transfer = 93490 in
+      let amount_to_transfer = TokenAmount.of_int 93490 in
       get_nonce sender_address
       >>= fun nonce ->
       let tx_header1 =
@@ -594,7 +594,7 @@ module Test = struct
         ; nonce= nonce
         ; gas_price= TokenAmount.of_int 2
         ; gas_limit= TokenAmount.of_int 1000000
-        ; value= TokenAmount.of_int amount_to_transfer }
+        ; value= amount_to_transfer }
       in
       (* use (dummy) facilitator address as code to trigger fallback *)
       let facilitator_address =
@@ -630,7 +630,7 @@ module Test = struct
       let topic = List.hd topics in
       let logged_event = YoJson.to_string topic in
       let event_parameters =
-        [(Address_value facilitator_address, Address); abi_uint_of_int amount_to_transfer]
+        [(Address_value facilitator_address, Address); abi_token_amount amount_to_transfer]
       in
       let event_signature =
         {function_name= "logTransfer"; parameters= event_parameters}
@@ -649,7 +649,7 @@ module Test = struct
       >>= fun ending_balance_json ->
       assert_json_error_free __LOC__ ending_balance_json;
       let ending_balance =
-        int_of_string (YoJson.to_string (YoJson.member "result" ending_balance_json))
+        ending_balance_json |> YoJson.(member "result" >> to_string) |> TokenAmount.of_string
       in
       assert (ending_balance = amount_to_transfer) ;
       (* now try invalid address, make sure it's not logged *)

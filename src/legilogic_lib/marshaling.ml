@@ -31,9 +31,10 @@ let marshal_bytes_of_marshal marshal x =
   marshal buffer x ;
   Buffer.to_bytes buffer
 
-let unmarshal_bytes_of_unmarshal (unmarshal: 'value unmarshaler) buffer =
-  let (value, length) = unmarshal 0 buffer in
-  assert (length = Bytes.length buffer) ;
+let unmarshal_bytes_of_unmarshal (unmarshal: 'value unmarshaler) bytes =
+  let (value, length) = unmarshal 0 bytes in
+  if not (length = Bytes.length bytes) then
+    raise (Unmarshaling_error ("leftover bytes while unmarshaling", length, bytes));
   value
 
 let marshal_string_of_marshal marshal x =
@@ -392,12 +393,17 @@ let unmarshal_list (u : 'a unmarshaler) start bytes =
 let list_marshaling m = {marshal=marshal_list m.marshal; unmarshal=unmarshal_list m.unmarshal}
 
 
+let marshaling_of_yojsoning yojsoning =
+  let to_yojson_string = to_yojson_string_of_to_yojson yojsoning.to_yojson in
+  let of_yojson_string_exn = of_yojson_string_exn_of_of_yojson yojsoning.of_yojson in
+  marshaling_map to_yojson_string of_yojson_string_exn String1G.marshaling
+
 (** Object which can be marshaled based on json representation. Marshaled
     representation must fit in a gigabyte (!) *)
 module MarshalableOfYojsonable (Y : YojsonableS) = struct
   include Y
   include (Marshalable (struct
              type nonrec t = t
-             let marshaling = marshaling_map to_yojson_string of_yojson_string_exn String1G.marshaling
+             let marshaling = marshaling_of_yojsoning yojsoning
            end) : MarshalableS with type t := t)
 end

@@ -299,9 +299,9 @@ let payment (facilitator_address, recipient_address, payment_amount) =
 (** We should be signing the RLP, not the marshaling! *)
 let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operation.withdrawal_fee} user_address facilitator_keys =
   (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
-  let ticket = 0L in (* TODO: implement ticketing *)
+  let ticket = Revision.zero in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
-  let bond = 0 in (* TODO: where does this come from? *)
+  let bond = TokenAmount.zero in (* TODO: where does this come from? *)
   let operation = Facilitator_contract.make_withdraw_call
                     facilitator_keys.Keypair.address ticket bond confirmed_state in
   let tx_header =
@@ -340,12 +340,3 @@ let push_side_chain_action_to_main_chain
   | Payment _
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"
-
-let collect_account_liquidation_funds = bottom
-
-let request_account_liquidation = bottom
-
-let initiate_individual_exit = bottom
-
-let request_deposit = bottom
-

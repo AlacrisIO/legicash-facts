@@ -20,14 +20,11 @@ end
 module UInt16 = DBInt(Integer.UInt16)
 module UInt32 = DBInt(Integer.UInt32)
 module UInt64 = DBInt(Integer.UInt64)
-module Data256 = DBInt(Integer.Data256)
+module UInt128 = DBInt(Integer.UInt128)
 module UInt256 = DBInt(Integer.UInt256)
+module Data160 = DBInt(Integer.Data160)
+module Data256 = DBInt(Integer.Data256)
 module Digest = DBInt(Digesting.Digest)
-module Address = DBInt(Signing.Address)
-module Signature = Persistable(struct
-    include Signing.Signature
-    include (TrivialPersistable (Signing.Signature) : PrePersistableDependencyS with type t := t)
-  end)
 
 module Revision = UInt64
 

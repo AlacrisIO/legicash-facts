@@ -2,8 +2,10 @@
 
 open Legilogic_lib
 open Types
+open Signing
 
 open Legilogic_ethereum
+open Main_chain
 
 
 val set_contract_address : Address.t -> unit
@@ -16,7 +18,7 @@ val make_deposit_call : Address.t -> Main_chain.Operation.t
     address argument is the facilitator
 *)
 
-val make_withdraw_call : Address.t -> int64 -> int -> Digest.t -> Main_chain.Operation.t
+val make_withdraw_call : Address.t -> Revision.t -> TokenAmount.t -> Digest.t -> Main_chain.Operation.t
 (** build the encoding of a call to the "withdraw" function of the facilitator contract
     arguments: facilitator address, bond amount, confirmed state
 *)

@@ -23,6 +23,11 @@ module UInt64 : sig
   include PersistableS with type t := t
 end
 
+module Data160 : sig
+  include module type of Integer.Data160
+  include PersistableS with type t := t
+end
+
 module Data256 : sig
   include module type of Integer.Data256
   include PersistableS with type t := t
@@ -35,16 +40,6 @@ end
 
 module Digest : sig
   include module type of Digesting.Digest
-  include PersistableS with type t := t
-end
-
-module Address : sig
-  include module type of Signing.Address
-  include PersistableS with type t := t
-end
-
-module Signature : sig
-  include module type of Signing.Signature
   include PersistableS with type t := t
 end
 
@@ -105,7 +100,7 @@ module DigestValueType : sig
 end
 
 (** Asynchronously digestible, content-addressed persistable values, with
-   auto-generated methods. *)
+    auto-generated methods. *)
 module DigestValue (Value : PersistableS) : sig
   type value = Value.t
   type digest = Digest.t

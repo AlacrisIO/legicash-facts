@@ -300,10 +300,6 @@ let process_request : (Request.t signed * bool, Transaction.t) Lwt_exn.arr =
     let open Lwt in
     wait_for_commit >>= Lwt_exn.const confirmation
 
-let commit_facilitator_state = bottom
-
-let check_main_chain_for_exits = bottom
-
 (** Take messages from the user_request_mailbox, and process them in parallel *)
 let user_request_loop =
   let open Lwt_monad in
@@ -387,9 +383,9 @@ let start_facilitator address =
   match !the_facilitator_service_ref with
   | Some x ->
     if Address.equal x.address address then
-      Lwt_io.printf
-        "Facilitator service already running for address %s, not starting another one\n%!"
-        (Address.to_0x_string address)
+      (Logging.log "Facilitator service already running for address %s, not starting another one"
+         (Address.to_0x_string address);
+       return_unit)
     else
       bork "Cannot start a facilitator service for address %s because there's already one for %s"
         (Address.to_0x_string address) (Address.to_0x_string x.address)

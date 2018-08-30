@@ -132,9 +132,11 @@ val issue_user_request : (Operation.t, Request.t signed) UserAction.arr
 (** Actually do the deposit on the Main_chain *)
 val deposit : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
-(** Notify the facilitator that the deposit was confirmed on the Main_chain and should be acknowledged
-    on the Side_chain. *)
-val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) UserAction.arr
+(*
+   (** Notify the facilitator that the deposit was confirmed on the Main_chain and should be acknowledged
+   on the Side_chain. *)
+   val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) UserAction.arr
+*)
 
 (* An action made on the side chain may need a corresponding action on the main chain. Do them.
    Specifically, while deposit and payment side-chain transactions require no follow up
@@ -154,18 +156,20 @@ val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
 (** Build a signed payment request from specification *)
 val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
 
-(** post an account_activity_status request for closing the account on the *main chain*. TBD *)
-val initiate_individual_exit : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
+(*
+   (** post an account_activity_status request for closing the account on the *main chain*. TBD *)
+   val initiate_individual_exit : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 
-(** TBD Flow 3 Step 3: Alice, who can see the final state of her account,
-    posts on the main chain a demand for the final funds.
-    This is signed then posted on the *main chain* by invoking the contract.
-    This puts Trent and all verifiers on notice to check that Alice isn't lying,
-    and post a lawsuit within a timeout window.
+   (** TBD Flow 3 Step 3: Alice, who can see the final state of her account,
+   posts on the main chain a demand for the final funds.
+   This is signed then posted on the *main chain* by invoking the contract.
+   This puts Trent and all verifiers on notice to check that Alice isn't lying,
+   and post a lawsuit within a timeout window.
+ *)
+   val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) UserAsyncAction.arr
+
+   val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 *)
-val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) UserAsyncAction.arr
-
-val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
 
 val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr
 

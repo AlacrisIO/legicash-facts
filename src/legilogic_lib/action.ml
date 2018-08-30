@@ -1,10 +1,10 @@
 open Lib
 
-type 'output or_exn = ('output, exn) result
+type +'output or_exn = ('output, exn) result
 
-type ('input, 'output, 'state) action = 'input -> 'state -> 'output or_exn * 'state
+type (-'input, +'output, 'state) action = 'input -> 'state -> 'output or_exn * 'state
 
-type ('input, 'output, 'state) async_action = 'input -> 'state -> ('output or_exn * 'state) Lwt.t
+type (-'input, +'output, 'state) async_action = 'input -> 'state -> ('output or_exn * 'state) Lwt.t
 
 exception Assertion_failed of string
 
@@ -32,7 +32,7 @@ module Action (State : TypeS) = struct
   type state = State.t
   type error = exn
   include Monad(struct
-      type 'a t = state -> 'a or_exn * state
+      type +'a t = state -> 'a or_exn * state
       let return x s = Ok x, s
       let bind m f s = (m s) |> function
       | Ok a, s' -> f a s'
@@ -67,7 +67,7 @@ module AsyncAction (State : TypeS) = struct
   type state = State.t
   type error = exn
   include Monad(struct
-      type 'a t = state -> ('a or_exn * state) Lwt.t
+      type +'a t = state -> ('a or_exn * state) Lwt.t
       let return x s = Lwt.return (Ok x, s)
       let bind m f s = Lwt.bind (m s)
                          (function
@@ -95,7 +95,7 @@ end
 
 module Lwt_monad = struct
   include Monad(struct
-      type 'a t = 'a Lwt.t
+      type +'a t = 'a Lwt.t
       let return = Lwt.return
       let bind = Lwt.bind
     end)
@@ -106,7 +106,7 @@ module Lwt_exn = struct
   type error = exn
   let fail e = Lwt.return (Error e)
   include Monad(struct
-      type 'a t = 'a or_exn Lwt.t
+      type +'a t = 'a or_exn Lwt.t
       let return x = Lwt.return (Ok x)
       let bind m a = Lwt.bind m (function Ok x -> a x | Error e -> fail e)
     end)
