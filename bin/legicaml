@@ -10,8 +10,9 @@ if [ ! -x $legicaml ] ; then
     exit 0
 fi
 
+LIB=
+
 use_lib () {
-    LIB=()
     for lib ; do
         LIB=(${LIB[@]} -I "$build/$lib/.$lib.objs" -open "${lib^}")
     done
