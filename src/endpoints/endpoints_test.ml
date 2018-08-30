@@ -7,8 +7,8 @@ open Cohttp
 open Cohttp_lwt_unix
 
 open Legilogic_lib
+open Signing
 open Yojsoning
-open Types
 
 open Legicash_lib
 open Side_chain

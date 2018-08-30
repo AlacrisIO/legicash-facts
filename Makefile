@@ -62,11 +62,11 @@ $(API_SCGI): $(ENDPOINTS) $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Building Legicash API SCGI executable"
 	$(HIDE) dune build src/endpoints/api_scgi.exe
 
-ENDPOINTS_TEST:=$(BUILD_DIR)/endpoints/endpoints_test.exe
+ENDPOINTS_TEST:=$(BUILD_DIR)/src/endpoints/endpoints_test.exe
 endpoints_test: $(ENDPOINTS_TEST)
 $(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(LEGILOGIC_LIB)
 	$(SHOW) "Building test endpoints executable"
-	$(HIDE) dune build --root=src endpoints/endpoints_test.exe
+	$(HIDE) dune build src/endpoints/endpoints_test.exe
 
 run: $(API_SCGI)
 	cd src/endpoints && ../../$(API_SCGI)
