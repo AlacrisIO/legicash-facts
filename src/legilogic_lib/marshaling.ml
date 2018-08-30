@@ -393,12 +393,17 @@ let unmarshal_list (u : 'a unmarshaler) start bytes =
 let list_marshaling m = {marshal=marshal_list m.marshal; unmarshal=unmarshal_list m.unmarshal}
 
 
+let marshaling_of_yojsoning yojsoning =
+  let to_yojson_string = to_yojson_string_of_to_yojson yojsoning.to_yojson in
+  let of_yojson_string_exn = of_yojson_string_exn_of_of_yojson yojsoning.of_yojson in
+  marshaling_map to_yojson_string of_yojson_string_exn String1G.marshaling
+
 (** Object which can be marshaled based on json representation. Marshaled
     representation must fit in a gigabyte (!) *)
 module MarshalableOfYojsonable (Y : YojsonableS) = struct
   include Y
   include (Marshalable (struct
              type nonrec t = t
-             let marshaling = marshaling_map to_yojson_string of_yojson_string_exn String1G.marshaling
+             let marshaling = marshaling_of_yojsoning yojsoning
            end) : MarshalableS with type t := t)
 end
