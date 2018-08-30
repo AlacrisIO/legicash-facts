@@ -27,8 +27,11 @@ let of_yojson_of_of_yojson_exn of_yojson_exn y =
 let to_yojson_string_of_to_yojson to_yojson x =
   x |> to_yojson |> string_of_yojson
 
-let of_yojson_string_exn_of_of_yojson_exn of_yojson_exn s =
-  of_yojson_exn (yojson_of_string s)
+let of_yojson_string_exn_of_of_yojson_exn of_yojson_exn x =
+  x |> yojson_of_string |> of_yojson_exn
+
+let of_yojson_string_exn_of_of_yojson x =
+  x |> of_yojson_exn_of_of_yojson |> of_yojson_string_exn_of_of_yojson_exn
 
 let to_yojson_map f to_yojson x = x |> f |> to_yojson
 let of_yojson_map f of_yojson y = y |> of_yojson |> Result.map f
