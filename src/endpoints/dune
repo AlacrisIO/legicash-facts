@@ -20,3 +20,11 @@
   (ocamlc_flags (:standard -g -w -9-34-39 -warn-error -27-32-33))
   (ocamlopt_flags (:standard -g -w -9-34-39 -warn-error -27-32-33)) ;; NB: add -p here for profiling
   (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime legicash_lib endpoints str scgi unix))
+
+(executable
+ (name endpoints_test)
+ (modules endpoints_test)
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson lwt_ppx))
+ (ocamlc_flags (:standard -g -w -9-34-39 -warn-error -27-32-33))
+ (ocamlopt_flags (:standard -g -w -9-34-39 -warn-error -27-32-33)) ;; NB: add -p here for profiling
+ (libraries cohttp cohttp-lwt-unix endpoints ppx_deriving_yojson.runtime legilogic_lib lwt))

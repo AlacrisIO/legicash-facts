@@ -21,3 +21,9 @@ val get_user_account : Address.t -> AccountState.t
 
 val get_user_name : Address.t -> string
 (** user's "friendly" name *)
+
+val get_user_keys : int -> string * Keypair.t
+(** get a demo user name and keys from table *)
+
+val prepare_server : unit -> unit Lwt.t
+(** setup demo accounts on test net, load facilitator state *)

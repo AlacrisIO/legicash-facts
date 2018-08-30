@@ -79,6 +79,8 @@ let address_to_account_tbl = Hashtbl.create number_of_accounts
 
 let address_to_keys_tbl = Hashtbl.create number_of_accounts
 
+let get_user_keys ndx = account_key_array.(ndx)
+
 let _ =
   Array.iter
     (fun (name, keys) ->
@@ -226,7 +228,7 @@ let load_trent_state () =
   loop elts []
 *)
 
-let _ =
+let prepare_server () =
   let open Lwt in
   Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
   Db.open_connection ~db_name:Legibase.db_name
