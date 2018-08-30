@@ -185,6 +185,10 @@ contract Facilitators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         msg.sender.transfer(_bond);
     }
 
+    function state_bits_hash(bytes32[] state_bits) public pure returns (bytes32) {
+      return keccak256(abi.encodePacked(state_bits));
+    }
+
     /**
      * Challenge a withdrawal claim because the ticket number doesn't correspond to a withdrawal.
      *
@@ -204,7 +208,8 @@ contract Facilitators is Claims, ClaimTypes, Bonds, EthereumBlocks {
             )
             public {
         require(_confirmed_state ==
-            digest_claim(_facilitator, ClaimType.STATE_UPDATE, keccak256(state_bits)));
+            digest_claim(_facilitator, ClaimType.STATE_UPDATE,
+                         state_bits_hash(state_bits)));
         bytes32 operations = state_bits[6]; // TODO: make sure that's correct!
         // TODO: complete this thing XXXXX
         _merkle_path_in_operations; operations;
@@ -233,7 +238,8 @@ contract Facilitators is Claims, ClaimTypes, Bonds, EthereumBlocks {
             )
             public {
         require(_confirmed_state ==
-            digest_claim(_facilitator, ClaimType.STATE_UPDATE, keccak256(state_bits)));
+            digest_claim(_facilitator, ClaimType.STATE_UPDATE,
+                         state_bits_hash(state_bits)));
         bytes32 operations = state_bits[6]; // TODO: make sure that's correct!
         // TODO: complete this thing XXXXX
         _merkle_path_in_operations; operations;
