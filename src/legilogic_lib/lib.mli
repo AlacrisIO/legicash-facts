@@ -55,7 +55,7 @@ val make_counter : ?start:int -> unit -> unit -> int
 
 (** Options *)
 module Option : sig
-  type 'a t = 'a option
+  type +'a t = 'a option
 
   (** Unwrap an option with a default if None *)
   val defaulting : (unit -> 'a) -> 'a t -> 'a
@@ -113,7 +113,7 @@ module ResultOrString : sig
 end
 
 (** [list_foldlk f a l k] is the same as [k @@ List.fold_left f a l]. (CPS for
-   [List.fold_left].) *)
+    [List.fold_left].) *)
 val list_foldlk : ('a -> 'b -> ('a -> 'r) -> 'r) -> 'a -> 'b list -> ('a -> 'r) -> 'r
 
 (** Base interface for a type

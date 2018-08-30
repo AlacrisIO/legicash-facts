@@ -22,7 +22,8 @@ val start_facilitator : Address.t -> unit Lwt.t
 val get_facilitator_state : unit -> FacilitatorState.t
 
 (** [process_request (request, is_forced)] asynchronously processes [request]
-   according to whether it [is_forced], returning a [Transaction] on success. *)
+    according to whether it [is_forced] by having been published on the main_chain,
+    returning a [Transaction] on success. *)
 val process_request : (Request.t signed * bool, Transaction.t) Lwt_exn.arr
 
 (*

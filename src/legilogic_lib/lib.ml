@@ -40,7 +40,7 @@ let make_counter ?(start=0) () =
 
 (** Options *)
 module Option = struct
-  type 'a t = 'a option
+  type +'a t = 'a option
 
   let defaulting default = function None -> default () | Some x -> x
 
@@ -295,7 +295,7 @@ module ErrorMonad (Error: TypeS) = struct
   type error = Error.t
   let fail e = Error e
   module B = struct
-    type 'a t = ('a, error) result
+    type +'a t = ('a, error) result
     let return x = Ok x
     let bind m fm = match m with
       | Ok x -> fm x
@@ -323,7 +323,7 @@ end
 module ReaderMonad (State: TypeS) = struct
   module B = struct
     type state = State.t
-    type 'a t = state -> 'a
+    type +'a t = state -> 'a
     let return x _s = x
     let bind m fm s = fm (m s) s
     let state s = s
@@ -354,7 +354,7 @@ end
 module StateMonad (State: TypeS) = struct
   module Base = struct
     type state = State.t
-    type 'a t = state -> ('a * state)
+    type +'a t = state -> ('a * state)
     let return x s = (x, s)
     let bind m fm s = m s |> uncurry fm
     let state s = (s, s)
