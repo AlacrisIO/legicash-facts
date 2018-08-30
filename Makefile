@@ -19,7 +19,7 @@ BUILD_DIR:=src/_build/default
 
 all: api_scgi hello_legicash
 
-.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean real_contract contract
+.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean contract
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli)
 
@@ -39,9 +39,10 @@ $(LEGILOGIC_ETHEREUM): $(ML_SOURCES)
 # logs deposits and withdrawals
 CONTRACT:=src/legicash_lib/facilitator_contract_binary.ml
 contract: $(CONTRACT)
-$(CONTRACT) : contracts/deposit-withdraw.sol
+$(CONTRACT) : contracts/deposit-withdraw.sol $(wildcard contracts/*.sol)
 	$(SHOW) "Compiling facilitator contract"
-	$(HIDE) solc --bin $< | tail -n +4 | awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
+	cd contracts/ && solc --bin -o ../src/_build/contracts --overwrite court.sol
+	awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' < ./src/_build/contracts/Court.bin > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
 
 LEGICASH_LIB:=$(BUILD_DIR)/legicash_lib/legicash_lib.cmxs
 legicash_lib: $(LEGICASH_LIB)
@@ -103,10 +104,6 @@ $(TOPLEVEL): $(ML_SOURCES) $(CONTRACT) legilogic_lib legilogic_ethereum legicash
 repl: ./bin/legicaml $(TOPLEVEL)
 	$(HIDE) rlwrap $<
 
-install_contract: legicash_lib src/install_contract.ml
-	$(SHOW) "Installing facilitator contract on main chain"
-	$(HIDE) dune build --root=src install_contract.exe
-
 clean:
 	$(SHOW) "Cleaning via dune"
 	$(HIDE) dune clean --root=src
@@ -114,7 +111,3 @@ clean:
 	$(HIDE) rm -f src/legicash_lib/facilitator_contract_binary.ml
 	$(SHOW) "Removing OPAM install file"
 	$(HIDE) rm -f legicash.install
-
-# real contract
-real_contract:
-	cd contracts/ && solc court.sol
