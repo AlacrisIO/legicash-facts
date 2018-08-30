@@ -5,4 +5,4 @@ build-legicash:
     - ./scripts/ethereum-testnet/run.sh
     # build and run Legicash
     - make && make test
-    - ./src/_build/default/hello_legicash.exe
+    - ./_build/default/src/hello_legicash.exe
