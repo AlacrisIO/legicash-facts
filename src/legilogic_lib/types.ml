@@ -1,6 +1,5 @@
 open Lib
 open Yojsoning
-open Digesting
 open Marshaling
 open Integer
 open Persisting
