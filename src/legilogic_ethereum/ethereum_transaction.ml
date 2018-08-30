@@ -649,7 +649,7 @@ module Test = struct
       >>= fun ending_balance_json ->
       assert_json_error_free __LOC__ ending_balance_json;
       let ending_balance =
-        ending_balance_json |> YoJson.member "result" |> YoJson.to_string |> TokenAmount.of_string
+        ending_balance_json |> YoJson.(member "result" >> to_string) |> TokenAmount.of_string
       in
       assert (ending_balance = amount_to_transfer) ;
       (* now try invalid address, make sure it's not logged *)

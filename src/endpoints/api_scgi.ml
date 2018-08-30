@@ -42,10 +42,9 @@ let port = 1025
 let address = "127.0.0.1"
 
 let return_json id status json =
-  let response =
-    Response.{ status
-             ; headers = [`Content_type "application/json"]
-             ; body = `String (string_of_yojson json) } in
+  let headers =  [`Content_type "application/json"] in
+  let body = `String (string_of_yojson json) in
+  let response = Response.{status; headers; body} in
   log "[\"RESPONSE\", %d, %s]" id (Response.to_debug_string response);
   Lwt.return response
 
