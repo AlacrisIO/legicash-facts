@@ -1,4 +1,9 @@
-#!/bin/sh
+#!/bin/sh -eu
+
+HERE=$(dirname "$0")
+cd "$HERE/../../" # Change to toplevel directory of legicash-facts
+mkdir -p _run
+cd _run
 
 # run the Ethereum test net
 

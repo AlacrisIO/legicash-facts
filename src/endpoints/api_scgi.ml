@@ -16,7 +16,7 @@ open Actions
 (* Side_chain also has a Request module *)
 module Request = Scgi.Request
 
-let _ = log_to_file "nginx/logs/legicash.log"
+let _ = log_to_file "logs/legicash.log"
 
 type deposit_json =
   { address: Address.t
