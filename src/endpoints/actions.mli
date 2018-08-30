@@ -38,3 +38,6 @@ val get_recent_transactions_on_trent : Address.t -> int option -> Yojsoning.yojs
 
 val get_status_on_trent_and_main_chain : Address.t -> Yojsoning.yojson Lwt.t
 (** user accounts information on side and main chains *)
+
+val thread_pending_json : Yojson.Safe.json
+(** JSON returned when a thread is still working *)

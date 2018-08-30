@@ -10,6 +10,7 @@ open Legicash_lib
 open Side_chain
 
 open Endpoints
+open Accounts
 open Actions
 
 (* Side_chain also has a Request module *)
@@ -212,4 +213,7 @@ let _ =
   in
   let _ = Server.handler_inet address port handle_request in
   (* run forever in Lwt monad *)
-  Lwt_main.run (fst (Lwt.wait ()))
+  Lwt_main.run (
+    prepare_server ()
+    >>= fun () ->
+    (fst (Lwt.wait ())))

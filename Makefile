@@ -17,7 +17,7 @@ HIDE:=$(if $(VERBOSE),,@)
 
 BUILD_DIR:=_build/default
 
-all: api_scgi hello_legicash
+all: api_scgi endpoints_test hello_legicash
 
 .PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean contract
 
@@ -62,8 +62,17 @@ $(API_SCGI): $(ENDPOINTS) $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Building Legicash API SCGI executable"
 	$(HIDE) dune build src/endpoints/api_scgi.exe
 
+ENDPOINTS_TEST:=$(BUILD_DIR)/endpoints/endpoints_test.exe
+endpoints_test: $(ENDPOINTS_TEST)
+$(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(LEGILOGIC_LIB)
+	$(SHOW) "Building test endpoints executable"
+	$(HIDE) dune build --root=src endpoints/endpoints_test.exe
+
 run: $(API_SCGI)
 	cd src/endpoints && ../../$(API_SCGI)
+
+test-endpoints : $(ENDPOINTS_TEST)
+	cd src/endpoints && ../../$(ENDPOINTS_TEST)
 
 HELLO_LEGICASH:=$(BUILD_DIR)/src/hello_legicash.exe
 hello_legicash: $(HELLO_LEGICASH)

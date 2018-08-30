@@ -102,6 +102,8 @@ let get_proof tx_revision : yojson =
   | Some proof ->
     TransactionMap.Proof.to_yojson proof
 
+let thread_pending_json = `Assoc [("result",`String "The operation is pending")]
+
 (* lookup id in thread table; if completed, return result, else return boilerplate *)
 let apply_main_chain_thread id : yojson =
   try
@@ -112,8 +114,7 @@ let apply_main_chain_thread id : yojson =
       error_json "Thread exception: %s\nStack: %s"
         (Printexc.to_string exn)
         (Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ()))
-    | Sleep ->
-      `Assoc [("result",`String "The operation is pending")]
+    | Sleep -> thread_pending_json
   with Not_found ->
     error_json "Thread %d not found" id
 
