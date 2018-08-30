@@ -108,6 +108,7 @@ module UserAccountState = struct
 end
 
 module UserAccountStateMap = MerkleTrie (Address) (UserAccountState)
+
 module UserState = struct
   type t =
     { main_chain_user_state: Main_chain.UserState.t

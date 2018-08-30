@@ -59,10 +59,12 @@ let send_post ?(query=[]) endpoint json =
     (make_api_url query endpoint)
   >>= handle_response
 
-let rec exit_code = ref 0
-and set_error_exit () =
+let exit_code = ref 0
+
+let set_error_exit () =
   exit_code := 1
-and do_exit () =
+
+let do_exit () =
   Lwt.return (exit !exit_code)
 
 let json_has_error json =
@@ -95,8 +97,7 @@ let make_threaded_test endpoint name address amount =
       >>= fun thread_result ->
       if thread_result = Actions.thread_pending_json then
         Lwt_unix.sleep 0.1
-        >>= fun () ->
-        thread_loop ()
+        >>= thread_loop
       else if json_has_error thread_result then (
         Printf.eprintf "*** ERROR *** : %s\n%!" YoJson.(member "error" thread_result |> to_string);
         set_error_exit ();
@@ -264,19 +265,11 @@ let test_recent_transactions ?(limit=None) () =
 let _ =
   Lwt_main.run (
     test_deposits ()
-    >>= fun () ->
-    test_withdrawals ()
-    >>= fun () ->
-    test_balances ()
-    >>= fun () ->
-    test_statuses ()
-    >>= fun () ->
-    test_all_balances ()
-    >>= fun () ->
-    test_payments ()
-    >>= fun () ->
-    test_recent_transactions ()
-    >>= fun () ->
-    test_recent_transactions ~limit:(Some 3) ()
-    >>= fun () ->
-    do_exit ())
+    >>= test_withdrawals
+    >>= test_balances
+    >>= test_statuses
+    >>= test_all_balances
+    >>= test_payments
+    >>= test_recent_transactions
+    >>= test_recent_transactions ~limit:(Some 3)
+    >>= do_exit)
