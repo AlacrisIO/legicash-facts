@@ -383,9 +383,9 @@ let start_facilitator address =
   match !the_facilitator_service_ref with
   | Some x ->
     if Address.equal x.address address then
-      Lwt_io.printf
-        "Facilitator service already running for address %s, not starting another one\n%!"
-        (Address.to_0x_string address)
+      (Logging.log "Facilitator service already running for address %s, not starting another one"
+         (Address.to_0x_string address);
+       return_unit)
     else
       bork "Cannot start a facilitator service for address %s because there's already one for %s"
         (Address.to_0x_string address) (Address.to_0x_string x.address)
