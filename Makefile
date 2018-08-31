@@ -129,6 +129,8 @@ clean:
 	$(HIDE) rm -f src/legicash_lib/facilitator_contract_binary.ml
 	$(SHOW) "Removing OPAM install file"
 	$(HIDE) rm -f legicash.install
+	$(SHOW) "Removing run directory"
+	$(HIDE) rm -rf _run
 
 reset:
 	$(SHOW) "Resetting Legicash state"
@@ -137,4 +139,4 @@ reset:
 	$(SHOW) " Stopping SCGI server"
 	$(HIDE) killall -q api_scgi.exe || true
 	$(SHOW) " Removing Legicash database"
-	$(HIDE) rm -rf src/endpoints/legicash
+	$(HIDE) rm -rf _run/legicash

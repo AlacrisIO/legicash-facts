@@ -57,11 +57,11 @@ let account_names = user_names
     in
     loop 49 [] *)
 
-(* register keypairs from disk *)
-let _ = Signing.register_file_keypairs ~path:"demo-keys-small.json"
+(* register keypairs from disk, path is relative to _run *)
+let _ = Signing.register_file_keypairs ~path:"../src/endpoints/demo-keys-small.json"
 
 (* for 1300 accounts:
-let _ = Signing.register_file_keypairs ~path:"demo-keys-big.json"
+let _ = Signing.register_file_keypairs ~path:"../src/endpoints/demo-keys-big.json"
 *)
 
 (* create local data structures reflecting registered keys *)
