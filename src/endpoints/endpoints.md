@@ -71,7 +71,7 @@ Deposit
 
   The result is a JSON record of the form
 
-    { "result":"api/thread?id=nn" }
+    { "result":{"thread":nn }}
 
   where "nn" is an integer. The thread with the given id transfers funds from the main chain to the side chain.
 
@@ -90,7 +90,7 @@ Withdrawal
 
   The result is a JSON record of the form
 
-    { "result":"api/thread?id=nn" }
+    { "result":{"thread":nn }}
 
   where "nn" is an integer. The thread with the given id transfers funds from the side chain to the main chain.
 
