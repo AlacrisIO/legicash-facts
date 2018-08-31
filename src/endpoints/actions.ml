@@ -86,8 +86,7 @@ let add_main_chain_thread thread =
         find_thread_id (n + 1)
       else (
         Hashtbl.add id_to_thread_tbl id thread;
-        let uri = Format.sprintf "api/thread?id=%d" id in
-        `Assoc [("result",`String uri);])
+        `Assoc [("result",`Assoc [("thread",`Int id)])])
   in
   find_thread_id 0
 
