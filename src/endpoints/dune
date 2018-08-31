@@ -2,7 +2,7 @@
 
 (library
  (name endpoints)
- (modules demo_keys accounts actions)
+ (modules accounts actions)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson lwt_ppx))
  ;; -9 : all fields mentioned in a pattern
  ;; -27 : unused variable

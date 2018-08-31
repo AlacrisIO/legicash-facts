@@ -17,8 +17,6 @@ open Side_chain_facilitator
 open Side_chain_user
 open Side_chain_action.Test
 
-open Demo_keys
-
 (* users *)
 let user_names =
   [ "Alice"
@@ -49,6 +47,7 @@ let user_names =
   ; "Zander" ]
 
 let account_names = user_names
+
 (* use code below for 1300 accounts *)
 (*  let rec loop count accum =
     if count < 0 then accum
@@ -58,26 +57,23 @@ let account_names = user_names
     in
     loop 49 [] *)
 
-(* let list_take elts n =
-  let rec loop elts accum count =
-    if count >= n then
-      (List.rev accum)
-    else
-      match elts with
-      | [] -> bork "list_take: list too short"
-      | (h :: t) ->
-        loop t (h::accum) (count + 1)
-  in
-  loop elts [] 0
+(* register keypairs from disk *)
+let _ = Signing.register_file_keypairs ~path:"demo-keys-small.json"
+
+(* for 1300 accounts:
+let _ = Signing.register_file_keypairs ~path:"demo-keys-big.json"
 *)
 
-(* let account_key_list = List.map2 (fun name keys -> (name, keys)) (list_take account_names 13) (list_take account_keys 13) *)
-let account_key_list = List.map2 (fun name keys -> (name, keys)) account_names account_keys
+(* create local data structures reflecting registered keys *)
+
+let account_key_list =
+  List.map
+    (fun name ->
+       let keys = Signing.address_of_nickname name |> Signing.keypair_of_address in
+       (name, keys)) account_names
 let account_key_array = Array.of_list account_key_list
 let number_of_accounts = Array.length account_key_array
 let address_to_account_tbl = Hashtbl.create number_of_accounts
-
-let address_to_keys_tbl = Hashtbl.create number_of_accounts
 
 let get_user_keys ndx = account_key_array.(ndx)
 
@@ -86,11 +82,6 @@ let _ =
     (fun (name, keys) ->
        Hashtbl.add address_to_account_tbl keys.Keypair.address name)
     account_key_array
-
-let _ =
-  List.iter
-    (fun keys -> Hashtbl.add address_to_keys_tbl keys.Keypair.address keys)
-    account_keys
 
 let trent_keys =
   Signing.make_keypair_from_hex
