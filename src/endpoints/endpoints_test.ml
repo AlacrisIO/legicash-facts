@@ -90,10 +90,10 @@ let make_threaded_test endpoint name address amount =
         name YoJson.(member "error" result_json |> to_string) in
     return_unit
   else if YoJson.mem "result" result_json then
-    let result = YoJson.(member "result" result_json |> to_string) in
-    let thread_id = List.nth (String.split_on_char '=' result) 1 in
+    let result = YoJson.member "result" result_json in
+    let thread_id = YoJson.(member "thread" result |> to_int) in
     let rec thread_loop () : unit Lwt.t =
-      send_get ~query:[("id",[thread_id])] "thread"
+      send_get ~query:[("id",[string_of_int thread_id])] "thread"
       >>= fun thread_result ->
       if thread_result = Actions.thread_pending_json then
         Lwt_unix.sleep 0.1
