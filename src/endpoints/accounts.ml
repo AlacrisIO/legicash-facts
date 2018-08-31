@@ -69,7 +69,7 @@ let _ = Signing.register_file_keypairs ~path:"demo-keys-big.json"
 let account_key_list =
   List.map
     (fun name ->
-       let keys = Signing.address_of_nickname name |> Signing.keypair_of_address in
+       let keys = Signing.(address_of_nickname name |> keypair_of_address) in
        (name, keys)) account_names
 let account_key_array = Array.of_list account_key_list
 let number_of_accounts = Array.length account_key_array
