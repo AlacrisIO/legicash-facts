@@ -182,7 +182,7 @@ let test_withdrawals () =
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name,keys = get_user_keys ndx in
-      let amount = Random.int 100 in (* users have at least this much after deposit *)
+      let amount = 10 + Random.int 90 in (* users have at least this much after deposit *)
       Printf.printf "WITHDRAWAL:  Name: %s; Address: %s; Tokens: %d\n%!" name (Address.to_0x_string keys.address) amount;
       make_withdrawal_test name keys.address (TokenAmount.of_int amount)
       >>= fun () ->
