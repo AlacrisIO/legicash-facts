@@ -19,7 +19,7 @@ BUILD_DIR:=_build/default
 
 all: api_scgi endpoints_test hello_legicash
 
-.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean contract nginx
+.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean reset contract nginx
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli)
 
@@ -129,3 +129,14 @@ clean:
 	$(HIDE) rm -f src/legicash_lib/facilitator_contract_binary.ml
 	$(SHOW) "Removing OPAM install file"
 	$(HIDE) rm -f legicash.install
+	$(SHOW) "Removing run directory"
+	$(HIDE) rm -rf _run
+
+reset:
+	$(SHOW) "Resetting Legicash state"
+	$(SHOW) " Stopping Ethereum network"
+	$(HIDE) killall -q geth || true
+	$(SHOW) " Stopping SCGI server"
+	$(HIDE) killall -q api_scgi.exe || true
+	$(SHOW) " Removing Legicash database"
+	$(HIDE) rm -rf _run/legicash
