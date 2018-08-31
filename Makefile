@@ -19,9 +19,9 @@ BUILD_DIR:=_build/default
 
 all: api_scgi endpoints_test hello_legicash
 
-.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean reset contract nginx
+.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel clean reset contract nginx stop_nginx install_contract
 
-ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli)
+ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli src/dune src/*/dune)
 
 LEGILOGIC_LIB:=$(BUILD_DIR)/src/legilogic_lib/legilogic_lib.cmxs
 legilogic_lib: $(LEGILOGIC_LIB)
@@ -121,6 +121,10 @@ nginx:
 
 stop_nginx:
 	./src/endpoints/nginx/stop.sh
+
+install_contract: legicash_lib src/install_contract.ml $(ML_SOURCES) $(CONTRACT)
+	$(SHOW) "Installing facilitator contract on main chain"
+	$(HIDE) dune build src/install_contract.exe
 
 clean:
 	$(SHOW) "Cleaning via dune"
