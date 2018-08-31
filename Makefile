@@ -19,7 +19,7 @@ BUILD_DIR:=_build/default
 
 all: api_scgi endpoints_test hello_legicash
 
-.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean contract
+.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel install-contract clean contract nginx
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli)
 
@@ -42,7 +42,7 @@ contract: $(CONTRACT)
 $(CONTRACT) : contracts/deposit-withdraw.sol $(wildcard contracts/*.sol)
 	$(SHOW) "Compiling facilitator contract"
 	$(HIDE)	cd contracts/ && solc --bin -o ../_build/contracts --overwrite court.sol
-	$(HIDE)	awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' < ./_build/contracts/Court.bin > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
+	$(HIDE) awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' < ./_build/contracts/Court.bin > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
 
 LEGICASH_LIB:=$(BUILD_DIR)/src/legicash_lib/legicash_lib.cmxs
 legicash_lib: $(LEGICASH_LIB)
@@ -70,11 +70,11 @@ $(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(LEGILOGIC_LIB)
 
 run: $(API_SCGI)
 	$(SHOW) "Running SCGI server"
-	$(HIDE) cd src/endpoints && ../../$(API_SCGI)
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(API_SCGI)
 
 test-endpoints : $(ENDPOINTS_TEST)
 	$(SHOW) "Testing endpoints"
-	$(HIDE) cd src/endpoints && ../../$(ENDPOINTS_TEST)
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(ENDPOINTS_TEST)
 
 HELLO_LEGICASH:=$(BUILD_DIR)/src/hello_legicash.exe
 hello_legicash: $(HELLO_LEGICASH)
@@ -114,6 +114,13 @@ $(TOPLEVEL): $(ML_SOURCES) $(CONTRACT) legilogic_lib legilogic_ethereum legicash
 # name of custom toplevel
 repl: ./bin/legicaml $(TOPLEVEL)
 	$(HIDE) rlwrap $<
+
+# Launch nginx:
+nginx:
+	./src/endpoints/nginx/start.sh
+
+stop_nginx:
+	./src/endpoints/nginx/stop.sh
 
 clean:
 	$(SHOW) "Cleaning via dune"
