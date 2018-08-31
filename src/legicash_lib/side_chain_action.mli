@@ -54,6 +54,8 @@ open Signing
 module Test : sig
   val install_contract : unit -> unit Lwt.t
   (** installs facilitator contract on main chain, enabling corresponding actions on side chain *)
+  val load_contract : unit -> unit Lwt.t
+  (** load facilitator contract address on main chain *)
   val create_account_on_testnet : Keypair.t -> unit Lwt.t
   (** creates an account on network with address created for side chain *)
   val get_prefunded_address : unit -> Address.t Lwt.t

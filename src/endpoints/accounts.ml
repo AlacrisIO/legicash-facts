@@ -119,7 +119,7 @@ let store_keys_on_testnet (name,keys) =
   >>= fun result_json ->
   if YoJson.mem "result" result_json then (
     let result = YoJson.member "result" result_json in
-    Lwt_io.eprintf "Succesfully created account for %s on test net with address: %s\n"
+    Lwt_io.eprintf "Created account for %s on test net with address: %s\n"
       name (string_of_yojson result)
     >>= fun () -> Lwt_io.(flush stderr))
   else
@@ -184,7 +184,7 @@ let user_accounts_from_trent_state address =
     bork "Could not find user state for address: %s" (Address.to_0x_string address)
 
 let load_trent_state () =
-  Printf.printf "Loading the facilitator state...\n%!";
+  Printf.printf "Loading the facilitator state...%!";
   Db.check_connection ();
   let facilitator_state =
     try
@@ -232,8 +232,7 @@ let prepare_server () =
   let open Lwt in
   Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
   Db.open_connection ~db_name:Legibase.db_name
-  >>= fun () ->
-  load_trent_state ()
+  >>= load_trent_state
   >>= fun () ->
   start_facilitator trent_address
   >>= fun () ->
@@ -251,9 +250,9 @@ let prepare_server () =
   store_keys_on_testnet ("Trent",trent_keys)
   >>= fun () ->
   Lwt_io.printf "Funding account: Trent\n%!"
-  >>= fun () ->
+  >>=
   (* Ethereum dev mode provides prefunded address with a very large balance *)
-  get_prefunded_address ()
+  get_prefunded_address
   >>= fun prefunded_address ->
   fund_account prefunded_address trent_keys
   >>= fun () ->
@@ -262,6 +261,13 @@ let prepare_server () =
        Lwt_io.printf "Funding account: %s\n%!" name
        >>= (fun () -> fund_account prefunded_address keys))
     account_key_list
-  >>= fun () -> Lwt_io.printf "Installing facilitator contract\n%!"
-  >>= install_contract
+  >>= fun () -> Lwt_io.printf "Loading facilitator contract...%!"
+  >>= fun () ->
+  try
+    load_contract ()
+    >>= fun () -> Lwt_io.printf "done\n%!"
+  with _ -> (
+      Lwt_io.printf "failed, installing contract...%!"
+             >>= install_contract
+             >>= fun () -> Lwt_io.printf "done\n%!")
   >>= fun () -> Lwt_io.printf "*** READY ***\n%!"

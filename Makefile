@@ -41,8 +41,8 @@ CONTRACT:=src/legicash_lib/facilitator_contract_binary.ml
 contract: $(CONTRACT)
 $(CONTRACT) : contracts/deposit-withdraw.sol $(wildcard contracts/*.sol)
 	$(SHOW) "Compiling facilitator contract"
-	cd contracts/ && solc --bin -o ../_build/contracts --overwrite court.sol
-	awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' < ./_build/contracts/Court.bin > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
+	$(HIDE)	cd contracts/ && solc --bin -o ../_build/contracts --overwrite court.sol
+	$(HIDE)	awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' < ./_build/contracts/Court.bin > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
 
 LEGICASH_LIB:=$(BUILD_DIR)/src/legicash_lib/legicash_lib.cmxs
 legicash_lib: $(LEGICASH_LIB)
@@ -69,10 +69,12 @@ $(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(LEGILOGIC_LIB)
 	$(HIDE) dune build src/endpoints/endpoints_test.exe
 
 run: $(API_SCGI)
-	cd src/endpoints && ../../$(API_SCGI)
+	$(SHOW) "Running SCGI server"
+	$(HIDE) cd src/endpoints && ../../$(API_SCGI)
 
 test-endpoints : $(ENDPOINTS_TEST)
-	cd src/endpoints && ../../$(ENDPOINTS_TEST)
+	$(SHOW) "Testing endpoints"
+	$(HIDE) cd src/endpoints && ../../$(ENDPOINTS_TEST)
 
 HELLO_LEGICASH:=$(BUILD_DIR)/src/hello_legicash.exe
 hello_legicash: $(HELLO_LEGICASH)
