@@ -40,20 +40,23 @@ val unparse_hex_string : string -> string
 (** Unparse a string as a string "nn:nn:...:nn", where nn represents a char as a hex-digit pair *)
 val unparse_coloned_hex_string : string -> string
 
-(** raise an Internal_error if the string doesn't strictly start with "0x" *)
-val validate_0x_prefix : string -> unit
-
 (** first check that a string strictly starts with "0x" then call parser on the rest of the string *)
 val parse_0x_prefix : (string -> 'a) -> string -> 'a
 
 (** create a string that starts with "0x" then the result of unparsing the given data *)
 val unparse_0x_prefix : ('a -> string) -> 'a -> string
 
-(** parse a string as an ethereum-style 0x-prefixed hex string *)
-val parse_0x_string : string -> string
+(** parse a string as an ethereum-style 0x-prefixed hex quantity, into a bignum *)
+val parse_0x_quantity : string -> Z.t
 
-(** unparse a string as an ethereum-style 0x-prefixed hex string *)
-val unparse_0x_string : string -> string
+(** unparse a bignum as an ethereum-style 0x-prefixed hex quantity *)
+val unparse_0x_quantity : Z.t -> string
+
+(** parse a string as an ethereum-style 0x-prefixed hex data string *)
+val parse_0x_data : string -> string
+
+(** unparse a string as an ethereum-style 0x-prefixed hex data string *)
+val unparse_0x_data : string -> string
 
 (** parse a string as an ethereum-style 0x-prefixed hex string, into bytes *)
 val parse_0x_bytes : string -> Bytes.t

@@ -4,9 +4,20 @@ type yojson = Yojson.Safe.json
 let string_of_yojson y = Yojson.Safe.to_string y
 let yojson_of_string s = Yojson.Safe.from_string s
 
+let pp_yojson formatter x = Format.fprintf formatter "%s" (string_of_yojson x)
+let show_yojson x = Format.asprintf "%a" pp_yojson x
+
+let yojson_to_yojson = identity
+let yojson_of_yojson x = Ok x
+let yojson_string s = `String s
+let yojson_list l = `List l
+
 module YoJson = struct
   include Yojson.Safe.Util
-  let mem key yojson = List.mem key (keys yojson)
+  let mem key yojson =
+    match yojson with
+    | `Assoc _ -> List.mem key (keys yojson)
+    | _ -> false
 end
 
 type 'a to_yojson = 'a -> yojson
@@ -117,7 +128,7 @@ module NotYojsonable (T : TypeS) = struct
 end
 
 let string_0x_yojsoning =
-  yojsoning_map Hex.unparse_0x_string Hex.parse_0x_string string_yojsoning
+  yojsoning_map Hex.unparse_0x_data Hex.parse_0x_data string_yojsoning
 
 let bytes_yojsoning =
   yojsoning_map Bytes.to_string Bytes.of_string string_0x_yojsoning

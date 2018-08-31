@@ -131,14 +131,6 @@ let sized_nat_of_hex_string bits string =
 let nat_of_hex_string string =
   sized_nat_of_hex_string (4 * String.length string) string
 
-let strict_nat_of_hex_string string =
-  if string = "0" then
-    Z.zero
-  else if String.length string > 0 && String.get string 0 = '0' then
-    bork "Hex number starts with 0"
-  else
-    nat_of_hex_string string
-
 let unary_pre_op_check op check info x =
   if check x then op x else
     let (module_name, op_name, to_string) = info in
@@ -184,8 +176,8 @@ module Int = struct
   let max_int = Z.of_int (-1)
   let of_hex_string = nat_of_hex_string
   let to_hex_string = hex_string_of_nat
-  let of_0x_string = parse_0x_prefix strict_nat_of_hex_string
-  let to_0x_string = unparse_0x_prefix hex_string_of_nat
+  let of_0x_string = parse_0x_quantity
+  let to_0x_string = unparse_0x_quantity
   let of_big_endian_bits bs = nat_of_big_endian_bits (Pervasives.( * ) 8 (String.length bs)) bs
   let to_big_endian_bits nat = big_endian_bits_of_nat (Z.numbits nat) nat
   (* TODO: Use ethereum-style json everywhere *)
@@ -505,7 +497,7 @@ module Test = struct
     List.for_all
       (fun (hex, err) -> try ignore (UInt256.of_0x_string hex) ; false with
            Internal_error x -> x = err)
-      [("0x", "Hex string has no digits");
-       ("0x0400","Hex number starts with 0");
-       ("ff","Hex string does not strictly begin with 0x")]
+      [("0x", "Hex quantity has no digits");
+       ("0x0400","Hex quantity has leading zero");
+       ("ff","Hex string does not begin with 0x")]
 end

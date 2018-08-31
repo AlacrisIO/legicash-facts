@@ -20,6 +20,11 @@ let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
 
 let private_key_length = 32
 
+(* Ethereum can deduce the correct 65th byte from just 64 ones.
+   TODO: Be like Ethereum.
+   Experimentally: looks like it is always 0x04:
+   cat src/endpoints/demo-keys-*json | grep public_key | cut -c1-21 | sort -u
+*)
 let public_key_length = 65
 
 let bytes_of_key key =
@@ -149,6 +154,9 @@ let make_keypair private_key_string public_key_string =
   let address = address_of_public_key public_key in
   Keypair.{address; public_key; private_key}
 
+let keypair_of_0x private_key_0x public_key_0x =
+  make_keypair (parse_0x_data private_key_0x) (parse_0x_data public_key_0x)
+
 let make_keypair_from_hex private_key_hex public_key_hex =
   make_keypair (parse_coloned_hex_string private_key_hex) (parse_coloned_hex_string public_key_hex)
 
@@ -196,7 +204,7 @@ let secp256k1_msg_of_string s =
   | Some msg -> msg
   | None -> bork "Could not create SECP256K1.Sign.msg from string"
 
-(* convert a Digest.t to a Secp256k1 msg representing the digest *)
+(* convert a Digest.`t to a Secp256k1 msg representing the digest *)
 let secp256k1_msg_of_digest digest =
   secp256k1_msg_of_string (Digest.to_big_endian_bits digest)
 
@@ -206,6 +214,8 @@ let make_signature make_digest private_key data =
   let secp256k1_msg = secp256k1_msg_of_digest (make_digest data) in
   match Secp256k1.Sign.sign_recoverable secp256k1_ctx ~sk:private_key secp256k1_msg with
   | Ok signature -> signature
+  (* For debugging what signatures are being made:
+     |> fun s -> Printf.printf "MADE sig %s <- digest %s privkey %s\n%!" (signature |> string_of_signature |> unparse_hex_string) (Digest.to_hex_string (make_digest data)) (unparse_hex_string (Bytes.to_string (bytes_of_key private_key))) ; s *)
   | Error e -> bork "Could not sign: %s" e
 
 let signature_vrs signature =
@@ -220,14 +230,19 @@ let signature_vrs signature =
   let s = string_from_signature_subarray 32 32 in
   (v, r, s)
 
-let address_matches_public_key address public_key =
-  Address.equal address (address_of_public_key public_key)
+let public_key_of_signature signature digest =
+  let msg = secp256k1_msg_of_digest digest in
+  Secp256k1.Sign.recover secp256k1_ctx ~msg ~signature
+
+let address_of_signature signature digest =
+  public_key_of_signature signature digest |> Result.map address_of_public_key
+(* For debugging what signatures are being checked:
+   |> Result.map (fun a -> Printf.printf "RECO sig %s digest %s -> addr %s\n%!" (signature |> string_of_signature |> unparse_hex_string) (Digest.to_hex_string digest) (Address.to_hex_string a) ; a) *)
 
 (* check validity of signature for data *)
 let is_signature_valid make_digest (address: Address.t) (signature: Signature.t) data =
-  let msg = secp256k1_msg_of_digest (make_digest data) in
-  match Secp256k1.Sign.recover secp256k1_ctx ~msg ~signature with
-  | Ok public_key -> address_matches_public_key address public_key
+  match address_of_signature signature (make_digest data) with
+  | Ok signer -> Address.equal signer address
   | Error _ -> false
 
 (* check validity of signature for payload within signed value *)
@@ -243,11 +258,7 @@ let marshal_signed marshal buffer {payload; signature} =
 let unmarshal_signed (unmarshal:'a unmarshaler) start bytes : 'a signed * int =
   let payload,payload_offset = unmarshal start bytes in
   let signature,final_offset = Signature.unmarshal payload_offset bytes in
-  ( { payload
-    ; signature
-    }
-  , final_offset
-  )
+  ({payload; signature}, final_offset)
 
 let marshaling_signed marshaling =
   { marshal = marshal_signed marshaling.marshal
@@ -308,22 +319,6 @@ module Test = struct
 
   let bob_address = bob_keys.address
 
-  let invert_hex hex_str = unparse_coloned_hex_string (parse_coloned_hex_string hex_str)
-
-  (* test that hex parsing and unparsing are inverses *)
-
-  let%test "inverse_1" =
-    let key =
-      "d5:69:84:dc:08:3d:76:97:01:71:4e:eb:1d:4c:47:a4:54:25:5a:3b:bc:3e:9f:44:84:20:8c:52:bd:a3:b6:4e"
-    in
-    invert_hex key = key
-
-  let%test "inverse_2" =
-    let key =
-      "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
-    in
-    invert_hex key = key
-
   (* test validity of digital signatures *)
 
   let%test "alice_signature" =
@@ -359,9 +354,7 @@ module Test = struct
   (* test that addresses are really last 20 bytes of Keccak256 hash of public keys *)
 
   let%test "alice_address_from_public_key" =
-    let alice_address = alice_keys.address in
-    unparse_coloned_hex_string (Address.to_big_endian_bits alice_address)
-    = "bb:d1:7b:e6:f6:83:f7:20:23:87:3a:fe:aa:57:c8:8d:24:b5:88:84"
+    Address.to_0x_string alice_keys.address = "0xbbd17be6f683f72023873afeaa57c88d24b58884"
 
   let%test "bob_address_from_public_key" =
     let bob_address = bob_keys.address in

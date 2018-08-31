@@ -34,9 +34,9 @@ let uncurry4 f (x, y, z, t) = f x y z t
 
 let make_counter ?(start=0) () =
   let r = ref start in
-  fun () -> let i = !r in r := i+1 ; i
+  fun ?(increment=1) () -> let count = !r in r := count + increment ; count
 
-
+let int_of_bool b = if b then 1 else 0
 
 (** Options *)
 module Option = struct
@@ -238,138 +238,6 @@ let the_global ref maker =
       ref := Some x;
       x
 
-module type FunctorS = sig
-  type _ t
-  val map : ('a -> 'b) -> 'a t -> 'b t
-  val (<$>) : ('a -> 'b) -> 'a t -> 'b t
-end
-module type ApplicativeS = sig
-  include FunctorS
-  val pure : 'a -> 'a t (* return of the monad *)
-  val ap : ('a -> 'b) t -> ('a t -> 'b t)
-end
-module type ArrowS = sig
-  type ('i, 'o) arr
-  val returnA : ('a, 'a) arr
-  val arr : ('i -> 'o) -> ('i, 'o) arr
-  val (>>>) : ('a, 'b) arr -> ('b, 'c) arr -> ('a, 'c) arr
-  val const : 'a -> (_, 'a) arr
-  val forever : ('a, 'a) arr -> ('a, _) arr
-end
-
-module type MonadBaseS = sig
-  type _ t
-  val return : 'a -> 'a t
-  val bind : 'a t -> ('a -> 'b t) -> 'b t
-end
-module type MonadS = sig
-  include MonadBaseS
-  include ApplicativeS with type 'a t := 'a t
-  include ArrowS with type ('i, 'o) arr = 'i -> 'o t
-  val (>>=) : 'a t -> ('a, 'b) arr -> 'b t
-  val (>>|) : 'a t -> ('a -> 'b) -> 'b t
-end
-module Monad (M : MonadBaseS) = struct
-  include M
-  let (>>=) = bind
-  let map f m = bind m (f >> return)
-  let (<$>) = map
-  let (>>|) m f = map f m
-  let pure = return
-  type ('i, 'o) arr = 'i -> 'o t
-  let returnA = return
-  let arr f x = x |> f |> return
-  let (>>>) f g x = x |> f >>= g
-  let const x = fun _ -> return x
-  let ap mf m = mf >>= fun f -> m >>= arr f
-  let rec forever arr acc = (arr acc) >>= (forever arr)
-end
-module type ErrorMonadS = sig
-  type error
-  include MonadS
-
-  (** computations that fail *)
-  val fail : error -> _ t
-end
-module ErrorMonad (Error: TypeS) = struct
-  type error = Error.t
-  let fail e = Error e
-  module B = struct
-    type +'a t = ('a, error) result
-    let return x = Ok x
-    let bind m fm = match m with
-      | Ok x -> fm x
-      | Error e -> Error e
-  end
-  include Monad(B)
-end
-
-module type ReaderMonadBaseS = sig
-  type state
-  include MonadBaseS
-  val state : state t
-end
-module type ReaderMonadS = sig
-  include ReaderMonadBaseS
-  include MonadS with type 'a t := 'a t
-  val get_state : _ -> state t
-  val pair_with_state : 'a -> ('a * state) t
-end
-module ReaderMonadMethods (B: ReaderMonadBaseS) = struct
-  include B
-  let get_state _ = state
-  let pair_with_state = fun x -> bind state (fun s -> return (x, s))
-end
-module ReaderMonad (State: TypeS) = struct
-  module B = struct
-    type state = State.t
-    type +'a t = state -> 'a
-    let return x _s = x
-    let bind m fm s = fm (m s) s
-    let state s = s
-  end
-  include Monad(B)
-  include (ReaderMonadMethods(B) : module type of ReaderMonadMethods(B) with type 'a t := 'a t)
-end
-
-module type StateMonadBaseS = sig
-  include ReaderMonadBaseS
-  val put_state : state -> unit t
-end
-module type StateMonadS = sig
-  include StateMonadBaseS
-  include ReaderMonadS with type state := state and type 'a t := 'a t
-
-  (** change the state, otherwise the identity arrow *)
-  val map_state : (state -> state) -> ('a, 'a) arr
-
-  (** a pure computation can read the state but have no other side-effect *)
-  type ('i, 'o) readonly
-  val of_readonly : ('i, 'o) readonly -> ('i, 'o) arr
-end
-module StateMonadMethods (B: StateMonadBaseS) = struct
-  include ReaderMonadMethods(B)
-  let map_state f = fun x -> B.bind B.state (fun s -> B.bind (B.put_state (f s)) (fun () -> B.return x))
-end
-module StateMonad (State: TypeS) = struct
-  module Base = struct
-    type state = State.t
-    type +'a t = state -> ('a * state)
-    let return x s = (x, s)
-    let bind m fm s = m s |> uncurry fm
-    let state s = (s, s)
-    let put_state s _ = ((), s)
-    type ('i, 'o) readonly = 'i -> state -> 'o
-    let of_readonly r x s = (r x s, s)
-  end
-  include Base
-  include (Monad(Base) : MonadS with type 'a t := 'a t)
-  include (StateMonadMethods(Base) : module type of ReaderMonadMethods(Base)
-           with type state := state
-            and type 'a t := 'a t)
-  let map_state f x s = (x, f s)
-end
-
 let write_file ~path content =
   let oc = open_out path in
   output_string oc content;
@@ -382,3 +250,6 @@ let read_file path =
   really_input ic b 0 n;
   close_in ic;
   Bytes.to_string b
+
+let ignoring_errors default f x =
+  try f x with _ -> default

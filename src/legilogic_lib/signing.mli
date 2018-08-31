@@ -53,6 +53,9 @@ val signed_of_digest : ('a -> digest) -> keypair -> 'a -> 'a signed
 (** Secp256k1 context for signing and validation *)
 (* val secp256k1_ctx : Secp256k1.Context.t *)
 
+(** given 0x-string public, private keys, generate Secp256k1 key pair *)
+val keypair_of_0x : string -> string -> keypair
+
 (** given hex-string public, private keys, generate Secp256k1 key pair *)
 val make_keypair_from_hex : string -> string -> keypair
 
@@ -95,6 +98,12 @@ val address_of_nickname : string -> address
 
 (** Given a public_key, compute its address *)
 val address_of_public_key : public_key -> address
+
+(** Given a signature and a digest, extract the signing public key if possible *)
+val public_key_of_signature : signature -> digest -> (public_key, string) result
+
+(** Given a signature and a digest, extract the signing address if possible *)
+val address_of_signature : signature -> digest -> (address, string) result
 
 (** check signature for given value *)
 val is_signature_valid : ('a -> digest) -> address -> signature -> 'a -> bool

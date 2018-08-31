@@ -1,87 +1,116 @@
-open Lwt
-open Cohttp
-open Cohttp_lwt_unix
-
 open Legilogic_lib
 open Lib
+open Hex
 open Yojsoning
-open Logging
+open Json_rpc
+open Signing
+open Types
 
-type ethereum_rpc_call =
-  (* DApps methods, use anywhere *)
-  | Eth_getBalance
-  | Eth_sendTransaction
-  | Eth_getTransactionByHash
-  | Eth_getTransactionCount
-  | Eth_getTransactionReceipt
-  (* Geth-specific methods, should only be used in tests *)
-  | Personal_importRawKey
-  | Personal_listAccounts
-  | Personal_newAccount
-  | Personal_unlockAccount
-[@@deriving show]
+open Main_chain
 
-(* network parameters for geth or other node *)
+type block_parameter =
+  | Block_number of Revision.t
+  | Latest
+  | Earliest
+  | Pending
+
+(** Network parameters for geth or other node on localhost *)
 let ethereum_net = Uri.make ~scheme:"http" ~host:"localhost" ~port:8545 ()
 
-let json_rpc_version = "2.0"
+let ethereum_json_rpc
+      method_name result_decoder param_encoder ?(timeout=rpc_timeout) ?(log= !rpc_log) params =
+  json_rpc ethereum_net method_name result_decoder param_encoder ~timeout ~log params
 
-(* Global state, e.g. to correlate responses and answers in logs. *)
-let id_counter = make_counter ()
+let yojson_of_string_list = List.map yojson_string >> yojson_list
+let yojson_singleton x = `List [x]
 
-let rcp_timeout = 2.0 (* seconds *)
+(* DApps methods, use anywhere *)
 
-let send_rpc_call_to_net json =
-  let json_str = string_of_yojson json in
-  (* For debugging, uncomment this line: *)
-  log "Sending rpc call to geth: %s" json_str;
-  let timeout =
-    Lwt_unix.sleep rcp_timeout >>= fun () ->
-    Lwt.return (`Assoc[("error",`String "Timed out")])
-  in
-  let post =
-    Client.post
-      ~body:(Cohttp_lwt__.Body.of_string json_str)
-      ~headers:(Cohttp.Header.add (Cohttp.Header.init ()) "Content-Type" "application/json")
-      ethereum_net
-    >>= fun (resp, body) ->
-    let _ = resp |> Response.status |> Code.code_of_status in
-    Cohttp_lwt.Body.to_string body
-    >>= fun response_str ->
-    (* For debugging, uncomment this line: *)
-    log "Receive rpc response from geth: %s" response_str;
-    Lwt.return (yojson_of_string response_str)
-  in
-  Lwt.pick [timeout; post]
+let block_parameter_to_yojson = function
+  | Block_number x -> Revision.to_yojson x
+  | Latest -> `String "latest"
+  | Earliest -> `String "earliest"
+  | Pending -> `String "pending"
 
-(* given constructor, build JSON RPC call name *)
-let json_rpc_callname call =
-  let full_name = show_ethereum_rpc_call call in
-  let len = String.length full_name in
-  let name =
-    try
-      let dotndx = String.index full_name '.' in
-      String.sub full_name (dotndx + 1) (len - dotndx - 1)
-    with Not_found -> full_name
-  in
-  (* constructor is capitalized, actual name is not *)
-  String.uncapitalize_ascii name
-
-
-(* common case: all parameters are strings *)
-let build_json_rpc_call call params : yojson =
-  let string_params = List.map (fun s -> `String s) params in
+let transaction_to_yojson Transaction.{tx_header = { sender; gas_limit; gas_price; value }; operation } =
+  let operation_parameters = match operation with
+    | Operation.TransferTokens recipient ->
+      [("to", Address.to_yojson recipient)]
+    | Operation.CreateContract code ->
+      [("data", `String (unparse_0x_bytes code))]
+    | Operation.CallFunction (recipient, data) ->
+      [("to", Address.to_yojson recipient);
+       ("data", `String (unparse_0x_bytes data))] in
   `Assoc
-    [ ("jsonrpc", `String json_rpc_version)
-    ; ("method", `String (json_rpc_callname call))
-    ; ("params", `List string_params)
-    ; ("id", `Int (id_counter ())) ]
+    (List.append
+       [ ("from", Address.to_yojson sender)
+       ; ("gas", TokenAmount.to_yojson gas_limit)
+       ; ("gasPrice", TokenAmount.to_yojson gas_price)
+       ; ("value", TokenAmount.to_yojson value) ]
+       operation_parameters)
 
+let eth_accounts =
+  ethereum_json_rpc "eth_accounts"
+    (list_of_yojson_exn Address.of_yojson_exn)
+    (fun () -> `Null)
 
-(* less common case: some parameters are not strings, so they're type-tagged *)
-let build_json_rpc_call_with_tagged_parameters call params =
-  `Assoc
-    [ ("jsonrpc", `String json_rpc_version)
-    ; ("method", `String (json_rpc_callname call))
-    ; ("params", `List params)
-    ; ("id", `Int (id_counter ())) ]
+let eth_estimate_gas =
+  ethereum_json_rpc "eth_estimateGas"
+    TokenAmount.of_yojson_exn
+    (fun (transaction, block_parameter) ->
+       `List [transaction_to_yojson transaction; block_parameter_to_yojson block_parameter])
+
+let eth_get_balance =
+  ethereum_json_rpc "eth_getBalance"
+    TokenAmount.of_yojson_exn
+    (fun (address, block_parameter) ->
+       `List [Address.to_yojson address; block_parameter_to_yojson block_parameter])
+
+let eth_get_transaction_by_hash =
+  ethereum_json_rpc "eth_getTransactionByHash"
+    TransactionInformation.of_yojson_exn
+    (Digest.to_yojson >> yojson_singleton)
+
+let eth_get_transaction_count =
+  ethereum_json_rpc "eth_getTransactionCount"
+    Nonce.of_yojson_exn
+    (fun (address, block_parameter) ->
+       `List [Address.to_yojson address; block_parameter_to_yojson block_parameter])
+
+let eth_get_transaction_receipt =
+  ethereum_json_rpc "eth_getTransactionReceipt"
+    (option_of_yojson_exn TransactionReceipt.of_yojson_exn)
+    (Digest.to_yojson >> yojson_singleton)
+
+let eth_send_transaction =
+  ethereum_json_rpc "eth_sendTransaction"
+    Digest.of_yojson_exn
+    (transaction_to_yojson >> yojson_singleton)
+
+(* Geth-specific methods, should only be used in tests *)
+
+let personal_import_raw_key =
+  ethereum_json_rpc "personal_importRawKey"
+    Address.of_yojson_exn
+    (fun (private_key, password) ->
+       yojson_of_string_list
+         [ private_key |> PrivateKey.marshal_string |> Hex.unparse_hex_string
+         ; password ])
+
+let personal_list_accounts =
+  ethereum_json_rpc "personal_listAccounts"
+    (list_of_yojson_exn Address.of_yojson_exn)
+    (fun () -> `Null)
+
+let personal_new_account =
+  ethereum_json_rpc "personal_newAccount"
+    Address.of_yojson_exn
+    (fun password -> `List [`String password])
+
+let personal_unlock_account =
+  ethereum_json_rpc "personal_unlockAccount"
+    YoJson.to_bool
+    (fun (address, password, duration) ->
+       `List [ Address.to_yojson address
+             ; `String password
+             ; `Int (Option.defaulting (konstant 5) duration) ])
