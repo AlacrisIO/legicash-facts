@@ -109,10 +109,14 @@ module Test = struct
          fund_account prefunded_address keys)
       [alice_keys; bob_keys; trent_keys]
 
+  let contract_address_key = "legicash.contract-address"
+
+  (* TODO: use beyond testing *)
   let install_contract () =
     let open Lwt in
     let open Main_chain in
     let open Ethereum_transaction in
+    (* TODO: use real side chain account *)
     Test.get_first_account ()
     >>= fun contract_account_json ->
     let contract_account = YoJson.to_string contract_account_json in
@@ -146,7 +150,15 @@ module Test = struct
       |> Address.of_yojson_exn
     in
     Facilitator_contract.set_contract_address contract_address;
-    return ()
+    Db.put contract_address_key (Address.to_0x_string contract_address)
+    >>= Db.commit
+
+  let load_contract () =
+    match Db.get contract_address_key with
+    | Some addr ->
+      Facilitator_contract.set_contract_address (Address.of_0x_string addr);
+      return_unit
+    | None -> bork "Could not load contract address"
 
   (* deposit and payment test *)
   let%test "deposit_and_payment_valid" =
