@@ -129,8 +129,7 @@ let create_side_chain_user_state user_keys =
       ; pending_transactions= []
       ; nonce= Nonce.zero }
   in
-  let (user_account_state : UserAccountState.t) =
-    {facilitator_validity= Confirmed; confirmed_state= AccountState.empty; pending_operations= []}
+  let (user_account_state : UserAccountState.t) = UserAccountState.empty
   in
   let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
   UserState.{main_chain_user_state; facilitators; notifications= []}
@@ -167,8 +166,7 @@ let user_accounts_from_trent_state address =
   let accounts = trent_state.current.accounts in
   try
     let user_account = AccountMap.find address accounts in
-    let account_state =
-      {facilitator_validity= Confirmed; confirmed_state= user_account; pending_operations= []}
+    let account_state = {UserAccountState.empty with confirmed_state= user_account}
     in
     UserAccountStateMap.singleton trent_address account_state
   with Not_found ->
