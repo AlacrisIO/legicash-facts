@@ -6,11 +6,5 @@
   main_chain ethereum_util ethereum_json_rpc ethereum_rlp ethereum_abi
   ethereum_transaction ethereum_patricia_merkle ethereum_action)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
- ;; -9 : all fields mentioned in a pattern
- ;; -27 : unused variable
- ;; -32 : unused value
- ;; -34 : unused type
- (ocamlc_flags (:standard -g -w -9-34 -warn-error -27-32-33 -thread -I +threads))
- (ocamlopt_flags (:standard -p -g -w -9-34 -warn-error -27-32-33 -thread -I +threads))
  (libraries legilogic_lib cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
  (inline_tests))

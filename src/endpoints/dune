@@ -1,30 +1,21 @@
 ;; dune file for Legicash endpoints demo
 
+(env (dev (flags (:standard -w -39))))  ;; Unused rec flag
+
 (library
  (name endpoints)
  (modules accounts actions)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson lwt_ppx))
- ;; -9 : all fields mentioned in a pattern
- ;; -27 : unused variable
- ;; -32 : unused value
- ;; -34 : unused type
- ;; -39 : unused rec (@@deriving yojson yields these)
- (ocamlc_flags (:standard -g -w -9-34-39 -warn-error -27-32-33))
- (ocamlopt_flags (:standard -g -w -9-34-39 -warn-error -27-32-33)) ;; NB: add -p to the flags for profiling
  (libraries legicash_lib integers lwt lwt.unix ppx_deriving_yojson.runtime secp256k1 yojson))
 
 (executable
   (name api_scgi)
   (modules api_scgi)
   (preprocess (pps ppx_deriving.std ppx_inline_test ppx_deriving_yojson))
-  (ocamlc_flags (:standard -g -w -9-34-39 -warn-error -27-32-33))
-  (ocamlopt_flags (:standard -g -w -9-34-39 -warn-error -27-32-33)) ;; NB: add -p here for profiling
   (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime legicash_lib endpoints str scgi unix))
 
 (executable
  (name endpoints_test)
  (modules endpoints_test)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson lwt_ppx))
- (ocamlc_flags (:standard -g -w -9-34-39 -warn-error -27-32-33))
- (ocamlopt_flags (:standard -g -w -9-34-39 -warn-error -27-32-33)) ;; NB: add -p here for profiling
  (libraries cohttp cohttp-lwt-unix endpoints ppx_deriving_yojson.runtime legilogic_lib lwt))
