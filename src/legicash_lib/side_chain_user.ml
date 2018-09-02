@@ -217,40 +217,40 @@ let issue_user_request operation =
 (* TODO: is this used? should balances and revisions be updated in effect_request?
    looks like balances already are
 *)
-let update_account_state_with_trusted_operation
-      trusted_operation ({balance} as account_state : AccountState.t) =
-  let f =
-    {account_state with account_revision= Revision.add account_state.account_revision Revision.one} in
-  match trusted_operation with
-  | Operation.Deposit {deposit_amount; deposit_fee=_deposit_fee} ->
-    if true (* check that everything is correct *) then
-      {f with balance= TokenAmount.add balance deposit_amount}
-    else bork "I mistrusted your deposit operation"
-  | Operation.Payment {payment_invoice; payment_fee} ->
-    let decrement = TokenAmount.add payment_invoice.amount payment_fee in
-    if TokenAmount.compare balance decrement >= 0 then
-      {f with balance= TokenAmount.sub balance decrement}
-    else bork "I mistrusted your payment operation"
-  | Operation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
-    if true (* check that everything is correct *) then
-      {f with balance= TokenAmount.sub balance (TokenAmount.add withdrawal_amount withdrawal_fee)}
-    else bork "I mistrusted your withdrawal operation"
-
-(** We assume most recent operation is to the left of the changes list,
-*)
-let update_account_state_with_trusted_operations trusted_operations account_state =
-  List.fold_right update_account_state_with_trusted_operation trusted_operations account_state
-
-let [@warning "-32"] optimistic_facilitator_account_state facilitator_address user_state =
-  match UserAccountStateMap.find_opt facilitator_address user_state.UserState.facilitators with
-  | None -> AccountState.empty
-  | Some {facilitator_validity; confirmed_state; pending_operations} ->
-    match facilitator_validity with
-    | Rejected -> confirmed_state
-    | _ ->
-      update_account_state_with_trusted_operations
-        (List.map (fun x -> x.Episteme.request.payload.operation) pending_operations)
-        confirmed_state
+(* let update_account_state_with_trusted_operation
+ *       trusted_operation ({balance} as account_state : AccountState.t) =
+ *   let f =
+ *     {account_state with account_revision= Revision.add account_state.account_revision Revision.one} in
+ *   match trusted_operation with
+ *   | Operation.Deposit {deposit_amount; deposit_fee=_deposit_fee} ->
+ *     if true (\* check that everything is correct *\) then
+ *       {f with balance= TokenAmount.add balance deposit_amount}
+ *     else bork "I mistrusted your deposit operation"
+ *   | Operation.Payment {payment_invoice; payment_fee} ->
+ *     let decrement = TokenAmount.add payment_invoice.amount payment_fee in
+ *     if TokenAmount.compare balance decrement >= 0 then
+ *       {f with balance= TokenAmount.sub balance decrement}
+ *     else bork "I mistrusted your payment operation"
+ *   | Operation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
+ *     if true (\* check that everything is correct *\) then
+ *       {f with balance= TokenAmount.sub balance (TokenAmount.add withdrawal_amount withdrawal_fee)}
+ *     else bork "I mistrusted your withdrawal operation"
+ * 
+ * (\** We assume most recent operation is to the left of the changes list,
+ * *\)
+ * let update_account_state_with_trusted_operations trusted_operations account_state =
+ *   List.fold_right update_account_state_with_trusted_operation trusted_operations account_state
+ * 
+ * let [@warning "-32"] optimistic_facilitator_account_state facilitator_address user_state =
+ *   match UserAccountStateMap.find_opt facilitator_address user_state.UserState.facilitators with
+ *   | None -> AccountState.empty
+ *   | Some {facilitator_validity; confirmed_state; pending_operations} ->
+ *     match facilitator_validity with
+ *     | Rejected -> confirmed_state
+ *     | _ ->
+ *       update_account_state_with_trusted_operations
+ *         (List.map (fun x -> x.Episteme.request.payload.operation) pending_operations)
+ *         confirmed_state *)
 
 let lift_main_chain_user_async_action_to_side_chain main_chain_user_async_action input user_state =
   Lwt.bind
