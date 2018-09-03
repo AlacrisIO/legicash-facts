@@ -91,52 +91,14 @@ module ExnMonad = struct
   let catching a i = try Ok (a i) with e -> Error e
 end
 
-module type ReaderMonadBaseS = sig
+module type StateMonadS = sig
   type state
   include MonadBaseS
-  val state : state t
-end
-module type ReaderMonadS = sig
-  include ReaderMonadBaseS
   include MonadS with type 'a t := 'a t
-  val get_state : _ -> state t
-  val pair_with_state : 'a -> ('a * state) t
-end
-module ReaderMonadMethods (B: ReaderMonadBaseS) = struct
-  include B
-  let get_state _ = state
-  let pair_with_state = fun x -> bind state (fun s -> return (x, s))
-end
-module ReaderMonad (State: TypeS) = struct
-  module B = struct
-    type state = State.t
-    type +'a t = state -> 'a
-    let return x _s = x
-    let bind m fm s = fm (m s) s
-    let state s = s
-  end
-  include Monad(B)
-  include (ReaderMonadMethods(B) : module type of ReaderMonadMethods(B) with type 'a t := 'a t)
-end
-
-module type StateMonadBaseS = sig
-  include ReaderMonadBaseS
-  val put_state : state -> unit t
-end
-module type StateMonadS = sig
-  include StateMonadBaseS
-  include ReaderMonadS with type state := state and type 'a t := 'a t
-
-  (** change the state, otherwise the identity arrow *)
+  val state : state t
   val map_state : (state -> state) -> ('a, 'a) arr
-
-  (** a pure computation can read the state but have no other side-effect *)
   type ('i, 'o) readonly
   val of_readonly : ('i, 'o) readonly -> ('i, 'o) arr
-end
-module StateMonadMethods (B: StateMonadBaseS) = struct
-  include ReaderMonadMethods(B)
-  let map_state f = fun x -> B.bind B.state (fun s -> B.bind (B.put_state (f s)) (fun () -> B.return x))
 end
 module StateMonad (State: TypeS) = struct
   module Base = struct
@@ -145,15 +107,11 @@ module StateMonad (State: TypeS) = struct
     let return x s = (x, s)
     let bind m fm s = m s |> uncurry fm
     let state s = (s, s)
-    let put_state s _ = ((), s)
     type ('i, 'o) readonly = 'i -> state -> 'o
     let of_readonly r x s = (r x s, s)
   end
   include Base
   include (Monad(Base) : MonadS with type 'a t := 'a t)
-  include (StateMonadMethods(Base) : module type of ReaderMonadMethods(Base)
-           with type state := state
-            and type 'a t := 'a t)
   let map_state f x s = (x, f s)
 end
 
@@ -222,10 +180,7 @@ module Action (State : TypeS) = struct
       | Ok a, s' -> f a s'
       | Error e, s' -> Error e, s'
     end)
-  let pair_with_state x s = (Ok (x, s), s)
   let state s = Ok s, s
-  let get_state _ = state
-  let put_state s _ = Ok (), s
   let map_state f x s = Ok x, f s
   let fail failure s = Error failure, s
   type ('i, 'o) readonly = 'i -> state -> 'o
@@ -267,10 +222,7 @@ module AsyncAction (State : TypeS) = struct
                            | Error e, s' -> Lwt.return (Error e, s'))
     end)
   module Action = Action(State)
-  let pair_with_state x s = (Ok (x, s), s) |> Lwt.return
   let state s = (Ok s, s) |> Lwt.return
-  let get_state _ = state
-  let put_state s _ = (Ok (), s) |> Lwt.return
   let map_state f x s = (Ok x, f s) |> Lwt.return
   let fail failure s = Action.fail failure s |> Lwt.return
   let assert_ where pure_action value state =
