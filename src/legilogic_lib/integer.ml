@@ -500,4 +500,16 @@ module Test = struct
       [("0x", "Hex quantity has no digits");
        ("0x0400","Hex quantity has leading zero");
        ("ff","Hex string does not begin with 0x")]
+
+  let test_inverse_property =
+    QCheck.Test.make ~count:10000 ~name:"hex_parse_unparse_is_identity"
+      QCheck.int64 (fun i ->
+          QCheck.assume (i >= Int64.zero);
+          let our_int = UInt64.of_int64 i in
+          let as_hex = "0x" ^ (UInt64.to_hex_string our_int) in
+          UInt64.of_0x_string as_hex = our_int)
+
+  let%test "hex parse/unparse is identity" =
+    QCheck.Test.check_exn test_inverse_property; true
+
 end
