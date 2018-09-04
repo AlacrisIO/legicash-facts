@@ -36,7 +36,7 @@ val schoenfinkel : ('a -> 'b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 (** SKI combinators, 4: verTauschungsfunktion (exchange funcTion), flip in Haskell *)
 val transpose : ('a -> 'b -> 'c) -> 'b -> 'a -> 'c
 
-(** SKI combinators, 5: Zusammensetzungsfunktion (compoZition function) *)
+(** SKI combinators, 5: Zusammensetzungsfunktion (compoZition function), (.) in Haskell *)
 val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
 val (>>) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
