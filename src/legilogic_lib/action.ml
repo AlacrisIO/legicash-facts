@@ -244,3 +244,15 @@ module AsyncAction (State : TypeS) = struct
     | Ok x -> return x
     | Error e -> a e
 end
+
+module Test = struct
+  module Error_string_monad = ErrorMonad(struct
+      type t = string
+      type error = string
+    end)
+  let%test "Lwt_exn error handling works as expected" =
+  Error_string_monad.(
+    match trying (fun _ -> Error "error") 0 >>= handling (fun x -> fail x) with
+    | Error _ -> true
+    | Ok _ -> false)
+end
