@@ -2,8 +2,8 @@
 
 here=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 top=$(dirname "$here")
-build=$top/src/_build/default
-legicaml=$build/legicaml.exe
+build=$top/_build/default
+legicaml=$build/src/legicaml.exe
 
 if [ ! -x $legicaml ] ; then
     echo "Please run \"make toplevel\" before running $0";
@@ -14,7 +14,7 @@ LIB=
 
 use_lib () {
     for lib ; do
-        LIB=(${LIB[@]} -I "$build/$lib/.$lib.objs" -open "${lib^}")
+        LIB=(${LIB[@]} -I "$build/src/$lib/.$lib.objs" -open "${lib^}")
     done
 }
 

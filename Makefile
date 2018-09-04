@@ -105,11 +105,11 @@ test: $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Running Legicash tests"
 	$(HIDE) dune runtest -j 1
 
-TOPLEVEL=$(BUILD_DIR)/legicaml.exe
+TOPLEVEL=$(BUILD_DIR)/src/legicaml.exe
 toplevel: $(TOPLEVEL)
 $(TOPLEVEL): $(ML_SOURCES) $(CONTRACT) legilogic_lib legilogic_ethereum legicash_lib endpoints
 	$(SHOW) "Building custom OCaml toplevel"
-	$(HIDE) dune build legicaml.exe
+	$(HIDE) dune build src/legicaml.exe
 
 # name of custom toplevel
 repl: ./bin/legicaml $(TOPLEVEL)
