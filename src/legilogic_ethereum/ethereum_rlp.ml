@@ -133,6 +133,8 @@ let decode (RlpEncoding s as encoding) =
   else bork "For encoding: %s, got leftover data: %s" (show encoding) (String.sub s offset (len - offset))
 
 module Test = struct
+  open Ethereum_util.Test
+
   (* tests of encoding, from reference given at top *)
 
   let%test "empty_string_rlp" = encode_string "" = RlpEncoding (String.make 1 (Char.chr 0x80))
@@ -142,8 +144,10 @@ module Test = struct
   (* from https://github.com/ethereum/tests/blob/develop/RLPTests/rlptest.json *)
   let%test "short_list_rlp" =
     let items = List.map (fun it -> RlpItem it) ["dog"; "god"; "cat"] in
-    to_string (encode (RlpItems items))
-    = parse_0x_string "0xcc83646f6783676f6483636174"
+    expect_0x_string "short_list_rlp"
+      "0xcc83646f6783676f6483636174"
+      (encoded_string (RlpItems items));
+    true
 
   (* from https://github.com/ethereum/tests/blob/develop/RLPTests/rlptest.json *)
   let%test "dict_rlp" =
@@ -153,12 +157,16 @@ module Test = struct
     let row3 = mk_row ["key3"; "val3"] in
     let row4 = mk_row ["key4"; "val4"] in
     let items = RlpItems [row1; row2; row3; row4] in
-    to_string (encode items)
-    = parse_0x_string
-        "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"
+    expect_0x_string "dict_rlp"
+      "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"
+      (encoded_string items);
+    true
 
   let%test "small_int_rlp" =
-    to_string (encode_int 1000) = parse_0x_string "0x8203e8"
+    expect_0x_string "small_int_rlp"
+      "0x8203e8"
+      (to_string (encode_int 1000));
+    true
 
   let%test "cat_dog_rlp" =
     let cat_item = RlpItem "cat" in
@@ -234,7 +242,7 @@ module Test = struct
     (* based on example at https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f;
        the expected value below is what the NodeJS implementation gives *)
     let items =
-      [ "0x0"
+      [ "0x"
       ; "0x04a817c800"
       ; "0x0186a0"
       ; "0x687422eea2cb73b5d3e242ba5456b782919afc85"
@@ -244,10 +252,9 @@ module Test = struct
       ; "0x668ed6500efd75df7cb9c9b9d8152292a75453ec2d11030b0eec42f6a7ace602"
       ; "0x3efcbbf4d53e0dfa4fde5c6d9a73221418652abc66dff7fddd78b81cc28b9fbf" ]
     in
-    let rlp_items = RlpItems (List.map (fun it -> RlpItem (parse_0x_string it)) items) in
-    let rlp = to_string (encode rlp_items) in
-    let expected_rlp =
+    let rlp_items = RlpItems (List.map (fun it -> RlpItem (parse_0x_data it)) items) in
+    expect_0x_string "encode-list"
       "0xf869808504a817c800830186a094687422eea2cb73b5d3e242ba5456b782919afc858203e882c0de1ca0668ed6500efd75df7cb9c9b9d8152292a75453ec2d11030b0eec42f6a7ace602a03efcbbf4d53e0dfa4fde5c6d9a73221418652abc66dff7fddd78b81cc28b9fbf"
-    in
-    unparse_0x_string rlp = expected_rlp
+      (encoded_string rlp_items);
+    true
 end

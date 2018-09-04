@@ -75,7 +75,7 @@ let check_side_chain_request_well_formed :
   (Request.t signed * bool, Request.t signed * bool) FacilitatorAction.arr =
   let open FacilitatorAction in
   fun x state ->
-    let ({ payload ; signature }, is_forced) = x in
+    let ({payload} as sr, is_forced) = x in
     let Request.{ rx_header={ requester; requester_revision }; operation } = payload in
     let AccountState.{balance; account_revision} = (facilitator_account_lens requester).get state in
     let FacilitatorState.{fee_schedule} = state in
@@ -91,8 +91,8 @@ let check_side_chain_request_well_formed :
           (fun () ->
              Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
                (to_string requester_revision) (to_string (add account_revision one)))
-        >>> check (is_signature_valid Request.digest requester signature payload)
-              (fun () -> "The signature for the request doesn't match the requester")
+        >>> check (is_signed_value_valid Request.digest requester sr)
+              (konstant "The signature for the request doesn't match the requester")
         (* TODO: check confirmed main & side chain state + validity window *)
         >>> (* Check that the numbers add up: *)
         let open TokenAmount in
@@ -100,10 +100,7 @@ let check_side_chain_request_well_formed :
         | Deposit
             { deposit_amount
             ; deposit_fee
-            ; main_chain_deposit_signed=
-                { signature
-                ; payload= {tx_header= {value}} as payload
-                } as main_chain_deposit_signed
+            ; main_chain_deposit={tx_header= {value}} as main_chain_deposit
             ; main_chain_deposit_confirmation
             ; deposit_expedited } ->
           check (is_sum value deposit_amount deposit_fee)
@@ -111,15 +108,14 @@ let check_side_chain_request_well_formed :
                Printf.sprintf "Deposit amount %s and fee %s fail to add up to deposit value %s"
                  (to_string deposit_amount) (to_string deposit_fee) (to_string value))
           >>> check (not (is_forced && deposit_expedited))
-                (fun () -> "You cannot force an expedited deposit")
+                (konstant "You cannot force an expedited deposit")
           >>> check (is_forced || compare deposit_fee fee_schedule.deposit_fee >= 0)
                 (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
                              (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
-          (* TODO: use the same signature checking protocol to the main chain *)
-          >>> check (is_signature_valid Main_chain.Transaction.digest requester signature payload)
-                (fun () -> "The signature for the main chain deposit doesn't match the requester")
+          (* TODO: CHECK FROM THE CONFIRMATION THAT THE CORRECT PERSON DID THE DEPOSIT,
+             AND/OR THAT IT WAS TAGGED WITH THE CORRECT RECIPIENT. *)
           >>> check (Main_chain.is_confirmation_valid
-                       main_chain_deposit_confirmation main_chain_deposit_signed)
+                       main_chain_deposit_confirmation main_chain_deposit)
                 (fun () -> "The main chain deposit confirmation is invalid")
         | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
           check (is_add_valid payment_invoice.amount payment_fee)
@@ -215,9 +211,9 @@ exception Insufficient_balance of string
    Have more expensive process to account for old deposits?)
 *)
 let check_against_double_accounting
-      (main_chain_transaction_signed : Main_chain.TransactionSigned.t)
+      (main_chain_transaction : Main_chain.Transaction.t)
   : ('a, 'a) FacilitatorAction.arr =
-  let witness = Main_chain.TransactionSigned.digest main_chain_transaction_signed in
+  let witness = Main_chain.Transaction.digest main_chain_transaction in
   let lens =
     FacilitatorState.lens_current
     |-- State.lens_main_chain_transactions_posted
@@ -250,9 +246,9 @@ let effect_request : ( Request.t signed, Request.t signed) FacilitatorAction.arr
     let requester = signed_request_requester rx in
     rx
     |> match rx.payload.operation with
-    | Deposit { deposit_amount; deposit_fee; main_chain_deposit_signed; deposit_expedited } ->
+    | Deposit { deposit_amount; deposit_fee; main_chain_deposit; deposit_expedited } ->
       maybe_spend_spending_limit deposit_expedited deposit_amount
-      >>> check_against_double_accounting main_chain_deposit_signed
+      >>> check_against_double_accounting main_chain_deposit
       >>> credit_balance deposit_amount requester
       >>> accept_fee deposit_fee
     | Payment {payment_invoice; payment_fee; payment_expedited} ->
@@ -378,14 +374,13 @@ let validated_request_loop =
              request_batch facilitator_state 0)
 
 let start_facilitator address =
-  let open Lwt_monad in
-  let open Lwt in
+  let open Lwt_exn in
   match !the_facilitator_service_ref with
   | Some x ->
     if Address.equal x.address address then
       (Logging.log "Facilitator service already running for address %s, not starting another one"
          (Address.to_0x_string address);
-       return_unit)
+       return ())
     else
       bork "Cannot start a facilitator service for address %s because there's already one for %s"
         (Address.to_0x_string address) (Address.to_0x_string x.address)
@@ -394,6 +389,7 @@ let start_facilitator address =
       try
         FacilitatorState.load address
       with Not_found ->
+        (* TODO: move that somewhere else, and fail instead *)
         let open Side_chain in
         let trent_fee_schedule : FacilitatorFeeSchedule.t =
           { deposit_fee= TokenAmount.of_int 5
@@ -417,12 +413,11 @@ let start_facilitator address =
           { keypair= trent_keys
           ; current= confirmed_trent_state
           ; fee_schedule= trent_fee_schedule }
-
         in
         trent_genesis_state
     in
     let state_ref = ref facilitator_state in
     the_facilitator_service_ref := Some { address; state_ref };
-    async (const state_ref >>> validated_request_loop);
-    async user_request_loop;
-    return_unit
+    Lwt.async (const state_ref >>> validated_request_loop);
+    Lwt.async user_request_loop;
+    Lwt_exn.return ()

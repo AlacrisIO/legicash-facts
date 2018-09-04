@@ -30,7 +30,7 @@ module Operation : sig
   type deposit_details =
     { deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t
-    ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
+    ; main_chain_deposit: Main_chain.Transaction.t
     ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
     ; deposit_expedited: bool }
   [@@deriving lens, yojson]

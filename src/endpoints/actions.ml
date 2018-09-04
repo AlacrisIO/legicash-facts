@@ -6,11 +6,10 @@
    with access to different credentials.
 *)
 
-open Lwt
-
 open Legilogic_lib
 open Lib
 open Action
+open Lwt_exn
 open Yojsoning
 open Types
 open Signing
@@ -79,7 +78,7 @@ let add_main_chain_thread thread =
   let thread_find_limit = 100000 in
   let rec find_thread_id n =
     if n > thread_find_limit then
-      bork "Can't find id for main chain thread"
+      Lib.bork "Can't find id for main chain thread"
     else
       let id = Random.int 100000000 in
       if Hashtbl.mem id_to_thread_tbl id then
@@ -92,12 +91,11 @@ let add_main_chain_thread thread =
 
 (* get Merkle proof for side chain transaction identified by tx_revision *)
 let get_proof tx_revision : yojson =
-  let tx_revision_t = Revision.of_int tx_revision in
   let trent_state = get_trent_state () in
   let transactions = trent_state.current.transactions in
-  match TransactionMap.Proof.get tx_revision_t transactions with
+  match TransactionMap.Proof.get tx_revision transactions with
   | None ->
-    error_json "Cannot provide proof for tx-revision: %d" tx_revision
+    error_json "Cannot provide proof for tx-revision: %s" (Revision.to_string tx_revision)
   | Some proof ->
     TransactionMap.Proof.to_yojson proof
 
@@ -107,7 +105,7 @@ let thread_pending_json = `Assoc [("result",`String "The operation is pending")]
 let apply_main_chain_thread id : yojson =
   try
     let thread = Hashtbl.find id_to_thread_tbl id in
-    match state thread with
+    match Lwt.state thread with
     | Return json -> json
     | Fail exn ->
       error_json "Thread exception: %s\nStack: %s"
@@ -121,7 +119,7 @@ let user_state_from_address address_t =
   try
     Hashtbl.find address_to_user_state_tbl address_t
   with Not_found ->
-    bork "Could not find user state for address: %s" (Address.to_0x_string address_t)
+    Lib.bork "Could not find user state for address: %s" (Address.to_0x_string address_t)
 
 let update_user_state address_t user_state =
   Hashtbl.replace address_to_user_state_tbl address_t user_state
@@ -129,13 +127,13 @@ let update_user_state address_t user_state =
 let deposit_to_trent address amount =
   let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address address) in
-  let thread =
+  let thread () =
     unlock_account address
     >>= fun _unlock_json ->
-    UserAsyncAction.run_lwt user_state deposit (trent_address, amount)
+    UserAsyncAction.run_lwt_exn user_state deposit (trent_address, amount)
     >>= fun signed_request ->
     update_user_state address !user_state;
-    Lwt_exn.run_lwt process_request (signed_request, false)
+    process_request (signed_request, false)
     >>= fun confirmation ->
     let tx_revision = confirmation.tx_header.tx_revision in
     (* get transaction hash for main chain *)
@@ -143,7 +141,7 @@ let deposit_to_trent address amount =
     let main_chain_confirmation =
       match operation with
       | Deposit details -> details.main_chain_deposit_confirmation
-      | _ -> bork "Expected deposit request"
+      | _ -> Lib.bork "Expected deposit request"
     in
     (* get user account info on Trent *)
     let user_account_on_trent = get_user_account address in
@@ -162,7 +160,7 @@ let deposit_to_trent address amount =
                          ; main_chain_confirmation } in
     return (transaction_result_to_yojson deposit_result)
   in
-  add_main_chain_thread thread
+  add_main_chain_thread (run_lwt thread ())
 
 let withdrawal_from_trent address amount =
   let open Ethereum_transaction.Test in
@@ -170,46 +168,37 @@ let withdrawal_from_trent address amount =
   let user_account_on_trent = get_user_account address in
   let balance = user_account_on_trent.balance in
   if TokenAmount.compare amount balance > 0 then
-    bork "Insufficient balance to withdraw specified amount";
-  let thread =
+    Lib.bork "Insufficient balance to withdraw specified amount";
+  let thread () =
     unlock_account address
     >>= fun _unlock_json ->
-    UserAsyncAction.run_lwt user_state withdrawal (trent_address, amount)
+    UserAsyncAction.run_lwt_exn user_state withdrawal (trent_address, amount)
     >>= fun signed_request ->
     update_user_state address !user_state;
-    Lwt_exn.run_lwt process_request (signed_request, false)
+    process_request (signed_request, false)
     >>= fun confirmation ->
     let tx_revision = confirmation.tx_header.tx_revision in
     let trent_state = get_trent_state () in
-    push_side_chain_action_to_main_chain trent_state confirmation !user_state
-    >>= fun (maybe_main_chain_confirmation, user_state2) ->
-    (* update user state, which refers to main chain state *)
-    user_state := user_state2;
-    update_user_state address user_state2;
-    let main_chain_confirmation =
-      match maybe_main_chain_confirmation with
-      | Error exn -> raise exn
-      | Ok confirmation -> confirmation
-    in
-    let user_account_on_trent = get_user_account address in
-    let balance = user_account_on_trent.balance in
-    let revision = user_account_on_trent.account_revision in
-    let user_name = get_user_name address in
-    let side_chain_account_state = { address
-                                   ; user_name
-                                   ; balance
-                                   ; revision
-                                   }
-    in
-    let side_chain_tx_revision = tx_revision in
-    let withdrawal_result = { side_chain_account_state
-                            ; side_chain_tx_revision
-                            ; main_chain_confirmation
-                            }
-    in
-    return (transaction_result_to_yojson withdrawal_result)
+    Lwt.bind (push_side_chain_action_to_main_chain trent_state confirmation !user_state)
+      (fun (maybe_main_chain_confirmation, user_state2) ->
+         (* update user state, which refers to main chain state *)
+         user_state := user_state2;
+         update_user_state address user_state2;
+         let main_chain_confirmation =
+           match maybe_main_chain_confirmation with
+           | Error exn -> raise exn
+           | Ok confirmation -> confirmation in
+         let user_account_on_trent = get_user_account address in
+         let balance = user_account_on_trent.balance in
+         let revision = user_account_on_trent.account_revision in
+         let user_name = get_user_name address in
+         let side_chain_account_state = {address; user_name; balance; revision} in
+         let side_chain_tx_revision = tx_revision in
+         let withdrawal_result =
+           {side_chain_account_state; side_chain_tx_revision; main_chain_confirmation} in
+         return (transaction_result_to_yojson withdrawal_result))
   in
-  add_main_chain_thread thread
+  add_main_chain_thread (run_lwt thread ())
 
 let get_balance_on_trent address =
   let user_account_on_trent = get_user_account address in
@@ -224,54 +213,35 @@ let get_balance_on_trent address =
   in
   side_chain_account_state_to_yojson side_chain_account_state
 
+exception Failure_to_get_main_chain_balance of exn
+exception Failure_to_get_main_chain_transaction_count of exn
+
 let get_status_on_trent_and_main_chain address =
-  let open Ethereum_transaction in
   let side_chain_json = get_balance_on_trent address in
-  send_balance_request_to_net address
-  >>= fun balance_json ->
-  if YoJson.mem "error" balance_json then
-    return (error_json "Could not get main chain balance for address %s: %s"
-              (Address.to_0x_string address) YoJson.(member "error" balance_json |> to_string))
-  else
-    let balance =
-      TokenAmount.of_string YoJson.(member "result" balance_json |> to_string)
-    in
-    get_transaction_count address
-    >>= fun revision_json ->
-    if YoJson.mem "error" revision_json then
-      return (error_json "Could not get main chain revision for address %s: %s"
-                (Address.to_0x_string address) YoJson.(member "error" revision_json |> to_string))
-    else
-      let revision =
-        Revision.of_string YoJson.(member "result" revision_json |> to_string)
-      in
-      let main_chain_account =
-        { address
-        ; balance
-        ; revision
-        }
-      in
-      return (`Assoc [("side_chain_account",side_chain_json)
-                     ; ("main_chain_account",main_chain_account_state_to_yojson main_chain_account)
-                     ])
+  trying Ethereum_json_rpc.eth_get_balance (address, Latest)
+  >>= handling (fun e -> fail (Failure_to_get_main_chain_balance e))
+  >>= fun balance ->
+  trying Ethereum_json_rpc.eth_get_transaction_count (address, Latest)
+  >>= handling (fun e -> fail (Failure_to_get_main_chain_transaction_count e))
+  >>= fun revision ->
+  let main_chain_account = { address; balance; revision } in
+  return (`Assoc [("side_chain_account",side_chain_json)
+                 ;("main_chain_account",main_chain_account_state_to_yojson main_chain_account)])
 
 let get_all_balances_on_trent () =
-  let make_balance_json address_t (account : Side_chain.AccountState.t) accum =
-    let user_name = get_user_name address_t in
-    let account_state = { address = address_t
+  let make_balance_json address (account : Side_chain.AccountState.t) accum =
+    let user_name = get_user_name address in
+    let account_state = { address
                         ; user_name
                         ; balance = account.balance
-                        ; revision = account.account_revision
-                        }
-    in account_state::accum
-  in
+                        ; revision = account.account_revision }
+    in account_state::accum in
   let trent_state = get_trent_state () in
   let side_chain_account_states = AccountMap.fold make_balance_json trent_state.current.accounts [] in
   let sorted_side_chain_account_states =
     List.sort
       (fun bal1 bal2 -> String.compare bal1.user_name bal2.user_name)
-      side_chain_account_states
-  in
+      side_chain_account_states in
   let sorted_balances_json = List.map side_chain_account_state_to_yojson sorted_side_chain_account_states in
   return (`List sorted_balances_json)
 
@@ -345,17 +315,16 @@ let payment_timestamp () =
 
 let payment_on_trent sender recipient amount =
   if sender = recipient then
-    bork "Sender and recipient are the same";
+    Lib.bork "Sender and recipient are the same";
   let sender_state = user_state_from_address sender in
   let sender_account = get_user_account sender in
   if TokenAmount.compare sender_account.balance amount < 0 then
-    bork "Sender has insufficient balance to make this payment";
+    Lib.bork "Sender has insufficient balance to make this payment";
   let sender_state_ref = ref sender_state in
-  UserAsyncAction.run_lwt sender_state_ref payment
-    (trent_address, recipient, amount)
+  UserAsyncAction.run_lwt_exn sender_state_ref payment (trent_address, recipient, amount)
   >>= fun signed_request ->
   update_user_state sender !sender_state_ref;
-  Lwt_exn.run_lwt process_request (signed_request, false)
+  process_request (signed_request, false)
   >>= fun transaction ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
@@ -411,7 +380,7 @@ let get_transaction_rate_on_trent () =
   let rec count_transactions ndx count =
     (* traversed entire array, shouldn't happen *)
     if ndx = current_cursor then
-      bork "Timestamps array is not big enough"
+      Lib.bork "Timestamps array is not big enough"
     else if payment_timestamps.(ndx) <= minute_ago then
       count
     else (* decrement, or wrap backwards *)

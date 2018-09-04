@@ -318,6 +318,8 @@ let function_signature function_call =
 
 let function_signature_hash = function_signature >> keccak256_string
 
+let function_signature_digest = function_signature >> digest_of_string
+
 (* first four bytes of call are the first four bytes of the Keccak256 hash of the
    function signature
 *)

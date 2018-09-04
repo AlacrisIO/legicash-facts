@@ -2,6 +2,7 @@
 
 open Legilogic_lib
 open Signing
+open Action
 
 open Legicash_lib
 open Side_chain
@@ -25,5 +26,5 @@ val get_user_name : Address.t -> string
 val get_user_keys : int -> string * Keypair.t
 (** get a demo user name and keys from table *)
 
-val prepare_server : unit -> unit Lwt.t
+val prepare_server : unit -> unit Lwt_exn.t
 (** setup demo accounts on test net, load facilitator state *)

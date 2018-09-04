@@ -36,7 +36,7 @@ val schoenfinkel : ('a -> 'b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 (** SKI combinators, 4: verTauschungsfunktion (exchange funcTion), flip in Haskell *)
 val transpose : ('a -> 'b -> 'c) -> 'b -> 'a -> 'c
 
-(** SKI combinators, 5: Zusammensetzungsfunktion (compoZition function) *)
+(** SKI combinators, 5: Zusammensetzungsfunktion (compoZition function), (.) in Haskell *)
 val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
 val (>>) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
@@ -50,10 +50,11 @@ val curry4 : ('a * 'b * 'c * 'd -> 'e) -> 'a -> 'b -> 'c -> 'd -> 'e
 val uncurry4 : ('a -> 'b -> 'c -> 'd -> 'e) -> 'a * 'b * 'c * 'd -> 'e
 
 (** Simple counter *)
-val make_counter : ?start:int -> unit -> unit -> int
+val make_counter : ?start:int -> unit -> ?increment:int -> unit -> int
 
+val int_of_bool : bool -> int
 
-(** Options *)
+(** Options *) (* TODO: move it to Action and make it respect the Monad signature *)
 module Option : sig
   type +'a t = 'a option
 
@@ -435,95 +436,8 @@ module IdWrap (T: TypeS) : WrapS with type t = T.t and type value = T.t
 
 val the_global : 'a option ref -> (unit -> 'a) -> unit -> 'a
 
-module type FunctorS = sig
-  type _ t
-  val map : ('a -> 'b) -> 'a t -> 'b t
-  val (<$>) : ('a -> 'b) -> 'a t -> 'b t
-end
-module type ApplicativeS = sig
-  include FunctorS
-  val pure : 'a -> 'a t (* return of the monad *)
-  val ap : ('a -> 'b) t -> ('a t -> 'b t)
-end
-module type ArrowS = sig
-  type ('i, 'o) arr
-  val returnA : ('a, 'a) arr
-  val arr : ('i -> 'o) -> ('i, 'o) arr
-  val (>>>) : ('a, 'b) arr -> ('b, 'c) arr -> ('a, 'c) arr
-  val const : 'a -> (_, 'a) arr
-  val forever : ('a, 'a) arr -> ('a, _) arr
-end
-
-module type MonadBaseS = sig
-  type _ t
-  val return : 'a -> 'a t
-  val bind : 'a t -> ('a -> 'b t) -> 'b t
-end
-module type MonadS = sig
-  include MonadBaseS
-  include ApplicativeS with type 'a t := 'a t
-  include ArrowS with type ('i, 'o) arr = 'i -> 'o t
-  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
-  val (>>|) : 'a t -> ('a -> 'b) -> 'b t
-end
-module Monad (M : MonadBaseS) : MonadS with type 'a t = 'a M.t
-
-module type ErrorMonadS = sig
-  type error
-  include MonadS
-
-  (** computations that fail *)
-  val fail : error -> _ t
-end
-module ErrorMonad (Error: TypeS) : ErrorMonadS
-  with type error = Error.t
-   and type 'a t = ('a, Error.t) result
-
-module type ReaderMonadBaseS = sig
-  type state
-  include MonadBaseS
-  val state : state t
-end
-module type ReaderMonadS = sig
-  include ReaderMonadBaseS
-  include MonadS with type 'a t := 'a t
-  val get_state : _ -> state t
-  val pair_with_state : 'a -> ('a * state) t
-end
-module ReaderMonadMethods (B: ReaderMonadBaseS) : sig
-  type state = B.state
-  val state : state B.t
-  val get_state : _ -> state B.t
-  val pair_with_state : 'a -> ('a * state) B.t
-end
-module ReaderMonad (State: TypeS) : ReaderMonadS
-  with type state = State.t
-   and type 'a t = State.t -> 'a
-
-module type StateMonadBaseS = sig
-  include ReaderMonadBaseS
-  val put_state : state -> unit t
-end
-module type StateMonadS = sig
-  include StateMonadBaseS
-  include ReaderMonadS with type state := state and type 'a t := 'a t
-
-  (** change the state, otherwise the identity arrow *)
-  val map_state : (state -> state) -> ('a, 'a) arr
-
-  (** a pure computation can read the state but have no other side-effect *)
-  type ('i, 'o) readonly
-  val of_readonly : ('i, 'o) readonly -> ('i, 'o) arr
-end
-module StateMonadMethods (B: StateMonadBaseS) : sig
-  include module type of ReaderMonadMethods(B)
-  val map_state : (B.state -> B.state) -> 'a -> 'a B.t
-end
-module StateMonad (State: TypeS) : StateMonadS
-  with type state := State.t
-   and type 'a t = State.t -> ('a * State.t)
-   and type ('i, 'o) readonly = 'i -> State.t -> 'o
-
 val write_file : path:string -> string -> unit
 
 val read_file : string -> string
+
+val ignoring_errors : 'a -> ('b -> 'a) -> 'b -> 'a

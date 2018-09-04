@@ -12,7 +12,7 @@ type account_lens = (FacilitatorState.t, AccountState.t) Lens.t
 val facilitator_account_lens : Address.t -> account_lens
 
 (** start the background facilitator processes for given address *)
-val start_facilitator : Address.t -> unit Lwt.t
+val start_facilitator : (Address.t, unit) Lwt_exn.arr
 
 (** Backdoor to get a reference to the current state of the facilitator.
     NB 1: You're not allowed to write it, only the facilitator code is (it's a pure value, anyway).

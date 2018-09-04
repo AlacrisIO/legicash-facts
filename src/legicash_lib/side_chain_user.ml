@@ -264,15 +264,15 @@ let deposit (facilitator_address, deposit_amount) =
   >>= fun {deposit_fee} ->
   lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
     (facilitator_address, (TokenAmount.add deposit_amount deposit_fee))
-  >>= fun main_chain_deposit_signed ->
+  >>= fun main_chain_deposit ->
   lift_main_chain_user_async_action_to_side_chain Ethereum_action.wait_for_confirmation
-    main_chain_deposit_signed
+    main_chain_deposit
   >>= fun main_chain_deposit_confirmation ->
   of_action issue_user_request
     (Deposit
        { deposit_amount
        ; deposit_fee
-       ; main_chain_deposit_signed
+       ; main_chain_deposit
        ; main_chain_deposit_confirmation
        ; deposit_expedited= false })
 
@@ -311,10 +311,8 @@ let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operat
       ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
       ; gas_limit= TokenAmount.of_int 1000000
       ; value= TokenAmount.sub withdrawal_amount withdrawal_fee
-      }
-  in
-  let transaction = Main_chain.{ Transaction.tx_header; Transaction.operation } in
-  Main_chain.Transaction.signed facilitator_keys transaction
+      } in
+  Main_chain.Transaction.{tx_header;operation}
 
 let push_side_chain_action_to_main_chain
       (facilitator_state : FacilitatorState.t)

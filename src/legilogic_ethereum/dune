@@ -4,7 +4,8 @@
  (name legilogic_ethereum)
  (modules
   main_chain ethereum_util ethereum_json_rpc ethereum_rlp ethereum_abi
-  ethereum_transaction ethereum_patricia_merkle ethereum_action)
+  ethereum_transaction ethereum_patricia_merkle ethereum_action
+  )
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
- (libraries legilogic_lib cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
+ (libraries legilogic_lib cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
  (inline_tests))

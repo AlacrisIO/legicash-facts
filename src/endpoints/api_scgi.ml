@@ -5,6 +5,8 @@ open Legilogic_lib
 open Signing
 open Yojsoning
 open Logging
+open Types
+open Action
 
 open Legicash_lib
 open Side_chain
@@ -16,7 +18,7 @@ open Actions
 (* Side_chain also has a Request module *)
 module Request = Scgi.Request
 
-let _ = log_to_file "logs/legicash.log"
+let _ = set_log_file "logs/legicash.log"
 
 type deposit_json =
   { address: Address.t
@@ -91,17 +93,17 @@ let _ =
       begin
         match api_call with
           "balances" ->
-          get_all_balances_on_trent ()
+          Lwt_exn.run_lwt get_all_balances_on_trent ()
           >>= ok_json id
         | "tps" ->
-          let result_json = get_transaction_rate_on_trent () in
-          ok_json id result_json
+          get_transaction_rate_on_trent ()
+          |> ok_json id
         | "proof" ->
           (match Request.param request "tx-revision" with
            | Some param ->
              (try
-                let result_json = get_proof (int_of_string param) in
-                ok_json id result_json
+                get_proof (Revision.of_string param)
+                |> ok_json id
               with
               | Failure msg when msg = "int_of_string" ->
                 bad_request_response id ("Invalid tx-revision: " ^ param)
@@ -154,7 +156,7 @@ let _ =
           (match maybe_payment with
            | Ok payment ->
              (try
-                payment_on_trent payment.sender payment.recipient payment.amount
+                Lwt_exn.run_lwt (payment_on_trent payment.sender payment.recipient) payment.amount
                 >>= ok_json id
               with
               | Lib.Internal_error msg -> internal_error_response id msg
@@ -200,7 +202,7 @@ let _ =
           (match maybe_address with
            | Ok address_record ->
              (try
-                get_status_on_trent_and_main_chain address_record.address
+                Lwt_exn.run_lwt get_status_on_trent_and_main_chain address_record.address
                 >>= ok_json id
               with
               | Lib.Internal_error msg -> internal_error_response id msg
@@ -213,7 +215,4 @@ let _ =
   in
   let _ = Server.handler_inet address port handle_request in
   (* run forever in Lwt monad *)
-  Lwt_main.run (
-    prepare_server ()
-    >>= fun () ->
-    (fst (Lwt.wait ())))
+  Lwt_main.run (prepare_server () >>= fun _ -> fst (wait ()))

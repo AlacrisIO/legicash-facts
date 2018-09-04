@@ -1,12 +1,9 @@
-(* accounts.ml -- account information for endpoints demo  *)
-
 open Lwt
 
 open Legilogic_lib
-open Lib
-open Yojsoning
 open Signing
 open Types
+open Action
 
 open Legilogic_ethereum
 open Main_chain
@@ -61,7 +58,7 @@ let account_names = user_names
 let _ = Signing.register_file_keypairs ~path:"../src/endpoints/demo-keys-small.json"
 
 (* for 1300 accounts:
-let _ = Signing.register_file_keypairs ~path:"../src/endpoints/demo-keys-big.json"
+   let _ = Signing.register_file_keypairs ~path:"../src/endpoints/demo-keys-big.json"
 *)
 
 (* create local data structures reflecting registered keys *)
@@ -96,25 +93,16 @@ let _ =
 let get_user_name address_t =
   try
     Hashtbl.find address_to_account_tbl address_t
-  with Not_found -> bork "Can't find user name for address %s" (Address.to_0x_string address_t)
+  with Not_found -> Lib.bork "Can't find user name for address %s" (Address.to_0x_string address_t)
 
 (* store keys on Ethereum test net. TODO: don't do this on real net!  *)
 let store_keys_on_testnet (name,keys) =
-  let open Lwt in
-  let open Ethereum_json_rpc in
-  (* get hex string version of private key *)
-  let private_key_string = keys.Keypair.private_key |> PrivateKey.marshal_string |> Hex.unparse_hex_string in
+  let open Lwt_exn in
   let password = "" in
-  let json = build_json_rpc_call Personal_importRawKey [private_key_string; password] in
-  send_rpc_call_to_net json
-  >>= fun result_json ->
-  if YoJson.mem "result" result_json then (
-    let result = YoJson.member "result" result_json in
-    Lwt_io.eprintf "Created account for %s on test net with address: %s\n"
-      name (string_of_yojson result)
-    >>= fun () -> Lwt_io.(flush stderr))
-  else
-    return ()
+  Ethereum_transaction.ensure_private_key (keys, password)
+  >>= fun address ->
+  printf "Created account for %s on test net with address: %s\n"
+    name (Address.to_0x_string address)
 
 (* prepare test network with accounts, contract *)
 
@@ -170,7 +158,7 @@ let user_accounts_from_trent_state address =
     in
     UserAccountStateMap.singleton trent_address account_state
   with Not_found ->
-    bork "Could not find user state for address: %s" (Address.to_0x_string address)
+    Lib.bork "Could not find user state for address: %s" (Address.to_0x_string address)
 
 let load_trent_state () =
   Printf.printf "Loading the facilitator state...%!";
@@ -195,68 +183,55 @@ let load_trent_state () =
            { user_state with facilitators = new_user_accounts }
        with _ -> ())
     address_to_user_state_tbl;
-  Lwt.return_unit
+  Lwt_exn.return ()
 
 (* let chunk_list elts chunk_size =
-  let rec mk_chunk elts accum count =
-    if count >= chunk_size then
-      (List.rev accum,elts) (* chunk, remaining elts *)
-    else
-      match elts with
-      | [] -> (List.rev accum,[])
-      | h::t ->
-        mk_chunk t (h::accum) (count + 1)
-  in
-  let rec loop elts accum =
-    match elts with
-    | [] -> List.rev accum
-    | _ ->
-      let chunk,remaining = mk_chunk elts [] 0 in
-      loop remaining (chunk::accum)
-  in
-  loop elts []
+   let rec mk_chunk elts accum count =
+   if count >= chunk_size then
+   (List.rev accum,elts) (* chunk, remaining elts *)
+   else
+   match elts with
+   | [] -> (List.rev accum,[])
+   | h::t ->
+   mk_chunk t (h::accum) (count + 1)
+   in
+   let rec loop elts accum =
+   match elts with
+   | [] -> List.rev accum
+   | _ ->
+   let chunk,remaining = mk_chunk elts [] 0 in
+   loop remaining (chunk::accum)
+   in
+   loop elts []
 *)
 
-let prepare_server () =
-  let open Lwt in
+let prepare_server =
+  let open Lwt_exn in
   Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
-  Db.open_connection ~db_name:Legibase.db_name
-  >>= load_trent_state
-  >>= fun () ->
-  start_facilitator trent_address
-  >>= fun () ->
-  create_user_states ();
-  return_unit
-  >>= fun () ->
-(*
-     Use this when we have all 1300 accounts
-     Lwt_list.iter_s
-     (fun chunk ->
-     Lwt_list.iter_p store_keys_on_testnet chunk)
-     (chunk_list account_key_list 13) *)
-  Lwt_list.iter_s store_keys_on_testnet account_key_list
-  >>= fun () ->
-  store_keys_on_testnet ("Trent",trent_keys)
-  >>= fun () ->
-  Lwt_io.printf "Funding account: Trent\n%!"
-  >>=
-  (* Ethereum dev mode provides prefunded address with a very large balance *)
+  of_lwt (fun () -> Db.open_connection ~db_name:Legibase.db_name)
+  >>> load_trent_state
+  >>> (fun () -> start_facilitator trent_address)
+  >>> arr create_user_states
+  >>> (fun () -> list_iter_s store_keys_on_testnet account_key_list)
+  (* Use this when we have all 1300 accounts:
+     list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
+  >>> (fun () -> store_keys_on_testnet ("Trent",trent_keys))
+  >>> (fun () -> printf "Funding account: Trent\n")
+  >>> (* Ethereum dev mode provides prefunded address with a very large balance *)
   get_prefunded_address
-  >>= fun prefunded_address ->
-  fund_account prefunded_address trent_keys
-  >>= fun () ->
-  Lwt_list.iter_s
-    (fun (name,keys) ->
-       Lwt_io.printf "Funding account: %s\n%!" name
-       >>= (fun () -> fund_account prefunded_address keys))
-    account_key_list
-  >>= fun () -> Lwt_io.printf "Loading facilitator contract...%!"
-  >>= fun () ->
-  try
-    load_contract ()
-    >>= fun () -> Lwt_io.printf "done\n%!"
-  with _ -> (
-      Lwt_io.printf "failed, installing contract...%!"
-             >>= install_contract
-             >>= fun () -> Lwt_io.printf "done\n%!")
-  >>= fun () -> Lwt_io.printf "*** READY ***\n%!"
+  >>> (fun prefunded_address ->
+    fund_account prefunded_address trent_keys
+    >>= fun () ->
+    list_iter_s
+      (fun (name,keys) ->
+         printf "Funding account: %s\n" name
+         >>= (fun () -> fund_account prefunded_address keys))
+      account_key_list)
+  >>> (fun () -> printf "Installing facilitator contract...")
+  >>> trying (load_contract >>> fun () -> printf "done\n%!")
+  >>> handling
+        (fun _ ->
+           printf "failed, installing contract...%!"
+           >>= install_contract
+           >>= fun () -> printf "done\n%!")
+  >>> fun () -> printf "*** READY ***\n"

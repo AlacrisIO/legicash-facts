@@ -76,13 +76,50 @@ let unparse_hex_string string =
 let unparse_coloned_hex_string string =
   String.concat ":" (List.init (String.length string) (fun i -> unparse_hex_substring string i 1))
 
+(** Raise an Internal_error if the string doesn't strictly start with "0x" *)
 let validate_0x_prefix hs =
+  if not (String.length hs >= 2 && hs.[0] = '0' && hs.[1] = 'x') then
+    bork "Hex string does not begin with 0x"
+
+let parse_0x_quantity hs =
+  validate_0x_prefix hs;
   let len = String.length hs in
-  if not (len >= 2 && hs.[0] = '0' && hs.[1] = 'x') then
-    bork "Hex string does not strictly begin with 0x" ;
   if len = 2 then
-    bork "Hex string has no digits" ;
-  ()
+    bork "Hex quantity has no digits" (* 0 is "0x0" *)
+  else if hs.[2] = '0' then
+    if len = 3 then
+      Z.zero
+    else
+      bork "Hex quantity has leading zero"
+  else
+    parse_hex_substring hs 2 (len - 2) |> string_reverse |> Z.of_bits
+
+let unparse_0x_quantity z =
+  let nybbles = (Z.numbits z + 3) / 4 in
+  if nybbles = 0 then
+    "0x0"
+  else
+    let bits = Z.to_bits z in
+    String.init (nybbles + 2)
+      (fun i -> if i >= 2 then
+          let k = (nybbles + 1 - i) lxor 1 in
+          hex_char_of_int (hex_digit_of_string bits 0 k)
+        else
+        if i = 0 then '0' else 'x')
+
+let parse_0x_data hs =
+  validate_0x_prefix hs;
+  let len = String.length hs in
+  if len mod 2 != 0 then
+    bork "Odd number of digits in hex string" ;
+  parse_hex_substring hs 2 (len - 2)
+
+let unparse_0x_data s =
+  "0x" ^ unparse_hex_substring s 0 (String.length s)
+
+let parse_0x_bytes hs = Bytes.of_string (parse_0x_data hs)
+
+let unparse_0x_bytes bs = unparse_0x_data (Bytes.to_string bs)
 
 let parse_0x_prefix parser hs =
   validate_0x_prefix hs;
@@ -90,42 +127,62 @@ let parse_0x_prefix parser hs =
 
 let unparse_0x_prefix printer x = "0x" ^ (printer x)
 
-let unparse_0x_string s =
-  if s = "" then "0x0" else "0x" ^ unparse_hex_substring s 0 (String.length s)
-
-let parse_0x_string hs =
-  if hs = "0x0" then "" else
-    (validate_0x_prefix hs ;
-     let len = String.length hs in
-     if len mod 2 != 0 then
-       bork "Odd number of digits in hex string" ;
-     parse_hex_substring hs 2 (len - 2))
-
-let parse_0x_bytes hs = Bytes.of_string (parse_0x_string hs)
-
-let unparse_0x_bytes bs = unparse_0x_string (Bytes.to_string bs)
-
 module Test = struct
   let%test "hex_string" =
     List.for_all
-      (fun (bits, hex) -> unparse_hex_string bits = hex && parse_hex_string hex = bits)
+      (fun (bits, hex) ->
+         unparse_hex_string bits = hex
+         && parse_hex_string hex = bits)
       [("","");("\000","00");("\000\000","0000");
        ("abcd","61626364");("\r\n","0d0a")]
 
-  let%test "unparse_0x_string bits" =
+  let%test "parse_0x_quantity" =
     List.for_all
-      (fun (bits, hex) -> unparse_0x_string bits = hex
-                          && bits = parse_0x_string hex)
-      [("","0x0");("\000","0x00");("\000\000","0x0000");("\001\035","0x0123");
+      (fun (dec, hex) ->
+         unparse_0x_quantity (Z.of_string dec) = hex
+         && Z.to_string (parse_0x_quantity hex) = dec)
+      [("0","0x0"); ("10", "0xa"); ("3735928559", "0xdeadbeef"); ("291","0x123");
+       ("2172320085121171917150527218272133101249531734298482375974185397385364336251450517199607845825731097406827572", "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34")]
+
+  let%test "parse_0x_quantity error" =
+    List.for_all
+      (fun (hex, err) -> try ignore (parse_0x_quantity hex) ; false with
+           Internal_error x -> x = err)
+      [("0", "Hex string does not begin with 0x");
+       ("", "Hex string does not begin with 0x");
+       ("0x", "Hex quantity has no digits");
+       ("0x0123", "Hex quantity has leading zero")]
+
+  let%test "parse_0x_data" =
+    List.for_all
+      (fun (bits, hex) -> unparse_0x_data bits = hex
+                          && bits = parse_0x_data hex)
+      [("","0x");("\000","0x00");("\000\000","0x0000");("\001\035","0x0123");
        ("abcd","0x61626364");("\r\n","0x0d0a");
        ("\236\202\132key1\132val1\202\132key2\132val2\202\132key3\132val3\202\132key4\132val4",
         "0xecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34")]
 
-  let%test "parse_0x_string error" =
+  let%test "parse_0x_data error" =
     List.for_all
-      (fun (hex, err) -> try ignore (parse_0x_string hex) ; false with
+      (fun (hex, err) -> try ignore (parse_0x_data hex) ; false with
            Internal_error x -> x = err)
-      [("0x", "Hex string has no digits");
+      [("0x0","Odd number of digits in hex string");
        ("0xf0f0f","Odd number of digits in hex string");
-       ("004200","Hex string does not strictly begin with 0x")]
+       ("004200","Hex string does not begin with 0x")]
+
+  let invert_hex hex_str = unparse_coloned_hex_string (parse_coloned_hex_string hex_str)
+
+  (* test that hex parsing and unparsing are inverses *)
+
+  let%test "inverse_1" =
+    let key =
+      "d5:69:84:dc:08:3d:76:97:01:71:4e:eb:1d:4c:47:a4:54:25:5a:3b:bc:3e:9f:44:84:20:8c:52:bd:a3:b6:4e"
+    in
+    invert_hex key = key
+
+  let%test "inverse_2" =
+    let key =
+      "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
+    in
+    invert_hex key = key
 end

@@ -22,9 +22,8 @@ open Types
 *)
 module TokenAmount = UInt256
 
-(* Even though it'll most probably fit in 32 bits, definitely in 64 bits,
-   The API maximum is 256 bits, so we use that. *)
-module Nonce = UInt256
+(* The API maximum is 256 bits, but it'll most probably fit in 32 bits, definitely in 64 bits. *)
+module Nonce = Revision
 
 module AccountMap = MerkleTrie (Address) (TokenAmount)
 
@@ -61,7 +60,7 @@ end
 
 module Confirmation = struct
   type t = { transaction_hash: digest
-           ; transaction_index: UInt64.t
+           ; transaction_index: Revision.t
            ; block_number: Revision.t
            ; block_hash: digest }
   module PrePersistable = struct
@@ -73,7 +72,7 @@ module Confirmation = struct
              (transaction_hash, transaction_index, block_number, block_hash))
           (fun transaction_hash transaction_index block_number block_hash ->
              {transaction_hash; transaction_index; block_number; block_hash})
-          Digest.marshaling UInt64.marshaling Revision.marshaling Digest.marshaling
+          Digest.marshaling Revision.marshaling Revision.marshaling Digest.marshaling
     end
     include YojsonableOfMarshalable(Marshalable(M))
     let walk_dependencies = no_dependencies
@@ -146,6 +145,75 @@ module Transaction = struct
   let signed = signed_of_digest digest
 end
 
+module TransactionInformation = struct
+  [@warning "-39"]
+  type t =
+    { blockHash: Digest.t option
+    ; blockNumber: Revision.t option
+    ; from: Address.t
+    ; gas: TokenAmount.t
+    ; gasPrice: TokenAmount.t
+    ; hash: Digest.t
+    ; input: Yojsoning.Bytes.t
+    ; nonce: Nonce.t
+    ; to_: Address.t option [@key "to"]
+    ; transactionIndex: Revision.t
+    ; value: TokenAmount.t
+    ; v: string (* QUANTITY - ECDSA recovery id *)
+    ; r: string (* DATA, 32 Bytes - ECDSA signature r *)
+    ; s: string (* DATA, 32 Bytes - ECDSA signature s *) }
+  [@@deriving yojson]
+  include (Yojsonable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (YojsonableS with type t := t))
+end
+
+module LogObject = struct
+  [@warning "-39"]
+  type t =
+    { removed: bool
+    ; logIndex: Revision.t option
+    ; transactionIndex: Revision.t option
+    ; transactionHash: Digest.t option
+    ; blockNumber: Revision.t option
+    ; blockHash: Digest.t option
+    ; address: Address.t
+    ; data: Yojsoning.Bytes.t
+    ; topics: Digest.t list }
+  [@@deriving yojson]
+  include (Yojsonable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (YojsonableS with type t := t))
+end
+
+module Bloom = struct
+  include Yojsoning.Bytes (* TODO: Actually always 256 bytes *)
+end
+
+module TransactionReceipt = struct
+  [@warning "-39"]
+  type t =
+    { blockHash: Digest.t
+    ; blockNumber: Revision.t
+    ; contractAddress: Address.t option
+    ; cumulativeGasUsed: TokenAmount.t
+    ; from: Address.t
+    ; to_: Address.t option [@key "to"]
+    ; gasUsed: TokenAmount.t
+    ; logs: LogObject.t list
+    ; logsBloom: Bloom.t
+    ; root: Digest.t option [@default None]
+    ; status: TokenAmount.t option [@default None]
+    ; transactionHash: Digest.t
+    ; transactionIndex: Revision.t }
+  [@@deriving yojson]
+  include (Yojsonable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (YojsonableS with type t := t))
+end
 
 (* TODO: use whichever way is used to compute on-chain hashes for marshaling.
    Is that RLP? Find out! *)
@@ -165,7 +233,7 @@ module UserState = struct
     { keypair: Keypair.t
     ; confirmed_state: Digest.t
     ; confirmed_balance: TokenAmount.t
-    ; pending_transactions: TransactionSigned.t list
+    ; pending_transactions: Transaction.t list
     ; nonce: Nonce.t }
   [@@deriving lens { prefix=true }, yojson]
   include (YojsonPersistable (struct

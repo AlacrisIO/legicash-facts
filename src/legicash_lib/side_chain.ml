@@ -40,7 +40,7 @@ module Operation = struct
   type deposit_details =
     { deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t
-    ; main_chain_deposit_signed: Main_chain.TransactionSigned.t
+    ; main_chain_deposit: Main_chain.Transaction.t
     ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
     ; deposit_expedited: bool }
   [@@deriving lens, yojson]
@@ -72,23 +72,23 @@ module Operation = struct
              | Deposit
                  { deposit_amount
                  ; deposit_fee
-                 ; main_chain_deposit_signed
+                 ; main_chain_deposit
                  ; main_chain_deposit_confirmation
                  ; deposit_expedited } ->
-               (deposit_amount, deposit_fee, main_chain_deposit_signed,
+               (deposit_amount, deposit_fee, main_chain_deposit,
                 main_chain_deposit_confirmation, deposit_expedited)
              | _ -> bottom ())
-           (fun deposit_amount deposit_fee main_chain_deposit_signed
+           (fun deposit_amount deposit_fee main_chain_deposit
              main_chain_deposit_confirmation deposit_expedited ->
              Deposit
                { deposit_amount
                ; deposit_fee
-               ; main_chain_deposit_signed
+               ; main_chain_deposit
                ; main_chain_deposit_confirmation
                ; deposit_expedited })
            TokenAmount.marshaling
            TokenAmount.marshaling
-           Main_chain.TransactionSigned.marshaling
+           Main_chain.Transaction.marshaling
            Main_chain.Confirmation.marshaling
            bool_marshaling
        ; marshaling3

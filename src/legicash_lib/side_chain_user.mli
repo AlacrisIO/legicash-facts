@@ -158,7 +158,7 @@ val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyn
 
 (*
    (** post an account_activity_status request for closing the account on the *main chain*. TBD *)
-   val initiate_individual_exit : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
+   val initiate_individual_exit : (unit, Main_chain.Transaction.t) UserAsyncAction.arr
 
    (** TBD Flow 3 Step 3: Alice, who can see the final state of her account,
    posts on the main chain a demand for the final funds.
@@ -166,9 +166,9 @@ val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyn
    This puts Trent and all verifiers on notice to check that Alice isn't lying,
    and post a lawsuit within a timeout window.
  *)
-   val request_account_liquidation : (Invoice.t, Main_chain.TransactionSigned.t) UserAsyncAction.arr
+   val request_account_liquidation : (Invoice.t, Main_chain.Transaction.t) UserAsyncAction.arr
 
-   val collect_account_liquidation_funds : (unit, Main_chain.TransactionSigned.t) UserAsyncAction.arr
+   val collect_account_liquidation_funds : (unit, Main_chain.Transaction.t) UserAsyncAction.arr
 *)
 
 val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr

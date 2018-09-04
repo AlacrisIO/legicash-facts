@@ -5,6 +5,12 @@ type yojson = Yojson.Safe.json
 val string_of_yojson : yojson -> string
 val yojson_of_string : string -> yojson
 
+val pp_yojson : Format.formatter -> yojson -> unit
+val show_yojson : yojson -> string
+
+val yojson_string : string -> yojson
+val yojson_list : yojson list -> yojson
+
 module YoJson : sig
   include module type of Yojson.Safe.Util
   val mem : string -> yojson -> bool
@@ -15,6 +21,10 @@ type 'a to_yojson = 'a -> yojson
 type 'a of_yojson = yojson -> ('a, string) result
 type 'a of_yojson_exn = yojson -> 'a
 type 'a yojsoning = { to_yojson: 'a to_yojson; of_yojson: 'a of_yojson }
+
+val yojson_to_yojson : yojson to_yojson
+val yojson_of_yojson : yojson of_yojson
+
 
 val of_yojson_exn_of_of_yojson : 'a of_yojson -> 'a of_yojson_exn
 val of_yojson_of_of_yojson_exn : 'a of_yojson_exn -> 'a of_yojson
