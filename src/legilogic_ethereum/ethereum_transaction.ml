@@ -296,13 +296,11 @@ module Test = struct
                     ; nonce= Nonce.zero
                     ; gas_price= TokenAmount.of_int 20000000000
                     ; gas_limit= TokenAmount.of_int 100000
-                    ; value= TokenAmount.of_int 1000 }
-         in
+                    ; value= TokenAmount.of_int 1000 } in
          let operation =
            Operation.CallFunction
              ( Address.of_0x_string "0x687422eea2cb73b5d3e242ba5456b782919afc85"
-             , parse_0x_bytes "0xc0de")
-         in
+             , parse_0x_bytes "0xc0de") in
          let transaction = {Transaction.tx_header; Transaction.operation} in
          let unsigned_transaction_hash =
            transaction |> rlp_of_transaction |> Ethereum_rlp.encoded_string |> digest_of_string in

@@ -101,7 +101,7 @@ let store_keys_on_testnet (name,keys) =
   let password = "" in
   Ethereum_transaction.ensure_private_key (keys, password)
   >>= fun address ->
-  printf "Succesfully created account for %s on test net with address: %s\n"
+  printf "Created account for %s on test net with address: %s\n"
     name (Address.to_0x_string address)
 
 (* prepare test network with accounts, contract *)
