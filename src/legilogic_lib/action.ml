@@ -73,6 +73,9 @@ module ErrorMonad (Error: TypeS) = struct
   end
   include Monad(B)
   let fail e = Error e
+  (* Note that [trying] returns either an [Ok (Ok _)], or [Ok (Error _)]. It's
+     expected that this is passed to [handling] via a [bind], which unwraps the
+     outer [Ok]. *)
   let trying a i = return (a i)
   let handling a = function
     | Ok x -> return x
