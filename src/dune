@@ -20,8 +20,7 @@
           -warn-error -27-32-33))
   (ocamlc_flags (:standard -thread -I +threads))
   (ocamlopt_flags (:standard
-
-                   -p  ;; Enable profiling 
+                   ; -p  ;; Enable profiling 
                    -thread -I +threads))
   ))
 
