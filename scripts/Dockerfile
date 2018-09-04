@@ -37,7 +37,7 @@ RUN cd secp256k1 && ./autogen.sh && ./configure --prefix=/usr --enable-module-re
 # Install OPAM packages
 ENV OCAML_VERSION 4.06.1
 RUN opam init -a && opam switch ${OCAML_VERSION}
-RUN opam install -y cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens leveldb lwt lwt_ppx ppx_deriving ppx_deriving_yojson ppx_tools_versioned ppx_core ppx_driver ppx_inline_test secp256k1 yojson
+RUN opam install -y cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens leveldb lwt lwt_ppx ppx_deriving ppx_deriving_yojson ppx_tools_versioned ppx_core ppx_driver ppx_inline_test secp256k1 yojson qcheck
 
 # Allow CI script to find OPAM files
 ENV PATH /root/.opam/${OCAML_VERSION}/bin:${PATH}
