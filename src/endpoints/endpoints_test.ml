@@ -74,7 +74,7 @@ let json_has_error json =
   | _ -> false
 
 let get_facilitator_transactions () =
-  let facilitator_state = get_facilitator_state () in
+  let facilitator_state = Test.get_facilitator_state () in
   facilitator_state.current.transactions
 
 let make_threaded_test endpoint name address amount =

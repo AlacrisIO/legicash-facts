@@ -37,10 +37,10 @@ val payment_on_trent : Address.t -> Address.t -> TokenAmount.t -> yojson Lwt_exn
 val get_balance_on_trent : Address.t -> yojson
 
 (** int is max number of transactions *)
-val get_recent_transactions_on_trent : Address.t -> int option -> yojson
+val get_recent_user_transactions_on_trent : Address.t -> Revision.t option -> yojson ExnMonad.t Lwt.t
 
 (** user accounts information on side and main chains *)
 val get_status_on_trent_and_main_chain : Address.t -> yojson Lwt_exn.t
 
 (** JSON returned when a thread is still working *)
-val thread_pending_json : json
+val thread_pending_json : yojson

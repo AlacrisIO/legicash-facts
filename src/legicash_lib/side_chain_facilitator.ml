@@ -469,3 +469,7 @@ let start_facilitator address =
     Lwt.async user_query_request_loop;
     Lwt.async admin_query_request_loop;
     Lwt_exn.return ()
+
+module Test = struct
+  let get_facilitator_state = get_facilitator_state
+end
