@@ -2,9 +2,13 @@ open Lib
 
 type +'output or_exn = ('output, exn) result
 
-type (-'input, +'output, 'state) action = 'input -> 'state -> 'output or_exn * 'state
+type (-'input, +'output, 'state) action = 'input -> 'state -> 'output * 'state
 
-type (-'input, +'output, 'state) async_action = 'input -> 'state -> ('output or_exn * 'state) Lwt.t
+type (-'input, +'output, 'state) async_action = 'input -> 'state -> ('output * 'state) Lwt.t
+
+type (-'input, +'output, 'state) exn_action = ('input, 'output or_exn, 'state) action
+
+type (-'input, +'output, 'state) async_exn_action = ('input, 'output or_exn, 'state) async_action
 
 exception Assertion_failed of string
 
@@ -248,14 +252,62 @@ module AsyncAction (State : TypeS) = struct
     | Error e -> a e
 end
 
+(* Simple client *)
+let simple_client mailbox make_message =
+  fun request ->
+    let open Lwt in
+    let (promise, resolver) = task () in
+    make_message (request, resolver)
+    |> (Lwt_mvar.put mailbox)
+    >>= fun () -> promise
+
+let simple_server mailbox processor =
+  let open Lwt_monad in
+  forever
+    (fun state ->
+       Lwt_mvar.take mailbox
+       >>= fun (input, continuation) ->
+       processor input state
+       >>= fun (output, new_state) ->
+       Lwt.wakeup_later continuation output;
+       Lwt.return new_state)
+
+let simple_client_make_server processor =
+  let mailbox = Lwt_mvar.create_empty () in
+  (simple_client mailbox identity,
+   simple_server mailbox processor)
+
+let sequentialize processor state =
+  let (client, make_server) = simple_client_make_server processor in
+  Lwt.async (fun () -> make_server state);
+  client
+
+let stateless_server mailbox processor =
+  let open Lwt_monad in
+  () |>
+  forever
+    (fun () ->
+       Lwt_mvar.take mailbox
+       >>= fun (input, continuation) ->
+       processor input
+       >>= fun (output) ->
+       Lwt.wakeup_later continuation output;
+       Lwt.return_unit)
+
+let stateless_sequentialize processor =
+  let mailbox = Lwt_mvar.create_empty () in
+  Lwt.async (fun () -> stateless_server mailbox processor);
+  simple_client mailbox identity
+
+
 module Test = struct
   module Error_string_monad = ErrorMonad(struct
       type t = string
       type error = string
     end)
   let%test "Lwt_exn error handling works as expected" =
-  Error_string_monad.(
-    match trying (fun _ -> Error "error") 0 >>= handling (fun x -> fail x) with
-    | Error _ -> true
-    | Ok _ -> false)
+    Error_string_monad.(
+      match trying (fun _ -> Error "error") 0 >>= handling (fun x -> fail x) with
+      | Error _ -> true
+      | Ok _ -> false)
 end

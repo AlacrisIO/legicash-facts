@@ -6,7 +6,6 @@ open Lens.Infix
 open Legilogic_lib
 open Lib
 open Action
-open Yojsoning
 open Signing
 open Types
 open Merkle_trie
@@ -269,22 +268,13 @@ let effect_validated_user_transaction_request :
       >>> accept_fee withdrawal_fee
 
 
-let simple_client :
-  ('request * 'result Lwt.u -> 'message) -> 'message Lwt_mvar.t -> ('request, 'result) Lwt_monad.arr =
-  fun make_message mailbox request ->
-    let open Lwt in
-    let (promise, resolver) = task () in
-    make_message (request, resolver)
-    |> (Lwt_mvar.put mailbox)
-    >>= fun () -> promise
-
 (** TODO: have a server do all the effect_requests sequentially,
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
 let post_validated_transaction_request :
   ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
   simple_client
-    (fun (request, resolver) -> `Confirm (request, resolver))
     inner_transaction_request_mailbox
+    (fun (request, resolver) -> `Confirm (request, resolver))
 
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) FacilitatorAction.arr =
   function
@@ -292,18 +282,6 @@ let process_validated_transaction_request : (TransactionRequest.t, Transaction.t
     request |> FacilitatorAction.(effect_validated_user_transaction_request >>> make_user_transaction)
   | `AdminTransaction _ ->
     bottom () (* TODO: do it *)
-
-(* Simple actor loop *)
-let simple_request_loop mailbox processor =
-  let open Lwt_monad in
-  forever
-    (fun () ->
-       Lwt_mvar.take mailbox
-       >>= fun (request, continuation) ->
-       processor request
-       >>= fun confirmation_or_exn ->
-       Lwt.wakeup_later continuation confirmation_or_exn;
-       Lwt.return_unit)
 
 (* Process a user request, with a flag to specify whether it's a forced request
    (published on the main chain), in which case there are no fee amount minima.
@@ -324,34 +302,19 @@ let process_user_transaction_request :
   >>> fun (confirmation, wait_for_commit) ->
   (wait_for_commit |> Lwt.(>>=)) (const confirmation)
 
-let user_transaction_request_mailbox :
-  ((UserTransactionRequest.t signed * bool) * Transaction.t or_exn Lwt.u) Lwt_mvar.t =
-  Lwt_mvar.create_empty ()
-let user_transaction_request_loop =
-  simple_request_loop user_transaction_request_mailbox process_user_transaction_request
-let post_user_transaction_request :
-  (UserTransactionRequest.t signed * bool, Transaction.t) Lwt_exn.arr =
-  simple_client identity user_transaction_request_mailbox
+(** This is a placeholder until we separate client and server in separate processes *)
+let post_user_transaction_request =
+  stateless_sequentialize process_user_transaction_request
 
 (** Take messages from the user_query_request_mailbox, and process them (TODO: in parallel?) *)
 let process_user_query_request = bottom
-let user_query_request_mailbox :
-  (UserQueryRequest.t * yojson or_exn Lwt.u) Lwt_mvar.t =
-  Lwt_mvar.create_empty ()
-let user_query_request_loop =
-  simple_request_loop user_query_request_mailbox process_user_query_request
 let post_user_query_request =
-  simple_client identity user_query_request_mailbox
+  stateless_sequentialize process_user_query_request
 
 (** Take messages from the admin_query_request_mailbox, and process them (TODO: in parallel?) *)
 let process_admin_query_request = bottom
-let admin_query_request_mailbox :
-  (AdminQueryRequest.t * yojson or_exn Lwt.u) Lwt_mvar.t =
-  Lwt_mvar.create_empty ()
-let admin_query_request_loop =
-  simple_request_loop admin_query_request_mailbox process_admin_query_request
 let post_admin_query_request =
-  simple_client identity admin_query_request_mailbox
+  stateless_sequentialize process_admin_query_request
 
 
 (** We assume that the operation will correctly apply:
@@ -465,9 +428,6 @@ let start_facilitator address =
     let state_ref = ref facilitator_state in
     the_facilitator_service_ref := Some { address; state_ref };
     Lwt.async (const state_ref >>> inner_transaction_request_loop);
-    Lwt.async user_transaction_request_loop;
-    Lwt.async user_query_request_loop;
-    Lwt.async admin_query_request_loop;
     Lwt_exn.return ()
 
 module Test = struct
