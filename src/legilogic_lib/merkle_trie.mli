@@ -17,13 +17,13 @@ module type TrieSynthMerkleS = sig
 end
 
 (** Persistable merkle tree. [Key]s are bit paths (right/left), [Value]s are the
-   tree type. *)
+    tree type. *)
 module TrieSynthMerkle (Key : UIntS) (Value : PersistableS)
   : TrieSynthMerkleS with type key = Key.t
                       and type value = Value.t
 
 (** Peristable merkle tree over persistable values of type [t] wrapped by type
-   [T] *)
+    [T] *)
 module type MerkleTrieTypeS = sig
   include TrieTypeS
   module Trie : PersistableS with type t = trie
@@ -31,9 +31,9 @@ module type MerkleTrieTypeS = sig
 end
 
 (** Persistable merkle tree with methods for recursive synthesization of node
-   digests. *)
+    digests. *)
 module MerkleTrieType (Key : UIntS) (Value : PersistableS)
-    (Synth : TrieSynthMerkleS with type key = Key.t and type value = Value.t)
+    (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
   : MerkleTrieTypeS with type key = Key.t
                      and type value = Value.t
 
@@ -55,10 +55,10 @@ module type MerkleTrieProofS = sig
     ; steps : (Digest.t pstep) list
     }
   (** [get k mt] is the proof that the object referenced in the db by k is in
-     mt. *)
+      mt. *)
   val get : key -> mtrie -> t option
   (** [check proof mt k v] verifies that [proof] is a proof for membership of
-     [v] in [mt], where [v] is referenced by [k] in the db. *)
+      [v] in [mt], where [v] is referenced by [k] in the db. *)
   val check : t -> mtrie -> key -> value -> bool
   include YojsonableS with type t := t
 end
@@ -68,7 +68,8 @@ module type MerkleTrieS = sig
   type key
   type value
   (* Contains the logic for recursively computing merkle digest of tree *)
-  module Synth : TrieSynthMerkleS with type key = key and type value = value
+  module Synth : TrieSynthS with type t= unit and type key = key and type value = value
+  module SynthMerkle : TrieSynthMerkleS with type key = key and type value = value
   module Type : TrieTypeS with type key = key and type value = value
   include TrieS
     with type key := key
