@@ -76,7 +76,8 @@ end
 module type MerkleTrieS = sig
   type key
   type value
-  module Synth : TrieSynthMerkleS with type key = key and type value = value
+  module Synth : TrieSynthS with type t = unit and type key = key and type value = value
+  module SynthMerkle : TrieSynthMerkleS with type key = key and type value = value
   module Type : TrieTypeS with type key = key and type value = value
   include TrieS
     with type key := key
@@ -100,7 +101,7 @@ module type MerkleTrieTypeS = sig
 end
 
 module MerkleTrieType (Key : UIntS) (Value : PersistableS)
-    (Synth : TrieSynthMerkleS with type key = Key.t and type value = Value.t) = struct
+    (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   include TrieType (Key) (Value) (DigestValueType) (Synth)
 
   let trie_tag = function
@@ -166,7 +167,8 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableS)
 end
 
 module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
-  module Synth = TrieSynthMerkle (Key) (Value)
+  module Synth = TrieSynthUnit (Key) (Value)
+  module SynthMerkle = TrieSynthMerkle (Key) (Value)
   module Type = MerkleTrieType (Key) (Value) (Synth)
   module Wrap = struct
     include DigestValue (Type.Trie)
@@ -196,13 +198,12 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
     let c t =
       iterate_over_tree
         ~recursek:(fun ~i ~tree:t ~k ->
-          if not (dv_digest t = get_synth t && dv_digest t = digest t) then
-            bork "Bad digest at key %s height %d digest=%s dv_digest=%s get_synth=%s"
+          if not (dv_digest t = digest t) then
+            bork "Bad digest at key %s height %d digest=%s dv_digest=%s"
               (Key.to_0x_string i)
               (trie_height t)
               (Digest.to_0x_string (digest t))
               (Digest.to_0x_string (dv_digest t))
-              (Digest.to_0x_string (get_synth t))
           else k())
         ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~synth:_ ~k -> k())
         ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~synth:_ ~k -> k())
@@ -254,7 +255,7 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
       match map_fst Wrap.get (find_path key mt) with
       | Leaf {value}, up -> Some { key
                                  ; trie = dv_digest mt
-                                 ; leaf = Synth.leaf value
+                                 ; leaf = SynthMerkle.leaf value
                                  ; steps = (path_digest up).steps }
       | _ -> None
 
@@ -264,14 +265,14 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
         2- st arting from the key, the path should follow the key's bits.
     *)
     let check proof mtrie key value =
-      (proof.leaf = Synth.leaf value)
+      (proof.leaf = SynthMerkle.leaf value)
       && (proof.trie = dv_digest mtrie)
       && (Key.compare key proof.key = 0)
       && let path_d = {costep={index=proof.key;height=0};steps=proof.steps} in
       (check_path_consistency path_d)
       && let (top_d, {height; index}) =
            path_apply
-             (symmetric_unstep ~branch:(konstant Synth.branch) ~skip:(konstant Synth.skip))
+             (symmetric_unstep ~branch:(konstant SynthMerkle.branch) ~skip:(konstant SynthMerkle.skip))
              proof.leaf
              path_d in
       (proof.trie = top_d)
@@ -403,7 +404,7 @@ module MerkleTrieSet (Elt : UIntS) = struct
     let get elt t =
       Option.map (fun T.Proof.{key; trie; steps} -> {elt=key; trie; steps}) (T.Proof.get elt t)
     let check {elt; trie; steps} t l =
-      T.Proof.check {key=elt; trie; leaf=T.Synth.leaf (); steps} t l ()
+      T.Proof.check {key=elt; trie; leaf=T.SynthMerkle.leaf (); steps} t l ()
     include (Yojsonable(struct
                type nonrec t = t
                let to_yojson {elt; trie; steps} =
