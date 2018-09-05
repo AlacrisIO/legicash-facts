@@ -76,9 +76,16 @@ end
 module type MerkleTrieS = sig
   type key
   type value
-  (* Short-circuit the recursive synthesization of the digest during tree
-     walking, by setting [type t = unit]. The digest is now computed more
-     explicitly using [SynthMerkle]. *)
+  (* [Synth.t = unit] because we want to be able to use the [TrieS] tree-walking
+     functionality for lazy DB access, here, without invoking its potentially
+     expensive recursive computation capabilities. Merkle digests are computed
+     using [SynthMerkle], instead.
+
+     This arrangement is potentially faster when batching updates to the DB.
+     Instead of computing the merkle root for each constituent update during a
+     DB transaction involving many batched updates, we can ask for the digest
+     computation at the end, potentially avoiding hundreds of digests which
+     would only be over-written during intermediate states. *)
   module Synth : TrieSynthS with type t = unit and type key = key and type value = value
   module SynthMerkle : TrieSynthMerkleS with type key = key and type value = value
   module Type : TrieTypeS with type key = key and type value = value
