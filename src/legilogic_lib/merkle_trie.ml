@@ -76,6 +76,9 @@ end
 module type MerkleTrieS = sig
   type key
   type value
+  (* Short-circuit the recursive synthesization of the digest during tree
+     walking, by setting [type t = unit]. The digest is now computed more
+     explicitly using [SynthMerkle]. *)
   module Synth : TrieSynthS with type t = unit and type key = key and type value = value
   module SynthMerkle : TrieSynthMerkleS with type key = key and type value = value
   module Type : TrieTypeS with type key = key and type value = value
