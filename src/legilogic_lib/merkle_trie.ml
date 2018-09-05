@@ -173,23 +173,7 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
   module Synth = TrieSynthUnit (Key) (Value)
   module SynthMerkle = TrieSynthMerkle (Key) (Value)
   module Type = MerkleTrieType (Key) (Value) (Synth)
-  module Wrap = struct
-    include DigestValue (Type.Trie)
-      (* TODO: get rid of synth for digest, then remove this disabled debugging code:
-         let make trie =
-         let d1 = Type.Trie.digest trie in
-         let d2 = Type.trie_synth trie in
-         if not (d1 = d2) then
-         bork "Bad digest height=%d digest=%s synth=%s"
-         (match trie with
-         | Empty -> -1
-         | Leaf _ -> 0
-         | Branch {height} -> height
-         | Skip {height} -> height)
-         (Digest.to_0x_string d1)
-         (Digest.to_0x_string d2)));
-         make trie *)
-  end
+  module Wrap = DigestValue (Type.Trie)
   module Trie = Trie (Key) (Value) (DigestValueType) (Synth) (Type) (Wrap)
   include Trie
   include (Type.T : PersistableS with type t := t)
