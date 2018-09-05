@@ -118,8 +118,6 @@ module Test = struct
          >>= fun _ ->
          let amount_to_deposit = TokenAmount.of_int 523 in
          let alice_state_ref = ref (make_alice_state ()) in
-         UserAsyncAction.run_lwt_exn alice_state_ref get_facilitator_fee_schedule ()
-         >>= fun fee_schedule ->
          UserAsyncAction.run_lwt_exn alice_state_ref deposit (trent_address, amount_to_deposit)
          >>= fun signed_request1 ->
          process_request (signed_request1, false)
@@ -148,6 +146,8 @@ module Test = struct
          get_trent_account "Bob" bob_address
          >>= fun bob_account ->
          (* Alice has payment debited from her earlier deposit; Bob has just the payment in his account *)
+         UserAsyncAction.run_lwt_exn alice_state_ref get_facilitator_fee_schedule ()
+         >>= fun fee_schedule ->
          let payment_fee = payment_fee_for fee_schedule payment_amount in
          let alice_expected_balance =
            TokenAmount.(sub alice_expected_deposit (add payment_amount payment_fee)) in
@@ -179,8 +179,6 @@ module Test = struct
          let alice_state_ref = ref (make_alice_state ()) in
          let initial_balance =
            (UserAccountStateMap.find trent_address !alice_state_ref.facilitators).confirmed_state.balance in
-         UserAsyncAction.run_lwt_exn alice_state_ref get_facilitator_fee_schedule ()
-         >>= fun fee_schedule ->
          (* deposit *)
          UserAsyncAction.run_lwt_exn alice_state_ref deposit (trent_address, amount_to_deposit)
          >>= fun signed_request1 ->
@@ -195,6 +193,8 @@ module Test = struct
          assert (alice_account.balance = alice_balance_expected_after_deposit);
          (* withdrawal back to main chain *)
          let amount_to_withdraw = TokenAmount.of_int 42 in
+         UserAsyncAction.run_lwt_exn alice_state_ref get_facilitator_fee_schedule ()
+         >>= fun fee_schedule ->
          let withdrawal_fee = fee_schedule.withdrawal_fee in
          UserAsyncAction.run_lwt_exn alice_state_ref withdrawal (trent_address, amount_to_withdraw)
          >>= fun signed_request2 ->
