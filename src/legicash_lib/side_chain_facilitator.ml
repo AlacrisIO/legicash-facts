@@ -306,8 +306,37 @@ let process_user_transaction_request :
 let post_user_transaction_request =
   stateless_sequentialize process_user_transaction_request
 
+let get_account_state _address _facilitator_state = bottom ()
+
+(* TODO: maintain per-account index of transactions, otherwise this won't scale!!! *)
+let get_recent_transactions address maybe_limit facilitator_state =
+  let all_transactions = facilitator_state.FacilitatorState.current.transactions in
+  let get_operation_for_address _rev (transaction:Transaction.t) ((count, transactions) as accum) k =
+    if (match maybe_limit with Some limit -> count >= limit | _ -> false) then
+      transactions
+    else
+      match transaction.tx_request with
+      | `UserTransaction rx ->
+        if rx.payload.rx_header.requester = address then
+          k (Revision.(add one count), transaction::transactions)
+        else
+          k accum
+      | _ -> k accum
+  in
+  `List (List.map Transaction.to_yojson
+           (TransactionMap.foldrk get_operation_for_address all_transactions (Revision.zero,[]) snd))
+
+let get_proof _tx_revision _facilitator_state = bottom ()
+
 (** Take messages from the user_query_request_mailbox, and process them (TODO: in parallel?) *)
-let process_user_query_request = bottom
+let process_user_query_request request =
+  let state = get_facilitator_state () in
+  (match (request : UserQueryRequest.t) with
+   | Get_account_state {address} -> get_account_state address state
+   | Get_recent_transactions { address; count } -> get_recent_transactions address count state
+   | Get_proof {tx_revision} -> get_proof tx_revision state)
+  |> Lwt_exn.return
+
 let post_user_query_request =
   stateless_sequentialize process_user_query_request
 

@@ -7,7 +7,6 @@
 *)
 
 open Legilogic_lib
-open Lib
 open Action
 open Lwt_exn
 open Yojsoning
@@ -241,66 +240,9 @@ let get_all_balances_on_trent () =
   let sorted_balances_json = List.map side_chain_account_state_to_yojson sorted_side_chain_account_states in
   return (`List sorted_balances_json)
 
-(* convert Request to nice JSON *)
-let make_operation_json address (revision:Revision.t) (user_request:UserRequest.t) =
-  let revision_field = ("facilitator_revision",`Int (Revision.to_int revision)) in
-  match user_request with
-    `UserTransaction request -> (
-    match request.payload.operation with
-      Deposit details ->
-      `Assoc
-        [ ("transaction_type",`String "deposit")
-        ; revision_field
-        ; ("address",`String (Address.to_0x_string address))
-        ; ("amount",`Int (TokenAmount.to_int details.deposit_amount))
-        ]
-    | Payment details ->
-      `Assoc
-        [ ("transaction_type",`String "payment")
-        ; revision_field
-        ; ("sender",`String (Address.to_0x_string address))
-        ; ("recipient",`String (Address.to_hex_string details.payment_invoice.recipient))
-        ; ("amount",`Int (TokenAmount.to_int details.payment_invoice.amount))
-        ]
-    | Withdrawal details ->
-      `Assoc
-        [ ("transaction_type",`String "withdrawal")
-        ; revision_field
-        ; ("address",`String (Address.to_0x_string address))
-        ; ("amount",`Int (TokenAmount.to_int details.withdrawal_amount))
-        ]
-  )
-  | _ -> raise Not_found
-
 let get_recent_user_transactions_on_trent address maybe_limit =
   Side_chain.UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
   |> Side_chain_facilitator.post_user_query_request
-
-(*
-  let trent_state = get_trent_state () in
-  let all_transactions = trent_state.current.transactions in
-  let get_operation_for_address _rev (transaction:Transaction.t) ((count,transactions) as accum) =
-    if Option.is_some maybe_limit &&
-       count >= Option.get maybe_limit then
-      raise (Reached_limit transactions);
-    let request = (transaction.tx_request.signed_request).payload in
-    let requester = request.rx_header.requester in
-    if requester = address then
-      (count+1,make_operation_json address transaction.tx_header.tx_revision request::transactions)
-    else
-      accum
-  in
-  let transactions =
-    try
-      let _,ops =
-        TransactionMap.fold_right
-          get_operation_for_address
-          all_transactions (0,[])
-      in ops
-    with Reached_limit ops -> ops
-  in
-  `List transactions
-*)
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
