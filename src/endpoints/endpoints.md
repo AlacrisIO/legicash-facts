@@ -199,11 +199,11 @@ Recent transactions
   The body is a JSON record of the form:
 
     { "address" : address }
- 
-  The result is a JSON list of transactions. If the "limit" parameter is given, the list 
-  is limited to that number of the most recent transactions requested by the user with 
+
+  The result is a JSON list of transactions. If the "limit" parameter is given, the list
+  is limited to that number of the most recent transactions requested by the user with
   the given address; otherwise, the list is all the transactions by that user.
-  
+
   The transactions are deposits, withdrawals, or payments, along with their details.
 
 Deposit/withdrawal threads
@@ -239,24 +239,24 @@ Validation of proofs
   step. Those serializations are defined in `merkle_trie.ml`, in the module
   `TrieSynthMerkle`. They are a concatenation of big-endian representations of
   unsigned integer. The strings returned by the `proof` endpoint are big-endian.
-  
+
   The following details pertain to commit 4f49fa6, "Fix withdrawal."
-  
+
   The trie from which the proofs are constructed is a `MerkleTrie (Revision)
   (Confirmation)`, defined as `ConfirmationMap` in `side_chain.ml`. `Revision`
   is defined in `db.ml` as a `UInt64`. `Confirmation` is defined in
   `side_chain.ml`
-  
+
   Each component of the serialization begins with a `UInt16`, which is a tag
   defined in `tag.ml`.
-  
+
 ### Leaf nodes
 
   - Initial tag is `Tag.leaf = 0x81`.
     Note that currently, we are not checking this, so these details could be
     wrong, but it seems that the marshaling for the leaves is done in
     `Side_chain.Confirmation.marshaling`.
-  
+
 ### Branch nodes
 
   - Initial tag is `Tag.branch = 0x82`
@@ -264,11 +264,11 @@ Validation of proofs
   - Left is a `Digest`, which is a `Uint256` defined in `db.ml`
     (`module Digest = DBInt(Crypto.Digest)`)
   - Right is another 256-bit digest.
-  
+
   These nodes correspond to `left` and `right` steps. For a `right` step, the
   hash supplied in the step goes on the right, and the partial hash computed so
   far goes on the left. Vice versa for `left` steps.
-  
+
 ### Skip nodes
 
   - Initial tag is `Tag.skip = 0x83`.
@@ -276,6 +276,6 @@ Validation of proofs
   - Length is UInt16
   - Key is a `Revision`, i.e. a UInt64
   - child is a `Digest`, i.e. a UInt256. This is the hash from the last step.
-  
+
   These nodes correspond to `skip` steps. The partial hash computed so far is
   the child digest.

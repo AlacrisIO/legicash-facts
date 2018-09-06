@@ -14,6 +14,7 @@ open Side_chain_user
 module Test = struct
   open Signing.Test
   open Ethereum_transaction.Test
+  open Side_chain_facilitator.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
@@ -120,8 +121,8 @@ module Test = struct
          let alice_state_ref = ref (make_alice_state ()) in
          UserAsyncAction.run_lwt_exn alice_state_ref deposit (trent_address, amount_to_deposit)
          >>= fun signed_request1 ->
-         process_request (signed_request1, false)
-         >>= fun _confirmation ->
+         post_user_transaction_request (signed_request1, false)
+         >>= fun _transaction1 ->
          let trent_state1 = get_facilitator_state () in
          (* TODO: maybe examine the log for the contract call *)
          (* verify the deposit to Alice's account on Trent *)
@@ -133,8 +134,8 @@ module Test = struct
          let payment_amount = TokenAmount.of_int 17 in
          UserAsyncAction.run_lwt_exn alice_state_ref payment (trent_address, bob_address, payment_amount)
          >>= fun signed_request2 ->
-         process_request (signed_request2, false)
-         >>= fun _signed_confirmation2 ->
+         post_user_transaction_request (signed_request2, false)
+         >>= fun _transaction2 ->
          (* verify the payment to Bob's account on Trent *)
          let trent_state2 = get_facilitator_state () in
          let trent_accounts_after_payment = trent_state2.current.accounts in
@@ -182,8 +183,8 @@ module Test = struct
          (* deposit *)
          UserAsyncAction.run_lwt_exn alice_state_ref deposit (trent_address, amount_to_deposit)
          >>= fun signed_request1 ->
-         process_request (signed_request1, false)
-         >>= fun _confirmation1 ->
+         post_user_transaction_request (signed_request1, false)
+         >>= fun _transaction1 ->
          let trent_state1 = get_facilitator_state () in
          (* verify the deposit to Alice's account on Trent *)
          let trent_accounts = trent_state1.current.accounts in
@@ -198,8 +199,8 @@ module Test = struct
          let withdrawal_fee = fee_schedule.withdrawal_fee in
          UserAsyncAction.run_lwt_exn alice_state_ref withdrawal (trent_address, amount_to_withdraw)
          >>= fun signed_request2 ->
-         process_request (signed_request2, false)
-         >>= fun confirmation2 ->
+         post_user_transaction_request (signed_request2, false)
+         >>= fun transaction2 ->
          let trent_state2 = get_facilitator_state () in
          let trent_accounts_after_withdrawal = trent_state2.current.accounts in
          let alice_account_after_withdrawal =
@@ -210,7 +211,7 @@ module Test = struct
          assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
          let trent_state3 = get_facilitator_state () in
          UserAsyncAction.run_lwt_exn alice_state_ref
-           (push_side_chain_action_to_main_chain trent_state3) confirmation2
+           (push_side_chain_withdrawal_to_main_chain trent_state3) transaction2
          (* TODO: get actual transaction receipt from main chain, check receipt
             maybe this t est belongs in Ethereum_transactions
          *)

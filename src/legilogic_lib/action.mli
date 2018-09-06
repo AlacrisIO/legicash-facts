@@ -3,11 +3,19 @@ open Lib
 (** 'output or exception *)
 type +'output or_exn = ('output, exn) result
 
+(** function from 'input to 'output that acts on a 'state *)
+type (-'input, +'output, 'state) action = 'input -> 'state -> 'output * 'state
+
+(** asynchronous function from 'input to 'output that acts on a 'state *)
+type (-'input, +'output, 'state) async_action = 'input -> 'state -> ('output * 'state) Lwt.t
+
 (** function from 'input to 'output that acts on a 'state and may return an exception *)
-type (-'input, +'output, 'state) action = 'input -> 'state -> 'output or_exn * 'state
+type (-'input, +'output, 'state) exn_action = ('input, 'output or_exn, 'state) action
 
 (** asynchronous function from 'input to 'output that acts on a 'state and may return an exception *)
-type (-'input, +'output, 'state) async_action = 'input -> 'state -> ('output or_exn * 'state) Lwt.t
+type (-'input, +'output, 'state) async_exn_action = ('input, 'output or_exn, 'state) async_action
+
+
 
 exception Assertion_failed of string
 
@@ -280,3 +288,30 @@ module AsyncAction (State : TypeS) : AsyncActionS
   with type state = State.t
    and type 'a t = State.t -> ('a or_exn * State.t) Lwt.t
    and type ('i, 'o) readonly = 'i -> State.t -> 'o
+
+(** Given a mailbox and a way to make messages from a pair of input and output-co-promise, return
+    an Lwt Kleisli arrow that goes from input to output *)
+val simple_client : 'msg Lwt_mvar.t -> ('i * 'o Lwt.u -> 'msg) -> ('i, 'o) Lwt_monad.arr
+
+(** Given a mailbox for messages being a pair of input and output-co-promise,
+    and given an AsyncAction arrow for some type of state, and an initial state of that type,
+    return a background thread that sequentially processes those messages. *)
+val simple_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o, 'state) async_action -> 'state -> _ Lwt.t
+
+(** Given an AsyncAction arrow for some type of state, return a client Lwt arrow that can
+    call the asynchronous action in a sequentialized way, and an action that given an initial state
+    for the server will create a background server thread to actually process the client requests. *)
+val simple_client_make_server : ('i, 'o, 'state) async_action ->
+  ('i, 'o) Lwt_monad.arr * ('state -> _ Lwt.t)
+
+(** Given a mailbox for messages being a pair of input and output-co-promise,
+    and given an Lwt arrow return a background thread that sequentially processes those messages. *)
+val stateless_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt_monad.arr -> _ Lwt.t
+
+(** Given an AsyncAction arrow and an initial state,
+    return a client Lwt arrow that provides sequentialized access to the action arrow *)
+val sequentialize : ('i, 'o, 'state) async_action -> 'state -> ('i, 'o) Lwt_monad.arr
+
+(** Given an AsyncAction arrow and an initial state,
+    return a client Lwt arrow that provides sequentialized access to the action arrow *)
+val stateless_sequentialize : ('i, 'o) Lwt_monad.arr -> ('i, 'o) Lwt_monad.arr

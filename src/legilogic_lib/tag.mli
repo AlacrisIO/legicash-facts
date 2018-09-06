@@ -11,27 +11,9 @@ val empty : t
 val leaf : t
 val branch : t
 val skip : t
-
 val none : t
 val some : t
-
 val keypair : t
-
-val side_chain_state : t
-val side_chain_invoice : t
-val base_side_chain_operation : t
-val side_chain_deposit : t
-val side_chain_payment : t
-val side_chain_withdrawal : t
-val side_chain_rx_header : t
-val side_chain_request : t
-val side_chain_user_account_state_per_facilitator : t
-val side_chain_facilitator_state : t
-val side_chain_tx_header : t
-val side_chain_confirmation : t
-val side_chain_account_state : t
-val side_chain_facilitator_fee_schedule : t
-
 (* End of magic numbers used for tags *)
 
 val bad_tag_error : int -> Bytes.t -> 'a

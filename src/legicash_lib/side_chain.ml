@@ -22,11 +22,10 @@ module Invoice = struct
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
-      marshaling_tagged Tag.side_chain_invoice
-        (marshaling3
-           (fun {recipient; amount; memo} -> (recipient, amount, memo))
-           (fun recipient amount memo -> {recipient; amount; memo})
-           Address.marshaling TokenAmount.marshaling String63.marshaling)
+      marshaling3
+        (fun {recipient; amount; memo} -> recipient, amount, memo)
+        (fun recipient amount memo -> {recipient; amount; memo})
+        Address.marshaling TokenAmount.marshaling String63.marshaling
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -34,7 +33,7 @@ module Invoice = struct
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
 
-module Operation = struct
+module UserOperation = struct
   [@warning "-39"]
 
   type deposit_details =
@@ -60,10 +59,9 @@ module Operation = struct
   [@@deriving yojson]
 
   let operation_tag = function
-    | Deposit _ -> Tag.side_chain_deposit
-    | Payment _ -> Tag.side_chain_payment
-    | Withdrawal _ -> Tag.side_chain_withdrawal
-
+    | Deposit _ -> Side_chain_tag.deposit
+    | Payment _ -> Side_chain_tag.payment
+    | Withdrawal _ -> Side_chain_tag.withdrawal
   module PrePersistable = struct
     type nonrec t = t
     let case_table =
@@ -108,7 +106,7 @@ module Operation = struct
               Withdrawal {withdrawal_amount; withdrawal_fee})
            TokenAmount.marshaling TokenAmount.marshaling |]
     let marshaling =
-      marshaling_cases operation_tag Tag.base_side_chain_operation case_table
+      marshaling_cases operation_tag Side_chain_tag.base_operation case_table
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -131,36 +129,34 @@ module RxHeader = struct
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
-      marshaling_tagged Tag.side_chain_rx_header
-        (marshaling8
-           (fun { facilitator
-                ; requester
-                ; requester_revision
-                ; confirmed_main_chain_state_digest
-                ; confirmed_main_chain_state_revision
-                ; confirmed_side_chain_state_digest
-                ; confirmed_side_chain_state_revision
-                ; validity_within } ->
-             facilitator, requester, requester_revision,
-             confirmed_main_chain_state_digest, confirmed_main_chain_state_revision,
-             confirmed_side_chain_state_digest, confirmed_side_chain_state_revision,
-             validity_within)
-           (fun facilitator requester requester_revision
-             confirmed_main_chain_state_digest confirmed_main_chain_state_revision
-             confirmed_side_chain_state_digest confirmed_side_chain_state_revision
-             validity_within ->
-             { facilitator
+      marshaling8
+        (fun { facilitator
              ; requester
              ; requester_revision
              ; confirmed_main_chain_state_digest
              ; confirmed_main_chain_state_revision
              ; confirmed_side_chain_state_digest
              ; confirmed_side_chain_state_revision
-             ; validity_within })
-           Address.marshaling Address.marshaling Revision.marshaling
-           Digest.marshaling Revision.marshaling
-           Digest.marshaling Revision.marshaling
-           Duration.marshaling)
+             ; validity_within } ->
+          facilitator, requester, requester_revision,
+          confirmed_main_chain_state_digest, confirmed_main_chain_state_revision,
+          confirmed_side_chain_state_digest, confirmed_side_chain_state_revision,
+          validity_within)
+        (fun facilitator requester requester_revision
+          confirmed_main_chain_state_digest confirmed_main_chain_state_revision
+          confirmed_side_chain_state_digest confirmed_side_chain_state_revision
+          validity_within ->
+          { facilitator
+          ; requester
+          ; requester_revision
+          ; confirmed_main_chain_state_digest
+          ; confirmed_main_chain_state_revision
+          ; confirmed_side_chain_state_digest
+          ; confirmed_side_chain_state_revision
+          ; validity_within })
+        Address.marshaling Address.marshaling Revision.marshaling
+        Digest.marshaling Revision.marshaling Digest.marshaling Revision.marshaling
+        Duration.marshaling
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -168,9 +164,9 @@ module RxHeader = struct
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
 
-module Request = struct
+module UserTransactionRequest = struct
   [@warning "-39"]
-  type t = {rx_header: RxHeader.t; operation: Operation.t}
+  type t = {rx_header: RxHeader.t; operation: UserOperation.t}
   [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
     type nonrec t = t
@@ -178,7 +174,7 @@ module Request = struct
       marshaling2
         (fun {rx_header; operation} -> rx_header, operation)
         (fun rx_header operation -> {rx_header; operation})
-        RxHeader.marshaling Operation.marshaling
+        RxHeader.marshaling UserOperation.marshaling
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -205,18 +201,142 @@ module TxHeader = struct
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
 end
 
+module AdminTransactionRequest = struct
+  [@warning "-39"]
+  type t =
+    | StateUpdate
+  [@@deriving yojson]
+  module P = struct
+    type nonrec t = t
+    let yojsoning = {to_yojson;of_yojson}
+    let marshaling =
+      { marshal=(fun _buffer _ -> ())
+      ; unmarshal=(fun start _bytes -> StateUpdate, start) }
+  end
+  include (TrivialPersistable(P) : PersistableS with type t := t)
+end
+
+module UserQueryRequest = struct
+  [@warning "-39"]
+  type t =
+    | Get_account_state of {address: Address.t}
+    | Get_recent_transactions of {address: Address.t; count: Revision.t option}
+    | Get_proof of {tx_revision: Revision.t}
+  [@@deriving yojson]
+  module P = struct
+    type nonrec t = t
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (YojsonPersistable(P) : PersistableS with type t := t)
+end
+
+module AdminQueryRequest = struct
+  [@warning "-39"]
+  type t =
+    | Get_all_balances
+    | Get_transaction_rate
+  [@@deriving yojson]
+  module P = struct
+    type nonrec t = t
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (YojsonPersistable(P) : PersistableS with type t := t)
+end
+
+module TransactionRequest = struct
+  [@warning "-39"]
+  type t =
+    [ `UserTransaction of UserTransactionRequest.t signed
+    | `AdminTransaction of AdminTransactionRequest.t ]
+  [@@deriving yojson]
+  module P = struct
+    type nonrec t = t
+    let yojsoning = {to_yojson;of_yojson}
+    let marshal buffer = function
+      | `UserTransaction utrs ->
+        Tag.marshal buffer Side_chain_tag.user_transaction;
+        marshal_signed UserTransactionRequest.marshal buffer utrs
+      | `AdminTransaction x ->
+        Tag.marshal buffer Side_chain_tag.admin_transaction;
+        AdminTransactionRequest.marshal buffer x
+    let unmarshal start bytes =
+      let (tag, p) = Tag.unmarshal start bytes in
+      if tag = Side_chain_tag.user_transaction then
+        let (utrs, p) = unmarshal_signed UserTransactionRequest.unmarshal p bytes in
+        `UserTransaction utrs, p
+      else if tag = Side_chain_tag.admin_transaction then
+        let (x, p) = AdminTransactionRequest.unmarshal p bytes in
+        `AdminTransaction x, p
+      else raise (Unmarshaling_error ("bad tag", start, bytes))
+    let marshaling = {marshal;unmarshal}
+  end
+  include (TrivialPersistable(P) : PersistableS with type t := t)
+end
+
+module Query = struct
+  [@warning "-39"]
+  type t =
+    [ `UserQuery of UserQueryRequest.t
+    | `AdminQuery of AdminQueryRequest.t ]
+  [@@deriving yojson]
+  module P = struct
+    type nonrec t = t
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (YojsonPersistable(P) : PersistableS with type t := t)
+end
+
+module UserRequest = struct
+  [@warning "-39"]
+  type t =
+    [ `UserQuery of UserQueryRequest.t
+    | `UserTransaction of UserTransactionRequest.t signed ]
+  [@@deriving yojson]
+  module P = struct
+    type nonrec t = t
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (YojsonPersistable(P) : PersistableS with type t := t)
+end
+
+module AdminRequest = struct
+  [@warning "-39"]
+  type t =
+    [ `AdminQuery of UserQueryRequest.t
+    | `AdminTransaction of AdminTransactionRequest.t ]
+  [@@deriving yojson]
+  module P = struct
+    type nonrec t = t
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (YojsonPersistable(P) : PersistableS with type t := t)
+end
+
+module ExternalRequest = struct
+  [@warning "-39"]
+  type t =
+    [ `UserQuery of UserQueryRequest.t
+    | `UserTransaction of UserTransactionRequest.t signed
+    | `AdminQuery of UserQueryRequest.t ]
+  [@@deriving yojson]
+  module P = struct
+    type nonrec t = t
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (YojsonPersistable(P) : PersistableS with type t := t)
+end
+
 module Transaction = struct
   [@warning "-39"]
-  type t = {tx_header: TxHeader.t; signed_request: Request.t signed}
+  type t = {tx_header: TxHeader.t; tx_request: TransactionRequest.t}
   [@@deriving lens { prefix=true }, yojson ]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
-      marshaling_tagged Tag.side_chain_confirmation
-        (marshaling2
-           (fun {tx_header; signed_request} -> tx_header, signed_request)
-           (fun tx_header signed_request -> {tx_header; signed_request})
-           TxHeader.marshaling (marshaling_signed Request.marshaling))
+      marshaling2
+        (fun {tx_header; tx_request} -> tx_header, tx_request)
+        (fun tx_header tx_request -> {tx_header; tx_request})
+        TxHeader.marshaling TransactionRequest.marshaling
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -266,7 +386,7 @@ module State = struct
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
-      marshaling_tagged Tag.side_chain_state
+      marshaling_tagged Side_chain_tag.state
         (marshaling5
            (fun { facilitator_revision
                 ; spending_limit
@@ -378,8 +498,6 @@ exception Already_closed
 exception Account_closed_or_nonexistent
 
 exception Invalid_confirmation
-
-exception Invalid_operation of Operation.t
 
 let one_second = Duration.of_int 1000000000
 

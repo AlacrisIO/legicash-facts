@@ -77,6 +77,13 @@ let error_response id msg =
 let internal_error_response id msg =
   internal_error id (error_json "%s" msg)
 
+let return_result id json_or_exn =
+  match json_or_exn with
+  | Ok json -> ok_json id json
+  | Error exn -> (
+      Printexc.to_string exn
+      |> error_response id)
+
 let _ =
   let request_counter =
     let counter = ref 0 in
@@ -175,16 +182,16 @@ let _ =
            | Error msg -> error_response id msg)
         | "recent_transactions" ->
           let maybe_limit_string = Request.param request "limit" in
-          let invalid_limit = Some (-1) in
+          let invalid_limit = Some (Revision.zero) in
           let maybe_limit =
             match maybe_limit_string with
             | Some s ->
               (try
-                 let limit = int_of_string s in
-                 if limit < 0 then raise (Failure "bad limit");
+                 let limit = Revision.of_string s in
+                 if Revision.compare limit Revision.zero <= 0 then raise (Failure "bad limit");
                  Some limit
                with Failure _ ->
-                 (* limit string not parseable as a number, or negative *)
+                 (* limit string not parseable as a number, or nonpositive *)
                  invalid_limit)
             | None -> None
           in
@@ -193,9 +200,9 @@ let _ =
           else
             let maybe_address = address_json_of_yojson json in
             (match maybe_address with
-             | Ok address_record ->
-               let result_json = get_recent_transactions_on_trent address_record.address maybe_limit in
-               ok_json id result_json
+             | Ok address_record -> (
+                 get_recent_user_transactions_on_trent address_record.address maybe_limit
+                 >>= return_result id)
              | Error msg -> error_response id msg)
         | "status" ->
           let maybe_address = address_json_of_yojson json in

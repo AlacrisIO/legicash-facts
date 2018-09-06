@@ -25,7 +25,7 @@ module Invoice : sig
 end
 
 (** an operation on a facilitator side-chain *)
-module Operation : sig
+module UserOperation : sig
   [@warning "-39"]
   type deposit_details =
     { deposit_amount: TokenAmount.t
@@ -94,8 +94,8 @@ end
 (** Request from user to facilitator for operation on the side chain
     an operation, plus headers that provide a reference to the past and a timeout
 *)
-module Request : sig
-  type t = {rx_header: RxHeader.t; operation: Operation.t}
+module UserTransactionRequest : sig
+  type t = {rx_header: RxHeader.t; operation: UserOperation.t}
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
   include SignableS with type t := t
@@ -118,32 +118,75 @@ module TxHeader : sig
   include PersistableS with type t := t
 end
 
-(*
-   module AdminOperation : sig
-   type state_update_details =
-   { main_chain_revision : Revision.t }
-   [@@deriving lens { prefix=true }, yojson]
-   type t =
-   | StateUpdate of
-   { (* TODO *) }
-   include PersistableS with type t := t
-   end
+module AdminTransactionRequest : sig
+  (* Update the side-chain to take into account that the state of the side chain at given revision
+     was confirmed on the main chain at given revision,
+     thus allowing the facilitator to refresh their spending limit.
+     All details are in the RxHeader and TxHeader.
+  *)
+  type t =
+    | StateUpdate
+  include PersistableS with type t := t
+end
 
-   module TxOperation : sig
-   type t =
-   | UserRequest of Request.t signed
-   | AdminOperation of AdminOperation.t
-   include PersistableS with type t := t
-   end
-*)
+module UserQueryRequest : sig
+  type t =
+    | Get_account_state of {address: Address.t}
+    | Get_recent_transactions of {address: Address.t; count: Revision.t option}
+    | Get_proof of {tx_revision: Revision.t}
+  include PersistableS with type t := t
+end
+
+module AdminQueryRequest : sig
+  type t =
+    | Get_all_balances
+    | Get_transaction_rate
+  include PersistableS with type t := t
+end
+
+module TransactionRequest : sig
+  type t =
+    [ `UserTransaction of UserTransactionRequest.t signed
+    | `AdminTransaction of AdminTransactionRequest.t ]
+  include PersistableS with type t := t
+end
+
+module Query : sig
+  type t =
+    [ `UserQuery of UserQueryRequest.t
+    | `AdminQuery of AdminQueryRequest.t ]
+  include PersistableS with type t := t
+end
+
+module UserRequest : sig
+  type t =
+    [ `UserQuery of UserQueryRequest.t
+    | `UserTransaction of UserTransactionRequest.t signed]
+  include PersistableS with type t := t
+end
+
+module AdminRequest : sig
+  type t =
+    [ `AdminQuery of UserQueryRequest.t
+    | `AdminTransaction of AdminTransactionRequest.t ]
+  include PersistableS with type t := t
+end
+
+module ExternalRequest : sig
+  type t =
+    [ `UserQuery of UserQueryRequest.t
+    | `UserTransaction of UserTransactionRequest.t signed
+    | `AdminQuery of UserQueryRequest.t ]
+  include PersistableS with type t := t
+end
 
 (** A transaction confirmation from a facilitator:
     a request, plus headers that help validate against fraud.
 *)
 module Transaction : sig
-  type t = {tx_header: TxHeader.t;
-            (* TODO: replace the below with tx_operation: TxOperation.t *)
-            signed_request: Request.t signed}
+  type t = { tx_header: TxHeader.t;
+             (* TODO: replace the below with tx_operation: TxOperation.t *)
+             tx_request: TransactionRequest.t }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
@@ -242,8 +285,6 @@ exception Already_closed
 exception Account_closed_or_nonexistent
 
 exception Invalid_confirmation
-
-exception Invalid_operation of Operation.t
 
 val challenge_duration : Duration.t
 

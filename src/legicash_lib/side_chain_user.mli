@@ -45,9 +45,9 @@ module KnowledgeStage : sig
 end
 
 (** side chain operation + knowledge about the operation *)
-module Episteme : sig
+module TransactionStatus : sig
   type t =
-    { request: Request.t signed
+    { request: UserTransactionRequest.t signed
     ; transaction_option: Transaction.t option
     (* TODO: as distinguished from the Transaction, a Confirmation, which will be
        a merkle proof relating the transaction to a signed side-chain state.
@@ -63,7 +63,7 @@ module UserAccountState : sig
     { facilitator_validity: KnowledgeStage.t
     (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
     ; confirmed_state: AccountState.t
-    ; pending_operations: Episteme.t list }
+    ; pending_operations: TransactionStatus.t list }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
   (** User's view of the default (empty) state for a new facilitator *)
@@ -127,34 +127,34 @@ end
 module UserAction : ActionS with type state = UserState.t
 module UserAsyncAction : AsyncActionS with type state = UserState.t
 
-val issue_user_request : (Operation.t, Request.t signed) UserAction.arr
+val issue_user_transaction_request : (UserOperation.t, UserTransactionRequest.t signed) UserAction.arr
 
 (** Actually do the deposit on the Main_chain *)
-val deposit : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
+val deposit : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserAsyncAction.arr
 
 (*
    (** Notify the facilitator that the deposit was confirmed on the Main_chain and should be acknowledged
    on the Side_chain. *)
-   val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, Request.t signed) UserAction.arr
+   val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, UserRequest.t signed) UserAction.arr
 *)
 
-(* An action made on the side chain may need a corresponding action on the main chain. Do them.
+(* An withdrawal made on the side chain need a corresponding action on the main chain.
    Specifically, while deposit and payment side-chain transactions require no follow up
    (deposit does have pre-requisites, though), a withdrawal transaction requires
    action on the main chain after the withdrawal was registered on the side-chain.
    TODO: handle persistence and asynchronous action gracefully.
 *)
-val push_side_chain_action_to_main_chain :
+val push_side_chain_withdrawal_to_main_chain :
   FacilitatorState.t -> (Transaction.t, Main_chain.Confirmation.t) UserAsyncAction.arr
 
 (** Build a signed withdrawal request from specification *)
-val withdrawal : (Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
+val withdrawal : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserAsyncAction.arr
 
 (** Compute the suitable fee for a payment of given amount *)
 val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
 
 (** Build a signed payment request from specification *)
-val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyncAction.arr
+val payment : (Address.t * Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserAsyncAction.arr
 
 (*
    (** post an account_activity_status request for closing the account on the *main chain*. TBD *)
@@ -173,4 +173,4 @@ val payment : (Address.t * Address.t * TokenAmount.t, Request.t signed) UserAsyn
 
 val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr
 
-val mark_request_rejected : (Request.t signed, unit) UserAction.arr
+val mark_request_rejected : (UserTransactionRequest.t signed, unit) UserAction.arr

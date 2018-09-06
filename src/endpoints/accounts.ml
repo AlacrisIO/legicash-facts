@@ -143,7 +143,7 @@ let new_facilitator_state facilitator_keypair =
     ; fee_schedule= fee_schedule }
 
 let get_trent_state () =
-  Side_chain_facilitator.get_facilitator_state ()
+  Side_chain_facilitator.Test.get_facilitator_state ()
 
 let get_user_account address =
   (Side_chain_facilitator.facilitator_account_lens address).get (get_trent_state ())

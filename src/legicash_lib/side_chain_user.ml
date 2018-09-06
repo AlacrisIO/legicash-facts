@@ -20,7 +20,6 @@ open Side_chain
    i.e. each actor (in this case, a side_chain user) has persistent set of partial ongoing
    transactions, and it will keep making progress on by chatting with other actors,
    even if the computer crashes.
-
    The transactions may be themselves organized as a set of desiderata each associated
    with some "aspect" of the state. Each aspect can synchronize with the outside world;
    if there is a conflict, then log a notification and reset expectations.
@@ -50,10 +49,10 @@ module KnowledgeStage = struct
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
-module Episteme = struct
+module TransactionStatus = struct
   [@warning "-39"]
   type t =
-    { request: Request.t signed
+    { request: UserTransactionRequest.t signed
     ; transaction_option: Transaction.t option
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
   [@@deriving lens { prefix=true }, yojson]
@@ -65,7 +64,7 @@ module Episteme = struct
            request, transaction_option, main_chain_confirmation_option)
         (fun request transaction_option main_chain_confirmation_option ->
            { request; transaction_option; main_chain_confirmation_option })
-        (marshaling_signed Request.marshaling)
+        (marshaling_signed UserTransactionRequest.marshaling)
         (option_marshaling Transaction.marshaling)
         (option_marshaling Main_chain.Confirmation.marshaling)
     let walk_dependencies = no_dependencies
@@ -80,7 +79,7 @@ module UserAccountState = struct
   type t =
     { facilitator_validity: KnowledgeStage.t
     ; confirmed_state: AccountState.t
-    ; pending_operations: Episteme.t list }
+    ; pending_operations: TransactionStatus.t list }
   [@@deriving lens { prefix=true }, yojson ]
   module PrePersistable = struct
     type nonrec t = t
@@ -95,7 +94,7 @@ module UserAccountState = struct
            ; confirmed_state
            ; pending_operations })
         KnowledgeStage.marshaling AccountState.marshaling
-        (list_marshaling Episteme.marshaling)
+        (list_marshaling TransactionStatus.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
@@ -165,14 +164,18 @@ let make_rx_header facilitator_address user_state =
       ; RxHeader.validity_within= default_validity_window }
       user_state
 
-let mk_rx_episteme rx =
-  Episteme.{request= rx; transaction_option= None; main_chain_confirmation_option= None}
+let mk_rx_transaction_status rx =
+  TransactionStatus.{request= rx; transaction_option= None; main_chain_confirmation_option= None}
 
-let [@warning "-32"] mk_tx_episteme tx =
-  Episteme.
-    { request= tx.payload.Transaction.signed_request
-    ; transaction_option= Some tx.payload
-    ; main_chain_confirmation_option= None }
+(*
+   let mk_tx_transaction_status tx =
+   TransactionStatus.
+   { request= (match tx.Transaction.tx_request with
+   | `UserTransaction signed_request -> signed_request
+   | _ -> bottom ())
+   ; transaction_option= Some tx
+   ; main_chain_confirmation_option= None }
+*)
 
 let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
   fun facilitator_address ->
@@ -180,37 +183,37 @@ let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
     defaulting_lens (konstant UserAccountState.empty)
       (UserAccountStateMap.lens facilitator_address)
 
-(** TODO: Handle cases of updates to previous epistemes, rather than just new ones *)
-let add_user_episteme episteme user_state =
-  let facilitator = episteme.Episteme.request.payload.rx_header.facilitator in
-  Lens.modify
+(** TODO: Handle cases of updates to previous transaction_statuss, rather than just new ones *)
+let add_user_transaction_status transaction_status user_state =
+  let facilitator = transaction_status.TransactionStatus.request.payload.rx_header.facilitator in
+    Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
-    (fun ops -> episteme::ops) (* TODO: replays, retries...*)
+    (fun ops -> transaction_status::ops) (* TODO: replays, retries...*)
     user_state
 
 let remove_user_request request user_state =
-  let facilitator = request.payload.Request.rx_header.facilitator in
-  Lens.modify
+  let facilitator = request.payload.UserTransactionRequest.rx_header.facilitator in
+    Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
-    (List.filter (fun x -> x.Episteme.request != request))
+    (List.filter (fun x -> x.TransactionStatus.request != request))
     user_state
 
 let sign_request request user_state =
-  UserAction.return
-    (Request.signed user_state.UserState.main_chain_user_state.keypair request)
-    user_state
+   UserAction.return
+   (UserTransactionRequest.signed user_state.UserState.main_chain_user_state.keypair request)
+   user_state
 
 let add_pending_request request state =
-  UserAction.return request (add_user_episteme (mk_rx_episteme request) state)
+  UserAction.return request (add_user_transaction_status (mk_rx_transaction_status request) state)
 
 let mark_request_rejected request state =
   UserAction.return () (remove_user_request request state)
 
-let issue_user_request operation =
+let issue_user_transaction_request operation =
   let open UserAction in
   get_first_facilitator ()
   >>= make_rx_header
-  >>= fun rx_header -> return Request.{rx_header; operation}
+  >>= fun rx_header -> return UserTransactionRequest.{rx_header; operation}
   >>= sign_request
   >>= add_pending_request
 
@@ -249,7 +252,7 @@ let issue_user_request operation =
  *     | Rejected -> confirmed_state
  *     | _ ->
  *       update_account_state_with_trusted_operations
- *         (List.map (fun x -> x.Episteme.request.payload.operation) pending_operations)
+ *         (List.map (fun x -> x.TransactionStatus.request.payload.operation) pending_operations)
  *         confirmed_state *)
 
 let lift_main_chain_user_async_action_to_side_chain main_chain_user_async_action input user_state =
@@ -268,7 +271,7 @@ let deposit (facilitator_address, deposit_amount) =
   lift_main_chain_user_async_action_to_side_chain Ethereum_action.wait_for_confirmation
     main_chain_deposit
   >>= fun main_chain_deposit_confirmation ->
-  of_action issue_user_request
+  of_action issue_user_transaction_request
     (Deposit
        { deposit_amount
        ; deposit_fee
@@ -281,7 +284,7 @@ let withdrawal (facilitator_address, withdrawal_amount) =
   let open UserAsyncAction in
   get_facilitator_fee_schedule facilitator_address
   >>= fun {withdrawal_fee} ->
-  of_action issue_user_request
+  of_action issue_user_transaction_request
     (Withdrawal { withdrawal_amount ; withdrawal_fee })
 
 let payment_fee_for FacilitatorFeeSchedule.{fee_per_billion} payment_amount =
@@ -293,11 +296,12 @@ let payment (facilitator_address, recipient_address, payment_amount) =
   >>= fun fee_schedule ->
   let payment_invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= ""} in
   let payment_fee = payment_fee_for fee_schedule payment_amount in
-  of_action issue_user_request
+  of_action issue_user_transaction_request
     (Payment {payment_invoice; payment_fee; payment_expedited= false})
 
 (** We should be signing the RLP, not the marshaling! *)
-let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operation.withdrawal_fee} user_address facilitator_keys =
+let make_main_chain_withdrawal_transaction
+      UserOperation.{withdrawal_amount;withdrawal_fee} user_address facilitator_keys =
   (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
   let ticket = Revision.zero in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
@@ -314,7 +318,7 @@ let make_main_chain_withdrawal_transaction { Operation.withdrawal_amount; Operat
       } in
   Main_chain.Transaction.{tx_header;operation}
 
-let push_side_chain_action_to_main_chain
+let push_side_chain_withdrawal_to_main_chain
       (facilitator_state : FacilitatorState.t)
       (transaction : Transaction.t)
       (user_state : UserState.t) =
@@ -322,11 +326,15 @@ let push_side_chain_action_to_main_chain
      let facilitator_address = facilitator_state.keypair.address in
      if not (is_signature_valid Transaction.digest facilitator_address signed_transaction.signature transaction) then
      bork "Invalid facilitator signature on signed transaction";*)
-  let signed_request = transaction.signed_request in
+  let signed_request =
+    match transaction.tx_request with
+    | `UserTransaction sr -> sr
+    | _ -> bork "Expected user transaction for withdrawal"
+  in
   let request = signed_request.payload in
   let user_keys = user_state.main_chain_user_state.keypair in
   let user_address = user_keys.address in
-  if not (is_signature_valid Request.digest user_address signed_request.signature request) then
+  if not (is_signed_value_valid UserTransactionRequest.digest user_address signed_request) then
     bork "Invalid user signature on signed request";
   match request.operation with
   | Withdrawal details ->

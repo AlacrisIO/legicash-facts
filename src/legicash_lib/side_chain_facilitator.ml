@@ -1,3 +1,6 @@
+(* WARNING: We use GLOBAL STATE for our mailboxes,
+   so there's only one facilitator running in a given process.
+   I blame OCaml for lack of dynamic binding. Yay Common Lisp special variables and Scheme parameters! *)
 open Lens.Infix
 
 open Legilogic_lib
@@ -34,15 +37,15 @@ module FacilitatorAsyncAction = AsyncAction(FacilitatorState)
 
 type account_lens = (FacilitatorState.t, AccountState.t) Lens.t
 
-(* WARNING: GLOBAL STATE, so there's only one facilitator running *)
-let user_request_mailbox : (Request.t signed * bool * Transaction.t or_exn Lwt.u) Lwt_mvar.t =
-  Lwt_mvar.create_empty ()
 
-type validated_request =
-  | Confirm of Request.t signed * (Transaction.t * unit Lwt.t) or_exn Lwt.u
-  | Flush of int
+type validated_transaction_request =
+  [ `Confirm of TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u ]
 
-let validated_request_mailbox : validated_request Lwt_mvar.t = Lwt_mvar.create_empty ()
+type inner_transaction_request =
+  [ `Confirm of TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u
+  | `Flush of int ]
+
+let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
 type facilitator_service =
   { address : Address.t
@@ -50,7 +53,7 @@ type facilitator_service =
 
 let the_facilitator_service_ref : (facilitator_service option ref) = ref None
 
-let get_facilitator_state () =
+let get_facilitator_state () : FacilitatorState.t =
   !the_facilitator_service_ref
   |> (function Some x -> x | None -> bork "Facilitator service not started")
   |> fun service -> !(service.state_ref)
@@ -59,7 +62,7 @@ let facilitator_account_lens address =
   FacilitatorState.lens_current |-- State.lens_accounts
   |-- defaulting_lens (konstant AccountState.empty) (AccountMap.lens address)
 
-let signed_request_requester rx = rx.payload.Request.rx_header.requester
+let signed_request_requester rx = rx.payload.UserTransactionRequest.rx_header.requester
 
 exception Malformed_request of string
 
@@ -71,93 +74,96 @@ exception Malformed_request of string
     TODO: parallelize the signature checking in a C worker thread that lets us do additional OCaml work.
 *)
 
-let check_side_chain_request_well_formed :
-  (Request.t signed * bool, Request.t signed * bool) FacilitatorAction.arr =
-  let open FacilitatorAction in
-  fun x state ->
-    let ({payload} as sr, is_forced) = x in
-    let Request.{ rx_header={ requester; requester_revision }; operation } = payload in
+let validate_user_transaction_request :
+  (UserTransactionRequest.t signed * bool, TransactionRequest.t) Lwt_exn.arr =
+  fun (signed_request, is_forced) ->
+    let {payload=UserTransactionRequest.{ rx_header={ requester; requester_revision }; operation }} =
+      signed_request in
+    let state = get_facilitator_state () in
     let AccountState.{balance; account_revision} = (facilitator_account_lens requester).get state in
     let FacilitatorState.{fee_schedule} = state in
+    let open Lwt_exn in
     let check test exngen =
-      fun x state ->
-        if test then return x state
-        else fail (Malformed_request (exngen ())) state in
-    (fun arr -> arr x state)
-      ((* XXX TEMPORARILY DISABLED FOR DEMO PURPOSES UNTIL WE IMPROVE THE SIDE CHAIN USER SOFTWARE
-          TODO - Fix the side_chain_user and endpoints/actions code, then re-enable this check. *)
-        let open Revision in
-        check (requester_revision = (add account_revision one) || true) (* <-- TODO: REMOVE the || true *)
+      fun x ->
+        if test then return x
+        else fail (Malformed_request (exngen ())) in
+    `UserTransaction signed_request
+    |> ((* XXX THE REVISION CHECK BELOW IS TEMPORARILY DISABLED FOR DEMO PURPOSES,
+           UNTIL WE IMPROVE THE SIDE CHAIN USER SOFTWARE
+           TODO - Fix the side_chain_user and endpoints/actions code, then re-enable this check. *)
+      let open Revision in
+      check (requester_revision = (add account_revision one) || true) (* <-- TODO: REMOVE the || true *)
+        (fun () ->
+           Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
+             (to_string requester_revision) (to_string (add account_revision one)))
+      >>> check (is_signed_value_valid UserTransactionRequest.digest requester signed_request)
+            (konstant "The signature for the request doesn't match the requester")
+      (* TODO: check confirmed main & side chain state + validity window *)
+      >>> (* Check that the numbers add up: *)
+      let open TokenAmount in
+      match operation with
+      | Deposit
+          { deposit_amount
+          ; deposit_fee
+          ; main_chain_deposit={tx_header= {value}} as main_chain_deposit
+          ; main_chain_deposit_confirmation
+          ; deposit_expedited } ->
+        check (is_sum value deposit_amount deposit_fee)
           (fun () ->
-             Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
-               (to_string requester_revision) (to_string (add account_revision one)))
-        >>> check (is_signed_value_valid Request.digest requester sr)
-              (konstant "The signature for the request doesn't match the requester")
-        (* TODO: check confirmed main & side chain state + validity window *)
-        >>> (* Check that the numbers add up: *)
-        let open TokenAmount in
-        match operation with
-        | Deposit
-            { deposit_amount
-            ; deposit_fee
-            ; main_chain_deposit={tx_header= {value}} as main_chain_deposit
-            ; main_chain_deposit_confirmation
-            ; deposit_expedited } ->
-          check (is_sum value deposit_amount deposit_fee)
-            (fun () ->
-               Printf.sprintf "Deposit amount %s and fee %s fail to add up to deposit value %s"
-                 (to_string deposit_amount) (to_string deposit_fee) (to_string value))
-          >>> check (not (is_forced && deposit_expedited))
-                (konstant "You cannot force an expedited deposit")
-          >>> check (is_forced || compare deposit_fee fee_schedule.deposit_fee >= 0)
-                (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
-                             (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
-          (* TODO: CHECK FROM THE CONFIRMATION THAT THE CORRECT PERSON DID THE DEPOSIT,
-             AND/OR THAT IT WAS TAGGED WITH THE CORRECT RECIPIENT. *)
-          >>> check (Main_chain.is_confirmation_valid
-                       main_chain_deposit_confirmation main_chain_deposit)
-                (fun () -> "The main chain deposit confirmation is invalid")
-        | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
-          check (is_add_valid payment_invoice.amount payment_fee)
-            (fun () -> "Adding payment amount and fee causes an overflow!")
-          >>> check (compare balance (add payment_invoice.amount payment_fee) >= 0)
-                (fun () ->
-                   Printf.sprintf "Balance %s insufficient to cover payment amount %s plus fee %s"
-                     (to_string balance) (to_string payment_invoice.amount) (to_string payment_fee))
-          (* TODO: make per_account_limit work on the entire floating thing *)
-          >>> check (compare fee_schedule.per_account_limit payment_invoice.amount >= 0)
-                (fun () ->
-                   Printf.sprintf "Payment amount %s is larger than authorized limit %s"
-                     (to_string payment_invoice.amount) (to_string fee_schedule.per_account_limit))
-          >>> check (is_forced ||
-                     is_mul_valid state.fee_schedule.fee_per_billion payment_invoice.amount)
-                (fun () ->
-                   Printf.sprintf
-                     "Payment fee calculation overflows with amount %s, scheduled fee per billion %s"
-                     (to_string payment_invoice.amount) (to_string fee_schedule.fee_per_billion))
-          >>> check (is_forced ||
-                     compare payment_fee
-                       (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
-                          one_billion_tokens)
-                     >= 0)
-                (fun () ->
-                   Printf.sprintf
-                     "Insufficient payment fee %s when at least %s were expected"
-                     (to_string payment_fee)
-                     (to_string (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
-                                   one_billion_tokens)))
-        | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-          check (is_add_valid withdrawal_amount withdrawal_fee)
-            (fun () -> "Adding withdrawal amount and fee causes an overflow!")
-          >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
-                (fun () ->
-                   Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
-                     (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
-          >>> check (is_forced || compare withdrawal_fee fee_schedule.withdrawal_fee >= 0)
-                (fun () -> Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
-                             (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
+             Printf.sprintf "Deposit amount %s and fee %s fail to add up to deposit value %s"
+               (to_string deposit_amount) (to_string deposit_fee) (to_string value))
+        >>> check (not (is_forced && deposit_expedited))
+              (konstant "You cannot force an expedited deposit")
+        >>> check (is_forced || compare deposit_fee fee_schedule.deposit_fee >= 0)
+              (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
+                           (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
+        (* TODO: CHECK FROM THE CONFIRMATION THAT THE CORRECT PERSON DID THE DEPOSIT,
+           AND/OR THAT IT   WAS TAGGED WITH THE CORRECT RECIPIENT. *)
+        >>> check (Main_chain.is_confirmation_valid
+                     main_chain_deposit_confirmation main_chain_deposit)
+              (fun () -> "The main chain deposit confirmation is invalid")
+      | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
+        check (is_add_valid payment_invoice.amount payment_fee)
+          (fun () -> "Adding payment amount and fee causes an overflow!")
+        >>> check (compare balance (add payment_invoice.amount payment_fee) >= 0)
+              (fun () ->
+                 Printf.sprintf "Balance %s insufficient to cover payment amount %s plus fee %s"
+                   (to_string balance) (to_string payment_invoice.amount) (to_string payment_fee))
+        (* TODO: make per_account_limit work on the entire floating thing *)
+        >>> check (compare fee_schedule.per_account_limit payment_invoice.amount >= 0)
+              (fun () ->
+                 Printf.sprintf "Payment amount %s is larger than authorized limit %s"
+                   (to_string payment_invoice.amount) (to_string fee_schedule.per_account_limit))
+        >>> check (is_forced ||
+                   is_mul_valid state.fee_schedule.fee_per_billion payment_invoice.amount)
+              (fun () ->
+                 Printf.sprintf
+                   "Payment fee calculation overflows with amount %s, scheduled fee per billion %s"
+                   (to_string payment_invoice.amount) (to_string fee_schedule.fee_per_billion))
+        >>> check (is_forced ||
+                   compare payment_fee
+                     (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
+                        one_billion_tokens)
+                   >= 0)
+              (fun () ->
+                 Printf.sprintf
+                   "Insufficient payment fee %s when at least %s were expected"
+                   (to_string payment_fee)
+                   (to_string (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
+                                 one_billion_tokens)))
+      | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+        check (is_add_valid withdrawal_amount withdrawal_fee)
+          (fun () -> "Adding withdrawal amount and fee causes an overflow!")
+        >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
+              (fun () ->
+                 Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
+                   (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
+        >>> check (is_forced || compare withdrawal_fee fee_schedule.withdrawal_fee >= 0)
+              (fun () -> Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
+                           (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
 
-let make_request_confirmation : (Request.t signed, Transaction.t) FacilitatorAction.arr =
+let make_user_transaction :
+  (UserTransactionRequest.t signed, Transaction.t) FacilitatorAction.arr =
   fun signed_request facilitator_state ->
     let current_state = facilitator_state.current in
     let new_revision = Revision.(add current_state.facilitator_revision one) in
@@ -165,7 +171,7 @@ let make_request_confirmation : (Request.t signed, Transaction.t) FacilitatorAct
       Transaction.
         { tx_header=TxHeader.{ tx_revision= new_revision
                              ; updated_limit= facilitator_state.current.spending_limit }
-        ; signed_request } in
+        ; tx_request=`UserTransaction signed_request } in
     let requester = signed_request_requester signed_request in
     let account_lens = facilitator_account_lens requester in
     let new_requester_revision = signed_request.payload.rx_header.requester_revision in
@@ -240,7 +246,8 @@ let accept_fee fee : ('a, 'a) FacilitatorAction.arr =
   fun x state -> credit_balance fee state.FacilitatorState.keypair.address x state
 
 (** compute the effects of a request on the account state *)
-let effect_request : ( Request.t signed, Request.t signed) FacilitatorAction.arr =
+let effect_validated_user_transaction_request :
+  ( UserTransactionRequest.t signed, UserTransactionRequest.t signed) FacilitatorAction.arr =
   fun rx ->
     let open FacilitatorAction in
     let requester = signed_request_requester rx in
@@ -263,16 +270,18 @@ let effect_request : ( Request.t signed, Request.t signed) FacilitatorAction.arr
 
 (** TODO: have a server do all the effect_requests sequentially,
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
-let post_validated_request :
-  ( Request.t signed * bool, (Transaction.t * unit Lwt.t)) Lwt_exn.arr =
-  fun (request, _is_forced) ->
-    let open Lwt_monad in
-    let (promise, resolver) = Lwt.task () in
-    Lwt_mvar.put validated_request_mailbox (Confirm (request, resolver))
-    >>= fun () -> promise
+let post_validated_transaction_request :
+  ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
+  simple_client
+    inner_transaction_request_mailbox
+    (fun (request, resolver) -> `Confirm (request, resolver))
 
-let process_validated_request : (Request.t signed, Transaction.t) FacilitatorAction.arr =
-  FacilitatorAction.(effect_request >>> make_request_confirmation)
+let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) FacilitatorAction.arr =
+  function
+  | `UserTransaction request ->
+    request |> FacilitatorAction.(effect_validated_user_transaction_request >>> make_user_transaction)
+  | `AdminTransaction _ ->
+    bottom () (* TODO: do it *)
 
 (* Process a user request, with a flag to specify whether it's a forced request
    (published on the main chain), in which case there are no fee amount minima.
@@ -284,29 +293,58 @@ let process_validated_request : (Request.t signed, Transaction.t) FacilitatorAct
    and/or using forking and reducing the use of facilitator state so no DB access is needed,
    this could be done in different threads or processes.
 *)
-let process_request : (Request.t signed * bool, Transaction.t) Lwt_exn.arr =
-  fun (request, is_forced) ->
-    get_facilitator_state ()
-    |> let open Lwt_exn in
-    (let open Lwt_monad in
-     FacilitatorAction.to_async check_side_chain_request_well_formed (request, is_forced)
-     >>> (fun (result, _state) -> return result))
-    >>> post_validated_request
-    >>> fun (confirmation, wait_for_commit) ->
-    let open Lwt in
-    wait_for_commit >>= Lwt_exn.const confirmation
 
-(** Take messages from the user_request_mailbox, and process them in parallel *)
-let user_request_loop =
-  let open Lwt_monad in
-  forever
-    (fun () ->
-       Lwt_mvar.take user_request_mailbox
-       >>= fun (request, is_forced, continuation) ->
-       process_request (request, is_forced)
-       >>= fun confirmation_or_exn ->
-       Lwt.wakeup_later continuation confirmation_or_exn;
-       Lwt.return_unit)
+let process_user_transaction_request :
+  (UserTransactionRequest.t signed * bool, Transaction.t) Lwt_exn.arr =
+  let open Lwt_exn in
+  validate_user_transaction_request
+  >>> post_validated_transaction_request
+  >>> fun (confirmation, wait_for_commit) ->
+  (wait_for_commit |> Lwt.(>>=)) (const confirmation)
+
+(** This is a placeholder until we separate client and server in separate processes *)
+let post_user_transaction_request =
+  stateless_sequentialize process_user_transaction_request
+
+let get_account_state _address _facilitator_state = bottom ()
+
+(* TODO: maintain per-account index of transactions, otherwise this won't scale!!! *)
+let get_recent_transactions address maybe_limit facilitator_state =
+  let all_transactions = facilitator_state.FacilitatorState.current.transactions in
+  let get_operation_for_address _rev (transaction:Transaction.t) ((count, transactions) as accum) k =
+    if (match maybe_limit with Some limit -> count >= limit | _ -> false) then
+      transactions
+    else
+      match transaction.tx_request with
+      | `UserTransaction rx ->
+        if rx.payload.rx_header.requester = address then
+          k (Revision.(add one count), transaction::transactions)
+        else
+          k accum
+      | _ -> k accum
+  in
+  `List (List.map Transaction.to_yojson
+           (TransactionMap.foldrk get_operation_for_address all_transactions (Revision.zero,[]) snd))
+
+let get_proof _tx_revision _facilitator_state = bottom ()
+
+(** Take messages from the user_query_request_mailbox, and process them (TODO: in parallel?) *)
+let process_user_query_request request =
+  let state = get_facilitator_state () in
+  (match (request : UserQueryRequest.t) with
+   | Get_account_state {address} -> get_account_state address state
+   | Get_recent_transactions { address; count } -> get_recent_transactions address count state
+   | Get_proof {tx_revision} -> get_proof tx_revision state)
+  |> Lwt_exn.return
+
+let post_user_query_request =
+  stateless_sequentialize process_user_query_request
+
+(** Take messages from the admin_query_request_mailbox, and process them (TODO: in parallel?) *)
+let process_admin_query_request = bottom
+let post_admin_query_request =
+  stateless_sequentialize process_admin_query_request
+
 
 (** We assume that the operation will correctly apply:
     balances are sufficient for spending,
@@ -321,7 +359,7 @@ let increment_capped max x =
 let batch_timeout_trigger_in_seconds = 0.01
 let batch_size_trigger_in_requests = 1000
 
-let validated_request_loop =
+let inner_transaction_request_loop =
   let open Lwt in
   let open Lwt_monad in
   fun facilitator_state_ref ->
@@ -339,12 +377,12 @@ let validated_request_loop =
              (* When we are ready and either trigger criterion is met,
                 send ourselves a Flush message for this batch_id *)
              Lwt.async (fun () -> Lwt.join [previous;Lwt.pick [time_triggered; size_triggered]]
-                         >>= (fun () -> Lwt_mvar.put validated_request_mailbox (Flush batch_id)));
+                         >>= (fun () -> Lwt_mvar.put inner_transaction_request_mailbox (`Flush batch_id)));
              let rec request_batch facilitator_state size =
-               Lwt_mvar.take validated_request_mailbox
+               Lwt_mvar.take inner_transaction_request_mailbox
                >>= function
-               | Confirm (request_signed, continuation) ->
-                 process_validated_request request_signed facilitator_state
+               | `Confirm (request_signed, continuation) ->
+                 process_validated_transaction_request request_signed facilitator_state
                  |> fun (confirmation_or_exn, new_facilitator_state) ->
                  facilitator_state_ref := new_facilitator_state;
                  (match confirmation_or_exn with
@@ -363,7 +401,7 @@ let validated_request_loop =
                                   >>= fun () -> Lwt.wakeup_later time_trigger ();
                                   return_unit);
                     request_batch new_facilitator_state new_size)
-               | Flush id ->
+               | `Flush id ->
                  assert (id = batch_id);
                  (if size > 0 then
                     (Side_chain.FacilitatorState.save facilitator_state
@@ -418,6 +456,9 @@ let start_facilitator address =
     in
     let state_ref = ref facilitator_state in
     the_facilitator_service_ref := Some { address; state_ref };
-    Lwt.async (const state_ref >>> validated_request_loop);
-    Lwt.async user_request_loop;
+    Lwt.async (const state_ref >>> inner_transaction_request_loop);
     Lwt_exn.return ()
+
+module Test = struct
+  let get_facilitator_state = get_facilitator_state
+end

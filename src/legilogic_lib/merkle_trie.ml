@@ -644,16 +644,16 @@ module Test = struct
   let proof_42_in_trie_100 =
     lazy (Proof.of_yojson_exn
             (`Assoc [ ("key",`String "0x2a")
-                    ; ("trie",`String "0xcc01591e96bdca2eb2510ccf74be5a7fe096bb3cdda73ec5880fbd6f0326184a")
-                    ; ("leaf", `String "0xc2f64e3c9a94699bc29349597513917805ab15a894de4c816207f13c5ee913dc")
+                    ; ("trie",`String "0x1b0247d6f6ca6e1411806a9f74fc3d833916fdc2401ed161e6b5ce601ad84185")
+                    ; ("leaf", `String "0x70f3a8f4b17c16dfd0aed8dcb3f6b0d33e1052cf994f75e657d2d322a501bb50")
                     ; ("steps",
-                       `List [ make_left_step "0x3d7939f72e6b6999c38047dd2df5abd627afbf195c7c7fa64c4268253a00d79a"
-                             ; make_right_step "0x8df081a3ab9866b9c144345e55b1e911920f1b09637e888f2c28d721884e8722"
-                             ; make_left_step "0x36158648cfc7578e443f442d9c034bef0420ed92a10c5c58cb949c7cb58e2d63"
-                             ; make_right_step "0x59ae1683e18b2ca8173273b9b93fa1029feb2aea51982749a2992f52f176ce5c"
-                             ; make_left_step "0xe796ba487541955b1a782f099e1485dfca89f8480940ec6184fa58d6959ddf09"
-                             ; make_right_step "0x991d1c3e8d0cdc8476fd8e74679bc8583d46f79d13b46fb2fdbfe512a221176b"
-                             ; make_left_step "0xabd6323da1934061765cdce805821f278ff06f143a7e76f53e6b6fb5a8cac7e2"
+                       `List [ make_left_step "0x825549a7bd7501bb0ba616c4fc70cbbebefaea2d84f6b952fe398fda5d1462db"
+                             ; make_right_step "0xa56429299f24894faf768ae69ed9615c40ed65f30ed15c2e148501d1310903ec"
+                             ; make_left_step "0x346bfa238000fb06f04f4979b47486a4257d3259177782530fc26b353fbb81be"
+                             ; make_right_step "0x3ff5f6bd2d1bfc6b2abe7696903c496c5b42d9da98e0c338cac8f5c8a6beca64"
+                             ; make_left_step "0x0fd0e9496ba3fa5afb2293ca2531969c89ccb07b3cba20bdcdb6bdc14b92b590"
+                             ; make_right_step "0xb8f1bc4ef8830fee1b2c823f9c2c89846692a15152f7f5a8265238d19f9b7b0d"
+                             ; make_left_step "0xb914f8a6dda6b8a172da0361c6cb3e1c6d386629bdb76aae83d2d66bd374af6b"
                              ])
                     ]))
 

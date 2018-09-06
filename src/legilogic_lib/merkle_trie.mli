@@ -115,7 +115,7 @@ module type MerkleTrieSetS = sig
     with type elt = elt and type mts = t and type 'a pstep = 'a T.step
   val trie_digest : t -> Digest.t
   (** get/set membership of [elt]s **)
-  val lens : elt -> (t, bool) Lens.t 
+  val lens : elt -> (t, bool) Lens.t
 end
 
 module MerkleTrieSet (Elt : UIntS) : (MerkleTrieSetS with type elt = Elt.t)

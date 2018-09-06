@@ -7,7 +7,6 @@
 *)
 
 open Legilogic_lib
-open Lib
 open Action
 open Lwt_exn
 open Yojsoning
@@ -133,9 +132,9 @@ let deposit_to_trent address amount =
     UserAsyncAction.run_lwt_exn user_state deposit (trent_address, amount)
     >>= fun signed_request ->
     update_user_state address !user_state;
-    process_request (signed_request, false)
-    >>= fun confirmation ->
-    let tx_revision = confirmation.tx_header.tx_revision in
+    post_user_transaction_request (signed_request, false)
+    >>= fun transaction ->
+    let tx_revision = transaction.tx_header.tx_revision in
     (* get transaction hash for main chain *)
     let operation = signed_request.payload.operation in
     let main_chain_confirmation =
@@ -165,21 +164,17 @@ let deposit_to_trent address amount =
 let withdrawal_from_trent address amount =
   let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address address) in
-  let user_account_on_trent = get_user_account address in
-  let balance = user_account_on_trent.balance in
-  if TokenAmount.compare amount balance > 0 then
-    Lib.bork "Insufficient balance to withdraw specified amount";
   let thread () =
     unlock_account address
     >>= fun _unlock_json ->
     UserAsyncAction.run_lwt_exn user_state withdrawal (trent_address, amount)
     >>= fun signed_request ->
     update_user_state address !user_state;
-    process_request (signed_request, false)
-    >>= fun confirmation ->
-    let tx_revision = confirmation.tx_header.tx_revision in
+    post_user_transaction_request (signed_request, false)
+    >>= fun transaction ->
+    let tx_revision = transaction.tx_header.tx_revision in
     let trent_state = get_trent_state () in
-    Lwt.bind (push_side_chain_action_to_main_chain trent_state confirmation !user_state)
+    Lwt.bind (push_side_chain_withdrawal_to_main_chain trent_state transaction !user_state)
       (fun (maybe_main_chain_confirmation, user_state2) ->
          (* update user state, which refers to main chain state *)
          user_state := user_state2;
@@ -245,58 +240,9 @@ let get_all_balances_on_trent () =
   let sorted_balances_json = List.map side_chain_account_state_to_yojson sorted_side_chain_account_states in
   return (`List sorted_balances_json)
 
-(* convert Request to nice JSON *)
-let make_operation_json address (revision:Revision.t) (request:Request.t) =
-  let revision_field = ("facilitator_revision",`Int (Revision.to_int revision)) in
-  match request.operation with
-    Deposit details ->
-    `Assoc
-      [ ("transaction_type",`String "deposit")
-      ; revision_field
-      ; ("address",`String (Address.to_0x_string address))
-      ; ("amount",`Int (TokenAmount.to_int details.deposit_amount))
-      ]
-  | Payment details ->
-    `Assoc
-      [ ("transaction_type",`String "payment")
-      ; revision_field
-      ; ("sender",`String (Address.to_0x_string address))
-      ; ("recipient",`String (Address.to_hex_string details.payment_invoice.recipient))
-      ; ("amount",`Int (TokenAmount.to_int details.payment_invoice.amount))
-      ]
-  | Withdrawal details ->
-    `Assoc
-      [ ("transaction_type",`String "withdrawal")
-      ; revision_field
-      ; ("address",`String (Address.to_0x_string address))
-      ; ("amount",`Int (TokenAmount.to_int details.withdrawal_amount))
-      ]
-
-let get_recent_transactions_on_trent address maybe_limit =
-  let exception Reached_limit of yojson list in
-  let trent_state = get_trent_state () in
-  let all_transactions = trent_state.current.transactions in
-  let get_operation_for_address _rev (transaction:Transaction.t) ((count,transactions) as accum) =
-    if Option.is_some maybe_limit &&
-       count >= Option.get maybe_limit then
-      raise (Reached_limit transactions);
-    let request = (transaction.signed_request).payload in
-    let requester = request.rx_header.requester in
-    if requester = address then
-      (count+1,make_operation_json address transaction.tx_header.tx_revision request::transactions)
-    else
-      accum
-  in
-  let transactions =
-    try
-      let _,ops =
-        TransactionMap.fold_right
-          get_operation_for_address
-          all_transactions (0,[])
-      in ops
-    with Reached_limit ops -> ops
-  in
-  `List transactions
+let get_recent_user_transactions_on_trent address maybe_limit =
+  Side_chain.UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
+  |> Side_chain_facilitator.post_user_query_request
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
@@ -314,17 +260,12 @@ let payment_timestamp () =
     payment_timestamps_cursor := 0
 
 let payment_on_trent sender recipient amount =
-  if sender = recipient then
-    Lib.bork "Sender and recipient are the same";
   let sender_state = user_state_from_address sender in
-  let sender_account = get_user_account sender in
-  if TokenAmount.compare sender_account.balance amount < 0 then
-    Lib.bork "Sender has insufficient balance to make this payment";
   let sender_state_ref = ref sender_state in
   UserAsyncAction.run_lwt_exn sender_state_ref payment (trent_address, recipient, amount)
   >>= fun signed_request ->
   update_user_state sender !sender_state_ref;
-  process_request (signed_request, false)
+  post_user_transaction_request (signed_request, false)
   >>= fun transaction ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
