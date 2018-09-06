@@ -76,6 +76,10 @@ test-endpoints : $(ENDPOINTS_TEST)
 	$(SHOW) "Testing endpoints"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(ENDPOINTS_TEST)
 
+ethereum-net :
+	$(SHOW) "Starting Ethereum net"
+	$(HIDE) scripts/ethereum-testnet/run.sh
+
 HELLO_LEGICASH:=$(BUILD_DIR)/src/hello_legicash.exe
 hello_legicash: $(HELLO_LEGICASH)
 $(HELLO_LEGICASH): $(LEGICASH_LIB) $(ML_SOURCES) $(CONTRACT) force

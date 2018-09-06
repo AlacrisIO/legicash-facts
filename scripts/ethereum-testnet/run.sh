@@ -2,8 +2,9 @@
 
 HERE=$(dirname "$0")
 cd "$HERE/../../" # Change to toplevel directory of legicash-facts
-mkdir -p _run
-cd _run
+RUNDIR=_ethereum
+mkdir -p $RUNDIR
+cd $RUNDIR
 
 # run the Ethereum test net
 
@@ -17,6 +18,9 @@ if [ -d $DATADIR ]; then
 fi
 
 mkdir $DATADIR
+
+# kill any existing geth
+killall geth > /dev/null || true
 
 geth --dev --identity "LegicashEthereumTestNet" --datadir $DATADIR \
      --nodiscover --maxpeers 0 --rpc --rpcapi "db,eth,net,debug,web3,light,personal" --rpcport $RPCPORT --rpccorsdomain "*" \
