@@ -15,6 +15,8 @@ SHOW:=@echo
 # use HIDE to run commands invisibly, unless VERBOSE defined
 HIDE:=$(if $(VERBOSE),,@)
 
+export SOURCE_ROOT=$(shell pwd)
+
 BUILD_DIR:=_build/default
 
 all: api_scgi endpoints_test hello_legicash

@@ -14,8 +14,28 @@ type block_parameter =
   | Earliest
   | Pending
 
+[@@@warning "-39"] (* workaround for yojson deriving bug *)
+
+type ethereum_rpc_config =
+  { scheme : string
+  ; host : string
+  ; port : int
+  }
+[@@deriving of_yojson]
+
+[@@@warning "+39"] (* end workaround *)
+
+let ethereum_rpc_config =
+  let config_file = Config.get_config_filename "ethereum_config.json" in
+  match Yojson.Safe.from_file config_file
+        |> ethereum_rpc_config_of_yojson with
+  | Ok config -> config
+  | Error msg -> bork "Error loading Ethereum JSON RPC configuration: %s" msg
+
 (** Network parameters for geth or other node on localhost *)
-let ethereum_net = Uri.make ~scheme:"http" ~host:"localhost" ~port:8545 ()
+let ethereum_net =
+  let { scheme; host; port } = ethereum_rpc_config in
+  Uri.make ~scheme ~host ~port ()
 
 let ethereum_json_rpc
       method_name result_decoder param_encoder ?(timeout=rpc_timeout) ?(log= !rpc_log) params =

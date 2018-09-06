@@ -55,7 +55,9 @@ let account_names = user_names
     loop 49 [] *)
 
 (* register keypairs from disk, path is relative to _run *)
-let _ = Signing.register_file_keypairs ~path:"../src/endpoints/demo-keys-small.json"
+let _ =
+  let key_file = Config.get_config_filename "demo-keys-small.json" in
+  Signing.register_file_keypairs ~path:key_file
 
 (* for 1300 accounts:
    let _ = Signing.register_file_keypairs ~path:"../src/endpoints/demo-keys-big.json"
