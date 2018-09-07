@@ -1,6 +1,7 @@
 .merlin
 _build/
 _run/
+_ethereum/
 tezos
 *~
 *.tmp
