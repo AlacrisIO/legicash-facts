@@ -219,6 +219,8 @@ end
 module UserQueryRequest = struct
   [@warning "-39"]
   type t =
+    | Get_account_balance of {address: Address.t}
+    | Get_account_balances
     | Get_account_state of {address: Address.t}
     | Get_recent_transactions of {address: Address.t; count: Revision.t option}
     | Get_proof of {tx_revision: Revision.t}

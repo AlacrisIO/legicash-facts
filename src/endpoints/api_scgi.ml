@@ -80,9 +80,8 @@ let internal_error_response id msg =
 let return_result id json_or_exn =
   match json_or_exn with
   | Ok json -> ok_json id json
-  | Error exn -> (
-      Printexc.to_string exn
-      |> error_response id)
+  | Error exn -> Printexc.to_string exn
+                 |> error_response id
 
 let _ =
   let request_counter =
@@ -100,29 +99,29 @@ let _ =
       begin
         match api_call with
           "balances" ->
-          Lwt_exn.run_lwt get_all_balances_on_trent ()
-          >>= ok_json id
+          get_all_balances_on_trent ()
+          >>= return_result id
         | "tps" ->
           get_transaction_rate_on_trent ()
           |> ok_json id
         | "proof" ->
           (match Request.param request "tx-revision" with
-           | Some param ->
-             (try
-                get_proof (Revision.of_string param)
-                |> ok_json id
-              with
-              | Failure msg when msg = "int_of_string" ->
-                bad_request_response id ("Invalid tx-revision: " ^ param)
-              | exn ->
-                internal_error_response id (Printexc.to_string exn))
+           | Some param -> (
+               try
+                 get_proof (Revision.of_string param)
+                 >>= return_result id
+               with
+               | Failure msg when msg = "int_of_string" ->
+                 bad_request_response id ("Invalid tx-revision: " ^ param)
+               | exn ->
+                 internal_error_response id (Printexc.to_string exn))
            | None -> bad_request_response id "Expected one parameter, tx-revision")
         | "thread" ->
           (match Request.param request "id" with
              Some param ->
              (try
-                let result_json = apply_main_chain_thread (int_of_string param) in
-                ok_json id result_json
+                apply_main_chain_thread (int_of_string param)
+                |> ok_json id
               with
               | Failure msg when msg = "int_of_string" ->
                 bad_request_response id ("Invalid id: " ^ param)
@@ -180,8 +179,8 @@ let _ =
           (match maybe_address with
            | Ok address_record ->
              (try
-                let result_json = get_balance_on_trent address_record.address in
-                ok_json id result_json
+                get_balance_on_trent address_record.address
+                >>= return_result id
               with
               | Lib.Internal_error msg -> internal_error_response id msg
               | exn -> internal_error_response id (Printexc.to_string exn))
@@ -213,13 +212,9 @@ let _ =
         | "status" ->
           let maybe_address = address_json_of_yojson json in
           (match maybe_address with
-           | Ok address_record ->
-             (try
-                Lwt_exn.run_lwt get_status_on_trent_and_main_chain address_record.address
-                >>= ok_json id
-              with
-              | Lib.Internal_error msg -> internal_error_response id msg
-              | exn -> internal_error_response id (Printexc.to_string exn))
+           | Ok { address } ->
+             get_status_on_trent_and_main_chain address
+             >>= return_result id
            | Error msg -> error_response id msg)
         | other_call -> invalid_post_api_call id other_call
       end

@@ -258,7 +258,7 @@ let simple_client mailbox make_message =
     let open Lwt in
     let (promise, resolver) = task () in
     make_message (request, resolver)
-    |> (Lwt_mvar.put mailbox)
+    |> Lwt_mvar.put mailbox
     >>= fun () -> promise
 
 let simple_server mailbox processor =

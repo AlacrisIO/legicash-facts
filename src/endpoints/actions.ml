@@ -31,19 +31,6 @@ type side_chain_account_state =
   }
 [@@deriving to_yojson]
 
-(* user account on Ethereum *)
-type main_chain_account_state =
-  { address : Address.t
-  ; balance : TokenAmount.t
-  ; revision : Revision.t
-  }
-[@@deriving to_yojson]
-
-type user_status =
-  { side_chain_account : side_chain_account_state
-  ; main_chain_account : main_chain_account_state
-  }
-
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
   { side_chain_account_state : side_chain_account_state
@@ -88,16 +75,6 @@ let add_main_chain_thread thread =
   in
   find_thread_id 0
 
-(* get Merkle proof for side chain transaction identified by tx_revision *)
-let get_proof tx_revision : yojson =
-  let trent_state = get_trent_state () in
-  let transactions = trent_state.current.transactions in
-  match TransactionMap.Proof.get tx_revision transactions with
-  | None ->
-    error_json "Cannot provide proof for tx-revision: %s" (Revision.to_string tx_revision)
-  | Some proof ->
-    TransactionMap.Proof.to_yojson proof
-
 let thread_pending_json = `Assoc [("result",`String "The operation is pending")]
 
 (* lookup id in thread table; if completed, return result, else return boilerplate *)
@@ -122,6 +99,33 @@ let user_state_from_address address_t =
 
 let update_user_state address_t user_state =
   Hashtbl.replace address_to_user_state_tbl address_t user_state
+
+
+(* operations posted to facilitator *)
+
+(* query operations *)
+
+let get_proof tx_revision =
+  UserQueryRequest.Get_proof { tx_revision }
+  |> post_user_query_request
+
+let get_balance_on_trent address =
+  UserQueryRequest.Get_account_balance { address }
+  |> post_user_query_request
+
+let get_status_on_trent_and_main_chain address =
+  UserQueryRequest.Get_account_state { address }
+  |> post_user_query_request
+
+let get_all_balances_on_trent () =
+  UserQueryRequest.Get_account_balances
+  |> post_user_query_request
+
+let get_recent_user_transactions_on_trent address maybe_limit =
+  UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
+  |> post_user_query_request
+
+(* side-effecting operations *)
 
 let deposit_to_trent address amount =
   let open Ethereum_transaction.Test in
@@ -195,55 +199,6 @@ let withdrawal_from_trent address amount =
   in
   add_main_chain_thread (run_lwt thread ())
 
-let get_balance_on_trent address =
-  let user_account_on_trent = get_user_account address in
-  let balance = user_account_on_trent.balance in
-  let user_name = get_user_name address in
-  let revision = user_account_on_trent.account_revision in
-  let side_chain_account_state = { address
-                                 ; user_name
-                                 ; balance
-                                 ; revision
-                                 }
-  in
-  side_chain_account_state_to_yojson side_chain_account_state
-
-exception Failure_to_get_main_chain_balance of exn
-exception Failure_to_get_main_chain_transaction_count of exn
-
-let get_status_on_trent_and_main_chain address =
-  let side_chain_json = get_balance_on_trent address in
-  trying Ethereum_json_rpc.eth_get_balance (address, Latest)
-  >>= handling (fun e -> fail (Failure_to_get_main_chain_balance e))
-  >>= fun balance ->
-  trying Ethereum_json_rpc.eth_get_transaction_count (address, Latest)
-  >>= handling (fun e -> fail (Failure_to_get_main_chain_transaction_count e))
-  >>= fun revision ->
-  let main_chain_account = { address; balance; revision } in
-  return (`Assoc [("side_chain_account",side_chain_json)
-                 ;("main_chain_account",main_chain_account_state_to_yojson main_chain_account)])
-
-let get_all_balances_on_trent () =
-  let make_balance_json address (account : Side_chain.AccountState.t) accum =
-    let user_name = get_user_name address in
-    let account_state = { address
-                        ; user_name
-                        ; balance = account.balance
-                        ; revision = account.account_revision }
-    in account_state::accum in
-  let trent_state = get_trent_state () in
-  let side_chain_account_states = AccountMap.fold make_balance_json trent_state.current.accounts [] in
-  let sorted_side_chain_account_states =
-    List.sort
-      (fun bal1 bal2 -> String.compare bal1.user_name bal2.user_name)
-      side_chain_account_states in
-  let sorted_balances_json = List.map side_chain_account_state_to_yojson sorted_side_chain_account_states in
-  return (`List sorted_balances_json)
-
-let get_recent_user_transactions_on_trent address maybe_limit =
-  Side_chain.UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
-  |> Side_chain_facilitator.post_user_query_request
-
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
 let num_timestamps = 100000
@@ -294,6 +249,8 @@ let payment_on_trent sender recipient amount =
   in
   return (payment_result_to_yojson payment_result)
 
+(* other actions, not involving posting to server mailbox *)
+
 (* Use a (subset) of ISO 8601 format, minus the timezone.
    TODO: Use Jane Street's Core.Std.Time instead.
 *)
@@ -307,6 +264,7 @@ let string_of_timeofday tod =
     tm.tm_min
     tm.tm_sec
 
+(* TODO: maybe have server track payment timestamps *)
 let get_transaction_rate_on_trent () =
   (* start search from last timestamp *)
   let current_cursor = !payment_timestamps_cursor in
