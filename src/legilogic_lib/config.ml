@@ -1,16 +1,22 @@
 (* config.ml -- location of configuration files *)
 
-let legicash_home_envvar= "LEGICASH_HOME"
+let application_name = ref "legicash"
+
+let set_application_name s = application_name := s
+
+let get_home_environment_variable () =
+  String.uppercase_ascii !application_name ^ "_HOME"
 
 let default_config_dir = "../config"
 
 let get_config_dir () =
+  let home_var = get_home_environment_variable () in
   try
-    let legicash_home = Sys.getenv legicash_home_envvar in
-    legicash_home ^ "/config"
+    let home_dir = Sys.getenv home_var in
+    home_dir ^ "/config"
   with Not_found ->
     Logging.log "Did not find environment variable %s, using default config directory %s"
-      legicash_home_envvar default_config_dir;
+      home_var default_config_dir;
     default_config_dir
 
 let get_config_filename file =
