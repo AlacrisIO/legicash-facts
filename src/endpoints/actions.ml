@@ -22,26 +22,17 @@ open Side_chain_user
 
 open Accounts
 
-(* user account balance on Trent *)
-type side_chain_account_state =
-  { address : Address.t
-  ; user_name : string
-  ; balance : TokenAmount.t
-  ; revision : Revision.t
-  }
-[@@deriving to_yojson]
-
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
-  { side_chain_account_state : side_chain_account_state
+  { side_chain_account_state : AccountState.t
   ; side_chain_tx_revision : Revision.t
   ; main_chain_confirmation : Main_chain.Confirmation.t
   }
 [@@deriving to_yojson]
 
 type payment_result =
-  { sender_account : side_chain_account_state
-  ; recipient_account : side_chain_account_state
+  { sender_account : AccountState.t
+  ; recipient_account : AccountState.t
   ; amount_transferred : TokenAmount.t
   ; side_chain_tx_revision : Revision.t
   }
@@ -127,6 +118,23 @@ let get_recent_user_transactions_on_trent address maybe_limit =
 
 (* side-effecting operations *)
 
+(* format deposit and withdrawal result *)
+let make_transaction_result address tx_revision main_chain_confirmation =
+  UserQueryRequest.Get_account_state { address }
+  |> post_user_query_request
+  >>= fun account_state_json ->
+  (* TODO: JSON to AccountState to JSON, is there a better way *)
+  match AccountState.of_yojson account_state_json with
+  | Error _ ->
+    return (error_json "Could not get account state for withdrawing user")
+  | Ok account_state ->
+    let side_chain_account_state = account_state in
+    let side_chain_tx_revision = tx_revision in
+    let deposit_result = { side_chain_account_state
+                         ; side_chain_tx_revision
+                         ; main_chain_confirmation } in
+    return (transaction_result_to_yojson deposit_result)
+
 let deposit_to_trent address amount =
   let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address address) in
@@ -146,22 +154,7 @@ let deposit_to_trent address amount =
       | Deposit details -> details.main_chain_deposit_confirmation
       | _ -> Lib.bork "Expected deposit request"
     in
-    (* get user account info on Trent *)
-    let user_account_on_trent = get_user_account address in
-    let balance = user_account_on_trent.balance in
-    let revision = user_account_on_trent.account_revision in
-    let user_name = get_user_name address in
-    let side_chain_account_state = { address
-                                   ; user_name
-                                   ; balance
-                                   ; revision
-                                   }
-    in
-    let side_chain_tx_revision = tx_revision in
-    let deposit_result = { side_chain_account_state
-                         ; side_chain_tx_revision
-                         ; main_chain_confirmation } in
-    return (transaction_result_to_yojson deposit_result)
+    make_transaction_result address tx_revision main_chain_confirmation
   in
   add_main_chain_thread (run_lwt thread ())
 
@@ -176,6 +169,7 @@ let withdrawal_from_trent address amount =
     update_user_state address !user_state;
     post_user_transaction_request (signed_request, false)
     >>= fun transaction ->
+    (* TODO: move the push to server side *)
     let tx_revision = transaction.tx_header.tx_revision in
     let trent_state = get_trent_state () in
     Lwt.bind (push_side_chain_withdrawal_to_main_chain trent_state transaction !user_state)
@@ -187,15 +181,7 @@ let withdrawal_from_trent address amount =
            match maybe_main_chain_confirmation with
            | Error exn -> raise exn
            | Ok confirmation -> confirmation in
-         let user_account_on_trent = get_user_account address in
-         let balance = user_account_on_trent.balance in
-         let revision = user_account_on_trent.account_revision in
-         let user_name = get_user_name address in
-         let side_chain_account_state = {address; user_name; balance; revision} in
-         let side_chain_tx_revision = tx_revision in
-         let withdrawal_result =
-           {side_chain_account_state; side_chain_tx_revision; main_chain_confirmation} in
-         return (transaction_result_to_yojson withdrawal_result))
+         make_transaction_result address tx_revision main_chain_confirmation)
   in
   add_main_chain_thread (run_lwt thread ())
 
@@ -226,19 +212,19 @@ let payment_on_trent sender recipient amount =
   payment_timestamp ();
   (* remaining code is preparing response *)
   let tx_revision = transaction.tx_header.tx_revision in
-  let sender_name = get_user_name sender in
-  let recipient_name = get_user_name recipient in
-  let sender_account = get_user_account sender in
-  let recipient_account = get_user_account recipient in
-  let make_account_state address name (account : AccountState.t) =
-    { address
-    ; user_name = name
-    ; balance = account.balance
-    ; revision = account.account_revision
-    }
-  in
-  let sender_account = make_account_state sender sender_name sender_account in
-  let recipient_account = make_account_state recipient recipient_name recipient_account in
+  UserQueryRequest.Get_account_state { address = sender }
+  |> post_user_query_request
+  >>= fun sender_account_json ->
+  UserQueryRequest.Get_account_state { address = recipient }
+  |> post_user_query_request
+  >>= fun recipient_account_json ->
+  let maybe_sender_account = AccountState.of_yojson sender_account_json in
+  let maybe_recipient_account = AccountState.of_yojson recipient_account_json in
+  match maybe_sender_account,maybe_recipient_account with
+  | Error _ ,_
+  | _, Error _ ->
+    return (error_json "Could not get account information for sender and recipient")
+  | Ok sender_account, Ok recipient_account ->
   let side_chain_tx_revision = tx_revision in
   let payment_result =
     { sender_account

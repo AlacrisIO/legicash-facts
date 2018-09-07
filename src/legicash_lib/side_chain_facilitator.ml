@@ -331,11 +331,15 @@ let get_account_balances (facilitator_state:FacilitatorState.t) =
       (AccountMap.bindings facilitator_state.current.accounts) in
   `List account_states_json
 
-let get_account_state address facilitator_state =
+let get_account_state address (facilitator_state:FacilitatorState.t) =
+  let account_state = AccountMap.find address facilitator_state.current.accounts in
+  AccountState.to_yojson account_state
+
+let get_account_status address facilitator_state =
   let open Lwt_exn in
   let exception Failure_to_get_main_chain_balance of exn in
   let exception Failure_to_get_main_chain_transaction_count of exn in
-  let side_chain_json = get_account_balance address facilitator_state in
+  let side_chain_state = get_account_state address facilitator_state in
   trying Ethereum_json_rpc.eth_get_balance (address, Latest)
   >>= handling (fun e -> fail (Failure_to_get_main_chain_balance e))
   >>= fun balance ->
@@ -343,7 +347,7 @@ let get_account_state address facilitator_state =
   >>= handling (fun e -> fail (Failure_to_get_main_chain_transaction_count e))
   >>= fun revision ->
   let main_chain_account = { address; balance; revision } in
-  return (`Assoc [("side_chain_account",side_chain_json)
+  return (`Assoc [("side_chain_account",side_chain_state)
                  ;("main_chain_account",main_chain_account_state_to_yojson main_chain_account)])
 
 (* TODO: maintain per-account index of transactions, otherwise this won't scale!!! *)
@@ -385,7 +389,9 @@ let process_user_query_request request =
    | Get_account_balances ->
      get_account_balances state |> return
    | Get_account_state {address} ->
-     get_account_state address state
+     get_account_state address state |> return
+   | Get_account_status {address} ->
+     get_account_status address state
    | Get_recent_transactions { address; count } ->
      get_recent_transactions address count state |> return
    | Get_proof {tx_revision} ->
