@@ -21,7 +21,7 @@ BUILD_DIR:=_build/default
 
 all: api_scgi endpoints_test hello_legicash
 
-.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run hello_legicash install uninstall test toplevel clean reset contract nginx stop_nginx install_contract
+.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run test-endpoints ethereum-net hello_legicash install uninstall test toplevel clean reset contract nginx stop_nginx install_contract
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli src/dune src/*/dune)
 
@@ -145,8 +145,8 @@ clean:
 reset:
 	$(SHOW) "Resetting Legicash state"
 	$(SHOW) " Stopping Ethereum network"
-	$(HIDE) killall -q geth || true
+	$(HIDE) killall -q geth 2> /dev/null || true
 	$(SHOW) " Stopping SCGI server"
-	$(HIDE) killall -q api_scgi.exe || true
+	$(HIDE) killall -q api_scgi.exe 2> /dev/null || true
 	$(SHOW) " Removing Legicash database"
 	$(HIDE) rm -rf _run/legicash

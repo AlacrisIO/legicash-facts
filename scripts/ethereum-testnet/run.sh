@@ -25,7 +25,7 @@ fi
 mkdir $DATADIR
 
 # kill any existing geth
-killall geth > /dev/null || true
+killall geth > /dev/null 2>&1 || true
 
 geth --dev --identity "LegicashEthereumTestNet" --datadir $DATADIR \
      --nodiscover --maxpeers 0 --rpc --rpcapi "db,eth,net,debug,web3,light,personal" --rpcport $RPCPORT --rpccorsdomain "*" \
