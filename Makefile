@@ -15,7 +15,7 @@ SHOW:=@echo
 # use HIDE to run commands invisibly, unless VERBOSE defined
 HIDE:=$(if $(VERBOSE),,@)
 
-export SOURCE_ROOT=$(shell pwd)
+export LEGICASH_CONFIG_DIR=$(shell pwd)/config
 
 BUILD_DIR:=_build/default
 
