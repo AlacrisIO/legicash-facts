@@ -78,17 +78,19 @@ module DigestValue (Value : PersistableS) = struct
   let get = dv_get
   let make = dv_make Value.digest
   let of_digest = dv_of_digest Value.unmarshal_string
+  (* let equal x y = Digest.equal (dv_digest x) (dv_digest y) (* Assume no hash collision *) *)
   include Persistable(struct
       type t = value dv
       let marshaling = marshaling_map dv_digest of_digest Digest.marshaling
       let yojsoning = yojsoning_map get make Value.yojsoning
       let walk_dependencies _methods context x =
         walk_dependency Value.dependency_walking context (dv_get x)
-      let make_persistent f dv =
+      let make_persistent _f dv =
         if dv.persisted then
           Lwt.return_unit
         else
-          (dv.persisted <- true; f dv)
+          (dv.persisted <- true;
+           Value.save (dv_get dv))
     end)
 end
 
