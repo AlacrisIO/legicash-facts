@@ -72,15 +72,8 @@ let account_key_list =
        (name, keys)) account_names
 let account_key_array = Array.of_list account_key_list
 let number_of_accounts = Array.length account_key_array
-let address_to_account_tbl = Hashtbl.create number_of_accounts
 
 let get_user_keys ndx = account_key_array.(ndx)
-
-let _ =
-  Array.iter
-    (fun (name, keys) ->
-       Hashtbl.add address_to_account_tbl keys.Keypair.address name)
-    account_key_array
 
 let trent_keys =
   Signing.make_keypair_from_hex
@@ -89,13 +82,12 @@ let trent_keys =
 
 let trent_address = trent_keys.address
 
-let _ =
-  Hashtbl.add address_to_account_tbl trent_address "Trent"
+let _ = Signing.register_keypair "Trent" trent_keys
 
-let get_user_name address_t =
+let get_user_name address =
   try
-    Hashtbl.find address_to_account_tbl address_t
-  with Not_found -> Lib.bork "Can't find user name for address %s" (Address.to_0x_string address_t)
+    nickname_of_address address
+  with Not_found -> Lib.bork "Can't find user name for address %s" (Address.to_0x_string address)
 
 (* store keys on Ethereum test net. TODO: don't do this on real net!  *)
 let store_keys_on_testnet (name,keys) =
@@ -205,6 +197,17 @@ let load_trent_state () =
    loop remaining (chunk::accum)
    in
    loop elts []
+*)
+
+(*
+   let log_account_state address =
+   address
+   |> get_user_account
+   |> fun {balance; account_revision} ->
+   Logging.log "%s account %s balance %s revision %s\n"
+   (nickname_of_address address) (Address.to_0x_string address)
+   (TokenAmount.to_0x_string balance) (Revision.to_0x_string account_revision)
+   |> Lwt_exn.return
 *)
 
 let prepare_server =
