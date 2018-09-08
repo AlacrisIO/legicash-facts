@@ -31,6 +31,16 @@ $(LEGILOGIC_LIB): $(ML_SOURCES)
 	$(SHOW) "Building Legilogic library"
 	$(HIDE) dune build src/legilogic_lib/legilogic_lib.a src/legilogic_lib/legilogic_lib.cmxa src/legilogic_lib/legilogic_lib.cmxs src/legilogic_lib/legilogic_lib.cma
 
+LEGILOGIC_LIB_TEST:=$(BUILD_DIR)/src/legilogic_lib/legilogic_lib_test.exe
+legilogic_lib_test: $(LEGILOGIC_LIB_TEST)
+$(LEGILOGIC_LIB_TEST): src/legilogic_lib/legilogic_lib_test.ml $(ML_SOURCES)
+	$(SHOW) "Building test legilogic_lib executable"
+	$(HIDE) dune build src/legilogic_lib/legilogic_lib_test.exe
+
+test-legilogic_lib : $(LEGILOGIC_LIB_TEST)
+	$(SHOW) "Testing legilogic_lib"
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(LEGILOGIC_LIB_TEST)
+
 LEGILOGIC_ETHEREUM:=$(BUILD_DIR)/src/legilogic_ethereum/legilogic_ethereum.cmxs
 legilogic_ethereum: $(LEGILOGIC_ETHEREUM)
 $(LEGILOGIC_ETHEREUM): $(ML_SOURCES)
