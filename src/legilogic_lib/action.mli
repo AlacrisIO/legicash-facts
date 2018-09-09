@@ -315,3 +315,16 @@ val sequentialize : ('i, 'o, 'state) async_action -> 'state -> ('i, 'o) Lwt_mona
 (** Given an AsyncAction arrow and an initial state,
     return a client Lwt arrow that provides sequentialized access to the action arrow *)
 val stateless_sequentialize : ('i, 'o) Lwt_monad.arr -> ('i, 'o) Lwt_monad.arr
+
+(*
+   (** Given a mailbox for messages being a pair of input and output-co-promise,
+   and given an Lwt arrow return a background thread that processes those messages in parallel.
+   In a given process, you might as well do without a mailbox, but if you have to have a mailbox anyway...
+ *)
+   val stateless_parallel_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt_monad.arr -> _ Lwt.t
+
+   (** Given a Lwt arrow, return a client Lwt arrow that does the same thing,
+   but going through the bottleneck of a mailbox.
+   In a given process, you might as well do without the entire mailbox thing! *)
+   val stateless_parallelize : ('i, 'o) Lwt_monad.arr -> ('i, 'o) Lwt_monad.arr
+*)

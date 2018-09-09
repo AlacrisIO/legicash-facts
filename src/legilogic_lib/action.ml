@@ -299,6 +299,26 @@ let stateless_sequentialize processor =
   Lwt.async (fun () -> stateless_server mailbox processor);
   simple_client mailbox identity
 
+(*
+   let stateless_parallel_server mailbox processor =
+   let open Lwt_monad in
+   () |>
+   forever
+   (fun () ->
+   Lwt_mvar.take mailbox
+   >>= fun (input, continuation) ->
+   Lwt.async (fun () ->
+   processor input
+   >>= fun (output) ->
+   Lwt.wakeup_later continuation output;
+   Lwt.return_unit);
+   Lwt.return_unit)
+
+   let stateless_parallelize processor =
+   let mailbox = Lwt_mvar.create_empty () in
+   Lwt.async (fun () -> stateless_parallel_server mailbox processor);
+   simple_client mailbox identity
+*)
 
 module Test = struct
   module Error_string_monad = ErrorMonad(struct
