@@ -28,14 +28,14 @@ class SleepRequest(TaskSet):
 
 class AliceUser(HttpLocust):
   task_set = AlicePaysBobTask
-  min_wait = 50
-  max_wait = 500
+  min_wait = 0
+  max_wait = 100
 
 
 class BobUser(HttpLocust):
   task_set = BobPaysAliceTask
-  min_wait = 50
-  max_wait = 500
+  min_wait = 0
+  max_wait = 100
 
 
 #class Sleep(HttpLocust):
