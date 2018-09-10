@@ -48,7 +48,7 @@ let json_rpc_version = "2.0"
 (* Global counter to correlate responses and answers in logs. *)
 let id_counter = make_counter ()
 
-let rpc_timeout = 2.0
+let rpc_timeout = 10.0
 
 let rpc_log = ref true
 

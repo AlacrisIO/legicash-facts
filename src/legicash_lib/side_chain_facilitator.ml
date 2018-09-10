@@ -304,7 +304,7 @@ let process_user_transaction_request :
 
 (** This is a placeholder until we separate client and server in separate processes *)
 let post_user_transaction_request =
-  stateless_sequentialize process_user_transaction_request
+  (*stateless_parallelize*) process_user_transaction_request
 
 let get_account_state _address _facilitator_state = bottom ()
 
@@ -338,12 +338,12 @@ let process_user_query_request request =
   |> Lwt_exn.return
 
 let post_user_query_request =
-  stateless_sequentialize process_user_query_request
+  (*stateless_parallelize*) process_user_query_request
 
 (** Take messages from the admin_query_request_mailbox, and process them (TODO: in parallel?) *)
 let process_admin_query_request = bottom
 let post_admin_query_request =
-  stateless_sequentialize process_admin_query_request
+  (*stateless_parallelize*) process_admin_query_request
 
 
 (** We assume that the operation will correctly apply:

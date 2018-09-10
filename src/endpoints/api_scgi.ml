@@ -158,6 +158,12 @@ let _ =
               | Lib.Internal_error msg -> internal_error_response id msg
               | exn -> internal_error_response id (Printexc.to_string exn))
            | Error msg -> error_response id msg)
+        | "sleep" ->
+          (try
+             Lwt_unix.sleep 1.0 >>= (fun () -> ok_json id (`Int 42))
+           with
+           | Lib.Internal_error msg -> internal_error_response id msg
+           | exn -> internal_error_response id (Printexc.to_string exn))
         | "payment" ->
           let maybe_payment = payment_json_of_yojson json in
           (match maybe_payment with

@@ -40,6 +40,8 @@ type request =
   | Commit of unit Lwt.u
   (** Internal message indicating that LevelDB is available for interaction *)
   | Ready of int
+  (** For testing purposes only, get the batch id *)
+  | Test_get_batch_id of int Lwt.u
 
 (* For debugging purposes only *)
 let [@warning "-32"] yojson_of_request = function
@@ -49,6 +51,7 @@ let [@warning "-32"] yojson_of_request = function
   | Remove key -> `List [`String "Remove"; `String (Hex.unparse_hex_string key)]
   | Commit _ -> `List [`String "Commit"]
   | Ready n -> `List [`String "Ready"; `Int n]
+  | Test_get_batch_id _ -> `List [`String "Test_get_batch_id"]
 
 (* One might be tempted to use Lwt.task instead of an option ref to define
    the db_name, db. Unhappily, at least as far as the db goes,
@@ -93,10 +96,12 @@ let start_server ~db_name ~db () =
     let rec inner_loop ~ready ~triggered =
       if triggered && ready then
         begin
+          (*Logging.log "COMMIT BATCH %d!" batch_id;*)
           (* Fork a system thread to handle the commit;
              when it's done, wakeup the wait_on_batch_commit promise *)
           Lwt.async ((fun () -> Lwt_preemptive.detach
                                   (fun () -> LevelDB.Batch.write db ~sync:true transaction) ())
+                     (*>>> (fun () -> Logging.log "BATCH %d COMMITTED!" batch_id; Lwt.return_unit)*)
                      >>> Lwt_monad.arr (Lwt.wakeup_later notify_batch_commit));
           outer_loop (batch_id + 1) wait_on_batch_commit ()
         end
@@ -104,18 +109,24 @@ let start_server ~db_name ~db () =
         Lwt_mvar.take db_mailbox
         >>= function
         | Put {key;data} ->
+          (*Logging.log "PUT key: %s data: %s" (Hex.unparse_0x_data key) (Hex.unparse_0x_data data);*)
           LevelDB.Batch.put transaction key data;
           inner_loop ~ready ~triggered
         | Remove key ->
+          (*Logging.log "REMOVE key: %s" (Hex.unparse_0x_data key);*)
           LevelDB.Batch.delete transaction key;
           inner_loop ~ready ~triggered
         | Commit continuation ->
+          (*Logging.log "COMMIT in batch %d" batch_id;*)
           Lwt.async (fun () -> wait_on_batch_commit
                       >>= Lwt_monad.arr (Lwt.wakeup_later continuation));
           inner_loop ~ready ~triggered:true
         | Ready n ->
           assert (n = batch_id);
-          inner_loop ~ready:true ~triggered in
+          inner_loop ~ready:true ~triggered
+        | Test_get_batch_id continuation ->
+          Lwt.wakeup_later continuation batch_id;
+          inner_loop ~ready ~triggered in
     inner_loop ~ready:false ~triggered:false in
   outer_loop 0 Lwt.return_unit ()
 
@@ -166,3 +177,10 @@ let put key data =
 
 let remove key =
   request (Remove key)
+
+module Test = struct
+  let get_batch_id () =
+    let (t,u) = Lwt.task () in
+    request (Test_get_batch_id u)
+    >>= fun () -> t
+end

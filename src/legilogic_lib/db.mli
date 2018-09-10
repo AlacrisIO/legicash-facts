@@ -1,17 +1,17 @@
 (* Managing the database connection *)
 
 (** Open a database. The db_name is the name of the database, which is a path
-   absolute or relative to getcwd().
+    absolute or relative to getcwd().
 
-   See [start_server] implementation for details on the background thread which
-   actually interacts with the db. *)
+    See [start_server] implementation for details on the background thread which
+    actually interacts with the db. *)
 val open_connection : db_name:string -> unit Lwt.t
 
 (** Run some code in a database.
-   TODO: close the connection.
-   Beware: this runs the code in an Lwt_main.run, and shouldn't
-   be called if some other part of the code calls Lwt_main.run.
- *)
+    TODO: close the connection.
+    Beware: this runs the code in an Lwt_main.run, and shouldn't
+    be called if some other part of the code calls Lwt_main.run.
+*)
 val run : db_name:string -> (unit -> 'a Lwt.t) -> 'a
 
 (** Raise an exception unless there is a DB connection open *)
@@ -41,3 +41,7 @@ val commit : unit -> unit Lwt.t
 (** Commit the current transaction and resolve the promise given as parameter
     when it's fully flushed to disk. *)
 val async_commit : unit Lwt.u -> unit Lwt.t
+
+module Test : sig
+  val get_batch_id : unit -> int Lwt.t
+end
