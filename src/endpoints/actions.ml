@@ -158,30 +158,30 @@ let deposit_to_trent address amount =
   in
   add_main_chain_thread (run_lwt thread ())
 
-let withdrawal_from_trent address amount =
+let withdrawal_from_trent facilitator_address user_address amount =
   let open Ethereum_transaction.Test in
-  let user_state = ref (user_state_from_address address) in
+  let user_state = ref (user_state_from_address user_address) in
   let thread () =
-    unlock_account address
+    unlock_account user_address
     >>= fun _unlock_json ->
-    UserAsyncAction.run_lwt_exn user_state withdrawal (trent_address, amount)
+    UserAsyncAction.run_lwt_exn user_state withdrawal (facilitator_address, amount)
     >>= fun signed_request ->
-    update_user_state address !user_state;
+    update_user_state user_address !user_state;
     post_user_transaction_request (signed_request, false)
     >>= fun transaction ->
     (* TODO: move the push to server side *)
     let tx_revision = transaction.tx_header.tx_revision in
-    let trent_state = get_trent_state () in
-    Lwt.bind (push_side_chain_withdrawal_to_main_chain trent_state transaction !user_state)
-      (fun (maybe_main_chain_confirmation, user_state2) ->
-         (* update user state, which refers to main chain state *)
-         user_state := user_state2;
-         update_user_state address user_state2;
-         let main_chain_confirmation =
-           match maybe_main_chain_confirmation with
-           | Error exn -> raise exn
-           | Ok confirmation -> confirmation in
-         make_transaction_result address tx_revision main_chain_confirmation)
+    let open Lwt in
+    push_side_chain_withdrawal_to_main_chain facilitator_address transaction !user_state
+    >>= fun (maybe_main_chain_confirmation, user_state2) ->
+    (* update user state, which refers to main chain state *)
+    user_state := user_state2;
+    update_user_state user_address user_state2;
+    let main_chain_confirmation =
+      match maybe_main_chain_confirmation with
+      | Error exn -> raise exn
+      | Ok confirmation -> confirmation in
+    make_transaction_result user_address tx_revision main_chain_confirmation
   in
   add_main_chain_thread (run_lwt thread ())
 

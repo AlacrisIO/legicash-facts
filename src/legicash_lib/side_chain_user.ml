@@ -301,13 +301,14 @@ let payment (facilitator_address, recipient_address, payment_amount) =
 
 (** We should be signing the RLP, not the marshaling! *)
 let make_main_chain_withdrawal_transaction
-      UserOperation.{withdrawal_amount;withdrawal_fee} user_address facilitator_keys =
+      UserOperation.{withdrawal_amount;withdrawal_fee} user_address facilitator_address =
   (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
   let ticket = Revision.zero in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
   let bond = TokenAmount.zero in (* TODO: where does this come from? *)
-  let operation = Facilitator_contract.make_withdraw_call
-                    facilitator_keys.Keypair.address ticket bond confirmed_state in
+  let operation =
+    Facilitator_contract.make_withdraw_call
+      facilitator_address ticket bond confirmed_state in
   let tx_header =
     Main_chain.TxHeader.
       { sender= user_address
@@ -319,13 +320,9 @@ let make_main_chain_withdrawal_transaction
   Main_chain.Transaction.{tx_header;operation}
 
 let push_side_chain_withdrawal_to_main_chain
-      (facilitator_state : FacilitatorState.t)
+      (facilitator_address : Address.t)
       (transaction : Transaction.t)
       (user_state : UserState.t) =
-  (*
-     let facilitator_address = facilitator_state.keypair.address in
-     if not (is_signature_valid Transaction.digest facilitator_address signed_transaction.signature transaction) then
-     bork "Invalid facilitator signature on signed transaction";*)
   let signed_request =
     match transaction.tx_request with
     | `UserTransaction sr -> sr
@@ -339,7 +336,7 @@ let push_side_chain_withdrawal_to_main_chain
   match request.operation with
   | Withdrawal details ->
     let open Lwt in
-    let signed_transaction = make_main_chain_withdrawal_transaction details user_address facilitator_state.keypair in
+    let signed_transaction = make_main_chain_withdrawal_transaction details user_address facilitator_address in
     Ethereum_action.wait_for_confirmation signed_transaction user_state.main_chain_user_state
     >>= fun (main_chain_confirmation, main_chain_user_state) ->
     return (main_chain_confirmation, { user_state with main_chain_user_state })

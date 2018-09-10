@@ -145,7 +145,7 @@ val deposit : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserA
    TODO: handle persistence and asynchronous action gracefully.
 *)
 val push_side_chain_withdrawal_to_main_chain :
-  FacilitatorState.t -> (Transaction.t, Main_chain.Confirmation.t) UserAsyncAction.arr
+  Address.t -> (Transaction.t, Main_chain.Confirmation.t) UserAsyncAction.arr
 
 (** Build a signed withdrawal request from specification *)
 val withdrawal : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserAsyncAction.arr

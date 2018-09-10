@@ -209,9 +209,8 @@ module Test = struct
            TokenAmount.sub alice_balance_expected_after_deposit
              (TokenAmount.add amount_to_withdraw withdrawal_fee) in
          assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
-         let trent_state3 = get_facilitator_state () in
          UserAsyncAction.run_lwt_exn alice_state_ref
-           (push_side_chain_withdrawal_to_main_chain trent_state3) transaction2
+           (push_side_chain_withdrawal_to_main_chain trent_address) transaction2
          (* TODO: get actual transaction receipt from main chain, check receipt
             maybe this t est belongs in Ethereum_transactions
          *)

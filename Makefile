@@ -19,7 +19,7 @@ export LEGICASH_HOME=$(shell pwd)
 
 BUILD_DIR:=_build/default
 
-all: api_scgi endpoints_test hello_legicash
+all: api_scgi sidechain_server endpoints_test hello_legicash
 
 .PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run test-endpoints ethereum-net hello_legicash install uninstall test toplevel clean reset contract nginx stop_nginx install_contract
 
@@ -68,6 +68,12 @@ $(ENDPOINTS): $(LEGICASH_LIB) $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Building endpoints library"
 	$(HIDE) dune build src/endpoints/endpoints.cmxs
 
+SIDE_CHAIN_SERVER:=$(BUILD_DIR)/src/legicash_lib/side_chain_server.exe
+sidechain_server: $(SIDE_CHAIN_SERVER)
+$(SIDE_CHAIN_SERVER): $(LEGICASH_LIB) $(LEGILOGIC_LIB)
+	$(SHOW) "Building side chain server"
+	$(HIDE) dune build src/legicash_lib/side_chain_server.exe
+
 API_SCGI:=$(BUILD_DIR)/src/endpoints/api_scgi.exe
 api_scgi: $(API_SCGI)
 $(API_SCGI): $(ENDPOINTS) $(ML_SOURCES) $(CONTRACT) force
@@ -80,9 +86,13 @@ $(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(LEGILOGIC_LIB)
 	$(SHOW) "Building test endpoints executable"
 	$(HIDE) dune build src/endpoints/endpoints_test.exe
 
-run: $(API_SCGI)
+run-scgi: $(API_SCGI)
 	$(SHOW) "Running SCGI server"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(API_SCGI)
+
+run-side-chain: $(SIDE_CHAIN_SERVER)
+	$(SHOW) "Running side chain server"
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_SERVER)
 
 test-endpoints : $(ENDPOINTS_TEST)
 	$(SHOW) "Testing endpoints"

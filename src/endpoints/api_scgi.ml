@@ -151,7 +151,7 @@ let _ =
           (match maybe_withdrawal with
            | Ok withdrawal ->
              (try
-                let result_json = withdrawal_from_trent withdrawal.address withdrawal.amount in
+                let result_json = withdrawal_from_trent trent_address withdrawal.address withdrawal.amount in
                 ok_json id result_json
               with
               | Lib.Internal_error msg -> internal_error_response id msg

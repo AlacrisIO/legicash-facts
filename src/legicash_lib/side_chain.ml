@@ -320,7 +320,7 @@ module ExternalRequest = struct
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed
-    | `AdminQuery of UserQueryRequest.t ]
+    | `AdminQuery of AdminQueryRequest.t ]
   [@@deriving yojson]
   module P = struct
     type nonrec t = t

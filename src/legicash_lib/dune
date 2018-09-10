@@ -15,3 +15,9 @@
  ;; -34 : unused type
  (libraries legilogic_lib legilogic_ethereum cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
  (inline_tests))
+
+(executable
+ (name side_chain_server)
+ (modules side_chain_server)
+ (libraries legilogic_lib legicash_lib yojson))
+

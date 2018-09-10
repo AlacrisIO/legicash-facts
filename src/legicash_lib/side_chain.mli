@@ -179,7 +179,7 @@ module ExternalRequest : sig
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed
-    | `AdminQuery of UserQueryRequest.t ]
+    | `AdminQuery of AdminQueryRequest.t ]
   include PersistableS with type t := t
 end
 
