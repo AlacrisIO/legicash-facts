@@ -14,9 +14,12 @@ let empty = 0x40
 let leaf = 0x41
 let branch = 0x42
 let skip = 0x43
+let left_branch = 0x44
+let right_branch = 0x45
+let skip_child = 0x46
 
-let none = 0x44
-let some = 0x45
+let none = 0x48
+let some = 0x49
 
 let keypair = 0x60
 

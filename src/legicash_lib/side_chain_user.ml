@@ -54,18 +54,20 @@ module TransactionStatus = struct
   type t =
     { request: UserTransactionRequest.t signed
     ; transaction_option: Transaction.t option
+    ; commitment_option: TransactionCommitment.t option
     ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
   [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
-      marshaling3
-        (fun { request; transaction_option; main_chain_confirmation_option } ->
-           request, transaction_option, main_chain_confirmation_option)
-        (fun request transaction_option main_chain_confirmation_option ->
-           { request; transaction_option; main_chain_confirmation_option })
+      marshaling4
+        (fun { request; transaction_option; commitment_option; main_chain_confirmation_option } ->
+           request, transaction_option, commitment_option, main_chain_confirmation_option)
+        (fun request transaction_option commitment_option main_chain_confirmation_option ->
+           { request; transaction_option; commitment_option; main_chain_confirmation_option })
         (marshaling_signed UserTransactionRequest.marshaling)
         (option_marshaling Transaction.marshaling)
+        (option_marshaling TransactionCommitment.marshaling)
         (option_marshaling Main_chain.Confirmation.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
@@ -108,12 +110,51 @@ end
 
 module UserAccountStateMap = MerkleTrie (Address) (UserAccountState)
 
+exception User_not_found of string
+
 module UserState = struct
+  [@warning "-39"]
   type t =
     { main_chain_user_state: Main_chain.UserState.t
     ; facilitators: UserAccountStateMap.t
     ; notifications: (Revision.t * yojson) list }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, yojson]
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling3
+        (fun { main_chain_user_state
+             ; facilitators
+             ; notifications } ->
+          main_chain_user_state, facilitators, notifications)
+        (fun main_chain_user_state facilitators notifications ->
+           { main_chain_user_state
+           ; facilitators
+           ; notifications })
+        Main_chain.UserState.marshaling UserAccountStateMap.marshaling
+        (list_marshaling (marshaling2 identity (fun x y -> x, y) Revision.marshaling yojson_marshaling))
+    let walk_dependencies = no_dependencies
+    let make_persistent = normal_persistent
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
+  let user_state_key user_address =
+    "LCUS0001" ^ (Address.to_big_endian_bits user_address)
+  let save user_state =
+    let open Lwt in
+    save user_state (* <-- use inherited binding *)
+    >>= (fun () ->
+      let address = user_state.main_chain_user_state.keypair.address in
+      let key = user_state_key address in
+      Db.put key (Digest.to_big_endian_bits (digest user_state)))
+  let load user_address =
+    user_address |> user_state_key |> Db.get
+    |> (function
+      | Some x -> x
+      | None -> raise (User_not_found
+                         (Printf.sprintf "User %s not found in the database"
+                            (Address.to_0x_string user_address))))
+    |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
 end
 
 module UserAction = Action(UserState)
@@ -165,7 +206,11 @@ let make_rx_header facilitator_address user_state =
       user_state
 
 let mk_rx_transaction_status rx =
-  TransactionStatus.{request= rx; transaction_option= None; main_chain_confirmation_option= None}
+  TransactionStatus.
+    {request= rx;
+     transaction_option= None;
+     commitment_option= None;
+     main_chain_confirmation_option= None}
 
 (*
    let mk_tx_transaction_status tx =
@@ -186,22 +231,22 @@ let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
 (** TODO: Handle cases of updates to previous transaction_statuss, rather than just new ones *)
 let add_user_transaction_status transaction_status user_state =
   let facilitator = transaction_status.TransactionStatus.request.payload.rx_header.facilitator in
-    Lens.modify
+  Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
     (fun ops -> transaction_status::ops) (* TODO: replays, retries...*)
     user_state
 
 let remove_user_request request user_state =
   let facilitator = request.payload.UserTransactionRequest.rx_header.facilitator in
-    Lens.modify
+  Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
     (List.filter (fun x -> x.TransactionStatus.request != request))
     user_state
 
 let sign_request request user_state =
-   UserAction.return
-   (UserTransactionRequest.signed user_state.UserState.main_chain_user_state.keypair request)
-   user_state
+  UserAction.return
+    (UserTransactionRequest.signed user_state.UserState.main_chain_user_state.keypair request)
+    user_state
 
 let add_pending_request request state =
   UserAction.return request (add_user_transaction_status (mk_rx_transaction_status request) state)
@@ -343,3 +388,25 @@ let push_side_chain_withdrawal_to_main_chain
   | Payment _
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"
+
+
+(*
+   (** Events that affect user state *)
+   type user_event =
+   | UserTransactionRequest of UserTransactionRequest.t
+   | TransactionSignedByFacilitator of TransactionCommitment.t
+   | TransactionPostedToRegistry of Transaction.t (* TODO: do we want a signature from the registry ? *)
+   | TransactionPostedToMainChain of Main_chain.Confirmation.t
+   | TransactionConfirmedOnMainChain of Main_chain.Confirmation.t
+   | TransactionSettledOnMainChain of Main_chain.Confirmation.t
+   | GetState of {from: Revision.t option}
+
+   let user_loop mailbox address =
+   let keypair = keypair_of_address address in
+   let user_state = UserState.load address in
+   let user_step user_event user_state =
+   match user_request with
+   | xxx ->
+   in
+   simple_server mailbox user_step user_state
+*)

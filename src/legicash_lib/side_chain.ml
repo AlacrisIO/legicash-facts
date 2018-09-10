@@ -487,6 +487,48 @@ module FacilitatorState = struct
     |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
 end
 
+module TransactionCommitment = struct
+  [@warning "-39"]
+  type t =
+    { transaction: Transaction.t
+    ; tx_proof: TransactionMap.Proof.t
+    ; facilitator_revision: Revision.t
+    ; spending_limit: TokenAmount.t
+    ; accounts: Digest.t
+    ; main_chain_transactions_posted: Digest.t
+    ; signature: Signature.t }
+  [@@deriving lens { prefix=true }, yojson]
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling7
+        (fun { transaction
+             ; tx_proof
+             ; facilitator_revision
+             ; spending_limit
+             ; accounts
+             ; main_chain_transactions_posted
+             ; signature } ->
+          transaction, tx_proof, facilitator_revision, spending_limit,
+          accounts, main_chain_transactions_posted, signature)
+        (fun transaction tx_proof facilitator_revision spending_limit
+          accounts main_chain_transactions_posted signature ->
+          { transaction
+          ; tx_proof
+          ; facilitator_revision
+          ; spending_limit
+          ; accounts
+          ; main_chain_transactions_posted
+          ; signature })
+        Transaction.marshaling TransactionMap.Proof.marshaling Revision.marshaling
+        TokenAmount.marshaling Digest.marshaling Digest.marshaling Signature.marshaling
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (TrivialPersistable (PrePersistable) : PersistableS with type t := t)
+end
+
+module Confirmation = TransactionCommitment
+
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 
 type update = { current_state: Digest.t (* State.t *)

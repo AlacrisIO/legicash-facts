@@ -407,3 +407,6 @@ module MarshalableOfYojsonable (Y : YojsonableS) = struct
              let marshaling = marshaling_of_yojsoning yojsoning
            end) : MarshalableS with type t := t)
 end
+
+let yojson_marshaling = marshaling_of_yojsoning yojson_yojsoning
+

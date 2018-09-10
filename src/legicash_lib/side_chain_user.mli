@@ -52,7 +52,10 @@ module TransactionStatus : sig
     (* TODO: as distinguished from the Transaction, a Confirmation, which will be
        a merkle proof relating the transaction to a signed side-chain state.
        When, further, said signed side-chain state confirmed on the Main_chain, we're gold. *)
-    ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
+    ; commitment_option: TransactionCommitment.t option
+    ; main_chain_confirmation_option: Main_chain.Confirmation.t option
+    (* Confirmation of the state update? *) }
+
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
@@ -122,6 +125,8 @@ module UserState : sig
     ; facilitators: UserAccountStateMap.t
     ; notifications: (Revision.t * yojson) list }
   [@@deriving lens { prefix=true }]
+  include PersistableS with type t := t
+  val load : Address.t -> t
 end
 
 module UserAction : ActionS with type state = UserState.t

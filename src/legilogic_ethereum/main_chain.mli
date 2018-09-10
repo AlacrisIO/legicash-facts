@@ -143,6 +143,7 @@ module UserState : sig
     ; nonce: Nonce.t }
   [@@deriving lens { prefix=true }]
   val init : keypair -> t
+  include PersistableS with type t := t
 end
 
 module UserAction : ActionS with type state = UserState.t
