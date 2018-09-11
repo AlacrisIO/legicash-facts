@@ -5,7 +5,6 @@ open Lib
 open Action
 open Yojsoning
 open Marshaling
-open Tag
 open Signing
 open Persisting
 open Types
@@ -52,28 +51,26 @@ end
 module TransactionStatus = struct
   [@warning "-39"]
   type t =
-    { request: UserTransactionRequest.t signed
-    ; transaction_option: Transaction.t option
-    ; commitment_option: TransactionCommitment.t option
-    ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
-  [@@deriving lens { prefix=true }, yojson]
-  module PrePersistable = struct
+    | Requested of UserTransactionRequest.t signed
+    | SignedByFacilitator of TransactionCommitment.t
+    | PostedToRegistry of TransactionCommitment.t
+    | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+  [@@deriving yojson]
+
+  let signed_request = function
+    | Requested signed_request -> signed_request
+    | SignedByFacilitator tc | PostedToRegistry tc
+    | PostedToMainChain (tc, _) | ConfirmedOnMainChain (tc, _) | SettledOnMainChain (tc, _) ->
+      tc.transaction.tx_request |> TransactionRequest.signed_request
+  let request x = (signed_request x).payload
+
+  module P = struct
     type nonrec t = t
-    let marshaling =
-      marshaling4
-        (fun { request; transaction_option; commitment_option; main_chain_confirmation_option } ->
-           request, transaction_option, commitment_option, main_chain_confirmation_option)
-        (fun request transaction_option commitment_option main_chain_confirmation_option ->
-           { request; transaction_option; commitment_option; main_chain_confirmation_option })
-        (marshaling_signed UserTransactionRequest.marshaling)
-        (option_marshaling Transaction.marshaling)
-        (option_marshaling TransactionCommitment.marshaling)
-        (option_marshaling Main_chain.Confirmation.marshaling)
-    let walk_dependencies = no_dependencies
-    let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end
-  include (Persistable (PrePersistable) : PersistableS with type t := t)
+  include (YojsonPersistable (P) : PersistableS with type t := t)
 end
 
 module UserAccountState = struct
@@ -117,21 +114,24 @@ module UserState = struct
   type t =
     { main_chain_user_state: Main_chain.UserState.t
     ; facilitators: UserAccountStateMap.t
+    ; notification_counter: Revision.t
     ; notifications: (Revision.t * yojson) list }
   [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
-      marshaling3
+      marshaling4
         (fun { main_chain_user_state
              ; facilitators
+             ; notification_counter
              ; notifications } ->
-          main_chain_user_state, facilitators, notifications)
-        (fun main_chain_user_state facilitators notifications ->
+          main_chain_user_state, facilitators, notification_counter, notifications)
+        (fun main_chain_user_state facilitators notification_counter notifications ->
            { main_chain_user_state
            ; facilitators
+           ; notification_counter
            ; notifications })
-        Main_chain.UserState.marshaling UserAccountStateMap.marshaling
+        Main_chain.UserState.marshaling UserAccountStateMap.marshaling Revision.marshaling
         (list_marshaling (marshaling2 identity (fun x y -> x, y) Revision.marshaling yojson_marshaling))
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
@@ -205,12 +205,7 @@ let make_rx_header facilitator_address user_state =
       ; RxHeader.validity_within= default_validity_window }
       user_state
 
-let mk_rx_transaction_status rx =
-  TransactionStatus.
-    {request= rx;
-     transaction_option= None;
-     commitment_option= None;
-     main_chain_confirmation_option= None}
+let transaction_status_of_request rx = TransactionStatus.Requested rx
 
 (*
    let mk_tx_transaction_status tx =
@@ -230,17 +225,17 @@ let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
 
 (** TODO: Handle cases of updates to previous transaction_statuss, rather than just new ones *)
 let add_user_transaction_status transaction_status user_state =
-  let facilitator = transaction_status.TransactionStatus.request.payload.rx_header.facilitator in
+  let facilitator = (transaction_status |> TransactionStatus.request).rx_header.facilitator in
   Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
     (fun ops -> transaction_status::ops) (* TODO: replays, retries...*)
     user_state
 
-let remove_user_request request user_state =
-  let facilitator = request.payload.UserTransactionRequest.rx_header.facilitator in
+let remove_user_request signed_request user_state =
+  let facilitator = signed_request.payload.UserTransactionRequest.rx_header.facilitator in
   Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
-    (List.filter (fun x -> x.TransactionStatus.request != request))
+    (List.filter (fun x -> x |> TransactionStatus.signed_request != signed_request))
     user_state
 
 let sign_request request user_state =
@@ -249,7 +244,8 @@ let sign_request request user_state =
     user_state
 
 let add_pending_request request state =
-  UserAction.return request (add_user_transaction_status (mk_rx_transaction_status request) state)
+  let transaction_status = transaction_status_of_request request in
+  UserAction.return request (add_user_transaction_status transaction_status state)
 
 let mark_request_rejected request state =
   UserAction.return () (remove_user_request request state)
@@ -335,28 +331,27 @@ let withdrawal (facilitator_address, withdrawal_amount) =
 let payment_fee_for FacilitatorFeeSchedule.{fee_per_billion} payment_amount =
   TokenAmount.(div (mul fee_per_billion payment_amount) one_billion_tokens)
 
-let payment (facilitator_address, recipient_address, payment_amount) =
+let payment (facilitator_address, recipient_address, payment_amount, memo) =
   let open UserAsyncAction in
   get_facilitator_fee_schedule facilitator_address
   >>= fun fee_schedule ->
-  let payment_invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= ""} in
+  let payment_invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo} in
   let payment_fee = payment_fee_for fee_schedule payment_amount in
   of_action issue_user_transaction_request
     (Payment {payment_invoice; payment_fee; payment_expedited= false})
 
 (** We should be signing the RLP, not the marshaling! *)
 let make_main_chain_withdrawal_transaction
-      UserOperation.{withdrawal_amount;withdrawal_fee} user_address facilitator_address =
+      facilitator UserOperation.{withdrawal_amount;withdrawal_fee} state =
   (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
   let ticket = Revision.zero in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
   let bond = TokenAmount.zero in (* TODO: where does this come from? *)
-  let operation =
-    Facilitator_contract.make_withdraw_call
-      facilitator_address ticket bond confirmed_state in
+  let operation = Facilitator_contract.make_withdraw_call
+                    facilitator ticket bond confirmed_state in
   let tx_header =
     Main_chain.TxHeader.
-      { sender= user_address
+      { sender= state.UserState.main_chain_user_state.keypair.address
       ; nonce= Main_chain.Nonce.zero (* TODO: get_nonce facilitator_address *)
       ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
       ; gas_limit= TokenAmount.of_int 1000000
@@ -365,48 +360,152 @@ let make_main_chain_withdrawal_transaction
   Main_chain.Transaction.{tx_header;operation}
 
 let push_side_chain_withdrawal_to_main_chain
-      (facilitator_address : Address.t)
+      (facilitator : Address.t)
       (transaction : Transaction.t)
       (user_state : UserState.t) =
-  let signed_request =
-    match transaction.tx_request with
-    | `UserTransaction sr -> sr
-    | _ -> bork "Expected user transaction for withdrawal"
-  in
-  let request = signed_request.payload in
-  let user_keys = user_state.main_chain_user_state.keypair in
-  let user_address = user_keys.address in
-  if not (is_signed_value_valid UserTransactionRequest.digest user_address signed_request) then
-    bork "Invalid user signature on signed request";
+  let request = (TransactionRequest.signed_request transaction.tx_request).payload in
+  (* We assume it's a transaction of the current user, that the facilitator committed to *)
   match request.operation with
   | Withdrawal details ->
     let open Lwt in
-    let signed_transaction = make_main_chain_withdrawal_transaction details user_address facilitator_address in
-    Ethereum_action.wait_for_confirmation signed_transaction user_state.main_chain_user_state
+    let transaction = make_main_chain_withdrawal_transaction facilitator details user_state in
+    Ethereum_action.wait_for_confirmation transaction user_state.main_chain_user_state
     >>= fun (main_chain_confirmation, main_chain_user_state) ->
     return (main_chain_confirmation, { user_state with main_chain_user_state })
   | Payment _
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"
 
+module Error = struct
+  type t = exn
+  let to_yojson = function
+    | e -> `String (Printexc.to_string e)
+  let of_yojson = function
+    | `String x -> Ok (Internal_error x)
+    | _ -> Error "Not an error"
+end
 
+module ErrorNotification = struct
+  [@warning "-39"]
+  type t =
+    { status: TransactionStatus.t
+    ; error: Error.t }
+  [@@deriving yojson]
+end
+
+(** Events that affect user state *)
+(* TODO: Rewrite UserEvent + corresponding return type with GADT ? *)
+module UserEvent = struct
+  [@warning "-39"]
+  type t =
+    | GetState of {from: Revision.t option}
+    | Payment of {facilitator: Address.t; recipient: Address.t; amount: TokenAmount.t; memo: string}
+    | Deposit of {facilitator: Address.t; amount: TokenAmount.t}
+    | Withdrawal of {facilitator: Address.t; amount: TokenAmount.t}
+    | Fail of ErrorNotification.t
+    | Update of TransactionStatus.t
+  [@@deriving yojson]
+end
+
+let add_notification notification_type to_yojson x state =
+  let counter = state.UserState.notification_counter in
+  UserAction.return counter
+    (state
+     |> UserState.lens_notification_counter.set Revision.(add one counter)
+     |> Lens.modify UserState.lens_notifications
+          (List.cons (counter, `List [`String notification_type; to_yojson x])))
+
+let add_error_notification = add_notification "error_notification" ErrorNotification.to_yojson
+
+let _notify_error status error = add_error_notification {status;error}
+
+
+(** The transaction_loop is the actor that handles the TransactionStatus.t,
+    responds to queries about this state, spawns threads for each state transition,
+    saves this state to DB when it changes and updates the user_loop in-memory.
+*)
+let _transaction_loop _mailbox _request_key =
+  bottom ()
+
+
+(** The user_loop is the server that handles the UserState.t, responds to queries about this state,
+    spawns threads for new transactions, and gets in-memory state updates from them. On the other hand,
+    said threads update the database directly with their own key. *)
 (*
-   (** Events that affect user state *)
-   type user_event =
-   | UserTransactionRequest of UserTransactionRequest.t
-   | TransactionSignedByFacilitator of TransactionCommitment.t
-   | TransactionPostedToRegistry of Transaction.t (* TODO: do we want a signature from the registry ? *)
-   | TransactionPostedToMainChain of Main_chain.Confirmation.t
-   | TransactionConfirmedOnMainChain of Main_chain.Confirmation.t
-   | TransactionSettledOnMainChain of Main_chain.Confirmation.t
-   | GetState of {from: Revision.t option}
-
    let user_loop mailbox address =
+   let open UserEvent in
+   let open Lwt in
    let keypair = keypair_of_address address in
    let user_state = UserState.load address in
-   let user_step user_event user_state =
-   match user_request with
-   | xxx ->
+   let spawn_transaction_watcher (status : TransactionStatus.t) =
+   match status with
+   | Requested request ->
+   request
+   |> post_user_transaction_request
+   >>= (function
+   | Ok tx -> Update (TransactionStatus.MadeByFacilitator tx)
+   | Error error -> Fail {status; error})
+   >> Lwt_mvar.put mailbox
+   | SignedByFacilitator tc ->
+   bottom ()
+   push_side_chain_withdrawal_to_main_chain
+   xxx in
+   let spawn_transaction_watchers pending_operations =
+   xxx in
+   let spawn_request_watcher request =
+   spawn_transaction_watcher (transaction_status_of_request request)
+   >>= const request in
+   let user_step = function
+   (* TODO: either move get_facilitator_fee_schedule out of the loop by adding an argument to Payment,
+   or make it asynchronous by extending the UserState with the notion of requests that await
+   knowledge of fee_schedule *)
+   | Payment {facilitator: Address.t; recipient: Address.t; amount: TokenAmount.t; memo: string} ->
+   payment (facilitator_address, recipient, amount, memo)
+   >>= spawn_request_watcher
+   >>= arr TransactionRequest.to_yojson
+   | 
+   >>= fun transaction ->
+   (* set timestamp, now that all processing on Trent is done *)
+   payment_timestamp ();
+   (* remaining code is preparing response *)
+   let tx_revision = transaction.tx_header.tx_revision in
+   let sender_name = get_user_name sender in
+   let recipient_name = get_user_name recipient in
+   let sender_account = get_user_account sender in
+   let recipient_account = get_user_account recipient in
+   let make_account_state address name (account : AccountState.t) =
+   { address
+   ; user_name = name
+   ; balance = account.balance
+   ; revision = account.account_revision
+   }
+   in
+   let sender_account = make_account_state sender sender_name sender_account in
+   let recipient_account = make_account_state recipient recipient_name recipient_account in
+   let side_chain_tx_revision = tx_revision in
+   let payment_result =
+   { sender_account
+   ; recipient_account
+   ; amount_transferred = amount
+   ; side_chain_tx_revision
+   }
+   in
+   return (payment_result_to_yojson payment_result)
+
+   | UserTransactionRequest req ->
+   add_pending_request req
+   >>= bork "Gotta return something to the user"
    in
    simple_server mailbox user_step user_state
 *)
+
+let user_table = Hashtbl.create 4
+
+(*
+   let start_user_loop address =
+   let mailbox = Lwt_mvar.create_empty () in
+   Lwt.async (fun () -> user_loop mailbox address);
+   Hashtbl.replace user_table address mailbox
+*)
+
+let post_user_event address = simple_client (Hashtbl.find user_table address) identity

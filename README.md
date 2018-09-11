@@ -44,8 +44,8 @@ These same build and run steps appear in the Gitlab CI YAML file
     ./.gitlab-ci.yml
 
 Note: So far, we've only tried to build and run the software on Linux
-x86_64 using the Debian distribution. It may be possible to build and
-run it on other platforms.
+x86_64 using the Debian or Ubuntu distributions.
+It may be possible to build and run it on other platforms.
 
 If you'd like to contribute to the Legicash codebase, please submit a
 Gitlab merge request, and note the following:
@@ -87,6 +87,11 @@ of all the tests being run will be displayed by `make test`.
 
 We'll be using `ocp-indent` to keep code well-formatted, but otherwise following the
 [Jane Street coding standards](https://opensource.janestreet.com/standards/).
+See our suggested `.git/hooks/pre-commit` hook in `script/pre-commit`.
+
+As for documentation, all documentation, specification, usage comments should go in `.mli` files.
+`.ml` files should only contain implementation comments, and therefore remain lightly commented.
+
 
 ### License
 

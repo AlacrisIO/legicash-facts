@@ -274,6 +274,10 @@ module TransactionRequest = struct
     let marshaling = {marshal;unmarshal}
   end
   include (TrivialPersistable(P) : PersistableS with type t := t)
+  let signed_request = function
+    | `UserTransaction x -> x
+    | _ -> bork "Not a user transaction"
+  let request x = (x |> signed_request).payload
 end
 
 module Query = struct

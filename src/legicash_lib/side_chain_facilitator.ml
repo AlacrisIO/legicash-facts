@@ -292,8 +292,9 @@ let process_validated_transaction_request : (TransactionRequest.t, Transaction.t
    In the future, maybe moving away from Lwt and from single-threaded OCaml,
    and/or using forking and reducing the use of facilitator state so no DB access is needed,
    this could be done in different threads or processes.
-*)
 
+   TODO: return a TransactionCommitment.t instead.
+*)
 let process_user_transaction_request :
   (UserTransactionRequest.t signed * bool, Transaction.t) Lwt_exn.arr =
   let open Lwt_exn in
@@ -304,8 +305,8 @@ let process_user_transaction_request :
   wait_for_commit >>= const confirmation
 
 (** This is a placeholder until we separate client and server in separate processes *)
-let post_user_transaction_request =
-  (*stateless_parallelize*) process_user_transaction_request
+let post_user_transaction_request request =
+  (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =
   { address : Address.t

@@ -108,7 +108,7 @@ let create_side_chain_user_state user_keys =
   let (user_account_state : UserAccountState.t) = UserAccountState.empty
   in
   let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
-  UserState.{main_chain_user_state; facilitators; notifications= []}
+  UserState.{main_chain_user_state; facilitators; notification_counter = Revision.zero; notifications= []}
 
 let create_user_states () =
   List.iter

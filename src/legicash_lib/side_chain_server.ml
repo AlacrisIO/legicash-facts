@@ -29,26 +29,26 @@ let process_request_exn _client_address (in_channel,out_channel) =
   read_string_from_lwt_io_channel in_channel
   >>= fun marshaled ->
   (match ExternalRequest.unmarshal_string marshaled with
-  | `UserQuery request ->
-    trying post_user_query_request request
-    >>= handling fail (* TODO: really handle *)
-    >>= fun json ->
-    Yojsoning.string_of_yojson json
-    |>
-    (fun s ->
-    write_string_to_lwt_io_channel out_channel s)
-  | `UserTransaction request ->
-    trying post_user_transaction_request (request,false) (* TODO: should the wait flag be in the request? *)
-    >>= handling fail (* TODO: really handle *)
-    >>= fun transaction ->
-    Transaction.marshal_string transaction
-    |> write_string_to_lwt_io_channel out_channel
-  | `AdminQuery request ->
-    trying post_admin_query_request request
-    >>= handling fail (* TODO: really handle *)
-    >>= fun json ->
-    Yojsoning.string_of_yojson json
-    |> write_string_to_lwt_io_channel out_channel)
+   | `UserQuery request ->
+     trying post_user_query_request request
+     >>= handling fail (* TODO: really handle *)
+     >>= fun json ->
+     Yojsoning.string_of_yojson json
+     |>
+     (fun s ->
+        write_string_to_lwt_io_channel out_channel s)
+   | `UserTransaction request ->
+     trying post_user_transaction_request request
+     >>= handling fail (* TODO: really handle *)
+     >>= fun transaction ->
+     Transaction.marshal_string transaction
+     |> write_string_to_lwt_io_channel out_channel
+   | `AdminQuery request ->
+     trying post_admin_query_request request
+     >>= handling fail (* TODO: really handle *)
+     >>= fun json ->
+     Yojsoning.string_of_yojson json
+     |> write_string_to_lwt_io_channel out_channel)
   (* TODO: We need to always close, and thus exit the Lwt_exn monad and properly handle the Result
      (e.g. by turning it into a yojson that fulfills the JSON RPC interface) before we close.
   *)
@@ -105,9 +105,9 @@ let _ =
     >>= fun () -> Logging.log "Installing facilitator contract..."; return ()
     >>= trying (Side_chain_action.Test.load_contract >>> fun () -> Logging.log "done"; return ())
     >>= handling
-      (fun _ -> printf "failed, installing contract...%!"
-        >>= Side_chain_action.Test.install_contract
-        >>= fun () -> Logging.log "done"; return ())
+          (fun _ -> printf "failed, installing contract...%!"
+            >>= Side_chain_action.Test.install_contract
+            >>= fun () -> Logging.log "done"; return ())
     >>= fun () -> load_facilitator_state trent_keys
     >>= fun () -> start_facilitator trent_address
     >>= fun () -> Logging.log "*** SIDE CHAIN SERVER STARTED ***"; return ()

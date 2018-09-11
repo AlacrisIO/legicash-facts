@@ -7,6 +7,8 @@ open Persisting
 open Types
 open Merkle_trie
 
+(** TODO: use Quantity everywhere, like the yellow paper, or maybe use Cardinal and Ordinal *)
+
 module TokenAmount : UIntS with type t = UInt256.t
 
 module Nonce : UIntS with type t = Revision.t
@@ -150,3 +152,4 @@ module UserAction : ActionS with type state = UserState.t
 module UserAsyncAction : AsyncActionS with type state = UserState.t
 
 val genesis_state : State.t
+

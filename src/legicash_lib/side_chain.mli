@@ -9,6 +9,8 @@ open Merkle_trie
 open Legilogic_ethereum
 module TokenAmount = Main_chain.TokenAmount
 
+(* TODO: use GADTs... but first teach ppx_deriving_yojson about them? *)
+
 (** invoice sent from payee to payer
     TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
 
@@ -147,11 +149,14 @@ module AdminQueryRequest : sig
   include PersistableS with type t := t
 end
 
+(* TODO: use GADT to split those cases? *)
 module TransactionRequest : sig
   type t =
     [ `UserTransaction of UserTransactionRequest.t signed
     | `AdminTransaction of AdminTransactionRequest.t ]
   include PersistableS with type t := t
+  val signed_request : t -> UserTransactionRequest.t signed
+  val request : t -> UserTransactionRequest.t
 end
 
 module Query : sig

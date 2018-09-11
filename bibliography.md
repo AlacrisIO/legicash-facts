@@ -26,6 +26,10 @@
 * OCaml metaprogramming:
  [Oleg's Reconciling Abstraction with High Performance: A MetaOCaml approach](https://www.nowpublishers.com/article/Details/PGL-038).
 
+* Purely Functional Data Structures:
+ [Okasaki's book](https://www.cs.cmu.edu/~rwh/theses/okasaki.pdf),
+ [a follow-up](https://cstheory.stackexchange.com/questions/1539/whats-new-in-purely-functional-data-structures-since-okasaki)
+
 * [Computability Logic](http://www.csc.villanova.edu/~japaridz/CL/)
 
 * [K Framework](http://www.kframework.org/index.php/Main_Page),
@@ -96,3 +100,6 @@
 
 * UI tools for Crypto-currency dApps:
   [MetaMask Browser Extension](https://github.com/MetaMask/metamask-extension)
+
+* Usability and UX:
+  [Nielsen Norman Group](https://www.nngroup.com/articles/)

@@ -3,6 +3,7 @@ open Lib
 open Signing
 open Action
 open Lwt_exn
+open Types
 
 open Legilogic_ethereum
 open Main_chain
@@ -26,7 +27,8 @@ module Test = struct
     let confirmed_state = (facilitator_account_lens user_keys.address).get trent_state in
     let user_account_state = {UserAccountState.empty with confirmed_state} in
     let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
-    UserState.{main_chain_user_state; facilitators; notifications = []}
+    UserState.{main_chain_user_state; facilitators;
+               notification_counter = Revision.zero; notifications = []}
 
   let make_alice_state () = create_side_chain_user_state_for_testing alice_keys
 
@@ -121,7 +123,7 @@ module Test = struct
          let alice_state_ref = ref (make_alice_state ()) in
          UserAsyncAction.run_lwt_exn alice_state_ref deposit (trent_address, amount_to_deposit)
          >>= fun signed_request1 ->
-         post_user_transaction_request (signed_request1, false)
+         post_user_transaction_request signed_request1
          >>= fun _transaction1 ->
          let trent_state1 = get_facilitator_state () in
          (* TODO: maybe examine the log for the contract call *)
@@ -132,9 +134,9 @@ module Test = struct
          assert (alice_account.balance = alice_expected_deposit) ;
          (* open Bob's account *)
          let payment_amount = TokenAmount.of_int 17 in
-         UserAsyncAction.run_lwt_exn alice_state_ref payment (trent_address, bob_address, payment_amount)
+         UserAsyncAction.run_lwt_exn alice_state_ref payment (trent_address, bob_address, payment_amount, "")
          >>= fun signed_request2 ->
-         post_user_transaction_request (signed_request2, false)
+         post_user_transaction_request signed_request2
          >>= fun _transaction2 ->
          (* verify the payment to Bob's account on Trent *)
          let trent_state2 = get_facilitator_state () in
@@ -183,7 +185,7 @@ module Test = struct
          (* deposit *)
          UserAsyncAction.run_lwt_exn alice_state_ref deposit (trent_address, amount_to_deposit)
          >>= fun signed_request1 ->
-         post_user_transaction_request (signed_request1, false)
+         post_user_transaction_request signed_request1
          >>= fun _transaction1 ->
          let trent_state1 = get_facilitator_state () in
          (* verify the deposit to Alice's account on Trent *)
@@ -199,7 +201,7 @@ module Test = struct
          let withdrawal_fee = fee_schedule.withdrawal_fee in
          UserAsyncAction.run_lwt_exn alice_state_ref withdrawal (trent_address, amount_to_withdraw)
          >>= fun signed_request2 ->
-         post_user_transaction_request (signed_request2, false)
+         post_user_transaction_request signed_request2
          >>= fun transaction2 ->
          let trent_state2 = get_facilitator_state () in
          let trent_accounts_after_withdrawal = trent_state2.current.accounts in

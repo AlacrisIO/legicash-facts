@@ -30,6 +30,7 @@ type transaction_result =
   }
 [@@deriving to_yojson]
 
+[@@@warning "-32"]
 type payment_result =
   { sender_account : AccountState.t
   ; recipient_account : AccountState.t
@@ -202,10 +203,10 @@ let payment_timestamp () =
   if !payment_timestamps_cursor >= num_timestamps then
     payment_timestamps_cursor := 0
 
-let payment_on_trent sender recipient amount =
+let payment_on_trent sender recipient amount memo =
   let sender_state = user_state_from_address sender in
   let sender_state_ref = ref sender_state in
-  UserAsyncAction.run_lwt_exn sender_state_ref payment (trent_address, recipient, amount)
+  UserAsyncAction.run_lwt_exn sender_state_ref payment (trent_address, recipient, amount, memo)
   >>= fun signed_request ->
   update_user_state sender !sender_state_ref;
   post_user_transaction_request_to_side_chain signed_request
@@ -229,15 +230,20 @@ let payment_on_trent sender recipient amount =
   | _, Error _ ->
     return (error_json "Could not get account information for sender and recipient")
   | Ok sender_account, Ok recipient_account ->
-  let side_chain_tx_revision = tx_revision in
-  let payment_result =
-    { sender_account
-    ; recipient_account
-    ; amount_transferred = amount
-    ; side_chain_tx_revision
-    }
-  in
-  return (payment_result_to_yojson payment_result)
+    let side_chain_tx_revision = tx_revision in
+    let payment_result =
+      { sender_account
+      ; recipient_account
+      ; amount_transferred = amount
+      ; side_chain_tx_revision
+      }
+    in
+    return (payment_result_to_yojson payment_result)
+
+(*
+   let payment_on_trent sender recipient amount memo =
+   post_user_event sender (Payment {facilitator = trent_address; recipient; amount; memo})
+*)
 
 (* other actions, not involving posting to server mailbox *)
 

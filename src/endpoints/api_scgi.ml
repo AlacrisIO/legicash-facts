@@ -177,7 +177,7 @@ let _ =
           (match maybe_payment with
            | Ok payment ->
              (try
-                Lwt_exn.run_lwt (payment_on_trent payment.sender payment.recipient) payment.amount
+                Lwt_exn.run_lwt (payment_on_trent payment.sender payment.recipient payment.amount) "memo"
                 >>= ok_json id
               with
               | Lib.Internal_error msg -> internal_error_response id msg
