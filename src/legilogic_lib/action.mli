@@ -206,7 +206,10 @@ module Lwt_exn : sig
       using [Lwt_main.run] and raising an exception at the very end if the evaluation failed. *)
   val run : ('a, 'b) arr -> 'a -> 'b
 
-  (** [of_lwt a x] given a Lwt arrow [a] that doesn't fail returns a Lwt_exn arrow that
+  (** [of_exn a] given a ExnMonad arrow [a] that has no asynchronous effects, returns an arrow *)
+  val of_exn : ('a, 'b) ExnMonad.arr -> ('a, 'b) arr
+
+  (** [of_lwt a] given a Lwt arrow [a] that doesn't fail returns a Lwt_exn arrow that
       returns its successful result. *)
   val of_lwt : ('a -> 'b Lwt.t) -> ('a, 'b) arr
 
@@ -320,11 +323,23 @@ val stateless_sequentialize : ('i, 'o) Lwt_monad.arr -> ('i, 'o) Lwt_monad.arr
    (** Given a mailbox for messages being a pair of input and output-co-promise,
    and given an Lwt arrow return a background thread that processes those messages in parallel.
    In a given process, you might as well do without a mailbox, but if you have to have a mailbox anyway...
- *)
+
    val stateless_parallel_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt_monad.arr -> _ Lwt.t
 
    (** Given a Lwt arrow, return a client Lwt arrow that does the same thing,
    but going through the bottleneck of a mailbox.
    In a given process, you might as well do without the entire mailbox thing! *)
    val stateless_parallelize : ('i, 'o) Lwt_monad.arr -> ('i, 'o) Lwt_monad.arr
+*)
+
+(* reading, writing strings from Lwt_io channels *)
+
+val read_string_from_lwt_io_channel : Lwt_io.input_channel -> string Lwt_exn.t
+(** read a string from an Lwt_io.input_channel, which must have been written by
+    write_string_lwt_io_channel
+*)
+
+val write_string_to_lwt_io_channel : Lwt_io.output_channel -> string -> unit Lwt_exn.t
+(** write a string to an Lwt_io.output_channel, which can then be read with
+    read_string_lwt_io_channel
 *)

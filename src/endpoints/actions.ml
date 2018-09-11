@@ -17,7 +17,7 @@ open Legilogic_ethereum
 
 open Legicash_lib
 open Side_chain
-open Side_chain_facilitator
+open Side_chain_client
 open Side_chain_user
 
 open Accounts
@@ -43,6 +43,8 @@ type tps_result =
   ; time : string
   }
 [@@deriving to_yojson]
+
+let trent_address = Signing.Test.trent_address
 
 let error_json fmt =
   Printf.ksprintf (fun x -> `Assoc [("error",`String x)]) fmt
@@ -98,30 +100,30 @@ let update_user_state address_t user_state =
 
 let get_proof tx_revision =
   UserQueryRequest.Get_proof { tx_revision }
-  |> post_user_query_request
+  |> post_user_query_request_to_side_chain
 
 let get_balance_on_trent address =
   UserQueryRequest.Get_account_balance { address }
-  |> post_user_query_request
+  |> post_user_query_request_to_side_chain
 
 let get_status_on_trent_and_main_chain address =
   UserQueryRequest.Get_account_state { address }
-  |> post_user_query_request
+  |> post_user_query_request_to_side_chain
 
 let get_all_balances_on_trent () =
   UserQueryRequest.Get_account_balances
-  |> post_user_query_request
+  |> post_user_query_request_to_side_chain
 
 let get_recent_user_transactions_on_trent address maybe_limit =
   UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
-  |> post_user_query_request
+  |> post_user_query_request_to_side_chain
 
 (* side-effecting operations *)
 
 (* format deposit and withdrawal result *)
 let make_transaction_result address tx_revision main_chain_confirmation =
   UserQueryRequest.Get_account_state { address }
-  |> post_user_query_request
+  |> post_user_query_request_to_side_chain
   >>= fun account_state_json ->
   (* TODO: JSON to AccountState to JSON, is there a better way *)
   match AccountState.of_yojson account_state_json with
@@ -144,7 +146,7 @@ let deposit_to_trent address amount =
     UserAsyncAction.run_lwt_exn user_state deposit (trent_address, amount)
     >>= fun signed_request ->
     update_user_state address !user_state;
-    post_user_transaction_request (signed_request, false)
+    post_user_transaction_request_to_side_chain signed_request
     >>= fun transaction ->
     let tx_revision = transaction.tx_header.tx_revision in
     (* get transaction hash for main chain *)
@@ -167,7 +169,7 @@ let withdrawal_from_trent facilitator_address user_address amount =
     UserAsyncAction.run_lwt_exn user_state withdrawal (facilitator_address, amount)
     >>= fun signed_request ->
     update_user_state user_address !user_state;
-    post_user_transaction_request (signed_request, false)
+    post_user_transaction_request_to_side_chain signed_request
     >>= fun transaction ->
     (* TODO: move the push to server side *)
     let tx_revision = transaction.tx_header.tx_revision in
@@ -206,17 +208,17 @@ let payment_on_trent sender recipient amount =
   UserAsyncAction.run_lwt_exn sender_state_ref payment (trent_address, recipient, amount)
   >>= fun signed_request ->
   update_user_state sender !sender_state_ref;
-  post_user_transaction_request (signed_request, false)
+  post_user_transaction_request_to_side_chain signed_request
   >>= fun transaction ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
   (* remaining code is preparing response *)
   let tx_revision = transaction.tx_header.tx_revision in
   UserQueryRequest.Get_account_state { address = sender }
-  |> post_user_query_request
+  |> post_user_query_request_to_side_chain
   >>= fun sender_account_json ->
   UserQueryRequest.Get_account_state { address = recipient }
-  |> post_user_query_request
+  |> post_user_query_request_to_side_chain
   >>= fun recipient_account_json ->
   let maybe_sender_account = AccountState.of_yojson sender_account_json in
   let maybe_recipient_account = AccountState.of_yojson recipient_account_json in

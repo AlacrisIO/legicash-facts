@@ -83,6 +83,8 @@ let return_result id json_or_exn =
   | Error exn -> Printexc.to_string exn
                  |> error_response id
 
+let trent_address = Signing.Test.trent_address
+
 let _ =
   let request_counter =
     let counter = ref 0 in

@@ -70,7 +70,7 @@ $(ENDPOINTS): $(LEGICASH_LIB) $(ML_SOURCES) $(CONTRACT) force
 
 SIDE_CHAIN_SERVER:=$(BUILD_DIR)/src/legicash_lib/side_chain_server.exe
 sidechain_server: $(SIDE_CHAIN_SERVER)
-$(SIDE_CHAIN_SERVER): $(LEGICASH_LIB) $(LEGILOGIC_LIB)
+$(SIDE_CHAIN_SERVER): $(LEGICASH_LIB) $(LEGILOGIC_LIB) $(ML_SOURCES)
 	$(SHOW) "Building side chain server"
 	$(HIDE) dune build src/legicash_lib/side_chain_server.exe
 

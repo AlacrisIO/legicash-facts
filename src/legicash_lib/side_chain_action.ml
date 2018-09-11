@@ -39,8 +39,8 @@ module Test = struct
   let get_prefunded_address = get_first_account
 
   let fund_account ?(min_balance=TokenAmount.of_int 1000000000)
-        funding_account (keys : Keypair.t) =
-    Ethereum_json_rpc.eth_get_balance (keys.address, Latest)
+        funding_account (address : Address.t) =
+    Ethereum_json_rpc.eth_get_balance (address, Latest)
     >>= fun balance ->
     if TokenAmount.compare min_balance balance > 0 then
       let tx_header =
@@ -50,7 +50,7 @@ module Test = struct
           ; gas_price= TokenAmount.of_int 1
           ; gas_limit= TokenAmount.of_int 1000000
           ; value= min_balance} in
-      let operation = Main_chain.Operation.TransferTokens keys.address in
+      let operation = Main_chain.Operation.TransferTokens address in
       let transaction = Main_chain.{Transaction.tx_header; Transaction.operation} in
       Ethereum_json_rpc.eth_send_transaction transaction
       >>= const ()
@@ -66,7 +66,7 @@ module Test = struct
       (fun keys ->
          create_account_on_testnet keys
          >>= unlock_account
-         >>= fun _ -> fund_account prefunded_address keys)
+         >>= fun _ -> fund_account prefunded_address keys.address)
       [alice_keys; bob_keys; trent_keys]
 
   let contract_address_key = "legicash.contract-address"

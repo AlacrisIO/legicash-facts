@@ -332,8 +332,8 @@ let get_account_balances (facilitator_state:FacilitatorState.t) =
   `List account_states_json
 
 let get_account_state address (facilitator_state:FacilitatorState.t) =
-  let account_state = AccountMap.find address facilitator_state.current.accounts in
-  AccountState.to_yojson account_state
+  AccountMap.find address facilitator_state.current.accounts
+  |> AccountState.to_yojson
 
 let get_account_status address facilitator_state =
   let open Lwt_exn in

@@ -148,6 +148,7 @@ module Lwt_exn = struct
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let of_exn a x = a x |> Lwt.return
   let of_lwt a x = Lwt.bind (a x) return
   let list_iter_s f = of_lwt (Lwt_list.iter_s (run_lwt f))
   let list_iter_p f = of_lwt (Lwt_list.iter_p (run_lwt f))
@@ -319,6 +320,29 @@ let stateless_sequentialize processor =
    Lwt.async (fun () -> stateless_parallel_server mailbox processor);
    simple_client mailbox identity
 *)
+
+(* reading, writing strings from Lwt_io channels *)
+
+let read_string_from_lwt_io_channel in_channel =
+  let open Lwt_exn in
+  let open Lwt_io in
+  of_lwt read_int16 in_channel
+  >>= fun len ->
+  let rec loop sofar accum =
+    if sofar >= len then
+      String.concat "" (List.rev accum) |> return
+    else
+      of_lwt (read ~count:32) in_channel
+      >>= fun s -> loop (sofar + String.length s) (s::accum)
+  in
+  loop 0 []
+
+let write_string_to_lwt_io_channel out_channel s =
+  let open Lwt_exn in
+  let open Lwt_io in
+  let len = String.length s in
+  of_lwt (write_int16 out_channel) len
+  >>= fun () -> Lwt_stream.of_string s |> of_lwt (write_chars out_channel)
 
 module Test = struct
   module Error_string_monad = ErrorMonad(struct
