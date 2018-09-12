@@ -126,9 +126,9 @@ let make_transaction_result address tx_revision main_chain_confirmation =
   |> post_user_query_request_to_side_chain
   >>= fun account_state_json ->
   (* TODO: JSON to AccountState to JSON, is there a better way *)
-  match AccountState.of_yojson account_state_json with
-  | Error _ ->
-    return (error_json "Could not get account state for withdrawing user")
+  match AccountState.of_yojson (YoJson.member "account_state" account_state_json) with
+  | Error _ ->  error_json "Could not get account state for depositing or withdrawing user"
+                |> return
   | Ok account_state ->
     let side_chain_account_state = account_state in
     let side_chain_tx_revision = tx_revision in
@@ -220,8 +220,10 @@ let payment_on_trent sender recipient amount =
   UserQueryRequest.Get_account_state { address = recipient }
   |> post_user_query_request_to_side_chain
   >>= fun recipient_account_json ->
-  let maybe_sender_account = AccountState.of_yojson sender_account_json in
-  let maybe_recipient_account = AccountState.of_yojson recipient_account_json in
+  let maybe_sender_account =
+    YoJson.member "account_state" sender_account_json |> AccountState.of_yojson in
+  let maybe_recipient_account =
+    YoJson.member "account_state" recipient_account_json |> AccountState.of_yojson in
   match maybe_sender_account,maybe_recipient_account with
   | Error _ ,_
   | _, Error _ ->

@@ -40,6 +40,10 @@ type address_json =
   { address: Address.t
   } [@@deriving yojson]
 
+let handle_lwt_exception exn =
+  Logging.log "Got LWT exception: %s"
+    (Printexc.to_string exn)
+
 (* port and address must match "scgi_pass" in nginx/conf/scgi.conf *)
 let port = 1025
 let address = "127.0.0.1"
@@ -89,6 +93,9 @@ let _ =
   let request_counter =
     let counter = ref 0 in
     fun () -> let n = !counter + 1 in counter := n ; n in
+
+  (* just log Lwt exceptions *)
+  let _ = Lwt.async_exception_hook := handle_lwt_exception in
 
   let handle_request request =
     (* Log the request *)
@@ -225,4 +232,6 @@ let _ =
   in
   let _ = Server.handler_inet address port handle_request in
   (* run forever in Lwt monad *)
-  Lwt_main.run (prepare_server () >>= fun _ -> fst (wait ()))
+  Lwt_main.run (
+    prepare_server () >>= fun _ -> fst (wait ())
+  )

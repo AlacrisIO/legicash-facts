@@ -79,7 +79,7 @@ let load_facilitator_state (keys : Signing.Keypair.t) =
 open Signing.Test
 
 let _ =
-  Logging.log "Starting side chain server...";
+  Logging.log "*** STARTING SIDE CHAIN SERVER, PLEASE WAIT ***";
   let _server =
     establish_server_with_client_address
       sockaddr
@@ -87,8 +87,14 @@ let _ =
   in
   Lwt_main.run (
     of_lwt (fun () -> Db.open_connection ~db_name:Legibase.db_name) ()
+    >>= (fun () -> Logging.log "Installing facilitator contract..."; return ())
+    >>= trying (Side_chain_action.Test.load_contract >>> fun () -> Logging.log "done"; return ())
+    >>= handling
+      (fun _ -> printf "failed, installing contract...%!"
+        >>= Side_chain_action.Test.install_contract
+        >>= fun () -> Logging.log "done"; return ())
     >>= fun () -> load_facilitator_state trent_keys
     >>= (fun () -> start_facilitator trent_address)
     >>= fun () ->
-    Logging.log "Side chain server started";
+    Logging.log "*** SIDE CHAIN SERVER STARTED ***";
     fst (Lwt.wait ()))

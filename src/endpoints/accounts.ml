@@ -129,15 +129,16 @@ let get_user_account address =
   UserQueryRequest.Get_account_state { address }
   |> post_user_query_request_to_side_chain
 
-let user_accountmap_from_address address : UserAccountStateMap.t Lwt_exn.t =
+(* TODO: the error handling in this function and the next needs improvement *)
+let user_account_map_from_address address : UserAccountStateMap.t Lwt_exn.t =
   let open UserAccountState in
   get_user_account address
   >>= (fun json ->
     if YoJson.mem "account_state" json then
       match YoJson.member "account_state" json |> AccountState.of_yojson with
       | Ok acct_state -> return acct_state
-      | Error s -> fail (Internal_error s)
-    else fail (Internal_error "Could not find user account state"))
+      | Error s -> Lwt.fail (Internal_error s)
+    else Lwt.fail (Internal_error "Could not find user account state"))
   >>= fun user_account ->
   let account_state = {UserAccountState.empty with confirmed_state= user_account}
   in
@@ -149,18 +150,18 @@ let store_user_accounts () =
   in
   list_iter_s
     (fun address ->
-       trying user_accountmap_from_address address
-       >>= handling fail
-       >>= fun new_user_accounts ->
-       let user_state =
-         try
-           Hashtbl.find address_to_user_state_tbl address
-         with Not_found ->
-           Lib.bork "Could not find user state for %s" (Address.to_0x_string address)
-       in
-       Hashtbl.replace address_to_user_state_tbl address
-         { user_state with facilitators = new_user_accounts };
-       return ())
+       Lwt.catch
+         (fun () ->
+            user_account_map_from_address address
+            >>= fun new_user_accounts ->
+            (try
+               let user_state = Hashtbl.find address_to_user_state_tbl address in
+               Hashtbl.replace address_to_user_state_tbl address
+                 { user_state with facilitators = new_user_accounts };
+               return ()
+             with Not_found -> (* should never happen *)
+               bork "Address to user table has no entry for %s" (Address.to_0x_string address)))
+         (fun _exn -> return ()))
     user_addresses
 
 (* let chunk_list elts chunk_size =
@@ -196,11 +197,11 @@ let store_user_accounts () =
 
 let prepare_server =
   let open Lwt_exn in
-  Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
+  Printf.printf "*** PREPARING SCGI SERVER / SIDE CHAIN CLIENT, PLEASE WAIT ***\n%!";
   arr create_user_states
   >>> (fun () -> list_iter_s store_keys_on_testnet account_key_list)
-  (* Use this when we have all 1300 accounts:
-     list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
+        (* Use this when we have all 1300 accounts:
+           list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
   >>> store_user_accounts
   >>> (* Ethereum dev mode provides prefunded address with a very large balance *)
   get_prefunded_address
@@ -210,11 +211,4 @@ let prepare_server =
          printf "Funding account: %s\n" name
          >>= (fun () -> fund_account prefunded_address keys.address))
       account_key_list)
-  >>> (fun () -> Logging.log "Installing facilitator contract..."; return ())
-  >>> trying (load_contract >>> fun () -> printf "done\n%!")
-  >>> handling
-        (fun _ ->
-           printf "failed, installing contract...%!"
-           >>= install_contract
-           >>= fun () -> Logging.log "done"; return ())
   >>> fun () -> printf "*** READY ***\n"
