@@ -307,8 +307,6 @@ let process_user_transaction_request :
 let post_user_transaction_request =
   (*stateless_parallelize*) process_user_transaction_request
 
-[@@@warning "-39"] (* workaround for yojson bug *)
-
 type main_chain_account_state =
   { address : Address.t
   ; balance : TokenAmount.t
@@ -316,13 +314,20 @@ type main_chain_account_state =
   }
 [@@deriving to_yojson]
 
-[@@@warning "+39"]
+(* TODO : put in a module of JSON utilities ? *)
+let error_json fmt =
+  Printf.ksprintf (fun x -> `Assoc [("error",`String x)]) fmt
 
 let get_account_balance address (facilitator_state:FacilitatorState.t) =
-  let account_state = AccountMap.find address facilitator_state.current.accounts in
-  `Assoc [("address",`String (Address.to_0x_string address))
-         ;("account_state",AccountState.to_yojson account_state)
-         ]
+    try
+      let account_state =
+        AccountMap.find address facilitator_state.current.accounts in
+      `Assoc [("address",`String (Address.to_0x_string address))
+             ;("account_balance",TokenAmount.to_yojson account_state.balance)
+             ]
+    with Not_found ->
+      error_json "Could not find balance for address %s" (Address.to_0x_string address)
+
 
 let get_account_balances (facilitator_state:FacilitatorState.t) =
   let account_states_json =
@@ -332,8 +337,14 @@ let get_account_balances (facilitator_state:FacilitatorState.t) =
   `List account_states_json
 
 let get_account_state address (facilitator_state:FacilitatorState.t) =
-  AccountMap.find address facilitator_state.current.accounts
-  |> AccountState.to_yojson
+  try
+    AccountMap.find address facilitator_state.current.accounts
+    |> fun acct_state ->
+    `Assoc [("address",`String (Address.to_0x_string address))
+           ;("account_state",AccountState.to_yojson acct_state)
+           ]
+  with Not_found ->
+    error_json "Could not find account state for account: %s" (Address.to_0x_string address)
 
 let get_account_status address facilitator_state =
   let open Lwt_exn in
@@ -367,10 +378,6 @@ let get_recent_transactions address maybe_limit facilitator_state =
   in
   `List (List.map Transaction.to_yojson
            (TransactionMap.foldrk get_operation_for_address all_transactions (Revision.zero,[]) snd))
-
-(* TODO : put in a module of JSON utilities ? *)
-let error_json fmt =
-  Printf.ksprintf (fun x -> `Assoc [("error",`String x)]) fmt
 
 let get_proof tx_revision (facilitator_state : FacilitatorState.t) =
   let transactions = facilitator_state.current.transactions in

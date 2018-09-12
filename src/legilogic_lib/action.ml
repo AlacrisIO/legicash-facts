@@ -332,7 +332,7 @@ let read_string_from_lwt_io_channel in_channel =
     if sofar >= len then
       String.concat "" (List.rev accum) |> return
     else
-      of_lwt (read ~count:32) in_channel
+      of_lwt (read ~count:64) in_channel
       >>= fun s -> loop (sofar + String.length s) (s::accum)
   in
   loop 0 []
@@ -343,6 +343,7 @@ let write_string_to_lwt_io_channel out_channel s =
   let len = String.length s in
   of_lwt (write_int16 out_channel) len
   >>= fun () -> Lwt_stream.of_string s |> of_lwt (write_chars out_channel)
+  >>= fun () -> of_lwt flush out_channel (* flushing is critical *)
 
 module Test = struct
   module Error_string_monad = ErrorMonad(struct

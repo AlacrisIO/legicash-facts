@@ -6,10 +6,8 @@ open Legilogic_lib
 open Action
 open Lwt_exn
 open Types
-open Yojsoning
 
 open Legicash_lib
-
 open Side_chain_facilitator
 open Side_chain
 
@@ -20,13 +18,15 @@ let sockaddr = Unix.(ADDR_INET (inet_addr_any,port))
 let process_request_exn _client_address (in_channel,out_channel) =
   read_string_from_lwt_io_channel in_channel
   >>= fun marshaled ->
-  match ExternalRequest.unmarshal_string marshaled with
+  (match ExternalRequest.unmarshal_string marshaled with
   | `UserQuery request ->
     trying post_user_query_request request
     >>= handling fail
     >>= fun json ->
-    YoJson.to_string json
-    |> write_string_to_lwt_io_channel out_channel
+    Yojson.Safe.to_string json
+    |>
+    (fun s ->
+    write_string_to_lwt_io_channel out_channel s)
   | `UserTransaction request ->
     trying post_user_transaction_request (request,false) (* TODO: should the wait flag be in the request? *)
     >>= handling fail
@@ -37,8 +37,10 @@ let process_request_exn _client_address (in_channel,out_channel) =
     trying post_admin_query_request request
     >>= handling fail
     >>= fun json ->
-    YoJson.to_string json
-    |> write_string_to_lwt_io_channel out_channel
+    Yojson.Safe.to_string json
+    |> write_string_to_lwt_io_channel out_channel)
+  >>= fun () -> of_lwt close in_channel
+  >>= fun () -> of_lwt close out_channel
 
 (* squeeze Lwt_exn into Lwt *)
 let process_request client_address channels =
@@ -58,15 +60,17 @@ let new_facilitator_state facilitator_keypair =
     ; fee_schedule= fee_schedule }
 
 let load_facilitator_state (keys : Signing.Keypair.t) =
-  Printf.printf "Loading the facilitator state...%!";
+  Logging.log "Loading the side_chain state...";
   Db.check_connection ();
   let facilitator_state =
     try
       Side_chain.FacilitatorState.load keys.address
-      |> fun x -> Printf.printf "done\n%!"; x
+      |> fun facilitator_state ->
+      Logging.log "Done loading side chain state";
+      facilitator_state
     with
       Facilitator_not_found _ ->
-      Printf.printf "not found, generating a new demo facilitator\n%!";
+      Logging.log "Side chain not found, generating a new demo side chain";
       new_facilitator_state keys
   in
   of_lwt FacilitatorState.save facilitator_state
@@ -75,7 +79,7 @@ let load_facilitator_state (keys : Signing.Keypair.t) =
 open Signing.Test
 
 let _ =
-  Printf.printf "Starting side chain Facilitator\n%!";
+  Logging.log "Starting side chain server...";
   let _server =
     establish_server_with_client_address
       sockaddr
@@ -86,5 +90,5 @@ let _ =
     >>= fun () -> load_facilitator_state trent_keys
     >>= (fun () -> start_facilitator trent_address)
     >>= fun () ->
-    Printf.printf "Side chain server started\n%!";
+    Logging.log "Side chain server started";
     fst (Lwt.wait ()))

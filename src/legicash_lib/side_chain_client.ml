@@ -22,10 +22,11 @@ let post_query_request_to_side_chain_ (request : ExternalRequest.t) =
     >>= fun (in_channel,out_channel) ->
     ExternalRequest.marshal_string request
     |> write_string_to_lwt_io_channel out_channel
-    >>= fun () -> read_string_from_lwt_io_channel in_channel
-    >>= fun s ->
-    Printf.eprintf "RESPONSE STRING: \"%s\"\n%!" s;
-    Yojson.Safe.from_string s |> return
+    >>= fun () ->
+    read_string_from_lwt_io_channel in_channel
+    >>= fun s -> of_lwt close in_channel
+    >>= fun () -> of_lwt close out_channel
+    >>= fun () -> Yojson.Safe.from_string s |> return
   | _ -> Lib.bork "post_query_to_side_chain, not a query"
 
 let post_user_query_request_to_side_chain (request : UserQueryRequest.t) =
@@ -40,7 +41,9 @@ let post_user_transaction_request_to_side_chain (request : UserTransactionReques
   of_lwt open_connection sockaddr
   >>= fun (in_channel,out_channel) ->
   ExternalRequest.marshal_string external_request
-  |> Lwt_stream.of_string
-  |> of_lwt (write_chars out_channel)
-  >>= fun () -> read_chars in_channel |> of_lwt Lwt_stream.to_string
+  |>  write_string_to_lwt_io_channel out_channel
+  >>= fun () -> read_string_from_lwt_io_channel in_channel
   >>= fun s -> Transaction.unmarshal_string s |> return
+  >>= fun transaction -> of_lwt close in_channel
+  >>= fun () -> of_lwt close out_channel
+  >>= fun () -> return transaction

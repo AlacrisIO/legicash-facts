@@ -7,6 +7,7 @@ open Lwt_exn
 
 open Legilogic_ethereum
 open Main_chain
+open Yojsoning
 
 open Legicash_lib
 open Side_chain
@@ -128,11 +129,15 @@ let get_user_account address =
   UserQueryRequest.Get_account_state { address }
   |> post_user_query_request_to_side_chain
 
-let user_accounts_from_address address =
+let user_accountmap_from_address address : UserAccountStateMap.t Lwt_exn.t =
   let open UserAccountState in
-  trying get_user_account address
-  >>= handling fail
-  >>= of_exn (AccountState.of_yojson >> Result.map_error (fun s -> Internal_error s))
+  get_user_account address
+  >>= (fun json ->
+    if YoJson.mem "account_state" json then
+      match YoJson.member "account_state" json |> AccountState.of_yojson with
+      | Ok acct_state -> return acct_state
+      | Error s -> fail (Internal_error s)
+    else fail (Internal_error "Could not find user account state"))
   >>= fun user_account ->
   let account_state = {UserAccountState.empty with confirmed_state= user_account}
   in
@@ -144,10 +149,15 @@ let store_user_accounts () =
   in
   list_iter_s
     (fun address ->
-       trying user_accounts_from_address address
+       trying user_accountmap_from_address address
        >>= handling fail
        >>= fun new_user_accounts ->
-       let user_state = Hashtbl.find address_to_user_state_tbl address in
+       let user_state =
+         try
+           Hashtbl.find address_to_user_state_tbl address
+         with Not_found ->
+           Lib.bork "Could not find user state for %s" (Address.to_0x_string address)
+       in
        Hashtbl.replace address_to_user_state_tbl address
          { user_state with facilitators = new_user_accounts };
        return ())
@@ -200,11 +210,11 @@ let prepare_server =
          printf "Funding account: %s\n" name
          >>= (fun () -> fund_account prefunded_address keys.address))
       account_key_list)
-  >>> (fun () -> printf "Installing facilitator contract...")
+  >>> (fun () -> Logging.log "Installing facilitator contract..."; return ())
   >>> trying (load_contract >>> fun () -> printf "done\n%!")
   >>> handling
         (fun _ ->
            printf "failed, installing contract...%!"
            >>= install_contract
-           >>= fun () -> printf "done\n%!")
+           >>= fun () -> Logging.log "done"; return ())
   >>> fun () -> printf "*** READY ***\n"
