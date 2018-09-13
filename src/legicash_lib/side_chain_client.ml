@@ -17,7 +17,7 @@ type side_chain_client_config =
 
 let config =
   let config_file = Config.get_config_filename "side_chain_client_config.json" in
-  match Yojson.Safe.from_file config_file
+  match Yojsoning.yojson_of_file config_file
         |> side_chain_client_config_of_yojson with
   | Ok config -> config
   | Error msg -> Lib.bork "Error loading side chain client configuration: %s" msg
@@ -37,7 +37,7 @@ let post_query_request_to_side_chain_ (request : ExternalRequest.t) =
     read_string_from_lwt_io_channel in_channel
     >>= fun s -> of_lwt close in_channel
     >>= fun () -> of_lwt close out_channel
-    >>= fun () -> Yojson.Safe.from_string s |> return
+    >>= fun () -> Yojsoning.yojson_of_string s |> return
   | _ -> Lib.bork "post_query_to_side_chain, not a query"
 
 let post_user_query_request_to_side_chain (request : UserQueryRequest.t) =

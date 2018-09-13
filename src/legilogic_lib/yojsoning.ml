@@ -4,6 +4,8 @@ type yojson = Yojson.Safe.json
 let string_of_yojson y = Yojson.Safe.to_string y
 let yojson_of_string s = Yojson.Safe.from_string s
 
+let yojson_of_file fn = Yojson.Safe.from_file fn
+
 let pp_yojson formatter x = Format.fprintf formatter "%s" (string_of_yojson x)
 let show_yojson x = Format.asprintf "%a" pp_yojson x
 

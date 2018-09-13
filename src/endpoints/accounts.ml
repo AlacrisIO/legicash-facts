@@ -77,9 +77,6 @@ let number_of_accounts = Array.length account_key_array
 let get_user_keys ndx = account_key_array.(ndx)
 
 let trent_address = Signing.Test.trent_address
-let trent_keys = Signing.Test.trent_keys
-
-let _ = Signing.register_keypair "Trent" trent_keys
 
 let get_user_name address =
   try
