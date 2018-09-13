@@ -336,12 +336,12 @@ val stateless_sequentialize : ('i, 'o) Lwt_monad.arr -> ('i, 'o) Lwt_monad.arr
 
 (* reading, writing strings from Lwt_io channels *)
 
-val read_string_from_lwt_io_channel : Lwt_io.input_channel -> string Lwt_exn.t
-(** read a string from an Lwt_io.input_channel, which must have been written by
+val read_string_from_lwt_io_channel : ?count:int -> Lwt_io.input_channel -> string Lwt_exn.t
+(** read a string from an Lwt_io.input_channel, in chunks of size count; the string must have been written by
     write_string_lwt_io_channel
 *)
 
 val write_string_to_lwt_io_channel : Lwt_io.output_channel -> string -> unit Lwt_exn.t
-(** write a string to an Lwt_io.output_channel, which can then be read with
-    read_string_lwt_io_channel
+(** write a string to an Lwt_io.output_channel, then flush the channel; the string
+    can then be read with read_string_lwt_io_channel
 *)

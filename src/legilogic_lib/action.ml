@@ -323,7 +323,7 @@ let stateless_sequentialize processor =
 
 (* reading, writing strings from Lwt_io channels *)
 
-let read_string_from_lwt_io_channel in_channel =
+let read_string_from_lwt_io_channel ?(count=64) in_channel =
   let open Lwt_exn in
   let open Lwt_io in
   of_lwt read_int16 in_channel
@@ -332,7 +332,7 @@ let read_string_from_lwt_io_channel in_channel =
     if sofar >= len then
       String.concat "" (List.rev accum) |> return
     else
-      of_lwt (read ~count:64) in_channel
+      of_lwt (read ~count) in_channel
       >>= fun s -> loop (sofar + String.length s) (s::accum)
   in
   loop 0 []

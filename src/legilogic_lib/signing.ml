@@ -189,7 +189,7 @@ let keypair_of_address address =
 
 (** TODO: This is for demo use only. For production, we want all key files to be encrypted *)
 let register_file_keypairs ~path =
-  let keypairs = Yojson.Safe.from_file path |> YoJson.to_assoc in
+  let keypairs = Yojsoning.yojson_of_file path |> YoJson.to_assoc in
   List.iter
     (fun (nickname, kpjson) -> register_keypair nickname (Keypair.of_yojson_exn kpjson))
     keypairs

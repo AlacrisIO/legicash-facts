@@ -297,10 +297,10 @@ let process_validated_transaction_request : (TransactionRequest.t, Transaction.t
 let process_user_transaction_request :
   (UserTransactionRequest.t signed * bool, Transaction.t) Lwt_exn.arr =
   let open Lwt_exn in
-  let open Lwt in
   validate_user_transaction_request
   >>> post_validated_transaction_request
   >>> fun (confirmation, wait_for_commit) ->
+  let open Lwt in
   wait_for_commit >>= const confirmation
 
 (** This is a placeholder until we separate client and server in separate processes *)
@@ -322,7 +322,7 @@ let get_account_balance address (facilitator_state:FacilitatorState.t) =
     try
       let account_state =
         AccountMap.find address facilitator_state.current.accounts in
-      `Assoc [("address",`String (Address.to_0x_string address))
+      `Assoc [("address",Address.to_yojson address)
              ;("account_balance",TokenAmount.to_yojson account_state.balance)
              ]
     with Not_found ->
@@ -340,7 +340,7 @@ let get_account_state address (facilitator_state:FacilitatorState.t) =
   try
     AccountMap.find address facilitator_state.current.accounts
     |> fun acct_state ->
-    `Assoc [("address",`String (Address.to_0x_string address))
+    `Assoc [("address",Address.to_yojson address)
            ;("account_state",AccountState.to_yojson acct_state)
            ]
   with Not_found ->

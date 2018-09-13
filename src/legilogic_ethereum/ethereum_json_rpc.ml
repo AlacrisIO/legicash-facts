@@ -23,7 +23,7 @@ type ethereum_rpc_config =
 
 let ethereum_rpc_config =
   let config_file = Config.get_config_filename "ethereum_config.json" in
-  match Yojson.Safe.from_file config_file
+  match yojson_of_file config_file
         |> ethereum_rpc_config_of_yojson with
   | Ok config -> config
   | Error msg -> bork "Error loading Ethereum JSON RPC configuration: %s" msg
