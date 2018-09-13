@@ -77,7 +77,7 @@ $(SIDE_CHAIN_SERVER): $(LEGICASH_LIB) $(LEGILOGIC_LIB) $(ML_SOURCES)
 API_SCGI:=$(BUILD_DIR)/src/endpoints/api_scgi.exe
 api_scgi: $(API_SCGI)
 $(API_SCGI): $(ENDPOINTS) $(ML_SOURCES) $(CONTRACT) force
-	$(SHOW) "Building Legicash API SCGI executable"
+	$(SHOW) "Building Legicash side chain server / API SCGI executable"
 	$(HIDE) dune build src/endpoints/api_scgi.exe
 
 ENDPOINTS_TEST:=$(BUILD_DIR)/src/endpoints/endpoints_test.exe
@@ -86,11 +86,11 @@ $(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(LEGILOGIC_LIB)
 	$(SHOW) "Building test endpoints executable"
 	$(HIDE) dune build src/endpoints/endpoints_test.exe
 
-run-scgi: $(API_SCGI)
-	$(SHOW) "Running SCGI server"
+run-side-chain-client: $(API_SCGI)
+	$(SHOW) "Running side chain client (SCGI server)"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(API_SCGI)
 
-run-side-chain: $(SIDE_CHAIN_SERVER)
+run-side-chain-server: $(SIDE_CHAIN_SERVER)
 	$(SHOW) "Running side chain server"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_SERVER)
 

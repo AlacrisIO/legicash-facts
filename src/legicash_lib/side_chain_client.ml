@@ -9,9 +9,20 @@ open Action
 open Lwt_exn
 open Signing
 
-let port = 8095 (* TODO: configuration item *)
+type side_chain_client_config =
+  { host : string
+  ; port : int
+  }
+[@@deriving of_yojson]
 
-let sockaddr = Unix.(ADDR_INET (inet_addr_of_string "127.0.0.1",port))
+let config =
+  let config_file = Config.get_config_filename "side_chain_client_config.json" in
+  match Yojson.Safe.from_file config_file
+        |> side_chain_client_config_of_yojson with
+  | Ok config -> config
+  | Error msg -> Lib.bork "Error loading side chain client configuration: %s" msg
+
+let sockaddr = Unix.(ADDR_INET (inet_addr_of_string config.host,config.port))
 
 (* queries return JSON *)
 let post_query_request_to_side_chain_ (request : ExternalRequest.t) =

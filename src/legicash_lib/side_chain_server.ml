@@ -11,9 +11,19 @@ open Legicash_lib
 open Side_chain_facilitator
 open Side_chain
 
-let port = 8095 (* TODO: configuration item *)
+type side_chain_server_config =
+  { port : int
+  }
+[@@deriving of_yojson]
 
-let sockaddr = Unix.(ADDR_INET (inet_addr_any,port))
+let config =
+  let config_file = Config.get_config_filename "side_chain_server_config.json" in
+  match Yojson.Safe.from_file config_file
+        |> side_chain_server_config_of_yojson with
+  | Ok config -> config
+  | Error msg -> Lib.bork "Error loading side chain server configuration: %s" msg
+
+let sockaddr = Unix.(ADDR_INET (inet_addr_any,config.port))
 
 let process_request_exn _client_address (in_channel,out_channel) =
   read_string_from_lwt_io_channel in_channel

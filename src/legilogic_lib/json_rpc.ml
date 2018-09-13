@@ -6,7 +6,7 @@ open Yojsoning
 open Action
 open Lwt_exn
 
-[@@@warning "-39-32"]
+[@@@warning "-32"]
 
 type error =
   { code : int

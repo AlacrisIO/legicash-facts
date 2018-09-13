@@ -197,8 +197,8 @@ let store_user_accounts () =
 
 let prepare_server =
   let open Lwt_exn in
-  Printf.printf "*** PREPARING SCGI SERVER / SIDE CHAIN CLIENT, PLEASE WAIT ***\n%!";
-  arr create_user_states
+  (fun () -> printf "*** PREPARING SIDE CHAIN CLIENT/SCGI SERVER, PLEASE WAIT ***\n")
+  >>> arr create_user_states
   >>> (fun () -> list_iter_s store_keys_on_testnet account_key_list)
         (* Use this when we have all 1300 accounts:
            list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)

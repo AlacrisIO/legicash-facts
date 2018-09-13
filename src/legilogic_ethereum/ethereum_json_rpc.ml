@@ -14,16 +14,12 @@ type block_parameter =
   | Earliest
   | Pending
 
-[@@@warning "-39"] (* workaround for yojson deriving bug *)
-
 type ethereum_rpc_config =
   { scheme : string
   ; host : string
   ; port : int
   }
 [@@deriving of_yojson]
-
-[@@@warning "+39"] (* end workaround *)
 
 let ethereum_rpc_config =
   let config_file = Config.get_config_filename "ethereum_config.json" in
