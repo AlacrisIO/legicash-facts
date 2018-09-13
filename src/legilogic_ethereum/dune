@@ -8,4 +8,5 @@
   )
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  (libraries legilogic_lib cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
- (inline_tests))
+ (inline_tests)
+ )

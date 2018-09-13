@@ -14,4 +14,5 @@
  ;; -32 : unused value
  ;; -34 : unused type
  (libraries legilogic_lib legilogic_ethereum cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
- (inline_tests))
+ (inline_tests)
+ )

@@ -57,6 +57,31 @@ You can play with our OCaml toplevel with, e.g.:
     make repl
     open Lib;;
     bottom ();;
+    
+### Running individual tests
+
+To reduce test running time during development, comment out the `(inline_tests)`
+sexp's in the `dune` files for the sublibraries you're not concerned with, and
+put a line like 
+
+```
+(inline_tests (flags -only-test src/legilogic_ethereum/ethereum_json_rpc.ml))
+```
+
+in the `dune` file which targets your file.
+
+Don't forget to undo these changes before committing!
+
+You can also focus testing on a specific line, e.g.
+
+```
+src/legilogic_ethereum/ethereum_patricia_merkle.ml:300
+```
+
+will only run the test starting on line 300.
+
+If you uncomment the sexp `(flags (:standard -verbose))` in `./src/dune`, a list
+of all the tests being run will be displayed by `make test`.
 
 ### Coding Style
 
