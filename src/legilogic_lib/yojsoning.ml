@@ -48,6 +48,8 @@ let to_yojson_map f to_yojson x = x |> f |> to_yojson
 let of_yojson_map f of_yojson y = y |> of_yojson |> Result.map f
 let yojsoning_map f g yojsoning =
   { to_yojson=to_yojson_map f yojsoning.to_yojson
+  (* TODO: [of_yojson] should handle errors, and [g] should either return either
+     a [Result], or we should catch the exception and return an [Error]. *)
   ; of_yojson=of_yojson_map g yojsoning.of_yojson }
 
 let option_to_yojson to_yojson = function
