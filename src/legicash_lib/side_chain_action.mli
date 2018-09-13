@@ -56,18 +56,18 @@ open Main_chain
 
 (* useful functions for other test code *)
 module Test : sig
-  (** installs facilitator contract on main chain, enabling corresponding actions on side chain *)
   val install_contract : unit -> unit Lwt_exn.t
+  (** installs facilitator contract on main chain, enabling corresponding actions on side chain *)
 
-  (** load facilitator contract address on main chain *)
   val load_contract : unit -> unit Lwt_exn.t
+  (** load facilitator contract address on main chain *)
 
-  (** creates an account on network with address created for side chain *)
   val create_account_on_testnet : Keypair.t -> address Lwt_exn.t
+  (** creates an account on network with address created for side chain *)
 
-  (** gets the prefunded address on the test network *)
   val get_prefunded_address : unit -> Address.t Lwt_exn.t
+  (** gets the prefunded address on the test network *)
 
-  (** transfers funds from funding account to account with given keys, if balance less than min_balance *)
-  val fund_account : ?min_balance:TokenAmount.t -> Address.t -> Keypair.t -> unit Lwt_exn.t
+  val fund_account : ?min_balance:TokenAmount.t -> Address.t -> Address.t -> unit Lwt_exn.t
+  (** transfers funds from funding account to account with given address, if balance less than min_balance *)
 end

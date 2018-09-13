@@ -219,7 +219,10 @@ end
 module UserQueryRequest = struct
   [@warning "-39"]
   type t =
+    | Get_account_balance of {address: Address.t}
+    | Get_account_balances
     | Get_account_state of {address: Address.t}
+    | Get_account_status of {address: Address.t}
     | Get_recent_transactions of {address: Address.t; count: Revision.t option}
     | Get_proof of {tx_revision: Revision.t}
   [@@deriving yojson]
@@ -317,7 +320,7 @@ module ExternalRequest = struct
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed
-    | `AdminQuery of UserQueryRequest.t ]
+    | `AdminQuery of AdminQueryRequest.t ]
   [@@deriving yojson]
   module P = struct
     type nonrec t = t

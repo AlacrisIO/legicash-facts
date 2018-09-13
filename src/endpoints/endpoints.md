@@ -9,9 +9,7 @@ The type "address" is a hex-string with 20 hex-digit pairs.
 
 The type "side\_chain\_account" is a JSON record of the form:
 
-     { "address" : address,
-       "user_name" : string,
-       "balance" : hex-string,
+     { "balance" : hex-string,
        "revision" : hex-string
      }
 

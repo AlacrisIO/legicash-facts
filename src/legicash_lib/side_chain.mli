@@ -131,7 +131,10 @@ end
 
 module UserQueryRequest : sig
   type t =
-    | Get_account_state of {address: Address.t}
+    | Get_account_balance of {address: Address.t}
+    | Get_account_balances
+    | Get_account_state of {address: Address.t}  (* side chain only *)
+    | Get_account_status of {address: Address.t} (* side chain and main chain *)
     | Get_recent_transactions of {address: Address.t; count: Revision.t option}
     | Get_proof of {tx_revision: Revision.t}
   include PersistableS with type t := t
@@ -176,7 +179,7 @@ module ExternalRequest : sig
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed
-    | `AdminQuery of UserQueryRequest.t ]
+    | `AdminQuery of AdminQueryRequest.t ]
   include PersistableS with type t := t
 end
 

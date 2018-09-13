@@ -103,7 +103,7 @@ let make_threaded_test endpoint name address amount =
         set_error_exit ();
         return_unit)
       else (
-        Printf.printf "RESULT: %s\n%!" (Yojson.Safe.to_string thread_result);
+        Printf.printf "RESULT: %s\n%!" (string_of_yojson thread_result);
         return_unit)
     in
     thread_loop ()
@@ -124,7 +124,7 @@ let make_address_test endpoint ?(query=[]) name address =
       name YoJson.(member "error" result_json |> to_string);
     return_unit)
   else (
-    Printf.printf "RESULT: %s\n%!" (Yojson.Safe.to_string result_json);
+    Printf.printf "RESULT: %s\n%!" (string_of_yojson result_json);
     return_unit)
 
 let make_balance_test = make_address_test "balance"
@@ -141,7 +141,7 @@ let make_all_balances_test () =
       YoJson.(member "error" result_json |> to_string);
     return_unit)
   else (
-    Printf.printf "RESULT: %s\n%!" (Yojson.Safe.to_string result_json);
+    Printf.printf "RESULT: %s\n%!" (string_of_yojson result_json);
     return_unit)
 
 let make_payment_test sender_name sender recipient_name recipient amount=
@@ -158,7 +158,7 @@ let make_payment_test sender_name sender recipient_name recipient amount=
       sender_name recipient_name YoJson.(member "error" result_json |> to_string);
     return_unit)
   else (
-    Printf.printf "RESULT: %s\n%!" (Yojson.Safe.to_string result_json);
+    Printf.printf "RESULT: %s\n%!" (string_of_yojson result_json);
     return_unit)
 
 (* must be odd to prevent self-payment below; also less-than-or-equal than total number of demo users *)
