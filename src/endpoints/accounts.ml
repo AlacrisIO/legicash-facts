@@ -76,13 +76,8 @@ let number_of_accounts = Array.length account_key_array
 
 let get_user_keys ndx = account_key_array.(ndx)
 
-let _ =
-  Array.iter
-    (fun (name, keys) ->
-       Hashtbl.add address_to_account_tbl keys.Keypair.address name)
-    account_key_array
-
 let trent_address = Signing.Test.trent_address
+let trent_keys = Signing.Test.trent_keys
 
 let _ = Signing.register_keypair "Trent" trent_keys
 
