@@ -30,7 +30,9 @@
   version)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  (libraries legilogic_lib legilogic_ethereum legicash_lib)
- (inline_tests))
+ (inline_tests
+    ; (flags (:standard -verbose))
+    ))
 
 ;; contract installer
 (executable
