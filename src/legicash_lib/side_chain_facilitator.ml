@@ -300,13 +300,66 @@ let process_user_transaction_request :
   validate_user_transaction_request
   >>> post_validated_transaction_request
   >>> fun (confirmation, wait_for_commit) ->
-  (wait_for_commit |> Lwt.(>>=)) (const confirmation)
+  let open Lwt in
+  wait_for_commit >>= const confirmation
 
 (** This is a placeholder until we separate client and server in separate processes *)
 let post_user_transaction_request =
   (*stateless_parallelize*) process_user_transaction_request
 
-let get_account_state _address _facilitator_state = bottom ()
+type main_chain_account_state =
+  { address : Address.t
+  ; balance : TokenAmount.t
+  ; revision : Revision.t
+  }
+[@@deriving to_yojson]
+
+(* TODO : put in a module of JSON utilities ? *)
+let error_json fmt =
+  Printf.ksprintf (fun x -> `Assoc [("error",`String x)]) fmt
+
+let get_account_balance address (facilitator_state:FacilitatorState.t) =
+    try
+      let account_state =
+        AccountMap.find address facilitator_state.current.accounts in
+      `Assoc [("address",Address.to_yojson address)
+             ;("account_balance",TokenAmount.to_yojson account_state.balance)
+             ]
+    with Not_found ->
+      error_json "Could not find balance for address %s" (Address.to_0x_string address)
+
+
+let get_account_balances (facilitator_state:FacilitatorState.t) =
+  let account_states_json =
+    List.map
+      (fun (_,account_state) -> AccountState.to_yojson account_state)
+      (AccountMap.bindings facilitator_state.current.accounts) in
+  `List account_states_json
+
+let get_account_state address (facilitator_state:FacilitatorState.t) =
+  try
+    AccountMap.find address facilitator_state.current.accounts
+    |> fun acct_state ->
+    `Assoc [("address",Address.to_yojson address)
+           ;("account_state",AccountState.to_yojson acct_state)
+           ]
+  with Not_found ->
+    error_json "Could not find account state for account: %s" (Address.to_0x_string address)
+
+let get_account_status address facilitator_state =
+  let open Lwt_exn in
+  let exception Failure_to_get_main_chain_balance of exn in
+  let exception Failure_to_get_main_chain_transaction_count of exn in
+  let side_chain_state = get_account_state address facilitator_state in
+  trying Ethereum_json_rpc.eth_get_balance (address, Latest)
+  >>= handling (fun e -> fail (Failure_to_get_main_chain_balance e))
+  >>= fun balance ->
+  trying Ethereum_json_rpc.eth_get_transaction_count (address, Latest)
+  >>= handling (fun e -> fail (Failure_to_get_main_chain_transaction_count e))
+  >>= fun revision ->
+  let main_chain_account = { address; balance; revision } in
+  return (`Assoc [("side_chain_account",side_chain_state)
+                 ;("main_chain_account",main_chain_account_state_to_yojson main_chain_account)])
 
 (* TODO: maintain per-account index of transactions, otherwise this won't scale!!! *)
 let get_recent_transactions address maybe_limit facilitator_state =
@@ -326,16 +379,30 @@ let get_recent_transactions address maybe_limit facilitator_state =
   `List (List.map Transaction.to_yojson
            (TransactionMap.foldrk get_operation_for_address all_transactions (Revision.zero,[]) snd))
 
-let get_proof _tx_revision _facilitator_state = bottom ()
+let get_proof tx_revision (facilitator_state : FacilitatorState.t) =
+  let transactions = facilitator_state.current.transactions in
+  match TransactionMap.Proof.get tx_revision transactions with
+  | None ->
+    error_json "Cannot provide proof for tx-revision: %s" (Revision.to_string tx_revision)
+  | Some proof -> TransactionMap.Proof.to_yojson proof
 
 (** Take messages from the user_query_request_mailbox, and process them (TODO: in parallel?) *)
 let process_user_query_request request =
+  let open Lwt_exn in
   let state = get_facilitator_state () in
   (match (request : UserQueryRequest.t) with
-   | Get_account_state {address} -> get_account_state address state
-   | Get_recent_transactions { address; count } -> get_recent_transactions address count state
-   | Get_proof {tx_revision} -> get_proof tx_revision state)
-  |> Lwt_exn.return
+   | Get_account_balance {address} ->
+     get_account_balance address state |> return
+   | Get_account_balances ->
+     get_account_balances state |> return
+   | Get_account_state {address} ->
+     get_account_state address state |> return
+   | Get_account_status {address} ->
+     get_account_status address state
+   | Get_recent_transactions { address; count } ->
+     get_recent_transactions address count state |> return
+   | Get_proof {tx_revision} ->
+     get_proof tx_revision state |> return)
 
 let post_user_query_request =
   (*stateless_parallelize*) process_user_query_request
@@ -344,7 +411,6 @@ let post_user_query_request =
 let process_admin_query_request = bottom
 let post_admin_query_request =
   (*stateless_parallelize*) process_admin_query_request
-
 
 (** We assume that the operation will correctly apply:
     balances are sufficient for spending,

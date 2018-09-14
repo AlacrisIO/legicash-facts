@@ -147,7 +147,7 @@ let open_connection ~db_name =
 
 let the_connection =
   the_global the_connection_ref
-    (fun () -> bork "no db connection for pid %d\n%!" (Unix.getpid ()))
+    (fun () -> bork "no db connection for pid %d" (Unix.getpid ()))
 
 let the_db () = (the_connection ()).db
 

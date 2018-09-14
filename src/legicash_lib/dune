@@ -1,11 +1,13 @@
 ;; dune file for Legicash sources
 
+(env (dev (flags (:standard -w -39))))  ;; Unused rec flag
+
 (library
  (name legicash_lib)
  (modules
   legibase
   facilitator_contract facilitator_contract_binary main_chain_action
-  side_chain_tag side_chain side_chain_facilitator side_chain_user side_chain_action
+  side_chain_tag side_chain side_chain_client side_chain_facilitator side_chain_user side_chain_action
 ;  court_registry
   )
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
@@ -14,5 +16,11 @@
  ;; -32 : unused value
  ;; -34 : unused type
  (libraries legilogic_lib legilogic_ethereum cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)
- (inline_tests)
- )
+ (inline_tests))
+
+(executable
+ (name side_chain_server)
+ (modules side_chain_server)
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
+ (libraries legilogic_lib legicash_lib ppx_deriving_yojson.runtime yojson))
+

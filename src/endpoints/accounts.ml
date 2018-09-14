@@ -1,18 +1,19 @@
-open Lwt
-
 open Legilogic_lib
+open Lib
 open Signing
 open Types
 open Action
+open Lwt_exn
 
 open Legilogic_ethereum
 open Main_chain
+open Yojsoning
 
 open Legicash_lib
 open Side_chain
-open Side_chain_facilitator
 open Side_chain_user
 open Side_chain_action.Test
+open Side_chain_client
 
 (* users *)
 let user_names =
@@ -75,14 +76,7 @@ let number_of_accounts = Array.length account_key_array
 
 let get_user_keys ndx = account_key_array.(ndx)
 
-let trent_keys =
-  Signing.make_keypair_from_hex
-    "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
-    "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
-
-let trent_address = trent_keys.address
-
-let _ = Signing.register_keypair "Trent" trent_keys
+let trent_address = Signing.Test.trent_address
 
 let get_user_name address =
   try
@@ -123,61 +117,44 @@ let create_user_states () =
          (create_side_chain_user_state keys))
     account_key_list
 
-let new_facilitator_state facilitator_keypair =
-  let fee_schedule = Side_chain.Test.trent_fee_schedule in
-  let (confirmed_state : Side_chain.State.t) =
-    { facilitator_revision= Revision.of_int 0
-    ; spending_limit= TokenAmount.of_int 100000000
-    ; accounts= AccountMap.empty
-    ; transactions= TransactionMap.empty
-    ; main_chain_transactions_posted= Merkle_trie.DigestSet.empty } in
-  FacilitatorState.
-    { keypair= facilitator_keypair
-    ; current= confirmed_state
-    ; fee_schedule= fee_schedule }
-
-let get_trent_state () =
-  Side_chain_facilitator.Test.get_facilitator_state ()
-
 let get_user_account address =
-  (Side_chain_facilitator.facilitator_account_lens address).get (get_trent_state ())
+  UserQueryRequest.Get_account_state { address }
+  |> post_user_query_request_to_side_chain
 
-let user_accounts_from_trent_state address =
+(* TODO: the error handling in this function and the next needs improvement *)
+let user_account_map_from_address address : UserAccountStateMap.t Lwt_exn.t =
   let open UserAccountState in
-  let trent_state = get_trent_state () in
-  let accounts = trent_state.current.accounts in
-  try
-    let user_account = AccountMap.find address accounts in
-    let account_state = {UserAccountState.empty with confirmed_state= user_account}
-    in
-    UserAccountStateMap.singleton trent_address account_state
-  with Not_found ->
-    Lib.bork "Could not find user state for address: %s" (Address.to_0x_string address)
+  get_user_account address
+  >>= (fun json ->
+    if YoJson.mem "account_state" json then
+      match YoJson.member "account_state" json |> AccountState.of_yojson with
+      | Ok acct_state -> return acct_state
+      | Error s -> Lwt.fail (Internal_error s)
+    else Lwt.fail (Internal_error "Could not find user account state"))
+  >>= fun user_account ->
+  let account_state = {UserAccountState.empty with confirmed_state= user_account}
+  in
+  UserAccountStateMap.singleton trent_address account_state |> return
 
-let load_trent_state () =
-  Printf.printf "Loading the facilitator state...%!";
-  Db.check_connection ();
-  let facilitator_state =
-    try
-      Side_chain.FacilitatorState.load trent_address
-      |> fun x -> Printf.printf "done\n%!"; x
-    with
-      Facilitator_not_found _ ->
-      Printf.printf "not found, generating a new demo facilitator\n%!";
-      new_facilitator_state trent_keys in
-  FacilitatorState.save facilitator_state
-  >>= Db.commit
-  >>= fun () ->
-  (* update user states with retrieved trent state *)
-  Hashtbl.iter
-    (fun address user_state ->
-       try
-         let new_user_accounts = user_accounts_from_trent_state address in
-         Hashtbl.replace address_to_user_state_tbl address
-           { user_state with facilitators = new_user_accounts }
-       with _ -> ())
-    address_to_user_state_tbl;
-  Lwt_exn.return ()
+let store_user_accounts () =
+  let user_addresses =
+    Array.to_list account_key_array |> List.map (fun (_,(keys:Signing.Keypair.t)) -> keys.address)
+  in
+  list_iter_s
+    (fun address ->
+       Lwt.catch
+         (fun () ->
+            user_account_map_from_address address
+            >>= fun new_user_accounts ->
+            (try
+               let user_state = Hashtbl.find address_to_user_state_tbl address in
+               Hashtbl.replace address_to_user_state_tbl address
+                 { user_state with facilitators = new_user_accounts };
+               return ()
+             with Not_found -> (* should never happen *)
+               bork "Address to user table has no entry for %s" (Address.to_0x_string address)))
+         (fun _exn -> return ()))
+    user_addresses
 
 (* let chunk_list elts chunk_size =
    let rec mk_chunk elts accum count =
@@ -212,31 +189,18 @@ let load_trent_state () =
 
 let prepare_server =
   let open Lwt_exn in
-  Printf.printf "*** PREPARING SERVER, PLEASE WAIT ***\n%!";
-  of_lwt (fun () -> Db.open_connection ~db_name:Legibase.db_name)
-  >>> load_trent_state
-  >>> (fun () -> start_facilitator trent_address)
+  (fun () -> printf "*** PREPARING SIDE CHAIN CLIENT/SCGI SERVER, PLEASE WAIT ***\n")
   >>> arr create_user_states
   >>> (fun () -> list_iter_s store_keys_on_testnet account_key_list)
-  (* Use this when we have all 1300 accounts:
-     list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
-  >>> (fun () -> store_keys_on_testnet ("Trent",trent_keys))
-  >>> (fun () -> printf "Funding account: Trent\n")
+        (* Use this when we have all 1300 accounts:
+           list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
+  >>> store_user_accounts
   >>> (* Ethereum dev mode provides prefunded address with a very large balance *)
   get_prefunded_address
   >>> (fun prefunded_address ->
-    fund_account prefunded_address trent_keys
-    >>= fun () ->
     list_iter_s
-      (fun (name,keys) ->
+      (fun (name,(keys:Signing.keypair)) ->
          printf "Funding account: %s\n" name
-         >>= (fun () -> fund_account prefunded_address keys))
+         >>= (fun () -> fund_account prefunded_address keys.address))
       account_key_list)
-  >>> (fun () -> printf "Installing facilitator contract...")
-  >>> trying (load_contract >>> fun () -> printf "done\n%!")
-  >>> handling
-        (fun _ ->
-           printf "failed, installing contract...%!"
-           >>= install_contract
-           >>= fun () -> printf "done\n%!")
   >>> fun () -> printf "*** READY ***\n"

@@ -1,4 +1,6 @@
-;; TODO: once made nice and clean, move this module to its own repository legilogic_ethereum
+;; dune file for Legilogic Ethereum
+
+(env (dev (flags (:standard -w -39))))  ;; Unused rec flag
 
 (library
  (name legilogic_ethereum)
