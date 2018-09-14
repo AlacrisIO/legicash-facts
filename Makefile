@@ -77,7 +77,7 @@ $(SIDE_CHAIN_SERVER): $(LEGICASH_LIB) $(LEGILOGIC_LIB) $(ML_SOURCES)
 API_SCGI:=$(BUILD_DIR)/src/endpoints/api_scgi.exe
 api_scgi: $(API_SCGI)
 $(API_SCGI): $(ENDPOINTS) $(ML_SOURCES) $(CONTRACT) force
-	$(SHOW) "Building Legicash side chain server / API SCGI executable"
+	$(SHOW) "Building Legicash side chain client / API SCGI executable"
 	$(HIDE) dune build src/endpoints/api_scgi.exe
 
 ENDPOINTS_TEST:=$(BUILD_DIR)/src/endpoints/endpoints_test.exe
