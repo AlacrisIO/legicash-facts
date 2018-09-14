@@ -103,6 +103,11 @@ let eth_send_transaction =
     Digest.of_yojson_exn
     (transaction_to_yojson >> yojson_singleton)
 
+let eth_block_number =
+  ethereum_json_rpc "eth_blockNumber"
+    Revision.of_yojson_exn
+    (konstant @@ `List [])
+
 (* Geth-specific methods, should only be used in tests *)
 
 let personal_import_raw_key =
@@ -130,3 +135,10 @@ let personal_unlock_account =
        `List [ Address.to_yojson address
              ; `String password
              ; `Int (Option.defaulting (konstant 5) duration) ])
+
+module Test = struct
+  open Action.Lwt_exn
+  let%test "eth_latest_block get the current latest block" =
+    (* Just checks that the block number is non-negative *)
+    run (eth_block_number ~log:false >>> (Revision.sign >> (<=) 0 >> return)) ()
+end

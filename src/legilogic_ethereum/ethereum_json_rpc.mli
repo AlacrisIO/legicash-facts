@@ -31,6 +31,11 @@ val eth_accounts :
   ?timeout:float -> ?log:bool
   -> unit -> Address.t list Lwt_exn.t
 
+(**  *)
+val eth_block_number :
+  ?timeout:float -> ?log:bool
+  -> unit -> Revision.t Lwt_exn.t
+
 (** Make a call or transaction, which won’t be added to the blockchain and returns the used gas,
     which can be used for estimating the used gas. *)
 val eth_estimate_gas :
