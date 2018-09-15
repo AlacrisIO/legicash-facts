@@ -79,3 +79,10 @@ let wait_for_confirmation =
   UserAsyncAction.of_lwt_exn
     (Ethereum_json_rpc.eth_send_transaction >>> get_confirmation)
 (* TODO: update user state, e.g., with confirmed balance *)
+
+let rec (* XXX:  *) main_chain_block_notification_stream () ?(delay=30.0) ~start_block =
+  let open EventStream in
+  Lwt.return 
+    { current_event = Revision.zero
+    ; subsequent_event_stream = main_chain_block_notification_stream () ~start_block ~delay
+    }
