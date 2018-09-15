@@ -84,35 +84,36 @@ let main_chain_block_notification_stream
   ?(delay=30.0) ?(start_block=Revision.zero) () =
   let open Lwt in
   let open EventStream in
-  (* XXX: Y2K-like event soon, for int of milliseconds?? *)
-  let last_poll = ref 0. in (* Time of last poll in ms since the epoch *)
-  let last_block_number = ref None in (* Last observed block number *)
-  let rec subsequent_event_stream : unit -> Revision.t t = fun () ->
-    let time_since_last_poll = Unix.gettimeofday () -. !last_poll in
-    if time_since_last_poll >= delay then
-      Ethereum_json_rpc.eth_block_number ()
-      >>= function
-      | Ok block_number ->
-        last_poll := Unix.gettimeofday (); (* Record successful poll time *)
-        let new_block = match !last_block_number with
-          | Some bn -> bn <> block_number 
-          | None -> true in
-        let reached_start_block =
-          Revision.compare block_number @@ start_block >= 0 in
-        if reached_start_block && new_block then
-          (* This is a previously unobserved block at or past the start_block,
-             so send a notification about it. *)
-          Lwt.return { current_event = block_number
-                     ; subsequent_event_stream = subsequent_event_stream () }
-        else
-          subsequent_event_stream ()
-      | Error _ ->
-        Lwt_unix.sleep 0.1 (* Poll failed; retry... but not too quickly! *)
-        >>= subsequent_event_stream 
-    else
-      (* Add slightly more time, to ensure we're past the delay point on the
-         next iteration. *)
-      Lwt_unix.sleep @@ (delay -. time_since_last_poll +. 1.) /. 1000.
-      >>= subsequent_event_stream 
-  in subsequent_event_stream()
+  (* Loop which actually produces the stream. [last_block_number_or_infinity] is
+     initially [max_int], a block number which can never be reached, to ensure
+     that the result from the first poll is reported if necessary. After that,
+     it's the last observed block.
 
+     This trick does prevent us from verifying the monotonicity of the block
+     numbers. But note that the block numbers are not actually monotonic, since
+     there can be rollbacks due to competition between uncles. So we need more
+     complex logic than this provides... XXX: *)
+  let rec subsequent_event_stream (last_block_number_or_infinity: Revision.t) =
+    (* Poll again, after the specified delay, and compare against [block_number]
+       to check whether the result is new or not. *)
+    let delayed_subsequent_event_stream ?(delay=delay) block_number =
+      Lwt_unix.sleep delay >>= fun _ -> subsequent_event_stream block_number in
+    Ethereum_json_rpc.eth_block_number ()
+    >>= function
+    | Ok block_number ->
+      let is_new_block = block_number <> last_block_number_or_infinity in
+      let reached_start_block = (* Is this block at least as big as start_block? *)
+        Revision.compare block_number start_block >= 0 in
+      if reached_start_block && is_new_block then
+        (* This is a previously unobserved block at or past the start_block,
+           so send a notification about it. The happy path. *)
+        Lwt.return { current_event = block_number
+                   ; subsequent_event_stream =
+                       delayed_subsequent_event_stream block_number
+                   }
+      else
+        (* This block_number matches the last value, so  *)
+        delayed_subsequent_event_stream last_block_number_or_infinity
+    | Error _ -> delayed_subsequent_event_stream
+                   ~delay:0.1 last_block_number_or_infinity
+  in subsequent_event_stream Revision.max_int
