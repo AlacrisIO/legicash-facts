@@ -11,39 +11,6 @@ open Legilogic_ethereum
 
 open Side_chain
 
-(** Stage of knowledge of one actor about an operation
-
-    Main chain status: we assume Judy is honest and stable and never goes from Confirmed to Rejected.
-    Transitions for the consensus:
-    Unknown => Pending, Confirmed, Rejected
-    Pending => Confirmed, Rejected
-
-    Self status: Alice assumes she is honest and stable, but she relies on Trent who can lie.
-    We don't need to represent self-status: if we don't know about it, we have nothing to represent;
-    and if we do know about it, there is no transition about that, only about the status of Trent and Judy.
-
-    Trent status: Alice weakly assumes honesty of Trent (or wouldn't even bother dealing with Trent),
-    but has to take into account the possibility that Trent goes rogue at some point,
-    and status of some operations go from Confirmed to Rejected via incompetence or malice.
-
-    confirmation/rejection: either we move that to a functor so we have the proper kind,
-    or we leave that aside.
-*)
-module KnowledgeStage : sig
-  type t =
-    | Unknown
-    (* 0. that actor never heard of it *)
-    | Pending
-    (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
-    | Confirmed
-    (* of operation_confirmation *)
-    (* 2. that actor confirmed it *)
-    | Rejected
-    (* of operation_rejection *)
-  (* 3. that actor rejected it, timed out, or lied, etc. *)
-  include PersistableS with type t := t
-end
-
 (** side chain operation + knowledge about the operation *)
 module TransactionStatus : sig
   type t =
@@ -66,8 +33,8 @@ end
 (** private state a user keeps for his account with a facilitator *)
 module UserAccountState : sig
   type t =
-    { facilitator_validity: KnowledgeStage.t
-    (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
+    { is_facilitator_valid: bool
+    (* is the facilitator open for business and not known to be a liar? *)
     ; confirmed_state: AccountState.t
     ; pending_operations: TransactionStatus.t list }
   [@@deriving lens { prefix=true }]

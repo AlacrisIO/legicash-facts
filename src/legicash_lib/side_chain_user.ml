@@ -14,40 +14,6 @@ open Legilogic_ethereum
 
 open Side_chain
 
-(* TODO:
-   Devise and implement a good persistent asynchronous programming model.
-   i.e. each actor (in this case, a side_chain user) has persistent set of partial ongoing
-   transactions, and it will keep making progress on by chatting with other actors,
-   even if the computer crashes.
-   The transactions may be themselves organized as a set of desiderata each associated
-   with some "aspect" of the state. Each aspect can synchronize with the outside world;
-   if there is a conflict, then log a notification and reset expectations.
-   If there is no conflict, but incompleteness, then do the next thing to go forward,
-   or set a timeout if waiting for a response.
-
-   Thus, to ensure that a key is usable on ethereum, start with the assumption that geth
-   doesn't know about keys, so the next step is to send it the key.
-   Confirmation can later be achieved by trying a simple use of the key.
-   If later geth complains that the key is not found, issue a notification,
-   and probably persist in the desire for a while and retry a few times,
-   before giving up on the desire and issuing a bigger notification.
-*)
-
-module KnowledgeStage = struct
-  type t = Unknown | Pending | Confirmed | Rejected
-  let to_char = function Unknown -> 'U' | Pending -> 'P' | Confirmed -> 'C' | Rejected -> 'R'
-  let of_char = function | 'U' -> Unknown | 'P' -> Pending | 'C' -> Confirmed | 'R' -> Rejected
-                         | _ -> bork "Invalid KnowledgeStage character"
-  module PrePersistable = struct
-    type nonrec t = t
-    let marshaling = marshaling_map to_char of_char char_marshaling
-    let make_persistent = already_persistent
-    let walk_dependencies = no_dependencies
-    let yojsoning = yojsoning_map to_char of_char char_yojsoning
-  end
-  include (Persistable (PrePersistable) : PersistableS with type t := t)
-end
-
 module TransactionStatus = struct
   [@warning "-39"]
   type t =
@@ -76,7 +42,7 @@ end
 module UserAccountState = struct
   [@warning "-39"]
   type t =
-    { facilitator_validity: KnowledgeStage.t
+    { is_facilitator_valid: bool
     ; confirmed_state: AccountState.t
     ; pending_operations: TransactionStatus.t list }
   [@@deriving lens { prefix=true }, yojson ]
@@ -84,15 +50,15 @@ module UserAccountState = struct
     type nonrec t = t
     let marshaling =
       marshaling3
-        (fun { facilitator_validity
+        (fun { is_facilitator_valid
              ; confirmed_state
              ; pending_operations } ->
-          facilitator_validity, confirmed_state, pending_operations)
-        (fun facilitator_validity confirmed_state pending_operations ->
-           { facilitator_validity
+          is_facilitator_valid, confirmed_state, pending_operations)
+        (fun is_facilitator_valid confirmed_state pending_operations ->
+           { is_facilitator_valid
            ; confirmed_state
            ; pending_operations })
-        KnowledgeStage.marshaling AccountState.marshaling
+        bool_marshaling AccountState.marshaling
         (list_marshaling TransactionStatus.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
@@ -100,7 +66,7 @@ module UserAccountState = struct
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
   let empty =
-    { facilitator_validity= Confirmed
+    { is_facilitator_valid= true
     ; confirmed_state=AccountState.empty
     ; pending_operations= [] }
 end
@@ -288,8 +254,8 @@ let issue_user_transaction_request operation =
  * let [@warning "-32"] optimistic_facilitator_account_state facilitator_address user_state =
  *   match UserAccountStateMap.find_opt facilitator_address user_state.UserState.facilitators with
  *   | None -> AccountState.empty
- *   | Some {facilitator_validity; confirmed_state; pending_operations} ->
- *     match facilitator_validity with
+ *   | Some {is_facilitator_valid; confirmed_state; pending_operations} ->
+ *     match is_facilitator_valid with
  *     | Rejected -> confirmed_state
  *     | _ ->
  *       update_account_state_with_trusted_operations
