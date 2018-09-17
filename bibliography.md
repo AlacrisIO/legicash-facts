@@ -47,6 +47,7 @@
    [Cryptographic protocol synthesis and verification for multiparty sessions](https://www.microsoft.com/en-us/research/wp-content/uploads/2017/01/cryptographic-protocol-synthesis-and-verification-for-multiparty-sessions-csf09.pdf)
    by Karthikeyan Bhargavan, Ricardo Corin, Pierre-malo Deniélou, Cédric Fournet, James J. Leifer (2009).
    Or [things that cite the latter](http://citeseerx.ist.psu.edu/showciting?doi=10.1.1.156.187).
+   [Conversational Concurrency](http://syndicate-lang.org/tonyg-dissertation/) by Tony Garnock-Jones.
 
 * Byzantine Fault Tolerance:
  [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015);

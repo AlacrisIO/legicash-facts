@@ -2,6 +2,7 @@
     signing, we want to prepend a long address of some kind to the entire
     message, to prevent replay attacks. *)
 open Marshaling
+open Action
 
 include MarshalableS with type t = int
 
@@ -16,6 +17,8 @@ val right_branch : t
 val skip_child : t
 val none : t
 val some : t
+val ok : t
+val error : t
 val keypair : t
 (* End of magic numbers used for tags *)
 
@@ -54,3 +57,16 @@ val init_marshaling_cases : t -> 'a marshaling array -> (t * 'a marshaling) list
 (** Marshals an ['a option] using [none] tag or [some] tag followed by
     binary representation of object. *)
 val option_marshaling : 'a marshaling -> 'a option marshaling
+
+exception Server_error of string
+(** exception that was marshaled on some server *)
+
+val exception_marshaling : exn marshaling
+
+val marshal_result : 'ok marshaler -> 'err marshaler -> ('ok, 'err) result marshaler
+val unmarshal_result : 'ok unmarshaler -> 'err unmarshaler -> ('ok, 'err) result unmarshaler
+val result_marshaling : 'ok marshaling -> 'err marshaling -> ('ok, 'err) result marshaling
+
+val marshal_result_or_exn : 'ok marshaler -> 'ok or_exn marshaler
+val unmarshal_result_or_exn : 'ok unmarshaler -> 'ok or_exn unmarshaler
+val result_or_exn_marshaling : 'ok marshaling -> 'ok or_exn marshaling

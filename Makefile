@@ -98,6 +98,7 @@ test-endpoints : $(ENDPOINTS_TEST)
 	$(SHOW) "Testing endpoints"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(ENDPOINTS_TEST)
 
+# TODO: rename to run-ethereum-private-net or some such
 ethereum-net :
 	$(SHOW) "Starting Ethereum net"
 	$(HIDE) scripts/ethereum-testnet/run.sh

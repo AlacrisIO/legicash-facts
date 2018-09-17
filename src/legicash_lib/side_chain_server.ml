@@ -5,6 +5,7 @@ open Lwt_io
 open Legilogic_lib
 open Action
 open Lwt_exn
+open Marshaling
 open Types
 
 open Legicash_lib
@@ -12,8 +13,7 @@ open Side_chain_facilitator
 open Side_chain
 
 type side_chain_server_config =
-  { port : int
-  }
+  { port : int }
 [@@deriving of_yojson]
 
 let config =
@@ -25,35 +25,27 @@ let config =
 
 let sockaddr = Unix.(ADDR_INET (inet_addr_any,config.port))
 
+(* TODO: pass request id, so we can send a JSON RPC style reply? *)
 let process_request_exn _client_address (in_channel,out_channel) =
+  let encode_response marshaler =
+    marshaler |> Tag.marshal_result_or_exn |> marshal_string_of_marshal |> arr in
   read_string_from_lwt_io_channel in_channel
-  >>= fun marshaled ->
-  (match ExternalRequest.unmarshal_string marshaled with
-   | `UserQuery request ->
-     trying post_user_query_request request
-     >>= handling fail (* TODO: really handle *)
-     >>= fun json ->
-     Yojsoning.string_of_yojson json
-     |>
-     (fun s ->
-        write_string_to_lwt_io_channel out_channel s)
-   | `UserTransaction request ->
-     trying post_user_transaction_request request
-     >>= handling fail (* TODO: really handle *)
-     >>= fun transaction ->
-     Transaction.marshal_string transaction
-     |> write_string_to_lwt_io_channel out_channel
-   | `AdminQuery request ->
-     trying post_admin_query_request request
-     >>= handling fail (* TODO: really handle *)
-     >>= fun json ->
-     Yojsoning.string_of_yojson json
-     |> write_string_to_lwt_io_channel out_channel)
+  >>= trying (catching ExternalRequest.unmarshal_string)
+  >>= (function
+    | Ok (`UserQuery request) ->
+      (post_user_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
+    | Ok (`UserTransaction request) ->
+      (post_user_transaction_request request |> Lwt.bind) (encode_response Transaction.marshal)
+    | Ok (`AdminQuery request) ->
+      (post_admin_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
+    | Error e ->
+      Error e |> encode_response Unit.marshal)
   (* TODO: We need to always close, and thus exit the Lwt_exn monad and properly handle the Result
      (e.g. by turning it into a yojson that fulfills the JSON RPC interface) before we close.
   *)
-  >>= fun () -> of_lwt close in_channel
-  >>= fun () -> of_lwt close out_channel
+  >>= write_string_to_lwt_io_channel out_channel
+  >>= fun () -> catching_lwt close in_channel
+  >>= fun () -> catching_lwt close out_channel
 
 (* squeeze Lwt_exn into Lwt *)
 let process_request client_address channels =

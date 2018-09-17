@@ -320,14 +320,12 @@ let error_json fmt =
   Printf.ksprintf (fun x -> `Assoc [("error",`String x)]) fmt
 
 let get_account_balance address (facilitator_state:FacilitatorState.t) =
-    try
-      let account_state =
-        AccountMap.find address facilitator_state.current.accounts in
-      `Assoc [("address",Address.to_yojson address)
-             ;("account_balance",TokenAmount.to_yojson account_state.balance)
-             ]
-    with Not_found ->
-      error_json "Could not find balance for address %s" (Address.to_0x_string address)
+  try
+    let account_state = AccountMap.find address facilitator_state.current.accounts in
+    `Assoc [("address",Address.to_yojson address)
+           ;("account_balance",TokenAmount.to_yojson account_state.balance)]
+  with Not_found ->
+    error_json "Could not find balance for address %s" (Address.to_0x_string address)
 
 
 let get_account_balances (facilitator_state:FacilitatorState.t) =
