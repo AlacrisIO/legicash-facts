@@ -1,7 +1,5 @@
 (* side_chain_client.ml -- send queries and transactions to side chain via TCP/IP *)
 
-open Lwt_io
-
 open Side_chain
 
 open Legilogic_lib

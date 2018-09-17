@@ -353,11 +353,12 @@ val write_string_to_lwt_io_channel : Lwt_io.output_channel -> string -> unit Lwt
     can then be read with read_string_lwt_io_channel
 *)
 
-module EventStream : sig
-  type 'a _event_stream =
-    { current_event: 'a
-    ; subsequent_event_stream: 'a t }
-  and 'a t = 'a _event_stream Lwt_monad.t
+module AsyncStream : sig
+  type 'a stream = | Nil | Cons of { hd: 'a; tl: 'a t }
+  and 'a t = 'a stream Lwt_monad.t
+  (** [split stream n] returns a list of the first [n] values of the stream, and
+     a new stream with the rest. *)
+  val split : int -> 'a t -> ('a list * 'a t) Lwt.t 
 end
 (** Promise of asynchronous stream of events. If an EventStream.t is
     [Lwt.bind]-bound to a function
@@ -366,3 +367,7 @@ end
 
     then [current_event] is the first event in the stream, and
     [subsequent_event_stream] is a promise for the next event in the stream. *)
+
+val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_channel, 'a) Lwt_exn.arr -> 'a Lwt_exn.t
+(** open a connection and run the function in it, closing input and output channels at the end.
+    Return an Error Unix.Unix_error if the socket failed to be opened. *)

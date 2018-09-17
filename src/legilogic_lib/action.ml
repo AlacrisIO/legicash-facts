@@ -385,9 +385,18 @@ let with_connection sockaddr f =
   >>= fun () ->
   Lwt.return r
 
-module EventStream = struct
-  type 'a _event_stream = { current_event: 'a; subsequent_event_stream: 'a t }
-  and 'a t = 'a _event_stream Lwt_monad.t
+module AsyncStream = struct
+  type 'a t = 'a stream Lwt_monad.t
+  and 'a stream = | Nil | Cons of { hd: 'a; tl: 'a t }
+  let split (n : int) (s : 'a t) : ('a list * 'a t) Lwt.t =
+    let rec f acc s = function
+    | 0 -> Lwt.return (List.rev acc, s)
+    | n when n > 0 ->
+      Lwt_monad.(s >>= function
+        | Nil -> bork "Took too many entries from this stream!"
+        | Cons { hd; tl } -> f (hd :: acc) tl (pred n))
+    | n -> bork "Negative value to [iter]: %i" n in
+    f [] s n
   (* TODO: [Monad(something)]?? What should [bind] do? Should it be [map]? *)
 end
 
