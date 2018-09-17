@@ -131,6 +131,31 @@ module Lwt_monad = struct
   let map = Lwt.map
 end
 
+module type Lwt_exn_S = sig
+  include ExnMonadS
+    with type 'a t = 'a or_exn Lwt.t
+     and type ('i, 'o) arr = ('i, 'o or_exn) Lwt_monad.arr
+
+  val run_lwt : ('a, 'b) arr -> 'a -> 'b Lwt.t
+  (** [run_lwt a x] runs an Lwt_exn arrow [a] on an initial value [x] in an existing Lwt context,
+      expressing failure with [or_exn] in a monadic way inside the evaluation of [mf], and
+      raising an exception at the very end if the evaluation failed. *)
+
+  val run : ('a, 'b) arr -> 'a -> 'b
+  (** Run a [run_lwt a x] arrow [a] on an initial value [x] in a new Lwt context,
+      using [Lwt_main.run] and raising an exception at the very end if the evaluation failed. *)
+
+  val of_exn : ('a, 'b) ExnMonad.arr -> ('a, 'b) arr
+  (** [of_exn a] given a ExnMonad arrow [a] that has no asynchronous effects, returns an arrow *)
+
+  val of_lwt : ('a -> 'b Lwt.t) -> ('a, 'b) arr
+  (** [of_lwt a] given a Lwt arrow [a] that doesn't fail returns a Lwt_exn arrow that
+      returns its successful result. *)
+
+  val catching_lwt : ('i, 'o) Lwt_monad.arr -> ('i, 'o) arr
+  (** Catch exceptions in an Lwt arrow *)
+end
+
 module Lwt_exn = struct
   type error = exn
   let fail e = Lwt.return (Error e)
@@ -143,7 +168,8 @@ module Lwt_exn = struct
     Lwt.bind (mf x) (ResultOrExn.get >> Lwt.return)
   let run mf x = run_lwt mf x |> Lwt_main.run
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
-  let catching f x = try f x |> return with e -> fail e
+  let catching_lwt f x = try Lwt.bind (f x) return with e -> fail e
+  let catching f = Lwt_monad.arr f |> catching_lwt
   let trying a x = Lwt.bind (a x) return
   let handling a = function
     | Ok x -> return x
@@ -212,11 +238,11 @@ module type AsyncActionS = sig
      and type error = exn
      and type 'a t = state -> ('a or_exn * state) Lwt.t
      and type ('i, 'o) readonly = 'i -> state -> 'o
-  val run_lwt_exn : state ref -> ('a, 'b) arr -> 'a -> 'b or_exn Lwt.t
-  val run_lwt : state ref -> ('a, 'b) arr -> 'a -> 'b Lwt.t
-  val of_action : ('a -> state -> 'b or_exn * state) -> ('a, 'b) arr
-  val of_lwt_exn : ('a, 'b) Lwt_exn.arr -> ('a, 'b) arr
-  val of_lwt : ('a, 'b) Lwt_monad.arr -> ('a, 'b) arr
+  val run_lwt_exn : state ref -> ('i, 'o) arr -> 'i -> 'o or_exn Lwt.t
+  val run_lwt : state ref -> ('i, 'o) arr -> 'i -> 'o Lwt.t
+  val of_action : ('i -> state -> 'o or_exn * state) -> ('i, 'o) arr
+  val of_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr
+  val of_lwt : ('i, 'o) Lwt_monad.arr -> ('i, 'o) arr
 end
 module AsyncAction (State : TypeS) = struct
   type state = State.t
@@ -246,7 +272,8 @@ module AsyncAction (State : TypeS) = struct
   let of_lwt_exn a x s = Lwt.bind (a x) (fun r -> Lwt.return (r, s))
   let of_lwt a x s = Lwt.bind (a x) (fun r -> return r s)
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
-  let catching f x s = Lwt.return ((try Ok (f x) with e -> Error e), s)
+  let catching_lwt f x s = try f x s with e -> fail e s
+  let catching f = arr f |> catching_lwt
   let trying a x s = Lwt.bind (a x s) (fun (r, s) -> Lwt.return (Ok r, s))
   let handling a = function
     | Ok x -> return x
@@ -326,13 +353,13 @@ let stateless_sequentialize processor =
 let read_string_from_lwt_io_channel ?(count=64) in_channel =
   let open Lwt_exn in
   let open Lwt_io in
-  of_lwt read_int16 in_channel
+  catching_lwt read_int16 in_channel
   >>= fun len ->
   let rec loop sofar accum =
     if sofar >= len then
       String.concat "" (List.rev accum) |> return
     else
-      of_lwt (read ~count) in_channel
+      catching_lwt (read ~count) in_channel
       >>= fun s -> loop (sofar + String.length s) (s::accum)
   in
   loop 0 []
@@ -340,10 +367,10 @@ let read_string_from_lwt_io_channel ?(count=64) in_channel =
 let write_string_to_lwt_io_channel out_channel s =
   let open Lwt_exn in
   let open Lwt_io in
-  let len = String.length s in
-  of_lwt (write_int16 out_channel) len
-  >>= fun () -> Lwt_stream.of_string s |> of_lwt (write_chars out_channel)
-  >>= fun () -> of_lwt flush out_channel (* flushing is critical *)
+  let len = String.length s in (* TODO: handle the case of length overflow *)
+  catching_lwt (write_int16 out_channel) len
+  >>= fun () -> Lwt_stream.of_string s |> catching_lwt (write_chars out_channel)
+  >>= fun () -> catching_lwt flush out_channel (* flushing is critical *)
 
 module Test = struct
   module Error_string_monad = ErrorMonad(struct
