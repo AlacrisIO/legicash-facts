@@ -349,9 +349,20 @@ val read_string_from_lwt_io_channel : ?count:int -> Lwt_io.input_channel -> stri
 *)
 
 val write_string_to_lwt_io_channel : Lwt_io.output_channel -> string -> unit Lwt_exn.t
-(** write a string to an Lwt_io.output_channel, then flush the channel;
-    the string can then be read with read_string_lwt_io_channel *)
+(** write a string to an Lwt_io.output_channel, then flush the channel; the string
+    can then be read with read_string_lwt_io_channel
+*)
 
-val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_channel, 'a) Lwt_exn.arr -> 'a Lwt_exn.t
-(** open a connection and run the function in it, closing input and output channels at the end.
-    Return an Error Unix.Unix_error if the socket failed to be opened. *)
+module EventStream : sig
+  type 'a _event_stream =
+    { current_event: 'a
+    ; subsequent_event_stream: 'a t }
+  and 'a t = 'a _event_stream Lwt_monad.t
+end
+(** Promise of asynchronous stream of events. If an EventStream.t is
+    [Lwt.bind]-bound to a function
+
+    [f { current_event; subsequent_event_stream} = ...]
+
+    then [current_event] is the first event in the stream, and
+    [subsequent_event_stream] is a promise for the next event in the stream. *)

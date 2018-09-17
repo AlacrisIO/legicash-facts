@@ -385,6 +385,12 @@ let with_connection sockaddr f =
   >>= fun () ->
   Lwt.return r
 
+module EventStream = struct
+  type 'a _event_stream = { current_event: 'a; subsequent_event_stream: 'a t }
+  and 'a t = 'a _event_stream Lwt_monad.t
+  (* TODO: [Monad(something)]?? What should [bind] do? Should it be [map]? *)
+end
+
 module Test = struct
   module Error_string_monad = ErrorMonad(struct
       type t = string
