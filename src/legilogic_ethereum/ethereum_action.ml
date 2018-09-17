@@ -103,15 +103,15 @@ let main_chain_block_notification_stream
     let open Lwt in
     get_block ()
     >>= function
-    | Error e -> Lwt.return (Error e, next_block)
     | Ok block_number ->
-      (* Is this block at least as big as start_block? *)
+      (* Is this block at least as big as next_block? *)
       if Revision.compare block_number next_block >= 0 then
-        (* This is a previously unobserved block at or past the start_block,
+        (* This is a previously unobserved block at or past the next_block,
            so send a notification about it. The happy path. *)
         Lwt.return (Ok block_number, Revision.(add one block_number))
       else
-        Lwt.return (Error (Internal_error "Start block not reached yet"), next_block) in
+        Lwt.return (Error (Internal_error "Start block not reached yet"), next_block)
+    | Error e -> Lwt.return (Error e, next_block) in
   stream_of_poller ~delay poller start_block
 
 module Test = struct

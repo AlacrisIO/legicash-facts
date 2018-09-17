@@ -354,6 +354,8 @@ val write_string_to_lwt_io_channel : Lwt_io.output_channel -> string -> unit Lwt
 *)
 
 module AsyncStream : sig
+  (* NB: the tail is *eagerly* scheduled to run by the time we get to the stream.
+     Maybe we should change the type to unit -> 'a t to allow for lazy streaming? *)
   type 'a stream = | Nil | Cons of { hd: 'a; tl: 'a t }
   and 'a t = 'a stream Lwt_monad.t
   (** [split stream n] returns a list of the first [n] values of the stream, and
