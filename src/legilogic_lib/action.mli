@@ -357,8 +357,10 @@ module AsyncStream : sig
   type 'a stream = | Nil | Cons of { hd: 'a; tl: 'a t }
   and 'a t = 'a stream Lwt_monad.t
   (** [split stream n] returns a list of the first [n] values of the stream, and
-     a new stream with the rest. *)
-  val split : int -> 'a t -> ('a list * 'a t) Lwt.t 
+      a new stream with the rest. *)
+  val split : int -> 'a t -> ('a list * 'a t) Lwt.t
+  val nil : unit -> 'a t
+  val cons : 'a -> 'a t -> 'a t
 end
 (** Promise of asynchronous stream of events. If an EventStream.t is
     [Lwt.bind]-bound to a function

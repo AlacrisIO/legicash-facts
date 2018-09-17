@@ -390,14 +390,16 @@ module AsyncStream = struct
   and 'a stream = | Nil | Cons of { hd: 'a; tl: 'a t }
   let split (n : int) (s : 'a t) : ('a list * 'a t) Lwt.t =
     let rec f acc s = function
-    | 0 -> Lwt.return (List.rev acc, s)
-    | n when n > 0 ->
-      Lwt_monad.(s >>= function
+      | 0 -> Lwt.return (List.rev acc, s)
+      | n when n > 0 ->
+        Lwt_monad.(s >>= function
         | Nil -> bork "Took too many entries from this stream!"
         | Cons { hd; tl } -> f (hd :: acc) tl (pred n))
-    | n -> bork "Negative value to [iter]: %i" n in
+      | n -> bork "Negative value to [iter]: %i" n in
     f [] s n
   (* TODO: [Monad(something)]?? What should [bind] do? Should it be [map]? *)
+  let nil () = Lwt.return Nil
+  let cons hd tl = Lwt.return @@ Cons {hd ; tl}
 end
 
 module Test = struct

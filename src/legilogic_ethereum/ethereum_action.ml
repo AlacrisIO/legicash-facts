@@ -80,44 +80,39 @@ let wait_for_confirmation =
     (Ethereum_json_rpc.eth_send_transaction >>> get_confirmation)
 (* TODO: update user state, e.g., with confirmed balance *)
 
-let main_chain_block_notification_stream
-    ?(delay=30.0) ?(start_block=Revision.zero)
-    ?(get_block=(fun () -> Ethereum_json_rpc.eth_block_number())) () =
+let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
+  'value AsyncStream.t Lwt.t =
   let open Lwt in
-  let open AsyncStream in
-  (* Loop which actually produces the stream. [last_block_number_or_infinity] is
-     initially [max_int], a block number which can never be reached, to ensure
-     that the result from the first poll is reported if necessary. After that,
-     it's the last observed block.
+  fun ~delay poller state ->
+    let nap () = Lwt_unix.sleep delay in
+    let rec continue state () =
+      poller () state
+      >>= function
+      | Ok value, new_state ->
+        Lwt.return @@ AsyncStream.cons value
+                        (nap () >>= continue new_state >>= identity)
+      | Error _, new_state ->
+        nap () >>= continue new_state
+    in
+    continue state ()
 
-     This trick does prevent us from verifying the monotonicity of the block
-     numbers. But note that the block numbers are not actually monotonic, since
-     there can be rollbacks due to competition between uncles. So we need more
-     complex logic than this provides... XXX: *)
-  let rec subsequent_event_stream (last_block_number_or_infinity: Revision.t) =
-    (* Poll again, after the specified delay, and compare against [block_number]
-       to check whether the result is new or not. *)
-    let delayed_subsequent_event_stream ?(delay=delay) block_number =
-      Lwt_unix.sleep delay >>= fun _ -> subsequent_event_stream block_number in
+let main_chain_block_notification_stream
+      ?(delay=30.0) ?(start_block=Revision.zero)
+      ?(get_block=(Ethereum_json_rpc.eth_block_number)) () =
+  let rec poller () next_block =
+    let open Lwt in
     get_block ()
     >>= function
+    | Error e -> Lwt.return (Error e, next_block)
     | Ok block_number ->
-      let is_new_block = block_number <> last_block_number_or_infinity in
-      let reached_start_block = (* Is this block at least as big as start_block? *)
-        Revision.compare block_number start_block >= 0 in
-      if reached_start_block && is_new_block then
+      (* Is this block at least as big as start_block? *)
+      if Revision.compare block_number next_block >= 0 then
         (* This is a previously unobserved block at or past the start_block,
            so send a notification about it. The happy path. *)
-        Lwt.return
-          (Lwt.return @@
-           Cons { hd = block_number
-                ; tl = delayed_subsequent_event_stream block_number })
+        Lwt.return (Ok block_number, Revision.(add one block_number))
       else
-        (* This block_number matches the last value, so  *)
-        (delayed_subsequent_event_stream last_block_number_or_infinity)
-    | Error _ -> (delayed_subsequent_event_stream
-                               ~delay:0.1 last_block_number_or_infinity)
-  in subsequent_event_stream Revision.max_int
+        Lwt.return (Error (Internal_error "Start block not reached yet"), next_block) in
+  stream_of_poller ~delay poller start_block
 
 module Test = struct
   let%test "exercise main_chain_block_notification_stream" =
@@ -125,25 +120,26 @@ module Test = struct
     let open Lwt_exn in
     let current_block = ref zero in (* Mock for current mainchain block num *)
     let throw_error = ref None in (* Whether to throw when getting block *)
-    let get_block () =
+    let get_block ?timeout ?log () =
+      ignore timeout ; ignore log ;
       if !throw_error <> None then (
         throw_error := None;
         fail @@ Option.get !throw_error)
       else (current_block := succ !current_block; return @@ pred !current_block) in
     let start_block = of_int 10 in
     Lwt_exn.run
-      (main_chain_block_notification_stream ~start_block ~get_block
-       >>> (AsyncStream.split 2 >> catching_lwt)
+      (of_lwt (main_chain_block_notification_stream ~start_block ~get_block)
+       >>> catching_lwt (AsyncStream.split 2)
        >>> const true)
       ()
 end
 
-         (* >>= fun (l, s) ->
-          * assert(l = [start_block; add one start_block]);
-          * catching_lwt (AsyncStream.take_list 1) s
-          * >>= func (l, s) ->
-          * assert(l = [add start_block (of_int 2)]);
-          * throw_error := Some (Internal_error "You FAIL!!!");
-          * (\* Deals gracefully with errors? *\)
-          * throws (Internal_error "You FAIL!!!")
-          *   (fun () -> AsyncStream.take_list stream 1); *)
+(* >>= fun (l, s) ->
+ * assert(l = [start_block; add one start_block]);
+ * catching_lwt (AsyncStream.take_list 1) s
+ * >>= func (l, s) ->
+ * assert(l = [add start_block (of_int 2)]);
+ * throw_error := Some (Internal_error "You FAIL!!!");
+ * (\* Deals gracefully with errors? *\)
+ * throws (Internal_error "You FAIL!!!")
+ *   (fun () -> AsyncStream.take_list stream 1); *)
