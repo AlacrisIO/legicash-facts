@@ -351,3 +351,7 @@ val read_string_from_lwt_io_channel : ?count:int -> Lwt_io.input_channel -> stri
 val write_string_to_lwt_io_channel : Lwt_io.output_channel -> string -> unit Lwt_exn.t
 (** write a string to an Lwt_io.output_channel, then flush the channel;
     the string can then be read with read_string_lwt_io_channel *)
+
+val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_channel, 'a) Lwt_exn.arr -> 'a Lwt_exn.t
+(** open a connection and run the function in it, closing input and output channels at the end.
+    Return an Error Unix.Unix_error if the socket failed to be opened. *)

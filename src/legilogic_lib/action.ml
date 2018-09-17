@@ -372,6 +372,19 @@ let write_string_to_lwt_io_channel out_channel s =
   >>= fun () -> Lwt_stream.of_string s |> catching_lwt (write_chars out_channel)
   >>= fun () -> catching_lwt flush out_channel (* flushing is critical *)
 
+let with_connection sockaddr f =
+  let open Lwt_exn in
+  catching_lwt Lwt_io.open_connection sockaddr
+  >>= fun (in_channel, out_channel) ->
+  let open Lwt in
+  f (in_channel, out_channel)
+  >>= fun r ->
+  (try Lwt_io.close in_channel with _ -> return_unit) (* TODO: Log something on error? *)
+  >>= fun () ->
+  (try Lwt_io.close out_channel with _ -> return_unit)
+  >>= fun () ->
+  Lwt.return r
+
 module Test = struct
   module Error_string_monad = ErrorMonad(struct
       type t = string

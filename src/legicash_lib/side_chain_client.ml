@@ -35,15 +35,13 @@ let post_query_request_to_side_chain_ (request : ExternalRequest.t) =
   match request with
   | `AdminQuery _
   | `UserQuery _ ->
-    catching_lwt open_connection sockaddr
-    >>= fun (in_channel,out_channel) ->
-    ExternalRequest.marshal_string request
-    |> write_string_to_lwt_io_channel out_channel
-    >>= fun () ->
-    read_string_from_lwt_io_channel in_channel
-    >>= fun s -> catching_lwt close in_channel
-    >>= fun () -> catching_lwt close out_channel
-    >>= fun () -> decode_response yojson_marshaling.unmarshal s
+    with_connection sockaddr
+      (fun (in_channel,out_channel) ->
+         ExternalRequest.marshal_string request
+         |> write_string_to_lwt_io_channel out_channel
+         >>= fun () ->
+         read_string_from_lwt_io_channel in_channel
+         >>= decode_response yojson_marshaling.unmarshal)
   | _ -> bork "post_query_to_side_chain, not a query"
 
 let post_user_query_request_to_side_chain (request : UserQueryRequest.t) =
@@ -55,12 +53,9 @@ let post_admin_query_request_to_side_chain (request : AdminQueryRequest.t) =
 (* transactions return Transactions *)
 let post_user_transaction_request_to_side_chain (request : UserTransactionRequest.t signed) =
   let (external_request : ExternalRequest.t) = `UserTransaction request in
-  of_lwt open_connection sockaddr
-  >>= fun (in_channel,out_channel) ->
-  ExternalRequest.marshal_string external_request
-  |>  write_string_to_lwt_io_channel out_channel
-  >>= fun () -> read_string_from_lwt_io_channel in_channel
-  >>= decode_response Transaction.unmarshal
-  >>= fun transaction -> catching_lwt close in_channel
-  >>= fun () -> catching_lwt close out_channel
-  >>= fun () -> return transaction
+  with_connection sockaddr
+    (fun (in_channel, out_channel) ->
+       ExternalRequest.marshal_string external_request
+       |> write_string_to_lwt_io_channel out_channel
+       >>= fun () -> read_string_from_lwt_io_channel in_channel
+       >>= decode_response Transaction.unmarshal)
