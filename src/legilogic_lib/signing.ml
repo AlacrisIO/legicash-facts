@@ -314,6 +314,8 @@ module Test = struct
       "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
       "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
 
+  let _ = register_keypair "Trent" trent_keys
+
   let trent_address = trent_keys.address
 
   let alice_keys =
@@ -376,4 +378,7 @@ module Test = struct
     let trent_address = trent_keys.address in
     unparse_coloned_hex_string (Address.to_big_endian_bits trent_address)
     = "f4:74:08:14:3d:32:7e:4b:c6:a8:7e:f4:a7:0a:4e:0a:f0:9b:9a:1c"
+
+  let%test "trent_of_address" =
+    keypair_of_address trent_address = trent_keys
 end
