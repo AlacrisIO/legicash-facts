@@ -67,6 +67,12 @@ module Unit : sig
   include ShowableS with type t := unit
 end
 
+module Exception : sig
+  include PersistableS with type t = exn
+  include ShowableS with type t := exn
+end
+
+
 (** Content-addressed pointer to an ['a]. *)
 type +'a dv = {digest: Digest.t Lazy.t; value: 'a Lazy.t; mutable persisted: bool}
 val dv_get : 'a dv -> 'a

@@ -260,7 +260,7 @@ let unmarshal_signed (unmarshal:'a unmarshaler) start bytes : 'a signed * int =
   let signature,final_offset = Signature.unmarshal payload_offset bytes in
   ({payload; signature}, final_offset)
 
-let marshaling_signed marshaling =
+let signed_marshaling marshaling =
   { marshal = marshal_signed marshaling.marshal
   ; unmarshal = unmarshal_signed marshaling.unmarshal }
 
@@ -281,19 +281,30 @@ let signed_of_yojson_exn of_yojson_exn = function
     {payload=of_yojson_exn p;signature=Signature.of_yojson_exn s}
   | _ -> Yojson.json_error "bad json for signed data"
 
-
-
-module type SignableS = sig
-  include DigestibleS
-  val signed : keypair -> t -> t signed
-end
+let signed_yojsoning yojsoning =
+  { to_yojson= signed_to_yojson yojsoning.to_yojson
+  ; of_yojson= signed_of_yojson yojsoning.of_yojson }
 
 let signed_of_digest digest kp = signed digest kp.Keypair.private_key
 
-module Signable (M : MarshalableS) = struct
-  include M
-  let digest = digest_of_marshal_bytes M.marshal_bytes
-  let signed = signed_of_digest digest
+module type SignedS = sig
+  type payload
+  include PersistableS with type t = payload signed
+  val make : keypair -> payload -> t
+end
+
+module Signed (P : PersistableS) = struct
+  type payload = P.t
+  module Pre = struct
+    type t = payload signed
+    let yojsoning = signed_yojsoning P.yojsoning
+    let marshaling = signed_marshaling P.marshaling
+    let walk_dependencies _methods context x =
+      walk_dependency P.dependency_walking context x.payload
+    let make_persistent = normal_persistent
+  end
+  include Persistable(Pre)
+  let make = signed_of_digest P.digest
 end
 
 module Test = struct

@@ -100,8 +100,9 @@ module UserTransactionRequest : sig
   type t = {rx_header: RxHeader.t; operation: UserOperation.t}
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
-  include SignableS with type t := t
 end
+
+module SignedUserTransactionRequest : SignedS with type payload = UserTransactionRequest.t
 
 (** header for a confirmation from a facilitator:
 
@@ -244,6 +245,8 @@ module State : sig
   val empty : t
 end
 
+module SignedState : SignedS with type payload = State.t
+
 (** TODO: verifier state and actions in some module Side_chain_verifier. *)
 
 (** Fee structure for a facilitator
@@ -268,6 +271,7 @@ end
     Include a Main_chain.user_state? State for dealing with the court registry? *)
 module FacilitatorState : sig
   type t = { keypair: Keypair.t
+           ; committed: State.t signed
            ; current: State.t
            ; fee_schedule: FacilitatorFeeSchedule.t }
   [@@deriving lens { prefix=true }]

@@ -37,17 +37,6 @@ module Signature : PersistableS with type t = signature
 (** Record of an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: signature}
 
-
-module type SignableS = sig
-  include DigestibleS
-  val signed : keypair -> t -> t signed
-end
-
-module Signable (M : MarshalableS) : sig
-  include DigestibleS with type t = M.t
-  val signed : keypair -> t -> t signed
-end
-
 val signed_of_digest : ('a -> digest) -> keypair -> 'a -> 'a signed
 
 (** Secp256k1 context for signing and validation *)
@@ -124,11 +113,20 @@ val marshal_signed : 'a marshaler -> 'a signed marshaler
 (** unmarshaler for 'a signed, parameterized by the unmarshaler for the payload of type 'a *)
 val unmarshal_signed : 'a unmarshaler -> 'a signed unmarshaler
 
-val marshaling_signed : 'a marshaling -> 'a signed marshaling
+val signed_marshaling : 'a marshaling -> 'a signed marshaling
 
 val signed_to_yojson : 'a to_yojson -> 'a signed to_yojson
 val signed_of_yojson : 'a of_yojson -> 'a signed of_yojson
 val signed_of_yojson_exn : 'a of_yojson_exn -> 'a signed of_yojson_exn
+val signed_yojsoning : 'a yojsoning -> 'a signed yojsoning
+
+module type SignedS = sig
+  type payload
+  include PersistableS with type t = payload signed
+  val make : keypair -> payload -> t
+end
+
+module Signed (P : PersistableS) : SignedS with type payload = P.t
 
 (* keys, address for tests, demos *)
 module Test : sig

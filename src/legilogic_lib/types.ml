@@ -134,3 +134,18 @@ module Unit = struct
   let pp formatter _ = Format.fprintf formatter "%s" "()"
   let show x = Format.asprintf "%a" pp x
 end
+
+module Exception = struct
+  module P = struct
+    type t = exn
+    let to_yojson = function
+      | e -> `String (Printexc.to_string e)
+    let of_yojson = function
+      | `String x -> Ok (Internal_error x)
+      | _ -> Error "Not an error"
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include YojsonPersistable(P)
+  let pp formatter x = Format.fprintf formatter "%s" (Printexc.to_string x)
+  let show x = Format.asprintf "%a" pp x
+end

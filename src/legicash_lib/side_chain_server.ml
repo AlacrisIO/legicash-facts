@@ -16,6 +16,10 @@ type side_chain_server_config =
   { port : int }
 [@@deriving of_yojson]
 
+let _ =
+  let key_file = Config.get_config_filename "facilitator_keys.json" in
+  Signing.register_file_keypairs ~path:key_file
+
 let config =
   let config_file = Config.get_config_filename "side_chain_server_config.json" in
   match Yojsoning.yojson_of_file config_file
@@ -35,7 +39,7 @@ let process_request_exn _client_address (in_channel,out_channel) =
     | Ok (`UserQuery request) ->
       (post_user_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
     | Ok (`UserTransaction request) ->
-      (post_user_transaction_request request |> Lwt.bind) (encode_response Transaction.marshal)
+      (post_user_transaction_request request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
     | Ok (`AdminQuery request) ->
       (post_admin_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
     | Error e ->
@@ -63,6 +67,7 @@ let new_facilitator_state facilitator_keypair =
     ; main_chain_transactions_posted= Merkle_trie.DigestSet.empty } in
   FacilitatorState.
     { keypair= facilitator_keypair
+    ; committed= SignedState.make facilitator_keypair confirmed_state
     ; current= confirmed_state
     ; fee_schedule= fee_schedule }
 

@@ -15,7 +15,6 @@ open Legilogic_ethereum
 open Side_chain
 
 module TransactionStatus = struct
-  [@warning "-39"]
   type t =
     | Requested of UserTransactionRequest.t signed
     | SignedByFacilitator of TransactionCommitment.t
@@ -23,10 +22,11 @@ module TransactionStatus = struct
     | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
     | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
     | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | Failed of UserTransactionRequest.t signed * yojson
   [@@deriving yojson]
 
   let signed_request = function
-    | Requested signed_request -> signed_request
+    | Requested signed_request | Failed (signed_request, _) -> signed_request
     | SignedByFacilitator tc | PostedToRegistry tc
     | PostedToMainChain (tc, _) | ConfirmedOnMainChain (tc, _) | SettledOnMainChain (tc, _) ->
       tc.transaction.tx_request |> TransactionRequest.signed_request
@@ -206,7 +206,7 @@ let remove_user_request signed_request user_state =
 
 let sign_request request user_state =
   UserAction.return
-    (UserTransactionRequest.signed user_state.UserState.main_chain_user_state.keypair request)
+    (SignedUserTransactionRequest.make user_state.UserState.main_chain_user_state.keypair request)
     user_state
 
 let add_pending_request request state =
@@ -342,20 +342,11 @@ let push_side_chain_withdrawal_to_main_chain
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"
 
-module Error = struct
-  type t = exn
-  let to_yojson = function
-    | e -> `String (Printexc.to_string e)
-  let of_yojson = function
-    | `String x -> Ok (Internal_error x)
-    | _ -> Error "Not an error"
-end
-
 module ErrorNotification = struct
   [@warning "-39"]
   type t =
     { status: TransactionStatus.t
-    ; error: Error.t }
+    ; error: Exception.t }
   [@@deriving yojson]
 end
 
@@ -390,8 +381,33 @@ let _notify_error status error = add_error_notification {status;error}
     responds to queries about this state, spawns threads for each state transition,
     saves this state to DB when it changes and updates the user_loop in-memory.
 *)
-let _transaction_loop _mailbox _request_key =
-  bottom ()
+let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.t =
+  let open Lwt in
+  let open TransactionStatus in
+  fun mailbox request_key status ->
+    let update status =
+      (* First, persist the new state! *)
+      Db.put request_key (TransactionStatus.marshal_string status)
+      >>= fun () -> (* Then, post the new status to the mailbox *)
+      Lwt_mvar.put mailbox status in
+    match status with
+    | Requested request ->
+      request
+      |> Side_chain_client.post_user_transaction_request_to_side_chain
+      >>= Lwt_monad.arr
+            (function
+              | Ok tc -> SignedByFacilitator tc
+              | Error error -> Failed (request, Exception.to_yojson error))
+      >>= update
+    | _ ->
+      bottom ()
+(*     of UserTransactionRequest.t signed
+       | SignedByFacilitator of TransactionCommitment.t
+       | PostedToRegistry of TransactionCommitment.t
+       | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+       | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+       | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+*)
 
 
 (** The user_loop is the server that handles the UserState.t, responds to queries about this state,
@@ -406,12 +422,6 @@ let _transaction_loop _mailbox _request_key =
    let spawn_transaction_watcher (status : TransactionStatus.t) =
    match status with
    | Requested request ->
-   request
-   |> post_user_transaction_request
-   >>= (function
-   | Ok tx -> Update (TransactionStatus.MadeByFacilitator tx)
-   | Error error -> Fail {status; error})
-   >> Lwt_mvar.put mailbox
    | SignedByFacilitator tc ->
    bottom ()
    push_side_chain_withdrawal_to_main_chain

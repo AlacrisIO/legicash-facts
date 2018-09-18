@@ -17,9 +17,8 @@ val start_facilitator : (Address.t, unit) Lwt_exn.arr
 
 (** [post_user_transaction_request request] asynchronously processes [request] (not forced)
     returning a [Transaction.t] on success.
-    TODO: return a TransactionCommitment.t instead.
 *)
-val post_user_transaction_request : (UserTransactionRequest.t signed, Transaction.t) Lwt_exn.arr
+val post_user_transaction_request : (UserTransactionRequest.t signed, TransactionCommitment.t) Lwt_exn.arr
 
 (** [post_user_query_request request] asynchronously processes [request]
     returning a [Transaction] on success. *)

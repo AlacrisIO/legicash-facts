@@ -13,5 +13,5 @@ val post_user_query_request_to_side_chain : UserQueryRequest.t -> yojson Lwt_exn
 val post_admin_query_request_to_side_chain : AdminQueryRequest.t -> yojson Lwt_exn.t
 (** send admin query to side chain over TCP/IP *)
 
-val post_user_transaction_request_to_side_chain : UserTransactionRequest.t signed -> Transaction.t Lwt_exn.t
+val post_user_transaction_request_to_side_chain : UserTransactionRequest.t signed -> TransactionCommitment.t Lwt_exn.t
 (** send transaction request to side chain over TCP/IP *)

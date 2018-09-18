@@ -202,7 +202,7 @@ module Test = struct
          UserAsyncAction.run_lwt_exn alice_state_ref withdrawal (trent_address, amount_to_withdraw)
          >>= fun signed_request2 ->
          post_user_transaction_request signed_request2
-         >>= fun transaction2 ->
+         >>= fun transaction_commitment2 ->
          let trent_state2 = get_facilitator_state () in
          let trent_accounts_after_withdrawal = trent_state2.current.accounts in
          let alice_account_after_withdrawal =
@@ -212,7 +212,7 @@ module Test = struct
              (TokenAmount.add amount_to_withdraw withdrawal_fee) in
          assert (alice_account_after_withdrawal.balance = alice_expected_withdrawal);
          UserAsyncAction.run_lwt_exn alice_state_ref
-           (push_side_chain_withdrawal_to_main_chain trent_address) transaction2
+           (push_side_chain_withdrawal_to_main_chain trent_address) transaction_commitment2.transaction
          (* TODO: get actual transaction receipt from main chain, check receipt
             maybe this t est belongs in Ethereum_transactions
          *)

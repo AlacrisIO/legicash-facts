@@ -20,6 +20,7 @@ module TransactionStatus : sig
     | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t (* TODO: define Confirmation.t *)
     | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
     | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | Failed of UserTransactionRequest.t signed * yojson
 
   val signed_request : t -> UserTransactionRequest.t signed
   val request : t -> UserTransactionRequest.t
@@ -100,15 +101,10 @@ module UserState : sig
   val load : Address.t -> t
 end
 
-module Error : sig
-  type t = exn
-  val to_yojson : t to_yojson
-end
-
 module ErrorNotification : sig
   type t =
     { status: TransactionStatus.t
-    ; error: Error.t }
+    ; error: Exception.t }
   [@@deriving yojson]
 end
 

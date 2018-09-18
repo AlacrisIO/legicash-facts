@@ -55,7 +55,7 @@ let account_names = user_names
     in
     loop 49 [] *)
 
-(* register keypairs from disk, path is relative to _run *)
+(* register keypairs from disk *)
 let _ =
   let key_file = Config.get_config_filename "demo-keys-small.json" in
   Signing.register_file_keypairs ~path:key_file
@@ -192,8 +192,8 @@ let prepare_server =
   (fun () -> printf "*** PREPARING SIDE CHAIN CLIENT/SCGI SERVER, PLEASE WAIT ***\n")
   >>> arr create_user_states
   >>> (fun () -> list_iter_s store_keys_on_testnet account_key_list)
-        (* Use this when we have all 1300 accounts:
-           list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
+  (* Use this when we have all 1300 accounts:
+     list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
   >>> store_user_accounts
   >>> (* Ethereum dev mode provides prefunded address with a very large balance *)
   get_prefunded_address

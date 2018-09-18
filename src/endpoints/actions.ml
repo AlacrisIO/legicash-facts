@@ -148,8 +148,8 @@ let deposit_to_trent address amount =
     >>= fun signed_request ->
     update_user_state address !user_state;
     post_user_transaction_request_to_side_chain signed_request
-    >>= fun transaction ->
-    let tx_revision = transaction.tx_header.tx_revision in
+    >>= fun transaction_commitment ->
+    let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
     (* get transaction hash for main chain *)
     let operation = signed_request.payload.operation in
     let main_chain_confirmation =
@@ -171,8 +171,9 @@ let withdrawal_from_trent facilitator_address user_address amount =
     >>= fun signed_request ->
     update_user_state user_address !user_state;
     post_user_transaction_request_to_side_chain signed_request
-    >>= fun transaction ->
+    >>= fun transaction_commitment ->
     (* TODO: move the push to server side *)
+    let transaction = transaction_commitment.transaction in
     let tx_revision = transaction.tx_header.tx_revision in
     let open Lwt in
     push_side_chain_withdrawal_to_main_chain facilitator_address transaction !user_state
@@ -210,10 +211,11 @@ let payment_on_trent sender recipient amount memo =
   >>= fun signed_request ->
   update_user_state sender !sender_state_ref;
   post_user_transaction_request_to_side_chain signed_request
-  >>= fun transaction ->
+  >>= fun transaction_commitment ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
   (* remaining code is preparing response *)
+  let transaction = transaction_commitment.transaction in
   let tx_revision = transaction.tx_header.tx_revision in
   UserQueryRequest.Get_account_state { address = sender }
   |> post_user_query_request_to_side_chain

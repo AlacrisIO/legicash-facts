@@ -55,7 +55,6 @@ module Transaction : sig
   type t = {tx_header: TxHeader.t; operation: Operation.t}
   [@@deriving lens { prefix=true } ]
   include PersistableS with type t := t
-  include SignableS with type t := t
 end
 
 (* Result of eth_getTransactionByHash *)

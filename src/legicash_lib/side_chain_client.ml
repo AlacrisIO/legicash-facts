@@ -56,4 +56,4 @@ let post_user_transaction_request_to_side_chain (request : UserTransactionReques
        ExternalRequest.marshal_string external_request
        |> write_string_to_lwt_io_channel out_channel
        >>= fun () -> read_string_from_lwt_io_channel in_channel
-       >>= decode_response Transaction.unmarshal)
+       >>= decode_response TransactionCommitment.unmarshal)
