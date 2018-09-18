@@ -14,8 +14,20 @@ open Legilogic_ethereum
 
 open Side_chain
 
+module DepositWanted = struct
+  [@@@warning "-39"]
+  type t =
+    { facilitator_address: Address.t
+    ; deposit_amount: TokenAmount.t
+    ; deposit_fee: TokenAmount.t }
+  [@@deriving yojson]
+end
+
 module TransactionStatus = struct
   type t =
+    | DepositWanted of DepositWanted.t
+    | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
+    | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
     | Requested of UserTransactionRequest.t signed
     | SignedByFacilitator of TransactionCommitment.t
     | PostedToRegistry of TransactionCommitment.t
@@ -26,6 +38,8 @@ module TransactionStatus = struct
   [@@deriving yojson]
 
   let signed_request = function
+    | DepositWanted _ | DepositPosted _ | DepositConfirmed _ ->
+      bork "deposit not requested on side-chain yet"
     | Requested signed_request | Failed (signed_request, _) -> signed_request
     | SignedByFacilitator tc | PostedToRegistry tc
     | PostedToMainChain (tc, _) | ConfirmedOnMainChain (tc, _) | SettledOnMainChain (tc, _) ->
@@ -283,8 +297,7 @@ let deposit (facilitator_address, deposit_amount) =
        { deposit_amount
        ; deposit_fee
        ; main_chain_deposit
-       ; main_chain_deposit_confirmation
-       ; deposit_expedited= false })
+       ; main_chain_deposit_confirmation })
 
 (* in Lwt monad, because we'll push the request to the main chain *)
 let withdrawal (facilitator_address, withdrawal_amount) =
@@ -391,6 +404,7 @@ let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.
       >>= fun () -> (* Then, post the new status to the mailbox *)
       Lwt_mvar.put mailbox status in
     match status with
+    | Failed _ -> return_unit
     | Requested request ->
       request
       |> Side_chain_client.post_user_transaction_request_to_side_chain
@@ -407,6 +421,7 @@ let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.
        | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
        | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
        | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+       | Failed of TransactionCommitment.t * Main_chain.Confirmation.t
 *)
 
 

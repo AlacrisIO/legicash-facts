@@ -11,9 +11,21 @@ open Legilogic_ethereum
 
 open Side_chain
 
+module DepositWanted : sig
+  type t =
+    { facilitator_address: Address.t
+    ; deposit_amount: TokenAmount.t
+    ; deposit_fee: TokenAmount.t }
+  [@@deriving yojson]
+end
+
+
 (** side chain operation + knowledge about the operation *)
 module TransactionStatus : sig
   type t =
+    | DepositWanted of DepositWanted.t
+    | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
+    | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
     | Requested of UserTransactionRequest.t signed
     | SignedByFacilitator of TransactionCommitment.t
     | PostedToRegistry of TransactionCommitment.t
@@ -37,6 +49,9 @@ module UserAccountState : sig
     { is_facilitator_valid: bool
     (* is the facilitator open for business and not known to be a liar? *)
     ; confirmed_state: AccountState.t
+    (* TODO: replace pending_operations with
+       ; transaction_counter : Revision.t
+       ; ongoing_transactions : (Revision.t, TransactionStatus.t) Hasbtbl *)
     ; pending_operations: TransactionStatus.t list }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t

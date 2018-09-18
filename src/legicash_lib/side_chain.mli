@@ -33,8 +33,7 @@ module UserOperation : sig
     { deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t
     ; main_chain_deposit: Main_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
-    ; deposit_expedited: bool }
+    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t }
   [@@deriving lens, yojson]
 
   type payment_details =

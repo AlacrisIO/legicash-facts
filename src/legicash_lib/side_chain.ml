@@ -40,8 +40,7 @@ module UserOperation = struct
     { deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t
     ; main_chain_deposit: Main_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
-    ; deposit_expedited: bool }
+    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t }
   [@@deriving lens, yojson]
 
   type payment_details =
@@ -65,30 +64,20 @@ module UserOperation = struct
   module PrePersistable = struct
     type nonrec t = t
     let case_table =
-      [| marshaling5
+      [| marshaling4
            (function
              | Deposit
-                 { deposit_amount
-                 ; deposit_fee
-                 ; main_chain_deposit
-                 ; main_chain_deposit_confirmation
-                 ; deposit_expedited } ->
-               (deposit_amount, deposit_fee, main_chain_deposit,
-                main_chain_deposit_confirmation, deposit_expedited)
+                 { deposit_amount; deposit_fee; main_chain_deposit; main_chain_deposit_confirmation } ->
+               (deposit_amount, deposit_fee, main_chain_deposit, main_chain_deposit_confirmation)
              | _ -> bottom ())
            (fun deposit_amount deposit_fee main_chain_deposit
-             main_chain_deposit_confirmation deposit_expedited ->
+             main_chain_deposit_confirmation ->
              Deposit
-               { deposit_amount
-               ; deposit_fee
-               ; main_chain_deposit
-               ; main_chain_deposit_confirmation
-               ; deposit_expedited })
+               { deposit_amount; deposit_fee; main_chain_deposit; main_chain_deposit_confirmation })
            TokenAmount.marshaling
            TokenAmount.marshaling
            Main_chain.Transaction.marshaling
            Main_chain.Confirmation.marshaling
-           bool_marshaling
        ; marshaling3
            (function
              | Payment {payment_invoice; payment_fee; payment_expedited} ->

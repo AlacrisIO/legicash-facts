@@ -107,14 +107,11 @@ let validate_user_transaction_request :
           { deposit_amount
           ; deposit_fee
           ; main_chain_deposit={tx_header= {value}} as main_chain_deposit
-          ; main_chain_deposit_confirmation
-          ; deposit_expedited } ->
+          ; main_chain_deposit_confirmation } ->
         check (is_sum value deposit_amount deposit_fee)
           (fun () ->
              Printf.sprintf "Deposit amount %s and fee %s fail to add up to deposit value %s"
                (to_string deposit_amount) (to_string deposit_fee) (to_string value))
-        >>> check (not (is_forced && deposit_expedited))
-              (konstant "You cannot force an expedited deposit")
         >>> check (is_forced || compare deposit_fee fee_schedule.deposit_fee >= 0)
               (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
@@ -254,9 +251,8 @@ let effect_validated_user_transaction_request :
     let requester = signed_request_requester rx in
     rx
     |> match rx.payload.operation with
-    | Deposit { deposit_amount; deposit_fee; main_chain_deposit; deposit_expedited } ->
-      maybe_spend_spending_limit deposit_expedited deposit_amount
-      >>> check_against_double_accounting main_chain_deposit
+    | Deposit { deposit_amount; deposit_fee; main_chain_deposit } ->
+      check_against_double_accounting main_chain_deposit
       >>> credit_balance deposit_amount requester
       >>> accept_fee deposit_fee
     | Payment {payment_invoice; payment_fee; payment_expedited} ->
