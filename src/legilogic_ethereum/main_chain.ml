@@ -10,6 +10,9 @@ open Persisting
 open Merkle_trie
 open Types
 
+(* The Ethereum notion of Quantity, as used everywhere in the Yellow Paper *)
+module Quantity = UInt256
+
 (* The number of tokens will probably not go (much) over 87 bits (100M ethers, each 1e18 wei),
    so UInt96 should be more than enough.
    But the binary API specifies a maximum of 256 bits for value transfers.
@@ -143,88 +146,6 @@ module Transaction = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : PersistableS with type t := t)
   let signed = signed_of_digest digest
-end
-
-module TransactionInformation = struct
-  [@warning "-39"]
-  type t =
-    { blockHash: Digest.t option
-    ; blockNumber: Revision.t option
-    ; from: Address.t
-    ; gas: TokenAmount.t
-    ; gasPrice: TokenAmount.t
-    ; hash: Digest.t
-    ; input: Yojsoning.Bytes.t
-    ; nonce: Nonce.t
-    ; to_: Address.t option [@key "to"]
-    ; transactionIndex: Revision.t
-    ; value: TokenAmount.t
-    ; v: string (* QUANTITY - ECDSA recovery id *)
-    ; r: string (* DATA, 32 Bytes - ECDSA signature r *)
-    ; s: string (* DATA, 32 Bytes - ECDSA signature s *) }
-  [@@deriving yojson]
-  include (Yojsonable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : (YojsonableS with type t := t))
-end
-
-module LogObject = struct
-  [@warning "-39"]
-  type t =
-    { removed: bool
-    ; logIndex: Revision.t option
-    ; transactionIndex: Revision.t option
-    ; transactionHash: Digest.t option
-    ; blockNumber: Revision.t option
-    ; blockHash: Digest.t option
-    ; address: Address.t
-    ; data: Yojsoning.Bytes.t
-    ; topics: Digest.t list }
-  [@@deriving yojson]
-  include (Yojsonable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : (YojsonableS with type t := t))
-end
-
-module Bloom = struct
-  include Yojsoning.Bytes (* TODO: Actually always 256 bytes *)
-end
-
-module TransactionReceipt = struct
-  [@warning "-39"]
-  type t =
-    { blockHash: Digest.t
-    ; blockNumber: Revision.t
-    ; contractAddress: Address.t option
-    ; cumulativeGasUsed: TokenAmount.t
-    ; from: Address.t
-    ; to_: Address.t option [@key "to"]
-    ; gasUsed: TokenAmount.t
-    ; logs: LogObject.t list
-    ; logsBloom: Bloom.t
-    ; root: Digest.t option [@default None]
-    ; status: TokenAmount.t option [@default None]
-    ; transactionHash: Digest.t
-    ; transactionIndex: Revision.t }
-  [@@deriving yojson]
-  include (Yojsonable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : (YojsonableS with type t := t))
-end
-
-(* TODO: use whichever way is used to compute on-chain hashes for marshaling.
-   Is that RLP? Find out! *)
-module TransactionSigned = struct
-  [@warning "-39"]
-  type t = Transaction.t signed
-  [@@deriving yojson]
-  include (YojsonPersistable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : (PersistableS with type t := t))
 end
 
 module UserState = struct

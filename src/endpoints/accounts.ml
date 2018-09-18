@@ -46,36 +46,26 @@ let user_names =
 
 let account_names = user_names
 
-(* use code below for 1300 accounts *)
-(*  let rec loop count accum =
-    if count < 0 then accum
-    else
-    let names = List.map (fun name -> name ^ (string_of_int count)) user_names in
-    loop (count - 1) (names @ accum)
-    in
-    loop 49 [] *)
-
 (* register keypairs from disk *)
-let _ =
-  let key_file = Config.get_config_filename "demo-keys-small.json" in
-  Signing.register_file_keypairs ~path:key_file
-
-(* for 1300 accounts:
-   let _ = Signing.register_file_keypairs ~path:"../src/endpoints/demo-keys-big.json"
-*)
+(* TODO: use some command line argument instead *)
+let _register_keypairs =
+  "demo-keys-small.json" (* For larger account, use "demo-keys-big.json" *)
+  |> Config.get_config_filename
+  |> register_file_keypairs
 
 (* create local data structures reflecting registered keys *)
-
 let account_key_list =
   List.map
     (fun name ->
-       let keys = Signing.(address_of_nickname name |> keypair_of_address) in
-       (name, keys)) account_names
+       let keys = name |> address_of_nickname |> keypair_of_address in
+       name, keys)
+    account_names
 let account_key_array = Array.of_list account_key_list
 let number_of_accounts = Array.length account_key_array
 
 let get_user_keys ndx = account_key_array.(ndx)
 
+(* TODO: read from configuration? *)
 let trent_address = Signing.Test.trent_address
 
 let get_user_name address =

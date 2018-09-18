@@ -26,7 +26,7 @@ let config =
 let sockaddr = Unix.(ADDR_INET (inet_addr_of_string config.host,config.port))
 
 let decode_response unmarshaler =
-  unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwt_monad.arr
+  unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwt.arr
 
 (* queries return JSON *)
 let post_query_request_to_side_chain_ (request : ExternalRequest.t) =

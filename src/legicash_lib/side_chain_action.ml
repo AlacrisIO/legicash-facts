@@ -12,6 +12,40 @@ open Side_chain
 open Side_chain_facilitator
 open Side_chain_user
 
+let contract_address_key = "legicash.contract-address"
+
+let install_contract installer_address =
+  let open Main_chain in
+  Ethereum_transaction.unlock_account installer_address
+  >>= fun _unlock_json ->
+  (* TODO: handle gas properly for production *)
+  let tx_header =
+    TxHeader.{ sender= installer_address
+             ; nonce= Nonce.zero
+             ; gas_price= TokenAmount.of_int 1
+             ; gas_limit= TokenAmount.of_int 1000000
+             ; value= TokenAmount.zero } in
+  let operation = Operation.CreateContract Facilitator_contract_binary.contract_bytes in
+  let transaction = { Transaction.tx_header; Transaction.operation } in
+  Ethereum_json_rpc.(eth_send_transaction (transaction_to_parameters transaction))
+  >>= fun transaction_hash ->
+  Ethereum_action.wait_for_confirmation transaction_hash
+  >>= fun _confirmation ->
+  Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
+  >>= arr Option.get
+  >>= fun receipt ->
+  let contract_address = Option.get receipt.contractAddress in
+  Facilitator_contract.set_contract_address contract_address;
+  Address.to_0x_string contract_address
+  |> (of_lwt (Db.put contract_address_key) >>> of_lwt Db.commit)
+
+let load_contract () =
+  match Db.get contract_address_key with
+  | Some addr ->
+    Facilitator_contract.set_contract_address (Address.of_0x_string addr);
+    return ()
+  | None -> bork "Could not load contract address"
+
 module Test = struct
   open Signing.Test
   open Ethereum_transaction.Test
@@ -54,7 +88,7 @@ module Test = struct
           ; value= min_balance} in
       let operation = Main_chain.Operation.TransferTokens address in
       let transaction = Main_chain.{Transaction.tx_header; Transaction.operation} in
-      Ethereum_json_rpc.eth_send_transaction transaction
+      Ethereum_action.send_transaction transaction
       >>= const ()
     else
       return ()
@@ -62,52 +96,14 @@ module Test = struct
   let fund_accounts () =
     get_prefunded_address ()
     >>= fun prefunded_address ->
-    unlock_account prefunded_address
+    Ethereum_transaction.unlock_account prefunded_address
     >>= fun _ ->
     list_iter_s
       (fun keys ->
          create_account_on_testnet keys
-         >>= unlock_account
+         >>= Ethereum_transaction.unlock_account
          >>= fun _ -> fund_account prefunded_address keys.address)
       [alice_keys; bob_keys; trent_keys]
-
-  let contract_address_key = "legicash.contract-address"
-
-  (* TODO: use beyond testing *)
-  let install_contract () =
-    let open Main_chain in
-    (* TODO: use real side chain account *)
-    get_first_account ()
-    >>= fun contract_address ->
-    unlock_account contract_address
-    >>= fun _unlock_contract_json ->
-    let tx_header =
-      TxHeader.{ sender= contract_address
-               ; nonce= Nonce.zero
-               ; gas_price= TokenAmount.of_int 1
-               ; gas_limit= TokenAmount.of_int 1000000
-               ; value= TokenAmount.zero }
-    in
-    let operation = Operation.CreateContract Facilitator_contract_binary.contract_bytes in
-    let transaction = { Transaction.tx_header; Transaction.operation } in
-    Ethereum_json_rpc.eth_send_transaction transaction
-    >>= fun transaction_hash ->
-    wait_for_contract_execution transaction_hash
-    >>= fun () ->
-    Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
-    >>= arr Option.get
-    >>= fun receipt ->
-    let contract_address = Option.get receipt.contractAddress in
-    Facilitator_contract.set_contract_address contract_address;
-    Address.to_0x_string contract_address
-    |> (of_lwt (Db.put contract_address_key) >>> of_lwt Db.commit)
-
-  let load_contract () =
-    match Db.get contract_address_key with
-    | Some addr ->
-      Facilitator_contract.set_contract_address (Address.of_0x_string addr);
-      return ()
-    | None -> bork "Could not load contract address"
 
   (* deposit and payment test *)
   let%test "deposit_and_payment_valid" =
@@ -115,9 +111,10 @@ module Test = struct
       (fun () ->
          start_facilitator trent_address
          >>= fund_accounts
-         >>= install_contract
          >>= fun () ->
-         unlock_account alice_keys.address
+         install_contract trent_address
+         >>= fun () ->
+         Ethereum_transaction.unlock_account alice_keys.address
          >>= fun _ ->
          let amount_to_deposit = TokenAmount.of_int 523 in
          let alice_state_ref = ref (make_alice_state ()) in
@@ -175,7 +172,7 @@ module Test = struct
          start_facilitator trent_address
          >>= fun () ->
          (* previous test installs contract on test net *)
-         unlock_account ~duration:60 alice_keys.address
+         Ethereum_transaction.unlock_account ~duration:60 alice_keys.address
          >>= fun _ ->
          (* deposit some funds first *)
          let amount_to_deposit = TokenAmount.of_int 1023 in

@@ -142,7 +142,7 @@ let deposit_to_trent address amount =
   let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address address) in
   let thread () =
-    unlock_account address
+    Ethereum_transaction.unlock_account address
     >>= fun _unlock_json ->
     UserAsyncAction.run_lwt_exn user_state deposit (trent_address, amount)
     >>= fun signed_request ->
@@ -165,7 +165,7 @@ let withdrawal_from_trent facilitator_address user_address amount =
   let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address user_address) in
   let thread () =
-    unlock_account user_address
+    Ethereum_transaction.unlock_account user_address
     >>= fun _unlock_json ->
     UserAsyncAction.run_lwt_exn user_state withdrawal (facilitator_address, amount)
     >>= fun signed_request ->

@@ -442,7 +442,6 @@ let batch_size_trigger_in_requests = 1000
 
 let inner_transaction_request_loop =
   let open Lwt in
-  let open Lwt_monad in
   fun facilitator_state_ref ->
     return (!facilitator_state_ref, 0, return_unit)
     >>= forever

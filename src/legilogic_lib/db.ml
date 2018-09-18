@@ -87,7 +87,7 @@ let check_connection () =
     initialization or the last commit. Internal [ready] state tracks whether a
     [Commit] is currently in progress. If so, it's false. *)
 let start_server ~db_name ~db () =
-  let open Lwt_monad in
+  let open Lwt in
   Logging.log "Opening LevelDB connection to db %s\n%!" db_name;
   let rec outer_loop batch_id previous () =
     let transaction = LevelDB.Batch.make () in
@@ -102,7 +102,7 @@ let start_server ~db_name ~db () =
           Lwt.async ((fun () -> Lwt_preemptive.detach
                                   (fun () -> LevelDB.Batch.write db ~sync:true transaction) ())
                      (*>>> (fun () -> Logging.log "BATCH %d COMMITTED!" batch_id; Lwt.return_unit)*)
-                     >>> Lwt_monad.arr (Lwt.wakeup_later notify_batch_commit));
+                     >>> Lwt.arr (Lwt.wakeup_later notify_batch_commit));
           outer_loop (batch_id + 1) wait_on_batch_commit ()
         end
       else
@@ -119,7 +119,7 @@ let start_server ~db_name ~db () =
         | Commit continuation ->
           (*Logging.log "COMMIT in batch %d" batch_id;*)
           Lwt.async (fun () -> wait_on_batch_commit
-                      >>= Lwt_monad.arr (Lwt.wakeup_later continuation));
+                      >>= Lwt.arr (Lwt.wakeup_later continuation));
           inner_loop ~ready ~triggered:true
         | Ready n ->
           assert (n = batch_id);

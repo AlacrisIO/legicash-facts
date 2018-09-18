@@ -289,8 +289,7 @@ let deposit (facilitator_address, deposit_amount) =
   lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
     (facilitator_address, (TokenAmount.add deposit_amount deposit_fee))
   >>= fun main_chain_deposit ->
-  lift_main_chain_user_async_action_to_side_chain Ethereum_action.wait_for_confirmation
-    main_chain_deposit
+  of_lwt_exn Lwt_exn.(Ethereum_action.(send_transaction >>> wait_for_confirmation)) main_chain_deposit
   >>= fun main_chain_deposit_confirmation ->
   of_action issue_user_transaction_request
     (Deposit
@@ -348,9 +347,9 @@ let push_side_chain_withdrawal_to_main_chain
   | Withdrawal details ->
     let open Lwt in
     let transaction = make_main_chain_withdrawal_transaction facilitator details user_state in
-    Ethereum_action.wait_for_confirmation transaction user_state.main_chain_user_state
-    >>= fun (main_chain_confirmation, main_chain_user_state) ->
-    return (main_chain_confirmation, { user_state with main_chain_user_state })
+    Lwt_exn.(run_lwt Ethereum_action.(send_transaction >>> wait_for_confirmation) transaction)
+    >>= fun main_chain_confirmation ->
+    return (Ok main_chain_confirmation, user_state)
   | Payment _
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"
@@ -393,6 +392,10 @@ let _notify_error status error = add_error_notification {status;error}
 (** The transaction_loop is the actor that handles the TransactionStatus.t,
     responds to queries about this state, spawns threads for each state transition,
     saves this state to DB when it changes and updates the user_loop in-memory.
+
+    TODO: when restarting, somehow check if the next step wasn't made already,
+    so we don't make it again? At least, for the crucial steps where we'd lose money if we fail?
+    e.g. record the time, and on reload, scan for events in a window after that time.
 *)
 let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.t =
   let open Lwt in
@@ -408,20 +411,24 @@ let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.
     | Requested request ->
       request
       |> Side_chain_client.post_user_transaction_request_to_side_chain
-      >>= Lwt_monad.arr
+      >>= Lwt.arr
             (function
               | Ok tc -> SignedByFacilitator tc
               | Error error -> Failed (request, Exception.to_yojson error))
       >>= update
     | _ ->
       bottom ()
-(*     of UserTransactionRequest.t signed
-       | SignedByFacilitator of TransactionCommitment.t
-       | PostedToRegistry of TransactionCommitment.t
-       | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
-       | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
-       | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
-       | Failed of TransactionCommitment.t * Main_chain.Confirmation.t
+(*
+   | DepositWanted { facilitator_address; deposit_amount; deposit_fee } ->
+   bottom ()
+   | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
+   | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
+   | SignedByFacilitator of TransactionCommitment.t
+   | PostedToRegistry of TransactionCommitment.t
+   | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+   | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+   | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+   | Failed of TransactionCommitment.t * Main_chain.Confirmation.t
 *)
 
 

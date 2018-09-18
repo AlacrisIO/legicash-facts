@@ -187,13 +187,15 @@ let unregister_keypair nickname =
 let keypair_of_address address =
   Hashtbl.find keypair_by_address address
 
-(** TODO: This is for demo use only. For production, we want all key files to be encrypted *)
-let register_file_keypairs ~path =
-  let keypairs = Yojsoning.yojson_of_file path |> YoJson.to_assoc in
-  List.iter
-    (fun (nickname, kpjson) -> register_keypair nickname (Keypair.of_yojson_exn kpjson))
-    keypairs
+let decode_keypairs =
+  YoJson.to_assoc
+  >> List.map (fun (name, kpjson) -> (name, (Keypair.of_yojson_exn kpjson)))
 
+(** TODO: Add a layer of encryption for these files. *)
+let register_file_keypairs =
+  Yojsoning.yojson_of_file
+  >> decode_keypairs
+  >> List.iter (uncurry register_keypair)
 
 (* convert OCaml string of suitable length (32 only?) to Secp256k1 msg format
    for strings representing hashes, the msg format is suitable for signing.
