@@ -14,9 +14,14 @@ let empty = 0x40
 let leaf = 0x41
 let branch = 0x42
 let skip = 0x43
+let left_branch = 0x44
+let right_branch = 0x45
+let skip_child = 0x46
 
-let none = 0x44
-let some = 0x45
+let none = 0x48
+let some = 0x49
+let ok = 0x4a
+let error = 0x4b
 
 let keypair = 0x60
 
@@ -107,12 +112,25 @@ let init_marshaling_cases base_tag (cases : 'a marshaling array) l =
 let marshal_option m buffer = function
   | None -> marshal buffer none
   | Some x -> marshal buffer some; m buffer x
-let unmarshal_option (u : 'a unmarshaler) start bytes =
-  let (tag, p) = unmarshal start bytes in
-  if tag = none then
-    (None, p)
-  else if tag = some then
-    unmarshal_map (fun x -> Some x) u p bytes
-  else
-    bad_tag_error start bytes
+let unmarshal_option (u : 'a unmarshaler) =
+  unmarshal_2cases none some (fun p _bytes -> None, p) (unmarshal_map (fun x -> Some x) u)
 let option_marshaling m = {marshal=marshal_option m.marshal; unmarshal=unmarshal_option m.unmarshal}
+
+let marshal_result mok merror buffer = function
+  | Ok x -> marshal buffer ok ; mok buffer x
+  | Error e -> marshal buffer error; merror buffer e
+let unmarshal_result (uok : 'ok unmarshaler) (uerror : 'error unmarshaler) =
+  unmarshal_2cases ok error (unmarshal_map (fun x -> Ok x) uok) (unmarshal_map (fun e -> Error e) uerror)
+let result_marshaling mok merror =
+  { marshal=marshal_result mok.marshal merror.marshal
+  ; unmarshal=unmarshal_result mok.unmarshal merror.unmarshal}
+
+exception Server_error of string
+
+let marshal_exception = marshal_map Printexc.to_string String1G.marshal
+let unmarshal_exception = unmarshal_map (fun s -> Server_error s) String1G.unmarshal
+let exception_marshaling = {marshal=marshal_exception;unmarshal=unmarshal_exception}
+
+let marshal_result_or_exn m = marshal_result m marshal_exception
+let unmarshal_result_or_exn u = unmarshal_result u unmarshal_exception
+let result_or_exn_marshaling m = result_marshaling m exception_marshaling

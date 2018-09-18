@@ -128,6 +128,7 @@ end
 
 module Int : UIntS with type t = Z.t
 
+(* TODO: make it private Z.t *)
 module Nat : UIntS with type t = Z.t
 
 module UInt256 : UIntS (* with type t = Nat.t *)

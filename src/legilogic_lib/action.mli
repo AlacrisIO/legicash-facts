@@ -32,14 +32,14 @@ module type FunctorS = sig
   (** Mapping a function.
       Interpretation 1: [t] being an endofunctor from the category Type of types to Type itself,
       it is not only possible to send each ['a] pointwise to ['a t] via [t],
-      but also to send each morphism [f : 'a -> 'b] into a morphism [map f : 'a t -> 'b t].
+      but also to send each morphism [f : 'i -> 'o] into a morphism [map f : 'i t -> 'o t].
       Interpretation 2: applying [map f] applies the pure function [f] "under" the functorial
       wrapper [t] to each value in ['a] notionally wrapped in a ['a t].
   *)
-  val map : ('a -> 'b) -> 'a t -> 'b t
+  val map : ('i -> 'o) -> 'i t -> 'o t
 
   (** Haskell-style infix shorthand for [map]. *)
-  val (<$>) : ('a -> 'b) -> 'a t -> 'b t
+  val (<$>) : ('i -> 'o) -> 'i t -> 'o t
 end
 
 (** In the context of this application, there is no need to understand this
@@ -47,7 +47,7 @@ end
 module type ApplicativeS = sig
   include FunctorS
   val pure : 'a -> 'a t (* Akin to [Monad.return] *)
-  val ap : ('a -> 'b) t -> ('a t -> 'b t)
+  val ap : ('i -> 'o) t -> ('i t -> 'o t)
 end
 
 (** Signature for representing processes which take ['i]s and outputs ['o]s
@@ -83,7 +83,7 @@ end
 module type MonadBaseS = sig
   type _ t
   val return : 'a -> 'a t
-  val bind : 'a t -> ('a -> 'b t) -> 'b t
+  val bind : 'i t -> ('i -> 'o t) -> 'o t
 end
 
 (** Signature for a simpler/more powerful representation of composable
@@ -99,12 +99,12 @@ module type MonadS = sig
   include ApplicativeS with type 'a t := 'a t
   include ArrowS with type ('i, 'o) arr = 'i -> 'o t (* Kleisli arrows, a.k.a. monadic function *)
 
-  (** Synonym for [bind]. Composes an ['a t] monad with an ['a -> 'b t] arrow *)
-  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+  (** Synonym for [bind]. Composes an ['i t] monad with an ['i -> 'o t] arrow *)
+  val (>>=) : 'i t -> ('i -> 'o t) -> 'o t
 
   (** Lift a function on base types to a function on the monadic wrappers.
       NB: It's just [flip]ping the arguments of [map]. *)
-  val (>>|) : 'a t -> ('a -> 'b) -> 'b t
+  val (>>|) : 'i t -> ('i -> 'o) -> 'o t
 end
 (** See docstring for MonadS *)
 module Monad (M : MonadBaseS) : MonadS with type 'a t = 'a M.t
@@ -143,12 +143,15 @@ module ErrorMonad (Error: TypeS) : ErrorMonadS
 module type ExnMonadS = sig
   include ErrorMonadS with type error = exn
 
-  (** Internal error *)
   val bork : ('a, unit, string, 'b t) format4 -> 'a
+  (** Internal error *)
 
+  val catching : ('i, 'o) arr -> ('i, 'o) arr
+  (** Run an arrow that may raise exceptions, catch any exception and reify them monadically *)
+
+  val catching_arr : ('i -> 'o) -> ('i, 'o) arr
   (** Run an OCaml function that may raise exceptions, which are caught and
-      presented as monadic errors *)
-  val catching : ('i -> 'o) -> ('i, 'o) arr
+      presented as monadic errors. Same as arr >> catching *)
 end
 
 (** See docstring for ExnMonadS.  *)
@@ -188,42 +191,61 @@ module StateMonad (State: TypeS) : StateMonadS
    and type ('i, 'o) readonly = 'i -> State.t -> 'o
 
 (** Translation of Lwt monadic notation to ours, for consistency. *)
-module Lwt_monad : MonadS with type 'a t = 'a Lwt.t
+module Lwt : sig
+  include MonadS
+    with type 'a t = 'a Lwt.t
+     and type ('i, 'o) arr = 'i -> 'o Lwt.t
+  type 'a u = 'a Lwt.u
+  include module type of Lwt with type 'a t := 'a t and type 'a u := 'a u
+end
+
+module type LwtExnS = sig
+  include ExnMonadS
+
+  val of_exn : ('i, 'o) ExnMonad.arr -> ('i, 'o) arr
+  (** [of_exn a] given a ExnMonad arrow [a] that has no asynchronous effects, returns an arrow *)
+
+  val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  (** [of_lwt a] given a Lwt arrow [a] that doesn't fail returns a Lwt_exn arrow that
+      returns its successful result. *)
+
+  val catching_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  (** Catch exceptions in an Lwt arrow. Same as of_lwt >> catching *)
+
+  val retry : retry_window:float -> max_window:float -> max_retries:int option
+    -> ('i, 'o) arr -> ('i, 'o) arr
+    (** Retry the action up to max_tries time (or indefinitely, if None),
+        with exponential backoff up to a maximum, then constant backoff.
+        The initial window is retry_window, in seconds, doubled each time until it reaches max_window *)
+end
 
 (** Composing the Lwt and Exn monads:
     representing success or failure with an or_exn while using the Lwt monad for threading. *)
 module Lwt_exn : sig
-  include ExnMonadS
+  include LwtExnS
     with type 'a t = 'a or_exn Lwt.t
-     and type ('i, 'o) arr = ('i, 'o or_exn) Lwt_monad.arr
+     and type ('i, 'o) arr = ('i, 'o or_exn) Lwt.arr
 
+  val run_lwt : ('i, 'o) arr -> 'i -> 'o Lwt.t
   (** [run_lwt a x] runs an Lwt_exn arrow [a] on an initial value [x] in an existing Lwt context,
       expressing failure with [or_exn] in a monadic way inside the evaluation of [mf], and
       raising an exception at the very end if the evaluation failed. *)
-  val run_lwt : ('a, 'b) arr -> 'a -> 'b Lwt.t
 
+  val run : ('i, 'o) arr -> 'i -> 'o
   (** Run a [run_lwt a x] arrow [a] on an initial value [x] in a new Lwt context,
       using [Lwt_main.run] and raising an exception at the very end if the evaluation failed. *)
-  val run : ('a, 'b) arr -> 'a -> 'b
 
-  (** [of_exn a] given a ExnMonad arrow [a] that has no asynchronous effects, returns an arrow *)
-  val of_exn : ('a, 'b) ExnMonad.arr -> ('a, 'b) arr
-
-  (** [of_lwt a] given a Lwt arrow [a] that doesn't fail returns a Lwt_exn arrow that
-      returns its successful result. *)
-  val of_lwt : ('a -> 'b Lwt.t) -> ('a, 'b) arr
-
-  (** Kick off a thread with unit result for each element of the list, in series *)
   val list_iter_s : ('a -> unit t) -> 'a list -> unit t
+  (** Kick off a thread with unit result for each element of the list, in series *)
 
-  (** Kick off a thread with unit result for each element of the list, in parallel *)
   val list_iter_p : ('a -> unit t) -> 'a list -> unit t
+  (** Kick off a thread with unit result for each element of the list, in parallel *)
 
-  (** Print to stdout via [Lwt_io], then flush *)
   val printf : ('a, unit, string, unit t) format4 -> 'a
+  (** Print to stdout via [Lwt_io], then flush *)
 
-  (** Print to stderr via [Lwt_io], then flush *)
   val eprintf : ('a, unit, string, unit t) format4 -> 'a
+  (** Print to stderr via [Lwt_io], then flush *)
 end
 
 module type StatefulErrableActionS = sig
@@ -243,7 +265,7 @@ module type StatefulErrableActionS = sig
   (** run a Lwt_exn computation on a global state ref; at the end, update the state ref
    *then* either return the value (if successful) or raise an exception (if one was caught
       via the [ExnMonad] machinery.) *)
-  val run : state ref -> ('a, 'b) arr -> 'a -> 'b
+  val run : state ref -> ('i, 'o) arr -> 'i -> 'o
 end
 
 (** Synchronous action on a state monad with monadic error handling. *)
@@ -255,7 +277,7 @@ module type ActionS = sig
      and type ('i, 'o) readonly = 'i -> state -> 'o
 
   (** [to_async] converts an Action into a corresponding AsyncAction that uses Lwt for threading. *)
-  val to_async : ('a, 'b) arr -> 'a -> state -> ('b or_exn * state) Lwt.t
+  val to_async : ('i, 'o) arr -> 'i -> state -> ('o or_exn * state) Lwt.t
 end
 
 (** See docstring for [ActionS] *)
@@ -271,19 +293,23 @@ module type AsyncActionS = sig
      and type error = exn
      and type 'a t = state -> ('a or_exn * state) Lwt.t
      and type ('i, 'o) readonly = 'i -> state -> 'o
+  include LwtExnS
+    with type 'a t := 'a t
+     and type ('i, 'o) arr := ('i, 'o) arr
+     and type error := error
 
   (** run a computation on a global state ref in an existing Lwt context *)
-  val run_lwt_exn : state ref -> ('a, 'b) arr -> 'a -> 'b or_exn Lwt.t
-  val run_lwt : state ref -> ('a, 'b) arr -> 'a -> 'b Lwt.t
+  val run_lwt_exn : state ref -> ('i, 'o) arr -> 'i -> 'o or_exn Lwt.t
+  val run_lwt : state ref -> ('i, 'o) arr -> 'i -> 'o Lwt.t
 
   (** From an [Action] to an [AsyncAction] *)
-  val of_action : ('a -> state -> 'b or_exn * state) -> ('a, 'b) arr
+  val of_action : ('i -> state -> 'o or_exn * state) -> ('i, 'o) arr
   (** From a [Lwt_exn] arrow to an AsyncAction arrow *)
-  val of_lwt_exn : ('a, 'b) Lwt_exn.arr -> ('a, 'b) arr
+  val of_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr
   (** From a [Lwt] arrow to an AsyncAction arrow *)
-  val of_lwt : ('a, 'b) Lwt_monad.arr -> ('a, 'b) arr
-  (*  val catching_lwt : ('a, 'b) Lwt_monad.arr -> ('a, 'b) arr
-      val catching_lwt_exn : ('a, 'b) Lwt_exn.arr -> ('a, 'b) arr *)
+  val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+
+  (* val catching_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr *)
 end
 
 (** See docstring for [AsyncActionS] *)
@@ -294,7 +320,7 @@ module AsyncAction (State : TypeS) : AsyncActionS
 
 (** Given a mailbox and a way to make messages from a pair of input and output-co-promise, return
     an Lwt Kleisli arrow that goes from input to output *)
-val simple_client : 'msg Lwt_mvar.t -> ('i * 'o Lwt.u -> 'msg) -> ('i, 'o) Lwt_monad.arr
+val simple_client : 'msg Lwt_mvar.t -> ('i * 'o Lwt.u -> 'msg) -> ('i, 'o) Lwt.arr
 
 (** Given a mailbox for messages being a pair of input and output-co-promise,
     and given an AsyncAction arrow for some type of state, and an initial state of that type,
@@ -305,19 +331,19 @@ val simple_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o, 'state) async_action 
     call the asynchronous action in a sequentialized way, and an action that given an initial state
     for the server will create a background server thread to actually process the client requests. *)
 val simple_client_make_server : ('i, 'o, 'state) async_action ->
-  ('i, 'o) Lwt_monad.arr * ('state -> _ Lwt.t)
+  ('i, 'o) Lwt.arr * ('state -> _ Lwt.t)
 
 (** Given a mailbox for messages being a pair of input and output-co-promise,
     and given an Lwt arrow return a background thread that sequentially processes those messages. *)
-val stateless_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt_monad.arr -> _ Lwt.t
+val stateless_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt.arr -> _ Lwt.t
 
 (** Given an AsyncAction arrow and an initial state,
     return a client Lwt arrow that provides sequentialized access to the action arrow *)
-val sequentialize : ('i, 'o, 'state) async_action -> 'state -> ('i, 'o) Lwt_monad.arr
+val sequentialize : ('i, 'o, 'state) async_action -> 'state -> ('i, 'o) Lwt.arr
 
 (** Given an AsyncAction arrow and an initial state,
     return a client Lwt arrow that provides sequentialized access to the action arrow *)
-val stateless_sequentialize : ('i, 'o) Lwt_monad.arr -> ('i, 'o) Lwt_monad.arr
+val stateless_sequentialize : ('i, 'o) Lwt.arr -> ('i, 'o) Lwt.arr
 
 (*
    (** Given a mailbox for messages being a pair of input and output-co-promise,
@@ -325,23 +351,46 @@ val stateless_sequentialize : ('i, 'o) Lwt_monad.arr -> ('i, 'o) Lwt_monad.arr
    In a given process, you might as well do without a mailbox, but if you have to have a mailbox anyway...
  *)
 
-   val stateless_parallel_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt_monad.arr -> _ Lwt.t
+   val stateless_parallel_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt.arr -> _ Lwt.t
 
    (** Given a Lwt arrow, return a client Lwt arrow that does the same thing,
    but going through the bottleneck of a mailbox.
    In a given process, you might as well do without the entire mailbox thing! *)
-   val stateless_parallelize : ('i, 'o) Lwt_monad.arr -> ('i, 'o) Lwt_monad.arr
+   val stateless_parallelize : ('i, 'o) Lwt.arr -> ('i, 'o) Lwt.arr
 
 *)
 
 (* reading, writing strings from Lwt_io channels *)
 
 val read_string_from_lwt_io_channel : ?count:int -> Lwt_io.input_channel -> string Lwt_exn.t
-(** read a string from an Lwt_io.input_channel, in chunks of size count; the string must have been written by
-    write_string_lwt_io_channel
+(** read a string from an Lwt_io.input_channel, in chunks of size count;
+    the string must have been written by write_string_lwt_io_channel
 *)
 
 val write_string_to_lwt_io_channel : Lwt_io.output_channel -> string -> unit Lwt_exn.t
 (** write a string to an Lwt_io.output_channel, then flush the channel; the string
     can then be read with read_string_lwt_io_channel
 *)
+
+module AsyncStream : sig
+  (* NB: the tail is *eagerly* scheduled to run by the time we get to the stream.
+     Maybe we should change the type to unit -> 'a t to allow for lazy streaming? *)
+  type 'a stream = | Nil | Cons of { hd: 'a; tl: 'a t }
+  and 'a t = 'a stream Lwt.t
+  (** [split stream n] returns a list of the first [n] values of the stream, and
+      a new stream with the rest. *)
+  val split : int -> 'a t -> ('a list * 'a t) Lwt.t
+  val nil : unit -> 'a t
+  val cons : 'a -> 'a t -> 'a t
+end
+(** Promise of asynchronous stream of events. If an EventStream.t is
+    [Lwt.bind]-bound to a function
+
+    [f { current_event; subsequent_event_stream} = ...]
+
+    then [current_event] is the first event in the stream, and
+    [subsequent_event_stream] is a promise for the next event in the stream. *)
+
+val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_channel, 'a) Lwt_exn.arr -> 'a Lwt_exn.t
+(** open a connection and run the function in it, closing input and output channels at the end.
+    Return an Error Unix.Unix_error if the socket failed to be opened. *)

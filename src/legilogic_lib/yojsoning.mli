@@ -22,11 +22,11 @@ end
 type 'a to_yojson = 'a -> yojson
 type 'a of_yojson = yojson -> ('a, string) result
 type 'a of_yojson_exn = yojson -> 'a
-type 'a yojsoning = { to_yojson: 'a to_yojson; of_yojson: 'a of_yojson }
+type 'a yojsoning = { to_yojson: 'a to_yojson; of_yojson: 'a of_yojson } (* TODO: replace with first-class module? *)
 
 val yojson_to_yojson : yojson to_yojson
 val yojson_of_yojson : yojson of_yojson
-
+val yojson_yojsoning : yojson yojsoning
 
 val of_yojson_exn_of_of_yojson : 'a of_yojson -> 'a of_yojson_exn
 val of_yojson_of_of_yojson_exn : 'a of_yojson_exn -> 'a of_yojson

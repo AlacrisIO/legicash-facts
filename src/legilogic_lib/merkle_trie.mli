@@ -42,7 +42,7 @@ module type MerkleTrieProofS = sig
   type key
   type value
   type mtrie
-  type 'a pstep (* [pstep] ends up being identified with [MerkleTrie.step] *)
+  type 'a step (* [step] ends up being identified with [MerkleTrie.step] *)
   type t =
     {
       (** Database key for the leaf node *)
@@ -52,7 +52,7 @@ module type MerkleTrieProofS = sig
     (** Hash value for the leaf *)
     ; leaf : Digest.t
     (** Hashes to pair with in the proof, and their locations *)
-    ; steps : (Digest.t pstep) list
+    ; steps : (Digest.t step) list
     }
   (** [get k mt] is the proof that the object referenced in the db by k is in
       mt. *)
@@ -60,7 +60,7 @@ module type MerkleTrieProofS = sig
   (** [check proof mt k v] verifies that [proof] is a proof for membership of
       [v] in [mt], where [v] is referenced by [k] in the db. *)
   val check : t -> mtrie -> key -> value -> bool
-  include YojsonableS with type t := t
+  include PersistableS with type t := t
 end
 
 (** Merkle Trie *)
@@ -85,7 +85,7 @@ module type MerkleTrieS = sig
   val path_digest : t path -> Digest.t path
 
   module Proof : MerkleTrieProofS
-    with type key = key and type value = value and type mtrie = t and type 'a pstep = 'a step
+    with type key = key and type value = value and type mtrie = t and type 'a step = 'a step
 end
 
 module MerkleTrie (Key : UIntS) (Value : PersistableS)
@@ -95,11 +95,11 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS)
 module type MerkleTrieSetProofS = sig
   type elt
   type mts
-  type 'a pstep
+  type 'a step
   type t =
     { elt : elt
     ; trie : Digest.t
-    ; steps : (Digest.t pstep) list }
+    ; steps : (Digest.t step) list }
   val get : elt -> mts -> t option
   val check : t -> mts -> elt -> bool
   include YojsonableS with type t := t
@@ -112,7 +112,7 @@ module type MerkleTrieSetS = sig
   include PersistableS with type t = T.t
   include Set.S with type elt := elt and type t := t
   module Proof : MerkleTrieSetProofS
-    with type elt = elt and type mts = t and type 'a pstep = 'a T.step
+    with type elt = elt and type mts = t and type 'a step = 'a T.step
   val trie_digest : t -> Digest.t
   (** get/set membership of [elt]s **)
   val lens : elt -> (t, bool) Lens.t

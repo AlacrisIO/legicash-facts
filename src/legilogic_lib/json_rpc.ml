@@ -52,6 +52,31 @@ let rpc_timeout = 10.0
 
 let rpc_log = ref true
 
+let parse_error e =
+  Rpc_error {code= -32700;
+             message="An error occurred on the server while parsing the JSON text.";
+             data=`String (Printexc.to_string e)}
+let invalid_request request =
+  Rpc_error {code= -32600;
+             message="The JSON sent is not a valid Request object.";
+             data=request}
+let method_not_found name =
+  Rpc_error {code= -32601;
+             message="The method does not exist / is not available.";
+             data= `Assoc [("method", `String name)]}
+let invalid_params params =
+  Rpc_error {code= -32602;
+             message="Invalid method parameter(s).";
+             data=params}
+let internal_error exn =
+  Rpc_error {code= -32603;
+             message="Internal JSON-RPC error.";
+             data=`String (Printexc.to_string exn)}
+(* Additional XML RPC errors:
+   let application_error ... = ... -32500 ...
+   let system_error ... = ... -32400 ...
+   let transport_error ... = ... -32300 ... *)
+
 let make_request : string -> ('a -> yojson) -> 'a -> request Lwt_exn.t =
   fun method_name param_encoder params ->
     (try Ok (param_encoder params) with e -> Error (Malformed_request e))
@@ -70,20 +95,20 @@ let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
         malformed_response (Internal_error "bad id")
       else
         return x in
-    trying (catching yojson_of_string) response
+    trying (catching_arr yojson_of_string) response
     >>= handling malformed_response
     >>= fun response_json ->
     response_json
-    |> trying (catching (result_response_of_yojson >> ResultOrString.get))
+    |> trying (catching_arr (result_response_of_yojson >> ResultOrString.get))
     >>= handling (fun _ ->
       response_json
-      |> trying (catching (error_response_of_yojson >> ResultOrString.get))
+      |> trying (catching_arr (error_response_of_yojson >> ResultOrString.get))
       >>= handling malformed_response
       >>= fun {jsonrpc;error;id} -> checking jsonrpc error id
       >>= fun e -> fail (Rpc_error e))
     >>= fun {jsonrpc;result;id} ->
     checking jsonrpc result id
-    >>= trying (catching result_decoder)
+    >>= trying (catching_arr result_decoder)
     >>= handling malformed_response
 
 let json_rpc server method_name result_decoder param_encoder

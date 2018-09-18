@@ -9,6 +9,8 @@ open Merkle_trie
 open Legilogic_ethereum
 module TokenAmount = Main_chain.TokenAmount
 
+(* TODO: use GADTs... but first teach ppx_deriving_yojson about them? *)
+
 (** invoice sent from payee to payer
     TODO: should we specify a deadline for the invoice as part of on-chain data? In what unit?
 
@@ -31,8 +33,7 @@ module UserOperation : sig
     { deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t
     ; main_chain_deposit: Main_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
-    ; deposit_expedited: bool }
+    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t }
   [@@deriving lens, yojson]
 
   type payment_details =
@@ -98,8 +99,9 @@ module UserTransactionRequest : sig
   type t = {rx_header: RxHeader.t; operation: UserOperation.t}
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
-  include SignableS with type t := t
 end
+
+module SignedUserTransactionRequest : SignedS with type payload = UserTransactionRequest.t
 
 (** header for a confirmation from a facilitator:
 
@@ -147,11 +149,14 @@ module AdminQueryRequest : sig
   include PersistableS with type t := t
 end
 
+(* TODO: use GADT to split those cases? *)
 module TransactionRequest : sig
   type t =
     [ `UserTransaction of UserTransactionRequest.t signed
     | `AdminTransaction of AdminTransactionRequest.t ]
   include PersistableS with type t := t
+  val signed_request : t -> UserTransactionRequest.t signed
+  val request : t -> UserTransactionRequest.t
 end
 
 module Query : sig
@@ -183,7 +188,7 @@ module ExternalRequest : sig
   include PersistableS with type t := t
 end
 
-(** A transaction confirmation from a facilitator:
+(** A transaction confirmation from a facilitator, as included in the TransactionMap of its State:
     a request, plus headers that help validate against fraud.
 *)
 module Transaction : sig
@@ -227,6 +232,7 @@ module AccountMap : MerkleTrieS with type key = Address.t and type value = Accou
     Index not just the confirmed, but also the pending confirmation?
 *)
 module State : sig
+  (* NB: If you modify it, make sure to keep this in synch with TransactionCommitment.t *)
   type t = { facilitator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
@@ -237,6 +243,8 @@ module State : sig
   include PersistableS with type t := t
   val empty : t
 end
+
+module SignedState : SignedS with type payload = State.t
 
 (** TODO: verifier state and actions in some module Side_chain_verifier. *)
 
@@ -262,12 +270,40 @@ end
     Include a Main_chain.user_state? State for dealing with the court registry? *)
 module FacilitatorState : sig
   type t = { keypair: Keypair.t
+           ; committed: State.t signed
            ; current: State.t
            ; fee_schedule: FacilitatorFeeSchedule.t }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
   val load : Address.t -> t
 end
+
+(** An attestation to commitment of a tx via a Merkle proof.
+    The state that is root of the Merkle proof is not necessarily committed to the main chain,
+    but is signed by Trent.
+    The idea here is that Merkle proofs are vastly cheaper, CPU-wise, than signatures.
+    (i.e. a signature takes ~3e5 cycles, whereas a proof should take only a ~1e4 cycles,
+    and we need to do the proofs anyway --- NB: numbers unconfirmed.)
+*)
+module TransactionCommitment : sig
+  type t =
+    { transaction: Transaction.t (* The Transaction being committed to *)
+    ; tx_proof: TransactionMap.Proof.t (* Merkle proof for the tx *)
+    ; facilitator_revision: Revision.t (* From State.t *)
+    ; spending_limit: TokenAmount.t (* From State.t *)
+    ; accounts: Digest.t (* From State.t, digest only *)
+    ; main_chain_transactions_posted: Digest.t (* From State.t, digest only *)
+    ; signature: signature } (* Signature of the digest of the state reconstituted from the above *)
+  [@@deriving lens { prefix=true }]
+  include PersistableS with type t := t
+end
+
+(** For now, the side chain contract records in its Ethereum on-chain state claims for state updates,
+    so we only need a commitment to a state that was thus updated on-chain.
+    In the future, we may or may not want to include a Main_chain.Confirmation.t
+    of the state update instead.
+*)
+module Confirmation = TransactionCommitment
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 

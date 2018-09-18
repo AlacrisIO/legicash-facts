@@ -218,3 +218,5 @@ module String63 : YojsonMarshalableS with type t = string
 
 (** Marshalable as length-prefixed string of length expressible in 30 bits *)
 module String1G : YojsonMarshalableS with type t = string
+
+val yojson_marshaling : yojson marshaling

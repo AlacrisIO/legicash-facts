@@ -30,6 +30,7 @@ type transaction_result =
   }
 [@@deriving to_yojson]
 
+[@@@warning "-32"]
 type payment_result =
   { sender_account : AccountState.t
   ; recipient_account : AccountState.t
@@ -141,14 +142,14 @@ let deposit_to_trent address amount =
   let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address address) in
   let thread () =
-    unlock_account address
+    Ethereum_transaction.unlock_account address
     >>= fun _unlock_json ->
     UserAsyncAction.run_lwt_exn user_state deposit (trent_address, amount)
     >>= fun signed_request ->
     update_user_state address !user_state;
     post_user_transaction_request_to_side_chain signed_request
-    >>= fun transaction ->
-    let tx_revision = transaction.tx_header.tx_revision in
+    >>= fun transaction_commitment ->
+    let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
     (* get transaction hash for main chain *)
     let operation = signed_request.payload.operation in
     let main_chain_confirmation =
@@ -164,14 +165,15 @@ let withdrawal_from_trent facilitator_address user_address amount =
   let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address user_address) in
   let thread () =
-    unlock_account user_address
+    Ethereum_transaction.unlock_account user_address
     >>= fun _unlock_json ->
     UserAsyncAction.run_lwt_exn user_state withdrawal (facilitator_address, amount)
     >>= fun signed_request ->
     update_user_state user_address !user_state;
     post_user_transaction_request_to_side_chain signed_request
-    >>= fun transaction ->
+    >>= fun transaction_commitment ->
     (* TODO: move the push to server side *)
+    let transaction = transaction_commitment.transaction in
     let tx_revision = transaction.tx_header.tx_revision in
     let open Lwt in
     push_side_chain_withdrawal_to_main_chain facilitator_address transaction !user_state
@@ -202,17 +204,18 @@ let payment_timestamp () =
   if !payment_timestamps_cursor >= num_timestamps then
     payment_timestamps_cursor := 0
 
-let payment_on_trent sender recipient amount =
+let payment_on_trent sender recipient amount memo =
   let sender_state = user_state_from_address sender in
   let sender_state_ref = ref sender_state in
-  UserAsyncAction.run_lwt_exn sender_state_ref payment (trent_address, recipient, amount)
+  UserAsyncAction.run_lwt_exn sender_state_ref payment (trent_address, recipient, amount, memo)
   >>= fun signed_request ->
   update_user_state sender !sender_state_ref;
   post_user_transaction_request_to_side_chain signed_request
-  >>= fun transaction ->
+  >>= fun transaction_commitment ->
   (* set timestamp, now that all processing on Trent is done *)
   payment_timestamp ();
   (* remaining code is preparing response *)
+  let transaction = transaction_commitment.transaction in
   let tx_revision = transaction.tx_header.tx_revision in
   UserQueryRequest.Get_account_state { address = sender }
   |> post_user_query_request_to_side_chain
@@ -229,15 +232,20 @@ let payment_on_trent sender recipient amount =
   | _, Error _ ->
     return (error_json "Could not get account information for sender and recipient")
   | Ok sender_account, Ok recipient_account ->
-  let side_chain_tx_revision = tx_revision in
-  let payment_result =
-    { sender_account
-    ; recipient_account
-    ; amount_transferred = amount
-    ; side_chain_tx_revision
-    }
-  in
-  return (payment_result_to_yojson payment_result)
+    let side_chain_tx_revision = tx_revision in
+    let payment_result =
+      { sender_account
+      ; recipient_account
+      ; amount_transferred = amount
+      ; side_chain_tx_revision
+      }
+    in
+    return (payment_result_to_yojson payment_result)
+
+(*
+   let payment_on_trent sender recipient amount memo =
+   post_user_event sender (Payment {facilitator = trent_address; recipient; amount; memo})
+*)
 
 (* other actions, not involving posting to server mailbox *)
 

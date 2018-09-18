@@ -9,8 +9,6 @@ let yojson_of_file fn = Yojson.Safe.from_file fn
 let pp_yojson formatter x = Format.fprintf formatter "%s" (string_of_yojson x)
 let show_yojson x = Format.asprintf "%a" pp_yojson x
 
-let yojson_to_yojson = identity
-let yojson_of_yojson x = Ok x
 let yojson_string s = `String s
 let yojson_list l = `List l
 
@@ -26,6 +24,10 @@ type 'a to_yojson = 'a -> yojson
 type 'a of_yojson = yojson -> ('a, string) result
 type 'a of_yojson_exn = yojson -> 'a
 type 'a yojsoning = { to_yojson: 'a to_yojson; of_yojson: 'a of_yojson }
+
+let yojson_to_yojson = identity
+let yojson_of_yojson x = Ok x
+let yojson_yojsoning = {to_yojson=yojson_to_yojson; of_yojson=yojson_of_yojson}
 
 let of_yojson_exn_of_of_yojson of_yojson y =
   match (of_yojson y) with

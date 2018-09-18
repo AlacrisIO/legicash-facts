@@ -15,7 +15,7 @@ open Main_chain
 let transaction_executed transaction_hash =
   Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
   >>= fun info ->
-  return (Option.is_some info.blockHash && Option.is_some info.blockNumber)
+  return (Option.is_some info.block_hash && Option.is_some info.block_number)
 
 
 (* TODO: factor this function into parsing a transaction and comparing transaction objects. *)
@@ -34,7 +34,7 @@ let transaction_execution_matches_transaction transaction_hash (transaction: Tra
          info.from = tx_header.sender
          && info.nonce = tx_header.nonce
          && TokenAmount.compare info.gas tx_header.gas_limit <= 0
-         && TokenAmount.compare info.gasPrice tx_header.gas_price <= 0
+         && TokenAmount.compare info.gas_price tx_header.gas_price <= 0
          && TokenAmount.compare info.value tx_header.value = 0
          && (* operation-specific checks *)
          match transaction.operation with
@@ -113,6 +113,9 @@ let ensure_private_key ?(timeout=rpc_timeout) ?(log= !rpc_log) (keypair, passwor
             else fail e
           | e -> fail e)
 
+let unlock_account ?(duration=5) address =
+  Ethereum_json_rpc.personal_unlock_account (address, "", Some duration)
+
 module Test = struct
   open Ethereum_json_rpc
   open Ethereum_util.Test
@@ -129,11 +132,8 @@ module Test = struct
     (* test accounts have empty password *)
     Ethereum_json_rpc.personal_new_account ""
 
-  let unlock_account ?(duration=5) address =
-    Ethereum_json_rpc.personal_unlock_account (address, "", Some duration)
-
   let get_first_account =
-    list_accounts >>> catching List.hd
+    list_accounts >>> catching_arr List.hd
 
   let is_testnet_up () =
     let max_tries = 10 in
@@ -151,7 +151,7 @@ module Test = struct
     poll_net 0
 
   let get_nonce address =
-    eth_get_transaction_count (address, Ethereum_json_rpc.Latest)
+    eth_get_transaction_count (address, Ethereum_json_rpc.BlockParameter.Latest)
 
   let wait_for_contract_execution transaction_hash =
     let max_counter = 20 in
@@ -196,7 +196,7 @@ module Test = struct
          let operation = Operation.TransferTokens recipient_address in
          let transaction = {Transaction.tx_header; Transaction.operation} in
          (* send tokens *)
-         eth_send_transaction transaction
+         eth_send_transaction (transaction_to_parameters transaction)
          >>= fun transaction_hash ->
          wait_for_contract_execution transaction_hash
          >>= fun () ->
@@ -225,7 +225,7 @@ module Test = struct
          let operation = Operation.CreateContract (Bytes.create 128) in
          let transaction = {Transaction.tx_header; Transaction.operation} in
          (* create contract *)
-         eth_send_transaction transaction
+         eth_send_transaction (transaction_to_parameters transaction)
          >>= fun transaction_hash ->
          wait_for_contract_execution transaction_hash
          >>= fun () ->
@@ -269,7 +269,7 @@ module Test = struct
              ( Address.of_0x_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
              , Bytes.of_string (Digest.to_big_endian_bits hashed) ) in
          let transaction = Transaction.{tx_header;operation} in
-         eth_send_transaction transaction
+         eth_send_transaction (transaction_to_parameters transaction)
          >>= fun transaction_hash ->
          wait_for_contract_execution transaction_hash
          >>= fun () ->
@@ -349,7 +349,7 @@ module Test = struct
          let operation = Operation.CreateContract code_bytes in
          let transaction = Transaction.{tx_header;operation} in
          (* create contract *)
-         eth_send_transaction transaction
+         eth_send_transaction (transaction_to_parameters transaction)
          >>= fun transaction_hash ->
          wait_for_contract_execution transaction_hash
          >>= fun () -> eth_get_transaction_receipt transaction_hash
@@ -375,7 +375,7 @@ module Test = struct
            Operation.CallFunction (contract_address, call_bytes)
          in
          let transaction1 = Transaction.{tx_header= tx_header1;operation= operation1} in
-         eth_send_transaction transaction1
+         eth_send_transaction (transaction_to_parameters transaction1)
          >>= fun transaction_hash1 ->
          wait_for_contract_execution transaction_hash1
          >>= fun () ->
@@ -428,7 +428,7 @@ module Test = struct
          in
          let operation = Operation.CreateContract code_bytes in
          let transaction = Transaction.{tx_header;operation} in
-         eth_send_transaction transaction
+         eth_send_transaction (transaction_to_parameters transaction)
          >>= fun transaction_hash ->
          wait_for_contract_execution transaction_hash
          >>= fun () ->
@@ -462,7 +462,7 @@ module Test = struct
          let operation1 =
            Operation.CallFunction (contract_address, address_bytes) in
          let transaction1 = Transaction.{tx_header= tx_header1;operation= operation1} in
-         eth_send_transaction transaction1
+         eth_send_transaction (transaction_to_parameters transaction1)
          >>= fun transaction_hash1 ->
          wait_for_contract_execution transaction_hash1
          >>= fun () ->
@@ -500,7 +500,7 @@ module Test = struct
          let operation2 = Operation.CallFunction (contract_address, bogus_address_bytes) in
          let tx_header2 = tx_header1 in
          let transaction2 = Transaction.{tx_header= tx_header2; operation= operation2} in
-         eth_send_transaction transaction2
+         eth_send_transaction (transaction_to_parameters transaction2)
          >>= fun transaction_hash2 ->
          wait_for_contract_execution transaction_hash2
          >>= fun () ->

@@ -43,7 +43,8 @@ type validated_transaction_request =
 
 type inner_transaction_request =
   [ `Confirm of TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u
-  | `Flush of int ]
+  | `Flush of int
+  | `Committed of (State.t signed * unit Lwt.u) ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -106,14 +107,11 @@ let validate_user_transaction_request :
           { deposit_amount
           ; deposit_fee
           ; main_chain_deposit={tx_header= {value}} as main_chain_deposit
-          ; main_chain_deposit_confirmation
-          ; deposit_expedited } ->
+          ; main_chain_deposit_confirmation } ->
         check (is_sum value deposit_amount deposit_fee)
           (fun () ->
              Printf.sprintf "Deposit amount %s and fee %s fail to add up to deposit value %s"
                (to_string deposit_amount) (to_string deposit_fee) (to_string value))
-        >>> check (not (is_forced && deposit_expedited))
-              (konstant "You cannot force an expedited deposit")
         >>> check (is_forced || compare deposit_fee fee_schedule.deposit_fee >= 0)
               (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
@@ -253,9 +251,8 @@ let effect_validated_user_transaction_request :
     let requester = signed_request_requester rx in
     rx
     |> match rx.payload.operation with
-    | Deposit { deposit_amount; deposit_fee; main_chain_deposit; deposit_expedited } ->
-      maybe_spend_spending_limit deposit_expedited deposit_amount
-      >>> check_against_double_accounting main_chain_deposit
+    | Deposit { deposit_amount; deposit_fee; main_chain_deposit } ->
+      check_against_double_accounting main_chain_deposit
       >>> credit_balance deposit_amount requester
       >>> accept_fee deposit_fee
     | Payment {payment_invoice; payment_fee; payment_expedited} ->
@@ -283,6 +280,25 @@ let process_validated_transaction_request : (TransactionRequest.t, Transaction.t
   | `AdminTransaction _ ->
     bottom () (* TODO: do it *)
 
+let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
+  fun transaction ->
+    let FacilitatorState.{committed} = get_facilitator_state () in
+    let State.{ facilitator_revision
+              ; spending_limit
+              ; accounts
+              ; transactions
+              ; main_chain_transactions_posted } = committed.payload in
+    let accounts = dv_digest accounts in
+    let signature = committed.signature in
+    let main_chain_transactions_posted = dv_digest main_chain_transactions_posted in
+    let revision = transaction.tx_header.tx_revision in
+    match TransactionMap.Proof.get revision transactions with
+    | Some tx_proof ->
+      TransactionCommitment.
+        { transaction; tx_proof; facilitator_revision; spending_limit;
+          accounts; main_chain_transactions_posted; signature }
+    | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x_string revision)
+
 (* Process a user request, with a flag to specify whether it's a forced request
    (published on the main chain), in which case there are no fee amount minima.
 
@@ -293,19 +309,20 @@ let process_validated_transaction_request : (TransactionRequest.t, Transaction.t
    and/or using forking and reducing the use of facilitator state so no DB access is needed,
    this could be done in different threads or processes.
 *)
-
 let process_user_transaction_request :
-  (UserTransactionRequest.t signed * bool, Transaction.t) Lwt_exn.arr =
+  (UserTransactionRequest.t signed * bool, TransactionCommitment.t) Lwt_exn.arr =
   let open Lwt_exn in
   validate_user_transaction_request
   >>> post_validated_transaction_request
-  >>> fun (confirmation, wait_for_commit) ->
+  >>> fun (transaction, wait_for_commit) ->
   let open Lwt in
-  wait_for_commit >>= const confirmation
+  wait_for_commit
+  >>= fun () ->
+  make_transaction_commitment transaction |> Lwt_exn.return
 
 (** This is a placeholder until we separate client and server in separate processes *)
-let post_user_transaction_request =
-  (*stateless_parallelize*) process_user_transaction_request
+let post_user_transaction_request request =
+  (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =
   { address : Address.t
@@ -319,14 +336,12 @@ let error_json fmt =
   Printf.ksprintf (fun x -> `Assoc [("error",`String x)]) fmt
 
 let get_account_balance address (facilitator_state:FacilitatorState.t) =
-    try
-      let account_state =
-        AccountMap.find address facilitator_state.current.accounts in
-      `Assoc [("address",Address.to_yojson address)
-             ;("account_balance",TokenAmount.to_yojson account_state.balance)
-             ]
-    with Not_found ->
-      error_json "Could not find balance for address %s" (Address.to_0x_string address)
+  try
+    let account_state = AccountMap.find address facilitator_state.current.accounts in
+    `Assoc [("address",Address.to_yojson address)
+           ;("account_balance",TokenAmount.to_yojson account_state.balance)]
+  with Not_found ->
+    error_json "Could not find balance for address %s" (Address.to_0x_string address)
 
 
 let get_account_balances (facilitator_state:FacilitatorState.t) =
@@ -427,7 +442,6 @@ let batch_size_trigger_in_requests = 1000
 
 let inner_transaction_request_loop =
   let open Lwt in
-  let open Lwt_monad in
   fun facilitator_state_ref ->
     return (!facilitator_state_ref, 0, return_unit)
     >>= forever
@@ -469,12 +483,29 @@ let inner_transaction_request_loop =
                     request_batch new_facilitator_state new_size)
                | `Flush id ->
                  assert (id = batch_id);
-                 (if size > 0 then
-                    (Side_chain.FacilitatorState.save facilitator_state
-                     >>= fun () -> Db.async_commit notify_batch_committed)
-                  else
-                    Lwt.return_unit)
-                 >>= fun () -> Lwt.return (facilitator_state, (batch_id + 1), batch_committed) in
+                 if size > 0 then
+                   (let (ready, notify_ready) = Lwt.task () in
+                    let signed_state =
+                      SignedState.make facilitator_state.keypair facilitator_state.current in
+                    let facilitator_state_to_save =
+                      FacilitatorState.lens_committed.set signed_state facilitator_state in
+                    Lwt.async (fun () ->
+                      ready
+                      >>= fun () ->
+                      Lwt_mvar.put inner_transaction_request_mailbox
+                        (`Committed (signed_state, notify_batch_committed)));
+                    Side_chain.FacilitatorState.save facilitator_state_to_save
+                    >>= fun () -> Db.async_commit notify_ready
+                    >>= fun () -> Lwt.return (facilitator_state, (batch_id + 1), batch_committed))
+                 else
+                   (Lwt.wakeup_later notify_batch_committed ();
+                    Lwt.return (facilitator_state, (batch_id + 1), batch_committed))
+               | `Committed (signed_state, previous_notify_batch_committed) ->
+                 let new_facilitator_state =
+                   FacilitatorState.lens_committed.set signed_state facilitator_state in
+                 facilitator_state_ref := new_facilitator_state;
+                 Lwt.wakeup_later previous_notify_batch_committed ();
+                 request_batch new_facilitator_state size in
              request_batch facilitator_state 0)
 
 let start_facilitator address =
@@ -515,6 +546,7 @@ let start_facilitator address =
         in
         let trent_genesis_state : FacilitatorState.t =
           { keypair= trent_keys
+          ; committed= SignedState.make trent_keys confirmed_trent_state
           ; current= confirmed_trent_state
           ; fee_schedule= trent_fee_schedule }
         in

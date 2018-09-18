@@ -11,48 +11,34 @@ open Legilogic_ethereum
 
 open Side_chain
 
-(** Stage of knowledge of one actor about an operation
-
-    Main chain status: we assume Judy is honest and stable and never goes from Confirmed to Rejected.
-    Transitions for the consensus:
-    Unknown => Pending, Confirmed, Rejected
-    Pending => Confirmed, Rejected
-
-    Self status: Alice assumes she is honest and stable, but she relies on Trent who can lie.
-    We don't need to represent self-status: if we don't know about it, we have nothing to represent;
-    and if we do know about it, there is no transition about that, only about the status of Trent and Judy.
-
-    Trent status: Alice weakly assumes honesty of Trent (or wouldn't even bother dealing with Trent),
-    but has to take into account the possibility that Trent goes rogue at some point,
-    and status of some operations go from Confirmed to Rejected via incompetence or malice.
-
-    confirmation/rejection: either we move that to a functor so we have the proper kind,
-    or we leave that aside.
-*)
-module KnowledgeStage : sig
+module DepositWanted : sig
   type t =
-    | Unknown
-    (* 0. that actor never heard of it *)
-    | Pending
-    (* 1. that actor heard of it but hasn't confirmed or rejected yet *)
-    | Confirmed
-    (* of operation_confirmation *)
-    (* 2. that actor confirmed it *)
-    | Rejected
-    (* of operation_rejection *)
-  (* 3. that actor rejected it, timed out, or lied, etc. *)
-  include PersistableS with type t := t
+    { facilitator_address: Address.t
+    ; deposit_amount: TokenAmount.t
+    ; deposit_fee: TokenAmount.t }
+  [@@deriving yojson]
 end
+
 
 (** side chain operation + knowledge about the operation *)
 module TransactionStatus : sig
   type t =
-    { request: UserTransactionRequest.t signed
-    ; transaction_option: Transaction.t option
-    (* TODO: as distinguished from the Transaction, a Confirmation, which will be
-       a merkle proof relating the transaction to a signed side-chain state.
-       When, further, said signed side-chain state confirmed on the Main_chain, we're gold. *)
-    ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
+    | DepositWanted of DepositWanted.t
+    | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
+    | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
+    | Requested of UserTransactionRequest.t signed
+    | SignedByFacilitator of TransactionCommitment.t
+    | PostedToRegistry of TransactionCommitment.t
+    | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t (* TODO: define Confirmation.t *)
+    | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | Failed of UserTransactionRequest.t signed * yojson
+
+  val signed_request : t -> UserTransactionRequest.t signed
+  val request : t -> UserTransactionRequest.t
+
+  (* TODO: soft/hard timeouts for next event *)
+
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
@@ -60,9 +46,12 @@ end
 (** private state a user keeps for his account with a facilitator *)
 module UserAccountState : sig
   type t =
-    { facilitator_validity: KnowledgeStage.t
-    (* do we know the facilitator to be a liar? If so, Rejected. Or should it be just a bool? *)
+    { is_facilitator_valid: bool
+    (* is the facilitator open for business and not known to be a liar? *)
     ; confirmed_state: AccountState.t
+    (* TODO: replace pending_operations with
+       ; transaction_counter : Revision.t
+       ; ongoing_transactions : (Revision.t, TransactionStatus.t) Hasbtbl *)
     ; pending_operations: TransactionStatus.t list }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
@@ -120,8 +109,30 @@ module UserState : sig
   type t =
     { main_chain_user_state: Main_chain.UserState.t
     ; facilitators: UserAccountStateMap.t
+    ; notification_counter: Revision.t
     ; notifications: (Revision.t * yojson) list }
   [@@deriving lens { prefix=true }]
+  include PersistableS with type t := t
+  val load : Address.t -> t
+end
+
+module ErrorNotification : sig
+  type t =
+    { status: TransactionStatus.t
+    ; error: Exception.t }
+  [@@deriving yojson]
+end
+
+module UserEvent : sig
+  [@warning "-39"]
+  type t =
+    | GetState of {from: Revision.t option}
+    | Payment of {facilitator: Address.t; recipient: Address.t; amount: TokenAmount.t; memo: string}
+    | Deposit of {facilitator: Address.t; amount: TokenAmount.t}
+    | Withdrawal of {facilitator: Address.t; amount: TokenAmount.t}
+    | Fail of ErrorNotification.t
+    | Update of TransactionStatus.t
+  [@@deriving yojson]
 end
 
 module UserAction : ActionS with type state = UserState.t
@@ -154,7 +165,7 @@ val withdrawal : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) Us
 val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
 
 (** Build a signed payment request from specification *)
-val payment : (Address.t * Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserAsyncAction.arr
+val payment : (Address.t * Address.t * TokenAmount.t * string, UserTransactionRequest.t signed) UserAsyncAction.arr
 
 (*
    (** post an account_activity_status request for closing the account on the *main chain*. TBD *)
@@ -174,3 +185,5 @@ val payment : (Address.t * Address.t * TokenAmount.t, UserTransactionRequest.t s
 val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr
 
 val mark_request_rejected : (UserTransactionRequest.t signed, unit) UserAction.arr
+
+val post_user_event : Address.t -> (UserEvent.t, yojson) Lwt_exn.arr

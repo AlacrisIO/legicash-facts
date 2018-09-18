@@ -15,10 +15,10 @@ val facilitator_account_lens : Address.t -> account_lens
 (** start the background facilitator processes for given address *)
 val start_facilitator : (Address.t, unit) Lwt_exn.arr
 
-(** [post_user_transaction_request (request, is_forced)] asynchronously processes [request]
-    according to whether it [is_forced] (i.e. has been published on the main_chain),
-    returning a [Transaction] on success. *)
-val post_user_transaction_request : (UserTransactionRequest.t signed * bool, Transaction.t) Lwt_exn.arr
+(** [post_user_transaction_request request] asynchronously processes [request] (not forced)
+    returning a [Transaction.t] on success.
+*)
+val post_user_transaction_request : (UserTransactionRequest.t signed, TransactionCommitment.t) Lwt_exn.arr
 
 (** [post_user_query_request request] asynchronously processes [request]
     returning a [Transaction] on success. *)

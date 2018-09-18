@@ -6,24 +6,114 @@
 open Legilogic_lib
 open Action
 open Yojsoning
+open Persisting
 open Types
 open Signing
 
 open Main_chain
 
-(** defaultBlock parameter for ethereum queries
-    eth_estimateGas, eth_getBalance, eth_getCode, eth_getTransactionCount, eth_getStorageAt, eth_call
-*)
-type block_parameter =
-  | Block_number of Revision.t
-  | Latest
-  | Earliest
-  | Pending
-
 (** Send a JSON-RPC 2.0 request to the Ethereum client, and return the response. *)
 val ethereum_json_rpc :
   string -> (yojson -> 'a) -> ('b -> yojson) ->
   ?timeout:float -> ?log:bool -> 'b -> 'a Lwt_exn.t
+
+(** defaultBlock parameter for ethereum queries
+    eth_estimateGas, eth_getBalance, eth_getCode, eth_getTransactionCount, eth_getStorageAt, eth_call
+*)
+module BlockParameter : sig
+  type t =
+    | Block_number of Revision.t
+    | Latest
+    | Earliest
+    | Pending
+  include PersistableS with type t := t
+end
+
+module TransactionCondition : sig
+  type t =
+    | Block_number of Revision.t
+    | UTC_timestamp of Revision.t (* in seconds *)
+    | Null
+  include PersistableS with type t := t
+end
+
+(** Parameters for a transaction as per Ethereum JSON RPC interface *)
+module TransactionParameters : sig
+  type t =
+    { from: Address.t (* 20 Bytes - The address the transaction is send from. *)
+    ; to_: Address.t option [@key "to"] (* 20 Bytes - The address the transaction is directed to. *)
+    ; gas: TokenAmount.t option (* Integer of the gas provided for the transaction execution. eth_call consumes zero gas, but this parameter may be needed by some executions. *)
+    ; gas_price: TokenAmount.t option [@key "gasPrice"] (* Integer of the gas price used for each paid gas. *)
+    ; value: TokenAmount.t option (* Integer of the value sent with this transaction. *)
+    ; data: Yojsoning.Bytes.t option (* 4 byte hash of the method signature followed by encoded parameters. For details see Ethereum Contract ABI. *)
+    ; nonce: Nonce.t option (* Integer of a nonce. This allows to overwrite your own pending transactions that use the same nonce. *)
+    ; condition: TransactionCondition.t option } (* Conditional submission of the transaction. Can be either an integer block number { block: 1 } or UTC timestamp (in seconds) { time: 1491290692 } or null. *)
+  include PersistableS with type t := t
+end
+
+(* Result of eth_getTransactionByHash *)
+module TransactionInformation : sig
+  type t =
+    { block_hash: Digest.t option [@key "blockHash"] (* hash of the block where this transaction was in. null when its pending. *)
+    ; block_number: Revision.t option [@key "blockNumber"] (* block number where this transaction was in. null when its pending. *)
+    ; from: Address.t (* address of the sender. *)
+    ; gas: TokenAmount.t (* gas provided by the sender. *)
+    ; gas_price: TokenAmount.t [@key "gasPrice"] (* gas price provided by the sender in Wei. *)
+    ; hash: Digest.t (* hash of the transaction. *)
+    ; input: Yojsoning.Bytes.t (* the data send along with the transaction. *)
+    ; nonce: Nonce.t (* the number of transactions made by the sender prior to this one. *)
+    ; to_: Address.t option [@key "to"] (* DATA, address of the receiver. null when its a contract creation transaction. *)
+    ; transaction_index: Revision.t option [@key "transactionIndex"] (* integer of the transactions index position in the block. null when its pending. *)
+    ; value: TokenAmount.t (* value transferred in Wei. *)
+    ; v: string option (* QUANTITY - ECDSA recovery id *)
+    ; r: string option (* DATA, 32 Bytes - ECDSA signature r *)
+    ; s: string option (* DATA, 32 Bytes - ECDSA signature s *) }
+  include YojsonableS with type t := t
+end
+
+val transaction_to_parameters : Transaction.t -> TransactionParameters.t
+
+(* Returned by eth_signTransaction *)
+module SignedTransaction : sig
+  type t =
+    { raw: Data.t
+    ; tx: TransactionInformation.t }
+  include PersistableS with type t := t
+end
+
+module LogObject : sig
+  type t =
+    { removed: bool (* true when the log was removed, due to a chain reorganization. false if its a valid log. *)
+    ; logIndex: Revision.t option (* integer of the log index position in the block. null when its pending log. *)
+    ; transactionIndex: Revision.t option (* integer of the transactions index position log was created from. null when its pending log. *)
+    ; transactionHash: Digest.t option (* hash of the transactions this log was created from. null when its pending log. *)
+    ; blockNumber: Revision.t option (* hash of the block where this log was in. null when its pending. null when its pending log. *)
+    ; blockHash: Digest.t option (* the block number where this log was in. null when its pending. null when its pending log. *)
+    ; address: Address.t (* address from which this log originated. *)
+    ; data: Yojsoning.Bytes.t (* contains the non-indexed arguments of the log. *)
+    ; topics: Digest.t list (* Array of 0 to 4 32 Bytes DATA of indexed log arguments. (In solidity: The first topic is the hash of the signature of the event (e.g. Deposit(address,bytes32,uint256)), except you declared the event with the anonymous specifier.) *) }
+  include YojsonableS with type t := t
+end
+
+module Bloom : YojsonableS with type t = Bytes.t
+
+module TransactionReceipt : sig
+  type t =
+    { blockHash: Digest.t (* hash of the block where this transaction was in. *)
+    ; blockNumber: Revision.t (* block number where this transaction was in. *)
+    ; contractAddress: Address.t option (* The contract address created, if the transaction was a contract creation, otherwise null. *)
+    ; cumulativeGasUsed: TokenAmount.t (* The total amount of gas used when this transaction was executed in the block. *)
+    ; from: Address.t (* The address of the sender. *)
+    ; to_: Address.t option [@key "to"] (* The address of the receiver. null when it’s a contract creation transaction. *)
+    ; gasUsed: TokenAmount.t (* The amount of gas used by this specific transaction alone. *)
+    ; logs: LogObject.t list (* Array of log objects, which this transaction generated. *)
+    ; logsBloom: Bloom.t (* A bloom filter of logs/events generated by contracts during transaction execution. Used to efficiently rule out transactions without expected logs. *)
+    ; root: Digest.t option (* Merkle root of the state trie after the transaction has been executed (optional after Byzantium hard fork EIP609) *)
+    ; status: TokenAmount.t option (* ‘0x0’ indicates transaction failure , ‘0x1’ indicates transaction success. Set for blocks mined after Byzantium hard fork EIP609, null before. *)
+    ; transactionHash: Digest.t (* hash of the transaction. *)
+    ; transactionIndex: Revision.t (* Integer of the transactions index position in the block. *) }
+  include YojsonableS with type t := t
+end
 
 (** Make a call or transaction, which won’t be added to the blockchain and returns the used gas,
     which can be used for estimating the used gas. *)
@@ -31,16 +121,21 @@ val eth_accounts :
   ?timeout:float -> ?log:bool
   -> unit -> Address.t list Lwt_exn.t
 
+val eth_block_number :
+  ?timeout:float -> ?log:bool
+  -> unit -> Revision.t Lwt_exn.t
+(** Get the latest block number *)
+
 (** Make a call or transaction, which won’t be added to the blockchain and returns the used gas,
     which can be used for estimating the used gas. *)
 val eth_estimate_gas :
   ?timeout:float -> ?log:bool
-  -> Transaction.t * block_parameter -> TokenAmount.t Lwt_exn.t
+  -> TransactionParameters.t * BlockParameter.t -> TokenAmount.t Lwt_exn.t
 
 (** Get the balance on given account at given block *)
 val eth_get_balance :
   ?timeout:float -> ?log:bool
-  -> address * block_parameter -> TokenAmount.t Lwt_exn.t
+  -> Address.t * BlockParameter.t -> TokenAmount.t Lwt_exn.t
 
 val eth_get_transaction_by_hash :
   ?timeout:float -> ?log:bool
@@ -49,16 +144,31 @@ val eth_get_transaction_by_hash :
 (** Returns the number of transactions sent from an address. *)
 val eth_get_transaction_count :
   ?timeout:float -> ?log:bool
-  -> address * block_parameter -> Nonce.t Lwt_exn.t
+  -> Address.t * BlockParameter.t -> Nonce.t Lwt_exn.t
 
 val eth_get_transaction_receipt :
   ?timeout:float -> ?log:bool
   -> Digest.t -> TransactionReceipt.t option Lwt_exn.t
 
-(** Send a transaction *)
+val eth_send_raw_transaction :
+  ?timeout:float -> ?log:bool
+  -> Data.t -> Digest.t Lwt_exn.t
+(** Send a raw transaction *)
+
 val eth_send_transaction :
   ?timeout:float -> ?log:bool
-  -> Transaction.t -> Digest.t Lwt_exn.t (* TODO: better type *)
+  -> TransactionParameters.t -> Digest.t Lwt_exn.t
+(** Send a transaction *)
+
+val eth_sign :
+  ?timeout:float -> ?log:bool
+  -> Address.t * Data.t -> Data.t Lwt_exn.t
+(** Sign some data *)
+
+val eth_sign_transaction :
+  ?timeout:float -> ?log:bool
+  -> TransactionParameters.t -> SignedTransaction.t Lwt_exn.t
+(** Sign a transaction *)
 
 (* https://github.com/ethereum/go-ethereum/wiki/Management-APIs *)
 

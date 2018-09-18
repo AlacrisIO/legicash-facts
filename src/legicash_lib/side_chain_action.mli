@@ -54,14 +54,16 @@ open Main_chain
    FacilitatorState.t -> Confirmation.t signed -> conversation -> unit or_exn
 *)
 
+val install_contract : Address.t -> unit Lwt_exn.t
+(** Given an address for whoever will pay to install it,
+    installs the facilitator contract on main chain, enabling corresponding actions on side chain *)
+
+val load_contract : unit -> unit Lwt_exn.t
+(** load facilitator contract address on main chain *)
+
+
 (* useful functions for other test code *)
 module Test : sig
-  val install_contract : unit -> unit Lwt_exn.t
-  (** installs facilitator contract on main chain, enabling corresponding actions on side chain *)
-
-  val load_contract : unit -> unit Lwt_exn.t
-  (** load facilitator contract address on main chain *)
-
   val create_account_on_testnet : Keypair.t -> address Lwt_exn.t
   (** creates an account on network with address created for side chain *)
 

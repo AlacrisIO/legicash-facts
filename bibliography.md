@@ -26,6 +26,10 @@
 * OCaml metaprogramming:
  [Oleg's Reconciling Abstraction with High Performance: A MetaOCaml approach](https://www.nowpublishers.com/article/Details/PGL-038).
 
+* Purely Functional Data Structures:
+ [Okasaki's book](https://www.cs.cmu.edu/~rwh/theses/okasaki.pdf),
+ [a follow-up](https://cstheory.stackexchange.com/questions/1539/whats-new-in-purely-functional-data-structures-since-okasaki)
+
 * [Computability Logic](http://www.csc.villanova.edu/~japaridz/CL/)
 
 * [K Framework](http://www.kframework.org/index.php/Main_Page),
@@ -43,6 +47,7 @@
    [Cryptographic protocol synthesis and verification for multiparty sessions](https://www.microsoft.com/en-us/research/wp-content/uploads/2017/01/cryptographic-protocol-synthesis-and-verification-for-multiparty-sessions-csf09.pdf)
    by Karthikeyan Bhargavan, Ricardo Corin, Pierre-malo Deniélou, Cédric Fournet, James J. Leifer (2009).
    Or [things that cite the latter](http://citeseerx.ist.psu.edu/showciting?doi=10.1.1.156.187).
+   [Conversational Concurrency](http://syndicate-lang.org/tonyg-dissertation/) by Tony Garnock-Jones.
 
 * Byzantine Fault Tolerance:
  [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015);
@@ -96,3 +101,6 @@
 
 * UI tools for Crypto-currency dApps:
   [MetaMask Browser Extension](https://github.com/MetaMask/metamask-extension)
+
+* Usability and UX:
+  [Nielsen Norman Group](https://www.nngroup.com/articles/)

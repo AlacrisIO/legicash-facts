@@ -59,6 +59,9 @@ module Duration : UIntS
 
 module StringT : PersistableS with type t = string
 
+(* string as data to be printed as 0x strings in JSON *)
+module Data : PersistableS with type t = string
+
 (* This marshals to the empty string and json [null]. It is useful for
    type-system compatibility, e.g. you can have a tree with trivial leaves, to
    represent a set. *)
@@ -66,6 +69,12 @@ module Unit : sig
   include PersistableS with type t = unit
   include ShowableS with type t := unit
 end
+
+module Exception : sig
+  include PersistableS with type t = exn
+  include ShowableS with type t := exn
+end
+
 
 (** Content-addressed pointer to an ['a]. *)
 type +'a dv = {digest: Digest.t Lazy.t; value: 'a Lazy.t; mutable persisted: bool}

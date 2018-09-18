@@ -64,25 +64,25 @@ $(LEGICASH_LIB): $(ML_SOURCES) $(CONTRACT)
 
 ENDPOINTS:=$(BUILD_DIR)/src/endpoints/endpoints.cmxs
 endpoints: $(ENDPOINTS)
-$(ENDPOINTS): $(LEGICASH_LIB) $(ML_SOURCES) $(CONTRACT) force
+$(ENDPOINTS): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building endpoints library"
 	$(HIDE) dune build src/endpoints/endpoints.cmxs
 
 SIDE_CHAIN_SERVER:=$(BUILD_DIR)/src/legicash_lib/side_chain_server.exe
 sidechain_server: $(SIDE_CHAIN_SERVER)
-$(SIDE_CHAIN_SERVER): $(LEGICASH_LIB) $(LEGILOGIC_LIB) $(ML_SOURCES)
+$(SIDE_CHAIN_SERVER): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building side chain server"
 	$(HIDE) dune build src/legicash_lib/side_chain_server.exe
 
 API_SCGI:=$(BUILD_DIR)/src/endpoints/api_scgi.exe
 api_scgi: $(API_SCGI)
-$(API_SCGI): $(ENDPOINTS) $(ML_SOURCES) $(CONTRACT) force
+$(API_SCGI): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Legicash side chain client / API SCGI executable"
 	$(HIDE) dune build src/endpoints/api_scgi.exe
 
 ENDPOINTS_TEST:=$(BUILD_DIR)/src/endpoints/endpoints_test.exe
 endpoints_test: $(ENDPOINTS_TEST)
-$(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(LEGILOGIC_LIB)
+$(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(CONTRACT)
 	$(SHOW) "Building test endpoints executable"
 	$(HIDE) dune build src/endpoints/endpoints_test.exe
 
@@ -98,13 +98,14 @@ test-endpoints : $(ENDPOINTS_TEST)
 	$(SHOW) "Testing endpoints"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(ENDPOINTS_TEST)
 
+# TODO: rename to run-ethereum-devnet or some such
 ethereum-net :
 	$(SHOW) "Starting Ethereum net"
 	$(HIDE) scripts/ethereum-testnet/run.sh
 
 HELLO_LEGICASH:=$(BUILD_DIR)/src/hello_legicash.exe
 hello_legicash: $(HELLO_LEGICASH)
-$(HELLO_LEGICASH): $(LEGICASH_LIB) $(ML_SOURCES) $(CONTRACT) force
+$(HELLO_LEGICASH): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building main Legicash executable"
 	$(HIDE) dune build src/hello_legicash.exe
 
@@ -133,7 +134,7 @@ test: $(ML_SOURCES) $(CONTRACT) force
 
 TOPLEVEL=$(BUILD_DIR)/src/legicaml.exe
 toplevel: $(TOPLEVEL)
-$(TOPLEVEL): $(ML_SOURCES) $(CONTRACT) legilogic_lib legilogic_ethereum legicash_lib endpoints
+$(TOPLEVEL): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building custom OCaml toplevel"
 	$(HIDE) dune build src/legicaml.exe
 
@@ -148,7 +149,7 @@ nginx:
 stop_nginx:
 	./src/endpoints/nginx/stop.sh
 
-install_contract: legicash_lib src/install_contract.ml $(ML_SOURCES) $(CONTRACT)
+install_contract: src/install_contract.ml $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Installing facilitator contract on main chain"
 	$(HIDE) dune build src/install_contract.exe
 

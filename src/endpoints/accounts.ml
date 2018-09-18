@@ -46,36 +46,26 @@ let user_names =
 
 let account_names = user_names
 
-(* use code below for 1300 accounts *)
-(*  let rec loop count accum =
-    if count < 0 then accum
-    else
-    let names = List.map (fun name -> name ^ (string_of_int count)) user_names in
-    loop (count - 1) (names @ accum)
-    in
-    loop 49 [] *)
-
-(* register keypairs from disk, path is relative to _run *)
-let _ =
-  let key_file = Config.get_config_filename "demo-keys-small.json" in
-  Signing.register_file_keypairs ~path:key_file
-
-(* for 1300 accounts:
-   let _ = Signing.register_file_keypairs ~path:"../src/endpoints/demo-keys-big.json"
-*)
+(* register keypairs from disk *)
+(* TODO: use some command line argument instead *)
+let _register_keypairs =
+  "demo-keys-small.json" (* For larger account, use "demo-keys-big.json" *)
+  |> Config.get_config_filename
+  |> register_file_keypairs
 
 (* create local data structures reflecting registered keys *)
-
 let account_key_list =
   List.map
     (fun name ->
-       let keys = Signing.(address_of_nickname name |> keypair_of_address) in
-       (name, keys)) account_names
+       let keys = name |> address_of_nickname |> keypair_of_address in
+       name, keys)
+    account_names
 let account_key_array = Array.of_list account_key_list
 let number_of_accounts = Array.length account_key_array
 
 let get_user_keys ndx = account_key_array.(ndx)
 
+(* TODO: read from configuration? *)
 let trent_address = Signing.Test.trent_address
 
 let get_user_name address =
@@ -108,7 +98,7 @@ let create_side_chain_user_state user_keys =
   let (user_account_state : UserAccountState.t) = UserAccountState.empty
   in
   let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
-  UserState.{main_chain_user_state; facilitators; notifications= []}
+  UserState.{main_chain_user_state; facilitators; notification_counter = Revision.zero; notifications= []}
 
 let create_user_states () =
   List.iter
@@ -192,8 +182,8 @@ let prepare_server =
   (fun () -> printf "*** PREPARING SIDE CHAIN CLIENT/SCGI SERVER, PLEASE WAIT ***\n")
   >>> arr create_user_states
   >>> (fun () -> list_iter_s store_keys_on_testnet account_key_list)
-        (* Use this when we have all 1300 accounts:
-           list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
+  (* Use this when we have all 1300 accounts:
+     list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
   >>> store_user_accounts
   >>> (* Ethereum dev mode provides prefunded address with a very large balance *)
   get_prefunded_address

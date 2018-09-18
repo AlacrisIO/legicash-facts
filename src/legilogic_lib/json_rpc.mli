@@ -12,11 +12,11 @@ type error =
   ; data : yojson }
 [@@deriving yojson, show]
 
-exception Timeout
-exception Malformed_request of exn
-exception Rpc_error of error
-exception Malformed_response of string * exn
-exception Bad_status of Code.status_code
+exception Timeout (* JSON RPC timeout *)
+exception Malformed_request of exn (* Malformed request on the client side *)
+exception Rpc_error of error (* Error received from the server, or sent as a server *)
+exception Malformed_response of string * exn (* The server served us what to us looks as garbage *)
+exception Bad_status of Code.status_code (* We can't make sense of the RPC status code *)
 
 (** Default RPC timeout, in seconds *)
 val rpc_timeout : float
@@ -27,3 +27,14 @@ val rpc_log : bool ref
 (** Run the call given by the JSON, the Lwt_exn way. *)
 val json_rpc : Uri.t -> string -> (yojson -> 'a) -> ('b -> yojson) ->
   ?timeout:float -> ?log:bool -> 'b -> 'a Lwt_exn.t
+
+(** The error codes from and including -32768 to -32000 are reserved for pre-defined errors.
+    Any code within this range, but not defined explicitly below is reserved for future use. The error codes are nearly the same as those suggested for XML-RPC at the following url: http://xmlrpc-epi.sourceforge.net/specs/rfc.fault_codes.php
+    The remainder of the space is available for application defined errors.
+*)
+val parse_error : exn -> exn (* -32700 Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text. *)
+val invalid_request : yojson -> exn (* -32600 The JSON sent is not a valid Request object. *)
+val method_not_found : string -> exn (* -32601 The method does not exist / is not available. *)
+val invalid_params : yojson -> exn (* -32602 Invalid method parameter(s). *)
+val internal_error : exn -> exn (* -32603 Internal JSON-RPC error. *)
+(** other Server errrors: -32000 to -32099 *)

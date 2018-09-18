@@ -187,13 +187,15 @@ let unregister_keypair nickname =
 let keypair_of_address address =
   Hashtbl.find keypair_by_address address
 
-(** TODO: This is for demo use only. For production, we want all key files to be encrypted *)
-let register_file_keypairs ~path =
-  let keypairs = Yojsoning.yojson_of_file path |> YoJson.to_assoc in
-  List.iter
-    (fun (nickname, kpjson) -> register_keypair nickname (Keypair.of_yojson_exn kpjson))
-    keypairs
+let decode_keypairs =
+  YoJson.to_assoc
+  >> List.map (fun (name, kpjson) -> (name, (Keypair.of_yojson_exn kpjson)))
 
+(** TODO: Add a layer of encryption for these files. *)
+let register_file_keypairs =
+  Yojsoning.yojson_of_file
+  >> decode_keypairs
+  >> List.iter (uncurry register_keypair)
 
 (* convert OCaml string of suitable length (32 only?) to Secp256k1 msg format
    for strings representing hashes, the msg format is suitable for signing.
@@ -260,7 +262,7 @@ let unmarshal_signed (unmarshal:'a unmarshaler) start bytes : 'a signed * int =
   let signature,final_offset = Signature.unmarshal payload_offset bytes in
   ({payload; signature}, final_offset)
 
-let marshaling_signed marshaling =
+let signed_marshaling marshaling =
   { marshal = marshal_signed marshaling.marshal
   ; unmarshal = unmarshal_signed marshaling.unmarshal }
 
@@ -281,19 +283,30 @@ let signed_of_yojson_exn of_yojson_exn = function
     {payload=of_yojson_exn p;signature=Signature.of_yojson_exn s}
   | _ -> Yojson.json_error "bad json for signed data"
 
-
-
-module type SignableS = sig
-  include DigestibleS
-  val signed : keypair -> t -> t signed
-end
+let signed_yojsoning yojsoning =
+  { to_yojson= signed_to_yojson yojsoning.to_yojson
+  ; of_yojson= signed_of_yojson yojsoning.of_yojson }
 
 let signed_of_digest digest kp = signed digest kp.Keypair.private_key
 
-module Signable (M : MarshalableS) = struct
-  include M
-  let digest = digest_of_marshal_bytes M.marshal_bytes
-  let signed = signed_of_digest digest
+module type SignedS = sig
+  type payload
+  include PersistableS with type t = payload signed
+  val make : keypair -> payload -> t
+end
+
+module Signed (P : PersistableS) = struct
+  type payload = P.t
+  module Pre = struct
+    type t = payload signed
+    let yojsoning = signed_yojsoning P.yojsoning
+    let marshaling = signed_marshaling P.marshaling
+    let walk_dependencies _methods context x =
+      walk_dependency P.dependency_walking context x.payload
+    let make_persistent = normal_persistent
+  end
+  include Persistable(Pre)
+  let make = signed_of_digest P.digest
 end
 
 module Test = struct
@@ -302,6 +315,8 @@ module Test = struct
     make_keypair_from_hex
       "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
       "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
+
+  let _ = register_keypair "Trent" trent_keys
 
   let trent_address = trent_keys.address
 
@@ -365,4 +380,7 @@ module Test = struct
     let trent_address = trent_keys.address in
     unparse_coloned_hex_string (Address.to_big_endian_bits trent_address)
     = "f4:74:08:14:3d:32:7e:4b:c6:a8:7e:f4:a7:0a:4e:0a:f0:9b:9a:1c"
+
+  let%test "trent_of_address" =
+    keypair_of_address trent_address = trent_keys
 end

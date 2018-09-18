@@ -27,6 +27,16 @@ mkdir $DATADIR
 # kill any existing geth
 killall geth > /dev/null 2>&1 || true
 
-geth --dev --identity "LegicashEthereumTestNet" --datadir $DATADIR \
-     --nodiscover --maxpeers 0 --rpc --rpcapi "db,eth,net,debug,web3,light,personal" --rpcport $RPCPORT --rpccorsdomain "*" \
-     --port $PORT --networkid 17 --nat "any" --ipcpath .ethereum/geth.ipc > $LOGDIR/testnet.log 2>&1  &
+geth \
+    --dev \
+    --mine \
+    --identity "LegicashEthereumDevNet" \
+    --datadir $DATADIR \
+    --nodiscover \
+    --maxpeers 0 \
+    --rpc --rpcapi "db,eth,net,debug,web3,light,personal" --rpcport $RPCPORT --rpccorsdomain "*" \
+    --port $PORT \
+    --networkid 17 \
+    --nat "any" \
+    --ipcpath .ethereum/geth.ipc \
+    > $LOGDIR/testnet.log 2>&1  &

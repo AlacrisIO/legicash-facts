@@ -13,6 +13,11 @@ val set_contract_address : Address.t -> unit
     TODO: use a fixed address, obviating this call
 *)
 
+val get_contract_address : unit -> Address.t
+(** set the address of the contract on Ethereum
+    TODO: use a fixed address, obviating this call
+*)
+
 val make_deposit_call : Address.t -> Main_chain.Operation.t
 (** build the encoding of a call to the "deposit" function of the facilitator contract
     address argument is the facilitator

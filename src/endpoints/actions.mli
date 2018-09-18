@@ -30,7 +30,7 @@ val deposit_to_trent : Address.t -> TokenAmount.t -> yojson
 val withdrawal_from_trent : Address.t -> Address.t -> TokenAmount.t -> yojson
 (** trent address, user address, number of tokens *)
 
-val payment_on_trent : Address.t -> Address.t -> TokenAmount.t -> yojson Lwt_exn.t
+val payment_on_trent : Address.t -> Address.t -> TokenAmount.t -> string -> yojson Lwt_exn.t
 (** payment between two users; first address is sender, second is recipient *)
 
 val get_balance_on_trent : Address.t -> yojson or_exn Lwt.t

@@ -5,7 +5,6 @@ open Lib
 open Action
 open Yojsoning
 open Marshaling
-open Tag
 open Signing
 open Persisting
 open Types
@@ -15,69 +14,49 @@ open Legilogic_ethereum
 
 open Side_chain
 
-(* TODO:
-   Devise and implement a good persistent asynchronous programming model.
-   i.e. each actor (in this case, a side_chain user) has persistent set of partial ongoing
-   transactions, and it will keep making progress on by chatting with other actors,
-   even if the computer crashes.
-   The transactions may be themselves organized as a set of desiderata each associated
-   with some "aspect" of the state. Each aspect can synchronize with the outside world;
-   if there is a conflict, then log a notification and reset expectations.
-   If there is no conflict, but incompleteness, then do the next thing to go forward,
-   or set a timeout if waiting for a response.
-
-   Thus, to ensure that a key is usable on ethereum, start with the assumption that geth
-   doesn't know about keys, so the next step is to send it the key.
-   Confirmation can later be achieved by trying a simple use of the key.
-   If later geth complains that the key is not found, issue a notification,
-   and probably persist in the desire for a while and retry a few times,
-   before giving up on the desire and issuing a bigger notification.
-*)
-
-module KnowledgeStage = struct
-  type t = Unknown | Pending | Confirmed | Rejected
-  let to_char = function Unknown -> 'U' | Pending -> 'P' | Confirmed -> 'C' | Rejected -> 'R'
-  let of_char = function | 'U' -> Unknown | 'P' -> Pending | 'C' -> Confirmed | 'R' -> Rejected
-                         | _ -> bork "Invalid KnowledgeStage character"
-  module PrePersistable = struct
-    type nonrec t = t
-    let marshaling = marshaling_map to_char of_char char_marshaling
-    let make_persistent = already_persistent
-    let walk_dependencies = no_dependencies
-    let yojsoning = yojsoning_map to_char of_char char_yojsoning
-  end
-  include (Persistable (PrePersistable) : PersistableS with type t := t)
+module DepositWanted = struct
+  [@@@warning "-39"]
+  type t =
+    { facilitator_address: Address.t
+    ; deposit_amount: TokenAmount.t
+    ; deposit_fee: TokenAmount.t }
+  [@@deriving yojson]
 end
 
 module TransactionStatus = struct
-  [@warning "-39"]
   type t =
-    { request: UserTransactionRequest.t signed
-    ; transaction_option: Transaction.t option
-    ; main_chain_confirmation_option: Main_chain.Confirmation.t option }
-  [@@deriving lens { prefix=true }, yojson]
-  module PrePersistable = struct
+    | DepositWanted of DepositWanted.t
+    | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
+    | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
+    | Requested of UserTransactionRequest.t signed
+    | SignedByFacilitator of TransactionCommitment.t
+    | PostedToRegistry of TransactionCommitment.t
+    | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | Failed of UserTransactionRequest.t signed * yojson
+  [@@deriving yojson]
+
+  let signed_request = function
+    | DepositWanted _ | DepositPosted _ | DepositConfirmed _ ->
+      bork "deposit not requested on side-chain yet"
+    | Requested signed_request | Failed (signed_request, _) -> signed_request
+    | SignedByFacilitator tc | PostedToRegistry tc
+    | PostedToMainChain (tc, _) | ConfirmedOnMainChain (tc, _) | SettledOnMainChain (tc, _) ->
+      tc.transaction.tx_request |> TransactionRequest.signed_request
+  let request x = (signed_request x).payload
+
+  module P = struct
     type nonrec t = t
-    let marshaling =
-      marshaling3
-        (fun { request; transaction_option; main_chain_confirmation_option } ->
-           request, transaction_option, main_chain_confirmation_option)
-        (fun request transaction_option main_chain_confirmation_option ->
-           { request; transaction_option; main_chain_confirmation_option })
-        (marshaling_signed UserTransactionRequest.marshaling)
-        (option_marshaling Transaction.marshaling)
-        (option_marshaling Main_chain.Confirmation.marshaling)
-    let walk_dependencies = no_dependencies
-    let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end
-  include (Persistable (PrePersistable) : PersistableS with type t := t)
+  include (YojsonPersistable (P) : PersistableS with type t := t)
 end
 
 module UserAccountState = struct
   [@warning "-39"]
   type t =
-    { facilitator_validity: KnowledgeStage.t
+    { is_facilitator_valid: bool
     ; confirmed_state: AccountState.t
     ; pending_operations: TransactionStatus.t list }
   [@@deriving lens { prefix=true }, yojson ]
@@ -85,15 +64,15 @@ module UserAccountState = struct
     type nonrec t = t
     let marshaling =
       marshaling3
-        (fun { facilitator_validity
+        (fun { is_facilitator_valid
              ; confirmed_state
              ; pending_operations } ->
-          facilitator_validity, confirmed_state, pending_operations)
-        (fun facilitator_validity confirmed_state pending_operations ->
-           { facilitator_validity
+          is_facilitator_valid, confirmed_state, pending_operations)
+        (fun is_facilitator_valid confirmed_state pending_operations ->
+           { is_facilitator_valid
            ; confirmed_state
            ; pending_operations })
-        KnowledgeStage.marshaling AccountState.marshaling
+        bool_marshaling AccountState.marshaling
         (list_marshaling TransactionStatus.marshaling)
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
@@ -101,19 +80,61 @@ module UserAccountState = struct
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
   let empty =
-    { facilitator_validity= Confirmed
+    { is_facilitator_valid= true
     ; confirmed_state=AccountState.empty
     ; pending_operations= [] }
 end
 
 module UserAccountStateMap = MerkleTrie (Address) (UserAccountState)
 
+exception User_not_found of string
+
 module UserState = struct
+  [@warning "-39"]
   type t =
     { main_chain_user_state: Main_chain.UserState.t
     ; facilitators: UserAccountStateMap.t
+    ; notification_counter: Revision.t
     ; notifications: (Revision.t * yojson) list }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, yojson]
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling4
+        (fun { main_chain_user_state
+             ; facilitators
+             ; notification_counter
+             ; notifications } ->
+          main_chain_user_state, facilitators, notification_counter, notifications)
+        (fun main_chain_user_state facilitators notification_counter notifications ->
+           { main_chain_user_state
+           ; facilitators
+           ; notification_counter
+           ; notifications })
+        Main_chain.UserState.marshaling UserAccountStateMap.marshaling Revision.marshaling
+        (list_marshaling (marshaling2 identity (fun x y -> x, y) Revision.marshaling yojson_marshaling))
+    let walk_dependencies = no_dependencies
+    let make_persistent = normal_persistent
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
+  let user_state_key user_address =
+    "LCUS0001" ^ (Address.to_big_endian_bits user_address)
+  let save user_state =
+    let open Lwt in
+    save user_state (* <-- use inherited binding *)
+    >>= (fun () ->
+      let address = user_state.main_chain_user_state.keypair.address in
+      let key = user_state_key address in
+      Db.put key (Digest.to_big_endian_bits (digest user_state)))
+  let load user_address =
+    user_address |> user_state_key |> Db.get
+    |> (function
+      | Some x -> x
+      | None -> raise (User_not_found
+                         (Printf.sprintf "User %s not found in the database"
+                            (Address.to_0x_string user_address))))
+    |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
 end
 
 module UserAction = Action(UserState)
@@ -164,8 +185,7 @@ let make_rx_header facilitator_address user_state =
       ; RxHeader.validity_within= default_validity_window }
       user_state
 
-let mk_rx_transaction_status rx =
-  TransactionStatus.{request= rx; transaction_option= None; main_chain_confirmation_option= None}
+let transaction_status_of_request rx = TransactionStatus.Requested rx
 
 (*
    let mk_tx_transaction_status tx =
@@ -185,26 +205,27 @@ let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
 
 (** TODO: Handle cases of updates to previous transaction_statuss, rather than just new ones *)
 let add_user_transaction_status transaction_status user_state =
-  let facilitator = transaction_status.TransactionStatus.request.payload.rx_header.facilitator in
-    Lens.modify
+  let facilitator = (transaction_status |> TransactionStatus.request).rx_header.facilitator in
+  Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
     (fun ops -> transaction_status::ops) (* TODO: replays, retries...*)
     user_state
 
-let remove_user_request request user_state =
-  let facilitator = request.payload.UserTransactionRequest.rx_header.facilitator in
-    Lens.modify
+let remove_user_request signed_request user_state =
+  let facilitator = signed_request.payload.UserTransactionRequest.rx_header.facilitator in
+  Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
-    (List.filter (fun x -> x.TransactionStatus.request != request))
+    (List.filter (fun x -> x |> TransactionStatus.signed_request != signed_request))
     user_state
 
 let sign_request request user_state =
-   UserAction.return
-   (UserTransactionRequest.signed user_state.UserState.main_chain_user_state.keypair request)
-   user_state
+  UserAction.return
+    (SignedUserTransactionRequest.make user_state.UserState.main_chain_user_state.keypair request)
+    user_state
 
 let add_pending_request request state =
-  UserAction.return request (add_user_transaction_status (mk_rx_transaction_status request) state)
+  let transaction_status = transaction_status_of_request request in
+  UserAction.return request (add_user_transaction_status transaction_status state)
 
 let mark_request_rejected request state =
   UserAction.return () (remove_user_request request state)
@@ -247,8 +268,8 @@ let issue_user_transaction_request operation =
  * let [@warning "-32"] optimistic_facilitator_account_state facilitator_address user_state =
  *   match UserAccountStateMap.find_opt facilitator_address user_state.UserState.facilitators with
  *   | None -> AccountState.empty
- *   | Some {facilitator_validity; confirmed_state; pending_operations} ->
- *     match facilitator_validity with
+ *   | Some {is_facilitator_valid; confirmed_state; pending_operations} ->
+ *     match is_facilitator_valid with
  *     | Rejected -> confirmed_state
  *     | _ ->
  *       update_account_state_with_trusted_operations
@@ -268,16 +289,14 @@ let deposit (facilitator_address, deposit_amount) =
   lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
     (facilitator_address, (TokenAmount.add deposit_amount deposit_fee))
   >>= fun main_chain_deposit ->
-  lift_main_chain_user_async_action_to_side_chain Ethereum_action.wait_for_confirmation
-    main_chain_deposit
+  of_lwt_exn Lwt_exn.(Ethereum_action.(send_transaction >>> wait_for_confirmation)) main_chain_deposit
   >>= fun main_chain_deposit_confirmation ->
   of_action issue_user_transaction_request
     (Deposit
        { deposit_amount
        ; deposit_fee
        ; main_chain_deposit
-       ; main_chain_deposit_confirmation
-       ; deposit_expedited= false })
+       ; main_chain_deposit_confirmation })
 
 (* in Lwt monad, because we'll push the request to the main chain *)
 let withdrawal (facilitator_address, withdrawal_amount) =
@@ -290,28 +309,27 @@ let withdrawal (facilitator_address, withdrawal_amount) =
 let payment_fee_for FacilitatorFeeSchedule.{fee_per_billion} payment_amount =
   TokenAmount.(div (mul fee_per_billion payment_amount) one_billion_tokens)
 
-let payment (facilitator_address, recipient_address, payment_amount) =
+let payment (facilitator_address, recipient_address, payment_amount, memo) =
   let open UserAsyncAction in
   get_facilitator_fee_schedule facilitator_address
   >>= fun fee_schedule ->
-  let payment_invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo= ""} in
+  let payment_invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo} in
   let payment_fee = payment_fee_for fee_schedule payment_amount in
   of_action issue_user_transaction_request
     (Payment {payment_invoice; payment_fee; payment_expedited= false})
 
 (** We should be signing the RLP, not the marshaling! *)
 let make_main_chain_withdrawal_transaction
-      UserOperation.{withdrawal_amount;withdrawal_fee} user_address facilitator_address =
+      facilitator UserOperation.{withdrawal_amount;withdrawal_fee} state =
   (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
   let ticket = Revision.zero in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
   let bond = TokenAmount.zero in (* TODO: where does this come from? *)
-  let operation =
-    Facilitator_contract.make_withdraw_call
-      facilitator_address ticket bond confirmed_state in
+  let operation = Facilitator_contract.make_withdraw_call
+                    facilitator ticket bond confirmed_state in
   let tx_header =
     Main_chain.TxHeader.
-      { sender= user_address
+      { sender= state.UserState.main_chain_user_state.keypair.address
       ; nonce= Main_chain.Nonce.zero (* TODO: get_nonce facilitator_address *)
       ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
       ; gas_limit= TokenAmount.of_int 1000000
@@ -320,26 +338,172 @@ let make_main_chain_withdrawal_transaction
   Main_chain.Transaction.{tx_header;operation}
 
 let push_side_chain_withdrawal_to_main_chain
-      (facilitator_address : Address.t)
+      (facilitator : Address.t)
       (transaction : Transaction.t)
       (user_state : UserState.t) =
-  let signed_request =
-    match transaction.tx_request with
-    | `UserTransaction sr -> sr
-    | _ -> bork "Expected user transaction for withdrawal"
-  in
-  let request = signed_request.payload in
-  let user_keys = user_state.main_chain_user_state.keypair in
-  let user_address = user_keys.address in
-  if not (is_signed_value_valid UserTransactionRequest.digest user_address signed_request) then
-    bork "Invalid user signature on signed request";
+  let request = (TransactionRequest.signed_request transaction.tx_request).payload in
+  (* We assume it's a transaction of the current user, that the facilitator committed to *)
   match request.operation with
   | Withdrawal details ->
     let open Lwt in
-    let signed_transaction = make_main_chain_withdrawal_transaction details user_address facilitator_address in
-    Ethereum_action.wait_for_confirmation signed_transaction user_state.main_chain_user_state
-    >>= fun (main_chain_confirmation, main_chain_user_state) ->
-    return (main_chain_confirmation, { user_state with main_chain_user_state })
+    let transaction = make_main_chain_withdrawal_transaction facilitator details user_state in
+    Lwt_exn.(run_lwt Ethereum_action.(send_transaction >>> wait_for_confirmation) transaction)
+    >>= fun main_chain_confirmation ->
+    return (Ok main_chain_confirmation, user_state)
   | Payment _
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"
+
+module ErrorNotification = struct
+  [@warning "-39"]
+  type t =
+    { status: TransactionStatus.t
+    ; error: Exception.t }
+  [@@deriving yojson]
+end
+
+(** Events that affect user state *)
+(* TODO: Rewrite UserEvent + corresponding return type with GADT ? *)
+module UserEvent = struct
+  [@warning "-39"]
+  type t =
+    | GetState of {from: Revision.t option}
+    | Payment of {facilitator: Address.t; recipient: Address.t; amount: TokenAmount.t; memo: string}
+    | Deposit of {facilitator: Address.t; amount: TokenAmount.t}
+    | Withdrawal of {facilitator: Address.t; amount: TokenAmount.t}
+    | Fail of ErrorNotification.t
+    | Update of TransactionStatus.t
+  [@@deriving yojson]
+end
+
+let add_notification notification_type to_yojson x state =
+  let counter = state.UserState.notification_counter in
+  UserAction.return counter
+    (state
+     |> UserState.lens_notification_counter.set Revision.(add one counter)
+     |> Lens.modify UserState.lens_notifications
+          (List.cons (counter, `List [`String notification_type; to_yojson x])))
+
+let add_error_notification = add_notification "error_notification" ErrorNotification.to_yojson
+
+let _notify_error status error = add_error_notification {status;error}
+
+
+(** The transaction_loop is the actor that handles the TransactionStatus.t,
+    responds to queries about this state, spawns threads for each state transition,
+    saves this state to DB when it changes and updates the user_loop in-memory.
+
+    TODO: when restarting, somehow check if the next step wasn't made already,
+    so we don't make it again? At least, for the crucial steps where we'd lose money if we fail?
+    e.g. record the time, and on reload, scan for events in a window after that time.
+*)
+let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.t =
+  let open Lwt in
+  let open TransactionStatus in
+  fun mailbox request_key status ->
+    let update status =
+      (* First, persist the new state! *)
+      Db.put request_key (TransactionStatus.marshal_string status)
+      >>= fun () -> (* Then, post the new status to the mailbox *)
+      Lwt_mvar.put mailbox status in
+    match status with
+    | Failed _ -> return_unit
+    | Requested request ->
+      request
+      |> Side_chain_client.post_user_transaction_request_to_side_chain
+      >>= Lwt.arr
+            (function
+              | Ok tc -> SignedByFacilitator tc
+              | Error error -> Failed (request, Exception.to_yojson error))
+      >>= update
+    | _ ->
+      bottom ()
+(*
+   | DepositWanted { facilitator_address; deposit_amount; deposit_fee } ->
+   bottom ()
+   | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
+   | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
+   | SignedByFacilitator of TransactionCommitment.t
+   | PostedToRegistry of TransactionCommitment.t
+   | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+   | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+   | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+   | Failed of TransactionCommitment.t * Main_chain.Confirmation.t
+*)
+
+
+(** The user_loop is the server that handles the UserState.t, responds to queries about this state,
+    spawns threads for new transactions, and gets in-memory state updates from them. On the other hand,
+    said threads update the database directly with their own key. *)
+(*
+   let user_loop mailbox address =
+   let open UserEvent in
+   let open Lwt in
+   let keypair = keypair_of_address address in
+   let user_state = UserState.load address in
+   let spawn_transaction_watcher (status : TransactionStatus.t) =
+   match status with
+   | Requested request ->
+   | SignedByFacilitator tc ->
+   bottom ()
+   push_side_chain_withdrawal_to_main_chain
+   xxx in
+   let spawn_transaction_watchers pending_operations =
+   xxx in
+   let spawn_request_watcher request =
+   spawn_transaction_watcher (transaction_status_of_request request)
+   >>= const request in
+   let user_step = function
+   (* TODO: either move get_facilitator_fee_schedule out of the loop by adding an argument to Payment,
+   or make it asynchronous by extending the UserState with the notion of requests that await
+   knowledge of fee_schedule *)
+   | Payment {facilitator: Address.t; recipient: Address.t; amount: TokenAmount.t; memo: string} ->
+   payment (facilitator_address, recipient, amount, memo)
+   >>= spawn_request_watcher
+   >>= arr TransactionRequest.to_yojson
+   | 
+   >>= fun transaction ->
+   (* set timestamp, now that all processing on Trent is done *)
+   payment_timestamp ();
+   (* remaining code is preparing response *)
+   let tx_revision = transaction.tx_header.tx_revision in
+   let sender_name = get_user_name sender in
+   let recipient_name = get_user_name recipient in
+   let sender_account = get_user_account sender in
+   let recipient_account = get_user_account recipient in
+   let make_account_state address name (account : AccountState.t) =
+   { address
+   ; user_name = name
+   ; balance = account.balance
+   ; revision = account.account_revision
+   }
+   in
+   let sender_account = make_account_state sender sender_name sender_account in
+   let recipient_account = make_account_state recipient recipient_name recipient_account in
+   let side_chain_tx_revision = tx_revision in
+   let payment_result =
+   { sender_account
+   ; recipient_account
+   ; amount_transferred = amount
+   ; side_chain_tx_revision
+   }
+   in
+   return (payment_result_to_yojson payment_result)
+
+   | UserTransactionRequest req ->
+   add_pending_request req
+   >>= bork "Gotta return something to the user"
+   in
+   simple_server mailbox user_step user_state
+*)
+
+let user_table = Hashtbl.create 4
+
+(*
+   let start_user_loop address =
+   let mailbox = Lwt_mvar.create_empty () in
+   Lwt.async (fun () -> user_loop mailbox address);
+   Hashtbl.replace user_table address mailbox
+*)
+
+let post_user_event address = simple_client (Hashtbl.find user_table address) identity

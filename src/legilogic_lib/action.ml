@@ -89,13 +89,15 @@ end
 module type ExnMonadS = sig
   include ErrorMonadS with type error = exn
   val bork : ('a, unit, string, 'b t) format4 -> 'a
-  val catching : ('i -> 'o) -> ('i, 'o) arr
+  val catching : ('i, 'o) arr -> ('i, 'o) arr
+  val catching_arr : ('i -> 'o) -> ('i, 'o) arr
 end
 
 module ExnMonad = struct
   include ErrorMonad(struct type t = exn end)
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
-  let catching a i = try Ok (a i) with e -> Error e
+  let catching a i = try a i with e -> Error e
+  let catching_arr a i = try Ok (a i) with e -> Error e
 end
 
 module type StateMonadS = sig
@@ -122,13 +124,23 @@ module StateMonad (State: TypeS) = struct
   let map_state f x s = (x, f s)
 end
 
-module Lwt_monad = struct
-  include Monad(struct
-      type +'a t = 'a Lwt.t
-      let return = Lwt.return
-      let bind = Lwt.bind
-    end)
+module Lwt = struct
+  include Lwt
+  include (Monad(struct
+             type +'a t = 'a Lwt.t
+             let return = Lwt.return
+             let bind = Lwt.bind
+           end) : MonadS with type 'a t := 'a t)
   let map = Lwt.map
+end
+
+module type LwtExnS = sig
+  include ExnMonadS
+  val of_exn : ('a, 'b) ExnMonad.arr -> ('a, 'b) arr
+  val of_lwt : ('a -> 'b Lwt.t) -> ('a, 'b) arr
+  val catching_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val retry : retry_window:float -> max_window:float -> max_retries:int option
+    -> ('i, 'o) arr -> ('i, 'o) arr
 end
 
 module Lwt_exn = struct
@@ -143,7 +155,9 @@ module Lwt_exn = struct
     Lwt.bind (mf x) (ResultOrExn.get >> Lwt.return)
   let run mf x = run_lwt mf x |> Lwt_main.run
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
-  let catching f x = try f x |> return with e -> fail e
+  let catching f x = try f x with e -> fail e
+  let catching_arr f = arr f |> catching
+  let catching_lwt f x = try Lwt.bind (f x) return with e -> fail e
   let trying a x = Lwt.bind (a x) return
   let handling a = function
     | Ok x -> return x
@@ -158,6 +172,21 @@ module Lwt_exn = struct
   let eprintf fmt =
     let (>>=) = Lwt.bind in
     Printf.ksprintf (fun x -> Lwt_io.(eprintf "%s" x >>= fun () -> flush stderr >>= return)) fmt
+  let rec retry ~retry_window ~max_window ~max_retries action input =
+    let open Lwt in
+    action input
+    >>= function
+    | Ok result -> Lwt.return (Ok result)
+    | Error e ->
+      if (match max_retries with None -> true | Some n -> n > 1) then
+        let retry_window = min retry_window max_window in
+        Lwt_unix.sleep (Random.float retry_window)
+        >>= fun () ->
+        retry ~retry_window:(retry_window *. 2.0) ~max_window
+          ~max_retries:(Option.map ((+) 1) max_retries)
+          action input
+      else
+        Lwt.return (Error e)
 end
 
 module type StatefulErrableActionS = sig
@@ -198,7 +227,8 @@ module Action (State : TypeS) = struct
   let run r mf x = match (mf x !r) with (roe, s) -> r := s ; ResultOrExn.get roe
   let to_async a x s = a x s |> Lwt.return
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
-  let catching f x s = try return (f x) s with e -> fail e s
+  let catching f x s = try f x s with e -> fail e s
+  let catching_arr f = arr f |> catching
   let trying a x s = a x s |> fun (r, s) -> Ok r, s
   let handling a = function
     | Ok x -> return x
@@ -212,11 +242,15 @@ module type AsyncActionS = sig
      and type error = exn
      and type 'a t = state -> ('a or_exn * state) Lwt.t
      and type ('i, 'o) readonly = 'i -> state -> 'o
-  val run_lwt_exn : state ref -> ('a, 'b) arr -> 'a -> 'b or_exn Lwt.t
-  val run_lwt : state ref -> ('a, 'b) arr -> 'a -> 'b Lwt.t
-  val of_action : ('a -> state -> 'b or_exn * state) -> ('a, 'b) arr
-  val of_lwt_exn : ('a, 'b) Lwt_exn.arr -> ('a, 'b) arr
-  val of_lwt : ('a, 'b) Lwt_monad.arr -> ('a, 'b) arr
+  include LwtExnS
+    with type 'a t := 'a t
+     and type ('i, 'o) arr := ('i, 'o) arr
+     and type error := error
+  val run_lwt_exn : state ref -> ('i, 'o) arr -> 'i -> 'o or_exn Lwt.t
+  val run_lwt : state ref -> ('i, 'o) arr -> 'i -> 'o Lwt.t
+  val of_action : ('i -> state -> 'o or_exn * state) -> ('i, 'o) arr
+  val of_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr
+  val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
 end
 module AsyncAction (State : TypeS) = struct
   type state = State.t
@@ -245,12 +279,30 @@ module AsyncAction (State : TypeS) = struct
   let of_action a x s = a x s |> Lwt.return
   let of_lwt_exn a x s = Lwt.bind (a x) (fun r -> Lwt.return (r, s))
   let of_lwt a x s = Lwt.bind (a x) (fun r -> return r s)
+  let of_exn a x s = a x |> function Ok r -> return r s | Error e -> fail e s
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
-  let catching f x s = Lwt.return ((try Ok (f x) with e -> Error e), s)
+  let catching f x s = try f x s with e -> fail e s
+  let catching_arr f = arr f |> catching
+  let catching_lwt f = of_lwt f |> catching
   let trying a x s = Lwt.bind (a x s) (fun (r, s) -> Lwt.return (Ok r, s))
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let rec retry ~retry_window ~max_window ~max_retries action input s =
+    let open Lwt in
+    action input s
+    >>= function
+    | (Ok result, new_state) -> return (Ok result, new_state)
+    | (Error e, new_state) ->
+      if (match max_retries with None -> true | Some n -> n > 1) then
+        let retry_window = min retry_window max_window in
+        Lwt_unix.sleep (Random.float retry_window)
+        >>= fun () ->
+        retry ~retry_window:(retry_window *. 2.0) ~max_window
+          ~max_retries:(Option.map ((+) 1) max_retries)
+          action input new_state
+      else
+        Lwt.return (Error e, new_state)
 end
 
 (* Simple client *)
@@ -263,7 +315,7 @@ let simple_client mailbox make_message =
     >>= fun () -> promise
 
 let simple_server mailbox processor =
-  let open Lwt_monad in
+  let open Lwt in
   forever
     (fun state ->
        Lwt_mvar.take mailbox
@@ -284,7 +336,7 @@ let sequentialize processor state =
   client
 
 let stateless_server mailbox processor =
-  let open Lwt_monad in
+  let open Lwt in
   () |>
   forever
     (fun () ->
@@ -302,7 +354,7 @@ let stateless_sequentialize processor =
 
 (*
    let stateless_parallel_server mailbox processor =
-   let open Lwt_monad in
+   let open Lwt in
    () |>
    forever
    (fun () ->
@@ -326,13 +378,13 @@ let stateless_sequentialize processor =
 let read_string_from_lwt_io_channel ?(count=64) in_channel =
   let open Lwt_exn in
   let open Lwt_io in
-  of_lwt read_int16 in_channel
+  catching_lwt read_int16 in_channel
   >>= fun len ->
   let rec loop sofar accum =
     if sofar >= len then
       String.concat "" (List.rev accum) |> return
     else
-      of_lwt (read ~count) in_channel
+      catching_lwt (read ~count) in_channel
       >>= fun s -> loop (sofar + String.length s) (s::accum)
   in
   loop 0 []
@@ -340,10 +392,40 @@ let read_string_from_lwt_io_channel ?(count=64) in_channel =
 let write_string_to_lwt_io_channel out_channel s =
   let open Lwt_exn in
   let open Lwt_io in
-  let len = String.length s in
-  of_lwt (write_int16 out_channel) len
-  >>= fun () -> Lwt_stream.of_string s |> of_lwt (write_chars out_channel)
-  >>= fun () -> of_lwt flush out_channel (* flushing is critical *)
+  let len = String.length s in (* TODO: handle the case of length overflow *)
+  catching_lwt (write_int16 out_channel) len
+  >>= fun () -> Lwt_stream.of_string s |> catching_lwt (write_chars out_channel)
+  >>= fun () -> catching_lwt flush out_channel (* flushing is critical *)
+
+let with_connection sockaddr f =
+  let open Lwt_exn in
+  catching_lwt Lwt_io.open_connection sockaddr
+  >>= fun (in_channel, out_channel) ->
+  let open Lwt in
+  f (in_channel, out_channel)
+  >>= fun r ->
+  (try Lwt_io.close in_channel with _ -> return_unit) (* TODO: Log something on error? *)
+  >>= fun () ->
+  (try Lwt_io.close out_channel with _ -> return_unit)
+  >>= fun () ->
+  Lwt.return r
+
+module AsyncStream = struct
+  type 'a t = 'a stream Lwt.t
+  and 'a stream = | Nil | Cons of { hd: 'a; tl: 'a t }
+  let split (n : int) (s : 'a t) : ('a list * 'a t) Lwt.t =
+    let rec f acc s = function
+      | 0 -> Lwt.return (List.rev acc, s)
+      | n when n > 0 ->
+        Lwt.(s >>= function
+        | Nil -> bork "Took too many entries from this stream!"
+        | Cons { hd; tl } -> f (hd :: acc) tl (pred n))
+      | n -> bork "Negative value to [iter]: %i" n in
+    f [] s n
+  (* TODO: [Monad(something)]?? What should [bind] do? Should it be [map]? *)
+  let nil () = Lwt.return Nil
+  let cons hd tl = Lwt.return @@ Cons {hd ; tl}
+end
 
 module Test = struct
   module Error_string_monad = ErrorMonad(struct

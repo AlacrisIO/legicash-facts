@@ -1,7 +1,6 @@
 open Lib
 open Yojsoning
 open Marshaling
-open Integer
 open Persisting
 
 module type UIntS = sig
@@ -96,26 +95,16 @@ end
 
 module StringT = struct
   include String
+  include (TrivialPersistable (String1G) : PersistableS with type t := t)
+end
+
+module Data = struct
   module PrePersistable = struct
     type t = string
-    let marshaling =
-      { marshal = (fun buffer x ->
-          let len = Nat.of_int (String.length x) in
-          assert Nat.(compare len (shift_left one 32) < 0);
-          Buffer.add_string buffer (big_endian_bits_of_nat 32 len);
-          Buffer.add_string buffer x)
-      ; unmarshal = (fun start b ->
-          let (l, p) = unmarshal_map UInt32.to_int UInt32.unmarshal start b in
-          assert (l >= 0);
-          Bytes.sub_string b p l, p + l) }
-    let make_persistent = normal_persistent
-    let walk_dependencies = no_dependencies
-    include (Yojsonable(struct
-               type nonrec t = t
-               let yojsoning = string_yojsoning
-             end) : YojsonableS with type t := t)
+    let marshaling = String1G.marshaling
+    let yojsoning = yojsoning_map Hex.unparse_0x_data Hex.parse_0x_data string_yojsoning
   end
-  include (Persistable (PrePersistable) : PersistableS with type t := t)
+  include TrivialPersistable (PrePersistable)
 end
 
 module Unit = struct
@@ -132,5 +121,20 @@ module Unit = struct
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
   let pp formatter _ = Format.fprintf formatter "%s" "()"
+  let show x = Format.asprintf "%a" pp x
+end
+
+module Exception = struct
+  module P = struct
+    type t = exn
+    let to_yojson = function
+      | e -> `String (Printexc.to_string e)
+    let of_yojson = function
+      | `String x -> Ok (Internal_error x)
+      | _ -> Error "Not an error"
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include YojsonPersistable(P)
+  let pp formatter x = Format.fprintf formatter "%s" (Printexc.to_string x)
   let show x = Format.asprintf "%a" pp x
 end

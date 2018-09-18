@@ -351,6 +351,27 @@ end
 
 module String63 = StringL(Length63)
 
+module Length64K = struct
+  let max_length = 65535
+  let check64K l =
+    if l > 65535 then bork "Invalid length %d (max 65535)" l;
+    l
+  let marshal buffer l =
+    check64K l |> ignore;
+    Buffer.add_char buffer (Char.chr (255 land (l lsr 8)));
+    Buffer.add_char buffer (Char.chr (255 land l))
+  let unmarshal start bytes =
+    if start + 2 > Bytes.length bytes then
+      raise (Unmarshaling_error ("not enough length to read a 16-bit integer", start, bytes))
+    else
+      let hi = Char.code (Bytes.get bytes start) in
+      let lo = Char.code (Bytes.get bytes (start + 1)) in
+      (hi lsl 8) + lo, start + 2
+  let marshaling = {marshal;unmarshal}
+end
+
+module String64K = StringL(Length64K)
+
 (** Length which reliably fits in a native int, even on a 32-bit platform. *)
 module Length1G = struct
   let max_length = 1 lsl 30 - 1
@@ -407,3 +428,6 @@ module MarshalableOfYojsonable (Y : YojsonableS) = struct
              let marshaling = marshaling_of_yojsoning yojsoning
            end) : MarshalableS with type t := t)
 end
+
+let yojson_marshaling = marshaling_of_yojsoning yojson_yojsoning
+

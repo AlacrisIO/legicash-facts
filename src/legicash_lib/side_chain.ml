@@ -40,8 +40,7 @@ module UserOperation = struct
     { deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t
     ; main_chain_deposit: Main_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t
-    ; deposit_expedited: bool }
+    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t }
   [@@deriving lens, yojson]
 
   type payment_details =
@@ -65,30 +64,20 @@ module UserOperation = struct
   module PrePersistable = struct
     type nonrec t = t
     let case_table =
-      [| marshaling5
+      [| marshaling4
            (function
              | Deposit
-                 { deposit_amount
-                 ; deposit_fee
-                 ; main_chain_deposit
-                 ; main_chain_deposit_confirmation
-                 ; deposit_expedited } ->
-               (deposit_amount, deposit_fee, main_chain_deposit,
-                main_chain_deposit_confirmation, deposit_expedited)
+                 { deposit_amount; deposit_fee; main_chain_deposit; main_chain_deposit_confirmation } ->
+               (deposit_amount, deposit_fee, main_chain_deposit, main_chain_deposit_confirmation)
              | _ -> bottom ())
            (fun deposit_amount deposit_fee main_chain_deposit
-             main_chain_deposit_confirmation deposit_expedited ->
+             main_chain_deposit_confirmation ->
              Deposit
-               { deposit_amount
-               ; deposit_fee
-               ; main_chain_deposit
-               ; main_chain_deposit_confirmation
-               ; deposit_expedited })
+               { deposit_amount; deposit_fee; main_chain_deposit; main_chain_deposit_confirmation })
            TokenAmount.marshaling
            TokenAmount.marshaling
            Main_chain.Transaction.marshaling
            Main_chain.Confirmation.marshaling
-           bool_marshaling
        ; marshaling3
            (function
              | Payment {payment_invoice; payment_fee; payment_expedited} ->
@@ -180,8 +169,9 @@ module UserTransactionRequest = struct
     let walk_dependencies = no_dependencies
   end
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
-  let signed = signed_of_digest digest
 end
+
+module SignedUserTransactionRequest = Signed(UserTransactionRequest)
 
 module TxHeader = struct
   [@warning "-39"]
@@ -274,6 +264,10 @@ module TransactionRequest = struct
     let marshaling = {marshal;unmarshal}
   end
   include (TrivialPersistable(P) : PersistableS with type t := t)
+  let signed_request = function
+    | `UserTransaction x -> x
+    | _ -> bork "Not a user transaction"
+  let request x = (x |> signed_request).payload
 end
 
 module Query = struct
@@ -389,6 +383,7 @@ module State = struct
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
+      (* TODO: add a big prefix for the signing? *)
       marshaling_tagged Side_chain_tag.state
         (marshaling5
            (fun { facilitator_revision
@@ -421,6 +416,8 @@ module State = struct
     ; main_chain_transactions_posted= DigestSet.empty }
 end
 
+module SignedState = Signed(State)
+
 module FacilitatorFeeSchedule = struct
   [@warning "-39"]
   type t =
@@ -450,6 +447,7 @@ exception Facilitator_not_found of string
 module FacilitatorState = struct
   [@warning "-39"]
   type t = { keypair: Keypair.t
+           ; committed: State.t signed
            ; current: State.t
            ; fee_schedule: FacilitatorFeeSchedule.t }
   [@@deriving lens { prefix=true}, yojson]
@@ -457,26 +455,29 @@ module FacilitatorState = struct
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
-      marshaling3
-        (fun { keypair ; current ; fee_schedule } ->
-           keypair, current, fee_schedule)
-        (fun keypair current fee_schedule ->
-           { keypair ; current ; fee_schedule })
-        Keypair.marshaling State.marshaling FacilitatorFeeSchedule.marshaling
-    let walk_dependencies _methods context {current} =
-      walk_dependency State.dependency_walking context current
+      marshaling4
+        (fun { keypair; committed; current ; fee_schedule } ->
+           keypair.address, committed, current, fee_schedule)
+        (fun address committed current fee_schedule ->
+           { keypair= keypair_of_address address; committed; current ; fee_schedule })
+        Address.marshaling (signed_marshaling State.marshaling)
+        State.marshaling FacilitatorFeeSchedule.marshaling
+    let walk_dependencies _methods context {committed; current} =
+      walk_dependency SignedState.dependency_walking context committed
+      >>= fun () -> walk_dependency State.dependency_walking context current
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
+  (** TODO: somehow only save the current/committed state and the fee schedule *)
   let facilitator_state_key facilitator_address =
     "LCFS0001" ^ (Address.to_big_endian_bits facilitator_address)
   let save facilitator_state =
     save facilitator_state (* <-- use inherited binding *)
-    >>= (fun () ->
-      let address = facilitator_state.keypair.address in
-      let key = facilitator_state_key address in
-      Db.put key (Digest.to_big_endian_bits (digest facilitator_state)))
+    >>= fun () ->
+    let address = facilitator_state.keypair.address in
+    let key = facilitator_state_key address in
+    Db.put key (Digest.to_big_endian_bits (digest facilitator_state))
   let load facilitator_address =
     facilitator_address |> facilitator_state_key |> Db.get
     |> (function
@@ -486,6 +487,48 @@ module FacilitatorState = struct
                             (Address.to_0x_string facilitator_address))))
     |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
 end
+
+module TransactionCommitment = struct
+  [@warning "-39"]
+  type t =
+    { transaction: Transaction.t
+    ; tx_proof: TransactionMap.Proof.t
+    ; facilitator_revision: Revision.t
+    ; spending_limit: TokenAmount.t
+    ; accounts: Digest.t
+    ; main_chain_transactions_posted: Digest.t
+    ; signature: Signature.t }
+  [@@deriving lens { prefix=true }, yojson]
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling7
+        (fun { transaction
+             ; tx_proof
+             ; facilitator_revision
+             ; spending_limit
+             ; accounts
+             ; main_chain_transactions_posted
+             ; signature } ->
+          transaction, tx_proof, facilitator_revision, spending_limit,
+          accounts, main_chain_transactions_posted, signature)
+        (fun transaction tx_proof facilitator_revision spending_limit
+          accounts main_chain_transactions_posted signature ->
+          { transaction
+          ; tx_proof
+          ; facilitator_revision
+          ; spending_limit
+          ; accounts
+          ; main_chain_transactions_posted
+          ; signature })
+        Transaction.marshaling TransactionMap.Proof.marshaling Revision.marshaling
+        TokenAmount.marshaling Digest.marshaling Digest.marshaling Signature.marshaling
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (TrivialPersistable (PrePersistable) : PersistableS with type t := t)
+end
+
+module Confirmation = TransactionCommitment
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 
@@ -536,6 +579,7 @@ module Test = struct
   let trent_state =
     let open FacilitatorState in
     { keypair= trent_keys
+    ; committed= SignedState.make trent_keys confirmed_trent_state
     ; current= confirmed_trent_state
     ; fee_schedule= trent_fee_schedule }
 

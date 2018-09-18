@@ -21,6 +21,7 @@ MAINTAINER Paul Steckler <steck@legi.cash>
 # Install Ubuntu packages
 RUN apt-get update -y
 RUN apt-get install -y aspcud dh-autoreconf libgdbm-dev libgmp-dev libleveldb-dev libpcre3-dev libsnappy-dev make nginx nodejs npm opam pkg-config software-properties-common sudo unzip zlib1g-dev
+RUN apt-get install zsh screen rlwrap
 
 # Install Solidity compiler
 RUN add-apt-repository ppa:ethereum/ethereum

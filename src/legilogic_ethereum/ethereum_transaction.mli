@@ -19,6 +19,9 @@ val transaction_execution_matches_transaction : digest -> Transaction.t -> bool 
     Do not raise an error if the key was already imported. *)
 val ensure_private_key : ?timeout:float -> ?log:bool -> keypair * string -> Address.t Lwt_exn.t
 
+val unlock_account : ?duration:int -> address -> bool Lwt_exn.t
+(** unlocks account for given duration (in seconds) on net *)
+
 module Test : sig
   val json_result_to_int : yojson -> int
   (** convert "result" field, given as a string, to an int *)
@@ -28,9 +31,6 @@ module Test : sig
 
   val new_account : unit -> Address.t Lwt_exn.t
   (** creates new account with given JSON address on net *)
-
-  val unlock_account : ?duration:int -> address -> bool Lwt_exn.t
-  (** unlocks account for given duration (in seconds) on net *)
 
   val get_first_account : unit -> Address.t Lwt_exn.t
   (** get first account listed on net; for dev network, this is the prefunded account *)
