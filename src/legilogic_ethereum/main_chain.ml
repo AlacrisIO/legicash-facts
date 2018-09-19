@@ -4,7 +4,6 @@ open Legilogic_lib
 open Action
 open Yojsoning
 open Marshaling
-open Digesting
 open Signing
 open Persisting
 open Merkle_trie
@@ -62,26 +61,23 @@ module State = struct
 end
 
 module Confirmation = struct
-  type t = { transaction_hash: digest
+  type t = { transaction_hash: Digest.t
            ; transaction_index: Revision.t
            ; block_number: Revision.t
-           ; block_hash: digest }
+           ; block_hash: Digest.t }
+  [@@deriving yojson]
   module PrePersistable = struct
-    module M = struct
-      type nonrec t = t
-      let marshaling =
-        marshaling4
-          (fun {transaction_hash; transaction_index; block_number; block_hash} ->
-             (transaction_hash, transaction_index, block_number, block_hash))
-          (fun transaction_hash transaction_index block_number block_hash ->
-             {transaction_hash; transaction_index; block_number; block_hash})
-          Digest.marshaling Revision.marshaling Revision.marshaling Digest.marshaling
-    end
-    include YojsonableOfMarshalable(Marshalable(M))
-    let walk_dependencies = no_dependencies
-    let make_persistent = normal_persistent
+    type nonrec t = t
+    let marshaling =
+      marshaling4
+        (fun {transaction_hash; transaction_index; block_number; block_hash} ->
+           (transaction_hash, transaction_index, block_number, block_hash))
+        (fun transaction_hash transaction_index block_number block_hash ->
+           {transaction_hash; transaction_index; block_number; block_hash})
+        Digest.marshaling Revision.marshaling Revision.marshaling Digest.marshaling
+    let yojsoning = {to_yojson; of_yojson}
   end
-  include (Persistable (PrePersistable) : (PersistableS with type t := t))
+  include (TrivialPersistable (PrePersistable) : (PersistableS with type t := t))
 end
 
 (** TODO: have an actual confirmation that a contract could check.
@@ -145,7 +141,6 @@ module Transaction = struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : PersistableS with type t := t)
-  let signed = signed_of_digest digest
 end
 
 module UserState = struct

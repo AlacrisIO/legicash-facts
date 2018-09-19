@@ -54,7 +54,7 @@ open Main_chain
    FacilitatorState.t -> Confirmation.t signed -> conversation -> unit or_exn
 *)
 
-val install_contract : Address.t -> unit Lwt_exn.t
+val install_contract : Address.t -> string -> unit Lwt_exn.t
 (** Given an address for whoever will pay to install it,
     installs the facilitator contract on main chain, enabling corresponding actions on side chain *)
 

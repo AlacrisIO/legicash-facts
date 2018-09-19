@@ -126,16 +126,21 @@ val eth_block_number :
   -> unit -> Revision.t Lwt_exn.t
 (** Get the latest block number *)
 
-(** Make a call or transaction, which won’t be added to the blockchain and returns the used gas,
-    which can be used for estimating the used gas. *)
 val eth_estimate_gas :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t * BlockParameter.t -> TokenAmount.t Lwt_exn.t
+(** Make a call or transaction, which won’t be added to the blockchain and returns the used gas,
+    which can be used for estimating the used gas. *)
 
-(** Get the balance on given account at given block *)
+val eth_gas_price :
+  ?timeout:float -> ?log:bool
+  -> unit -> TokenAmount.t Lwt_exn.t
+(** Get the current gas price in wei *)
+
 val eth_get_balance :
   ?timeout:float -> ?log:bool
   -> Address.t * BlockParameter.t -> TokenAmount.t Lwt_exn.t
+(** Get the balance on given account at given block *)
 
 val eth_get_transaction_by_hash :
   ?timeout:float -> ?log:bool

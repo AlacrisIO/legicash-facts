@@ -37,12 +37,11 @@ module FacilitatorAsyncAction = AsyncAction(FacilitatorState)
 
 type account_lens = (FacilitatorState.t, AccountState.t) Lens.t
 
-
 type validated_transaction_request =
   [ `Confirm of TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u ]
 
 type inner_transaction_request =
-  [ `Confirm of TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u
+  [ validated_transaction_request
   | `Flush of int
   | `Committed of (State.t signed * unit Lwt.u) ]
 
@@ -121,8 +120,10 @@ let validate_user_transaction_request :
                      main_chain_deposit_confirmation main_chain_deposit)
               (fun () -> "The main chain deposit confirmation is invalid")
       | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
-        check (is_add_valid payment_invoice.amount payment_fee)
-          (fun () -> "Adding payment amount and fee causes an overflow!")
+        check (payment_invoice.recipient != requester)
+          (fun () -> "Recipient same as requester")
+        >>> check (is_add_valid payment_invoice.amount payment_fee)
+              (fun () -> "Adding payment amount and fee causes an overflow!")
         >>> check (compare balance (add payment_invoice.amount payment_fee) >= 0)
               (fun () ->
                  Printf.sprintf "Balance %s insufficient to cover payment amount %s plus fee %s"

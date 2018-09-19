@@ -1,7 +1,9 @@
 {
-  "Trent": {
-    "address": "0xf47408143d327e4bc6a87ef4a70a4e0af09b9a1c",
-    "public_key": "0426bd9885f2c9e23d18c3025da70e71a4f7ce237124352882eafbd1cbb1e9742c4fe3847ce1a56a0d19df7a7d385a2134be05208b5d1ccc5d015f5e9a3ba0d7df",
-    "private_key": "b6fb0b7e61363ee2f748161338f56953e8aa42642e9990eff17e7de9aa895786"
-  }
+    "nickname": "Trent",
+    "keypair": {
+        "address": "0xf47408143d327e4bc6a87ef4a70a4e0af09b9a1c",
+        "public_key": "0426bd9885f2c9e23d18c3025da70e71a4f7ce237124352882eafbd1cbb1e9742c4fe3847ce1a56a0d19df7a7d385a2134be05208b5d1ccc5d015f5e9a3ba0d7df",
+        "private_key": "b6fb0b7e61363ee2f748161338f56953e8aa42642e9990eff17e7de9aa895786"
+    },
+    "password": ""
 }
