@@ -14,8 +14,11 @@ open Side_chain_user
 
 let contract_address_key = "legicash.contract-address"
 
-let install_contract installer_address =
+let install_contract installer_address password =
   let open Main_chain in
+  Ethereum_transaction.ensure_private_key (keypair_of_address installer_address, password)
+  >>= fun address ->
+  assert (address = installer_address);
   Ethereum_transaction.unlock_account installer_address
   >>= fun _unlock_json ->
   (* TODO: handle gas properly for production *)
@@ -112,7 +115,7 @@ module Test = struct
          start_facilitator trent_address
          >>= fund_accounts
          >>= fun () ->
-         install_contract trent_address
+         install_contract trent_address ""
          >>= fun () ->
          Ethereum_transaction.unlock_account alice_keys.address
          >>= fun _ ->

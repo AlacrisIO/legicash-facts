@@ -5,16 +5,20 @@ open Action
 
 open Main_chain
 
+val block_depth_for_confirmation : Revision.t
+(** How many additional blocks should one wait for before to consider a transaction confirmed
+    after it was included in the blockchain? *)
+
 val issue_transaction : (Operation.t * TokenAmount.t * TokenAmount.t, Transaction.t) UserAsyncAction.arr
 
 val transfer_tokens : (Address.t * TokenAmount.t, Transaction.t) UserAsyncAction.arr
-(** transfer tokens from one address to another on the main chain; asynchronous *)
+(** Transfer tokens from one address to another on the main chain; asynchronous *)
 
 val send_transaction : (Transaction.t, Digest.t) Lwt_exn.arr
 (** Send a transaction, return its hash *)
 
 val wait_for_confirmation : (Digest.t, Confirmation.t) Lwt_exn.arr
-(** wait until a transaction (identified by its hash) has been confirmed by the main chain *)
+(** Wait until a transaction (identified by its hash) has been confirmed by the main chain *)
 
 val main_chain_block_notification_stream :
   ?delay:float             (* Wait this long between polls of geth *)

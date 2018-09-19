@@ -139,7 +139,6 @@ let make_transaction_result address tx_revision main_chain_confirmation =
     return (transaction_result_to_yojson deposit_result)
 
 let deposit_to_trent address amount =
-  let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address address) in
   let thread () =
     Ethereum_transaction.unlock_account address
@@ -162,7 +161,6 @@ let deposit_to_trent address amount =
   add_main_chain_thread (run_lwt thread ())
 
 let withdrawal_from_trent facilitator_address user_address amount =
-  let open Ethereum_transaction.Test in
   let user_state = ref (user_state_from_address user_address) in
   let thread () =
     Ethereum_transaction.unlock_account user_address

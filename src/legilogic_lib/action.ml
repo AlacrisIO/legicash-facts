@@ -58,6 +58,18 @@ module Monad (M : MonadBaseS) = struct
   let ap mf m = mf >>= fun f -> m >>= arr f
   let rec forever arr acc = (arr acc) >>= (forever arr)
 end
+
+module Identity = struct
+  module I = struct
+    type 'a t = 'a
+    let return = identity
+    let bind = (|>)
+  end
+  include Monad(I)
+  let get = identity
+  let make = identity
+end
+
 module type ErrorMonadS = sig
   type error
   include MonadS

@@ -198,6 +198,12 @@ let eth_estimate_gas =
     TokenAmount.of_yojson_exn
     (yojson_2args TransactionParameters.to_yojson BlockParameter.to_yojson)
 
+let eth_gas_price =
+  ethereum_json_rpc "eth_gasPrice"
+    TokenAmount.of_yojson_exn
+    yojson_noargs
+(** Get the current gas price in wei *)
+
 let eth_get_balance =
   ethereum_json_rpc "eth_getBalance"
     TokenAmount.of_yojson_exn

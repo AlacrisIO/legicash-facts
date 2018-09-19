@@ -1,25 +1,39 @@
 open Legilogic_lib
 open Lib
 open Yojsoning
+open Marshaling
 open Persisting
 open Types
+open Signing
 open Action
 open Lwt_exn
 
 open Main_chain
 open Ethereum_json_rpc
 
-module TransactionStatus = struct
+module FinalTransactionStatus = struct
   type t =
-    | Signed of Transaction.t * SignedTransaction.t
-    | Sent of Transaction.t * SignedTransaction.t * Digest.t
-    | Confirmed of Transaction.t * Digest.t * Confirmation.t
-    | Invalidated of Transaction.t * yojson
+    [ `Confirmed of Transaction.t * Digest.t * Confirmation.t
+    | `Invalidated of Transaction.t * yojson ]
   [@@deriving yojson]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
+end
+
+module TransactionStatus = struct
+  type t =
+    [ FinalTransactionStatus.t
+    | `Signed of Transaction.t * SignedTransaction.t
+    | `Sent of Transaction.t * SignedTransaction.t * Digest.t ]
+  [@@deriving yojson]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+  let transaction = function
+    | `Signed (tx, _) | `Sent (tx, _, _) | `Confirmed (tx, _, _) | `Invalidated (tx, _) -> tx
 end
 
 let confirmation_of_transaction_receipt =
@@ -91,48 +105,99 @@ let main_chain_block_notification_stream
     | Error e -> Lwt.return (Error e, next_block) in
   stream_of_poller ~delay poller start_block
 
-let _transaction_loop : 'a Lwt_mvar.t -> string -> Transaction.t -> TransactionStatus.t -> _ Lwt.t =
-  let open Lwt in
-  let open TransactionStatus in
-  fun mailbox request_key _transaction status ->
-    let update status =
-      (* First, persist the new state! *)
-      Db.put request_key (TransactionStatus.marshal_string status)
-      >>= fun () -> (* Then, post the new status to the mailbox *)
-      Lwt_mvar.put mailbox status in
-    (* TODO: First, update the main loop with our status? *)
-    let advance = function
-      | Confirmed _ | Invalidated _ -> () (* Nothing to be done *)
-      | Signed (t, {raw; tx}) ->
-        Lwt.async (fun () ->
-          (* TODO: handle failure gracefully *)
-          Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
-                              eth_send_raw_transaction) raw)
-          >>= fun transaction_hash ->
-          Sent (t, {raw;tx}, transaction_hash)
-          |> update)
-      | Sent (transaction, _, transaction_hash) ->
+module TransactionTracker = struct
+  type t =
+    { address : Address.t
+    ; revision : Revision.t
+    ; promise : FinalTransactionStatus.t Lwt.t
+    ; get : unit -> TransactionStatus.t }
+  let db_key address revision =
+    Printf.sprintf "ETHT%s%s" (Address.to_big_endian_bits address) (Revision.to_big_endian_bits revision)
+  let make address revision status =
+    let db_key = db_key address revision in
+    let open Lwt in
+    let open TransactionStatus in
+    let status_ref = ref status in
+    let get () = !status_ref in
+    let rec continue = function
+      | `Signed (t, SignedTransaction.{raw; tx}) ->
+        (* TODO: handle failure gracefully *)
+        Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
+                            eth_send_raw_transaction) raw)
+        >>= fun transaction_hash ->
+        `Sent (t, SignedTransaction.{raw;tx}, transaction_hash) |> update
+      | `Sent (transaction, _, transaction_hash) ->
         (* TODO: Also add the possibility of invalidating the transaction,
            by e.g. querying the blockchain for the sending address's current nonce,
            and marking the transaction invalidated if a more recent nonce was found.
-           TODO: retry sending after timeout if still not sent.
-        *)
-        Lwt.async (fun () ->
-          Lwt_exn.run_lwt wait_for_confirmation transaction_hash
-          >>= fun confirmation ->
-          Confirmed (transaction, transaction_hash, confirmation)
-          |> update) in
-    forever
-      (fun status ->
-         advance status;
-         Lwt_mvar.take mailbox)
-      status
+           TODO: retry sending after timeout if still not sent. *)
+        Lwt_exn.run_lwt wait_for_confirmation transaction_hash
+        >>= fun confirmation ->
+        `Confirmed (transaction, transaction_hash, confirmation) |> update
+      | `Confirmed x -> `Confirmed x |> return
+      | `Invalidated x -> `Invalidated x |> return
+    and update status =
+      Db.put db_key (marshal_string status)
+      >>= Db.commit
+      >>= fun () ->
+      status_ref := status;
+      continue status in
+    {address; revision; promise= continue status; get}
+  let load address revision =
+    let db_key = db_key address revision in
+    Db.get db_key |> Option.get |> TransactionStatus.unmarshal_string |> make address revision
+  module P = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling2
+        (fun {address; revision} -> address, revision) load
+        Address.marshaling Revision.marshaling
+    let yojsoning = yojsoning_of_marshaling marshaling
+  end
+  include (TrivialPersistable (P) : PersistableS with type t := t)
+end
 
+module OngoingTransactions = struct
+  include Trie.SimpleTrie (Revision) (TransactionTracker)
+  let keys = bindings >> List.map fst
+  let load address keys =
+    List.map (fun key -> key, TransactionTracker.load address key) keys |> of_bindings
+end
+
+module XXUserState = struct
+  type t =
+    { address: Address.t
+    ; transaction_counter: Revision.t
+    ; ongoing_transactions: OngoingTransactions.t }
+  [@@deriving lens { prefix=true }, yojson]
+  let marshaling =
+    marshaling3
+      (fun {address; transaction_counter; ongoing_transactions} ->
+         address, transaction_counter, OngoingTransactions.keys ongoing_transactions)
+      (fun address transaction_counter ongoing_transactions_keys ->
+         {address; transaction_counter;
+          ongoing_transactions= OngoingTransactions.load address ongoing_transactions_keys})
+      Address.marshaling Revision.marshaling (list_marshaling Revision.marshaling)
+  include (TrivialPersistable (struct
+             type nonrec t = t
+             let marshaling = marshaling
+             let yojsoning = {to_yojson;of_yojson}
+           end) : PersistableS with type t := t)
+end
+
+let user_loop _address =
+  bottom ()
 
 (** Stub for gas price. Here set at 50 wei. *)
 let stub_gas_price = ref (TokenAmount.of_int 50)
 
 let make_tx_header (value, gas_limit) (user_state: UserState.t) =
+  (* TODO: get gas price and nonce from geth
+     let open UserAsyncAction in
+     user_state
+     |> of_lwt_exn eth_gas_price TransactionParameters.t * BlockParameter.t
+     >>= fun gas_price ->
+  *)
   UserAction.return
     { TxHeader.sender= user_state.keypair.address
     ; TxHeader.nonce= user_state.nonce
@@ -153,11 +218,11 @@ let add_pending_transaction transaction (user_state: UserState.t) =
 *)
 
 let issue_transaction (operation,value,gas_limit) =
-  (value, gas_limit) |>
   let open UserAction in
-  to_async (make_tx_header
-            >>> (fun tx_header -> return Transaction.{tx_header; operation})
-            >>> add_pending_transaction)
+  (value, gas_limit)
+  |> to_async (make_tx_header
+               >>> (fun tx_header -> return Transaction.{tx_header; operation})
+               >>> add_pending_transaction)
 
 let transfer_gas_limit = TokenAmount.of_int 21000
 

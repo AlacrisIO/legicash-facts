@@ -7,6 +7,7 @@
 *)
 open Lib
 open Yojsoning
+open Action
 open Integer
 
 
@@ -903,4 +904,23 @@ module Trie
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : YojsonableS with type t := t)
+end
+
+module type SimpleTrieS = sig
+  type key
+  type value
+  module Synth : TrieSynthS with type t = unit and type key = key and type value = value
+  module Type : TrieTypeS with type key = key and type value = value
+  include TrieS
+    with type key := key
+     and type value := value
+     and type 'a wrap = 'a
+  module Wrap : WrapS with type value = trie and type t = t
+end
+
+module SimpleTrie (Key : UIntS) (Value : YojsonableS) = struct
+  module Synth = TrieSynthUnit (Key) (Value)
+  module Type = TrieType (Key) (Value) (Identity) (TrieSynthUnit (Key) (Value))
+  module Wrap = IdWrap (Type)
+  include Trie (Key) (Value) (Identity) (Synth) (Type) (Wrap)
 end

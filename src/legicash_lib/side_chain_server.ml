@@ -14,23 +14,30 @@ open Side_chain_facilitator
 open Side_chain
 
 type side_chain_server_config =
-  { port : int }
+  { port : int; }
 [@@deriving of_yojson]
 
 let _init_random =
   Random.self_init
 
-let facilitator_address =
+(** TODO: encrypt the damn file! *)
+type facilitator_keys_config =
+  { nickname : string
+  ; keypair : Keypair.t
+  ; password : string }
+[@@deriving of_yojson]
+
+let facilitator_address, password =
   "facilitator_keys.json"
   |> Config.get_config_filename
   |> Yojsoning.yojson_of_file
-  |> decode_keypairs
+  |> facilitator_keys_config_of_yojson
+  |> Lib.ResultOrString.get
   |> function
-  | [(name, keypair)] ->
-    Logging.log "Using facilitator keypair %S %s" name (Address.to_0x_string keypair.address);
-    register_keypair name keypair;
-    keypair.address
-  | _ -> Lib.bork "Wrong number of keys in the facilitator_keys.json file"
+  | { nickname; keypair; password } ->
+    Logging.log "Using facilitator keypair %S %s" nickname (Address.to_0x_string keypair.address);
+    register_keypair nickname keypair;
+    keypair.address, password
 
 let config =
   "side_chain_server_config.json"
@@ -112,7 +119,7 @@ let _ =
        >>= handling
              (fun _ ->
                 Logging.log "Not found, creating the contract...";
-                Side_chain_action.install_contract facilitator_address
+                Side_chain_action.install_contract facilitator_address password
                 >>= fun () -> Logging.log "done"; return ())
        >>= fun () ->
        load_facilitator_state facilitator_address
