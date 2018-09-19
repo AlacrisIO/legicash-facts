@@ -67,8 +67,8 @@ end
 module type MerkleTrieS = sig
   type key
   type value
-  (* Contains the logic for recursively computing merkle digest of tree *)
-  module Synth : TrieSynthS with type t= unit and type key = key and type value = value
+  module Synth : TrieSynthS with type t = unit and type key = key and type value = value
+  (* Contains the logic for recursively computing merkle digest of tree: *)
   module SynthMerkle : TrieSynthMerkleS with type key = key and type value = value
   module Type : TrieTypeS with type key = key and type value = value
   include TrieS

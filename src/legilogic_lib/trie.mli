@@ -39,23 +39,23 @@ end
 
 (* For a concrete usage of this, see [Merkle_trie.MerkleTrieType]. *)
 module type TrieTypeS = sig
-  (** Type of digests in the content-addressing system *)
   type key
+  (** Type of keys *)
 
-  (** Type of leaves *)
   type value
+  (** Type of leaves *)
 
+  type synth
   (** Type of synthesized attribute, which is recursively computed from the leaf
       values. E.g., the cardinality of the leaves. *)
-  type synth
 
+  type +'a wrap
   (** This the type constructor used to wrap an arbitrary type ['a] into a type
       that contains an ['a] while addressing other aspects --- in practice,
       in [Merkle_trie.MerkleTrieType], ['a wrap] is ['a Types.dv], which wraps
       a ['a] in a data structure that will lazily load the actual value from
       the db as needed. We abstract over this wrap type in order to decomplect
       the logical trie structure from the generic database handling. *)
-  type +'a wrap
 
   (** Not just the top node but each and every recursive node in the [trie] will
       be wrapped using the [wrap] constructor above into a [t]. *)
@@ -307,3 +307,17 @@ module Trie
            and type trie = TrieType.trie
            and type t = TrieType.trie WrapType.t
 
+module type SimpleTrieS = sig
+  type key
+  type value
+  module Synth : TrieSynthS with type t = unit and type key = key and type value = value
+  module Type : TrieTypeS with type key = key and type value = value
+  include TrieS
+    with type key := key
+     and type value := value
+     and type 'a wrap = 'a
+  module Wrap : WrapS with type value = trie and type t = t
+end
+
+module SimpleTrie (Key : UIntS) (Value : YojsonableS)
+  : SimpleTrieS with type key = Key.t and type value = Value.t

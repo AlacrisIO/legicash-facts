@@ -109,6 +109,8 @@ end
 (** See docstring for MonadS *)
 module Monad (M : MonadBaseS) : MonadS with type 'a t = 'a M.t
 
+module Identity : MonadS with type 'a t = 'a
+
 (** Signature for monadic representation of computational processes with
     reportable failure states, and short-circuit logic on failure. *)
 module type ErrorMonadS = sig
