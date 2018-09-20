@@ -1,5 +1,5 @@
+(* TODO: rename this module to ethereum_chain or some such ? *)
 open Legilogic_lib
-open Action
 open Yojsoning
 open Digesting
 open Signing
@@ -73,24 +73,4 @@ end
 
 val is_confirmation_valid : Confirmation.t -> Transaction.t -> bool
 
-(** State for the user client.
-    confirmed_state is a digest of the confirmed Main_chain.State that this is relative to.
-    confirmed_balance is the balance of the user account relative to that confirmed_state.
-*)
-module UserState : sig
-  type t =
-    { keypair: Keypair.t
-    ; confirmed_state: digest
-    ; confirmed_balance: TokenAmount.t
-    ; pending_transactions: Transaction.t list
-    ; nonce: Nonce.t }
-  [@@deriving lens { prefix=true }]
-  val init : keypair -> t
-  include PersistableS with type t := t
-end
-
-module UserAction : ActionS with type state = UserState.t
-module UserAsyncAction : AsyncActionS with type state = UserState.t
-
 val genesis_state : State.t
-

@@ -58,16 +58,16 @@ module Test = struct
 
   (* open account tests *)
 
-  let create_side_chain_user_state_for_testing user_keys =
-    let main_chain_user_state = Main_chain.UserState.init user_keys in
+  let create_side_chain_user_state_for_testing user_address =
+    let main_chain_user_state = Ethereum_action.UserState.load user_address in
     let trent_state = get_facilitator_state () in
-    let confirmed_state = (facilitator_account_lens user_keys.address).get trent_state in
+    let confirmed_state = (facilitator_account_lens user_address).get trent_state in
     let user_account_state = {UserAccountState.empty with confirmed_state} in
     let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
     UserState.{main_chain_user_state; facilitators;
                notification_counter = Revision.zero; notifications = []}
 
-  let make_alice_state () = create_side_chain_user_state_for_testing alice_keys
+  let make_alice_state () = create_side_chain_user_state_for_testing alice_address
 
   (* create accounts, fund them *)
   let create_account_on_testnet : (keypair, address) Lwt_exn.arr =

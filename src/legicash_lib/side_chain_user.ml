@@ -92,7 +92,7 @@ exception User_not_found of string
 module UserState = struct
   [@warning "-39"]
   type t =
-    { main_chain_user_state: Main_chain.UserState.t
+    { main_chain_user_state: Ethereum_action.UserState.t
     ; facilitators: UserAccountStateMap.t
     ; notification_counter: Revision.t
     ; notifications: (Revision.t * yojson) list }
@@ -111,7 +111,7 @@ module UserState = struct
            ; facilitators
            ; notification_counter
            ; notifications })
-        Main_chain.UserState.marshaling UserAccountStateMap.marshaling Revision.marshaling
+        Ethereum_action.UserState.marshaling UserAccountStateMap.marshaling Revision.marshaling
         (list_marshaling (marshaling2 identity (fun x y -> x, y) Revision.marshaling yojson_marshaling))
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
@@ -124,7 +124,7 @@ module UserState = struct
     let open Lwt in
     save user_state (* <-- use inherited binding *)
     >>= (fun () ->
-      let address = user_state.main_chain_user_state.keypair.address in
+      let address = user_state.main_chain_user_state.address in
       let key = user_state_key address in
       Db.put key (Digest.to_big_endian_bits (digest user_state)))
   let load user_address =
@@ -173,7 +173,7 @@ let make_rx_header facilitator_address user_state =
   | Some facilitator ->
     return
       { RxHeader.facilitator= facilitator_address
-      ; RxHeader.requester= user_state.main_chain_user_state.keypair.address
+      ; RxHeader.requester= user_state.main_chain_user_state.address
       ; RxHeader.requester_revision=
           Revision.add facilitator.confirmed_state.account_revision
             (Revision.of_int (1 + List.length facilitator.pending_operations))
@@ -220,7 +220,9 @@ let remove_user_request signed_request user_state =
 
 let sign_request request user_state =
   UserAction.return
-    (SignedUserTransactionRequest.make user_state.UserState.main_chain_user_state.keypair request)
+    (SignedUserTransactionRequest.make
+       (keypair_of_address user_state.UserState.main_chain_user_state.address)
+       request)
     user_state
 
 let add_pending_request request state =
@@ -286,17 +288,19 @@ let deposit (facilitator_address, deposit_amount) =
   let open UserAsyncAction in
   get_facilitator_fee_schedule facilitator_address
   >>= fun {deposit_fee} ->
-  lift_main_chain_user_async_action_to_side_chain Main_chain_action.deposit
+  lift_main_chain_user_async_action_to_side_chain
+    Main_chain_action.deposit
     (facilitator_address, (TokenAmount.add deposit_amount deposit_fee))
-  >>= fun main_chain_deposit ->
-  of_lwt_exn Lwt_exn.(Ethereum_action.(send_transaction >>> wait_for_confirmation)) main_chain_deposit
-  >>= fun main_chain_deposit_confirmation ->
+  >>= fun (main_chain_deposit, main_chain_deposit_confirmation) ->
   of_action issue_user_transaction_request
     (Deposit
        { deposit_amount
        ; deposit_fee
        ; main_chain_deposit
        ; main_chain_deposit_confirmation })
+
+(* TODO: find the actual gas limit *)
+let withdrawal_gas_limit = TokenAmount.of_int 1000000
 
 (* in Lwt monad, because we'll push the request to the main chain *)
 let withdrawal (facilitator_address, withdrawal_amount) =
@@ -320,36 +324,28 @@ let payment (facilitator_address, recipient_address, payment_amount, memo) =
 
 (** We should be signing the RLP, not the marshaling! *)
 let make_main_chain_withdrawal_transaction
-      facilitator UserOperation.{withdrawal_amount;withdrawal_fee} state =
+      facilitator UserOperation.{withdrawal_amount;withdrawal_fee} =
   (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
   let ticket = Revision.zero in (* TODO: implement ticketing *)
   let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
   let bond = TokenAmount.zero in (* TODO: where does this come from? *)
   let operation = Facilitator_contract.make_withdraw_call
                     facilitator ticket bond confirmed_state in
-  let tx_header =
-    Main_chain.TxHeader.
-      { sender= state.UserState.main_chain_user_state.keypair.address
-      ; nonce= Main_chain.Nonce.zero (* TODO: get_nonce facilitator_address *)
-      ; gas_price= TokenAmount.of_int 2 (* TODO: what are the right gas policies? *)
-      ; gas_limit= TokenAmount.of_int 1000000
-      ; value= TokenAmount.sub withdrawal_amount withdrawal_fee
-      } in
-  Main_chain.Transaction.{tx_header;operation}
+  let value = TokenAmount.sub withdrawal_amount withdrawal_fee in
+  Ethereum_action.make_signed_transaction operation value withdrawal_gas_limit
 
 let push_side_chain_withdrawal_to_main_chain
       (facilitator : Address.t)
-      (transaction : Transaction.t)
-      (user_state : UserState.t) =
-  let request = (TransactionRequest.signed_request transaction.tx_request).payload in
+      (transaction : Transaction.t) =
+  let request = transaction.tx_request |> TransactionRequest.request in
   (* We assume it's a transaction of the current user, that the facilitator committed to *)
   match request.operation with
   | Withdrawal details ->
-    let open Lwt in
-    let transaction = make_main_chain_withdrawal_transaction facilitator details user_state in
-    Lwt_exn.(run_lwt Ethereum_action.(send_transaction >>> wait_for_confirmation) transaction)
-    >>= fun main_chain_confirmation ->
-    return (Ok main_chain_confirmation, user_state)
+    details
+    |> lift_main_chain_user_async_action_to_side_chain
+         Ethereum_action.(UserAsyncAction.
+                            (make_main_chain_withdrawal_transaction facilitator
+                             >>> Ethereum_action.confirm_transaction))
   | Payment _
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"

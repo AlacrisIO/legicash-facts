@@ -209,6 +209,11 @@ let eth_get_balance =
     TokenAmount.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
 
+let eth_get_code =
+  ethereum_json_rpc "eth_getCode"
+    Data.of_yojson_exn
+    (yojson_2args Address.to_yojson BlockParameter.to_yojson)
+
 let eth_get_transaction_by_hash =
   ethereum_json_rpc "eth_getTransactionByHash"
     TransactionInformation.of_yojson_exn

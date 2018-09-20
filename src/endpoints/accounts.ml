@@ -6,7 +6,6 @@ open Action
 open Lwt_exn
 
 open Legilogic_ethereum
-open Main_chain
 open Yojsoning
 
 open Legicash_lib
@@ -86,17 +85,9 @@ let store_keys_on_testnet (name,keys) =
 
 let (address_to_user_state_tbl : (Address.t,Side_chain_user.UserState.t) Hashtbl.t) = Hashtbl.create number_of_accounts
 
-let create_side_chain_user_state user_keys =
-  let main_chain_user_state =
-    Main_chain.UserState.
-      { keypair= user_keys
-      ; confirmed_state= Digest.zero
-      ; confirmed_balance= TokenAmount.zero
-      ; pending_transactions= []
-      ; nonce= Nonce.zero }
-  in
-  let (user_account_state : UserAccountState.t) = UserAccountState.empty
-  in
+let create_side_chain_user_state user_address =
+  let main_chain_user_state = Ethereum_action.UserState.load user_address in
+  let (user_account_state : UserAccountState.t) = UserAccountState.empty in
   let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
   UserState.{main_chain_user_state; facilitators; notification_counter = Revision.zero; notifications= []}
 
@@ -104,7 +95,7 @@ let create_user_states () =
   List.iter
     (fun (_name,(keys:Keypair.t)) ->
        Hashtbl.add address_to_user_state_tbl keys.address
-         (create_side_chain_user_state keys))
+         (create_side_chain_user_state keys.address))
     account_key_list
 
 let get_user_account address =

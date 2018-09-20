@@ -1,7 +1,6 @@
 (* See documentation in main_chain.mli *)
 
 open Legilogic_lib
-open Action
 open Yojsoning
 open Marshaling
 open Signing
@@ -142,29 +141,5 @@ module Transaction = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : PersistableS with type t := t)
 end
-
-module UserState = struct
-  [@warning "-39"]
-  type t =
-    { keypair: Keypair.t
-    ; confirmed_state: Digest.t
-    ; confirmed_balance: TokenAmount.t
-    ; pending_transactions: Transaction.t list
-    ; nonce: Nonce.t }
-  [@@deriving lens { prefix=true }, yojson]
-  include (YojsonPersistable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : PersistableS with type t := t)
-  let init keypair =
-    { keypair
-    ; confirmed_state= Digest.zero
-    ; confirmed_balance= TokenAmount.zero
-    ; pending_transactions= []
-    ; nonce= Nonce.zero }
-end
-
-module UserAction = Action(UserState)
-module UserAsyncAction = AsyncAction(UserState)
 
 module TransactionDigestSet = DigestSet
