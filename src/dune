@@ -20,7 +20,7 @@
           -warn-error -27-32-33))
   (ocamlc_flags (:standard -thread -I +threads))
   (ocamlopt_flags (:standard
-                   ; -p  ;; Enable profiling 
+                   ; -p  ;; Enable profiling
                    -thread -I +threads))
   ))
 
@@ -34,24 +34,10 @@
     ; (flags (:standard -verbose))
     ))
 
-;; contract installer
+;; custom toplevel
 (executable
  (name legicaml)
  (modules legicaml)
  (libraries  compiler-libs.toplevel legicash_top legilogic_lib legilogic_ethereum legicash_lib)
  (link_flags -linkall -cclib -lintegers -I +threads)
- (modes      byte))
-
-;; main executable
-(executable
- (name hello_legicash)
- (preprocess (pps ppx_deriving.std lens.ppx_deriving ppx_inline_test lwt_ppx))
- (modules hello_legicash)
- (libraries legicash_top))
-
-;; custom toplevel
-(executable
- (name install_contract)
- (modules install_contract)
- (libraries  legicash_top legilogic_lib legilogic_ethereum legicash_lib)
- (link_flags -linkall -cclib -lintegers -I +threads))
+ (modes byte))

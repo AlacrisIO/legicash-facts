@@ -7,7 +7,7 @@ let set_application_name s = application_name := s
 let get_home_environment_variable () =
   String.uppercase_ascii !application_name ^ "_HOME"
 
-let default_config_dir = "../config"
+let default_config_dir = "config"
 
 let get_config_dir () =
   let home_var = get_home_environment_variable () in

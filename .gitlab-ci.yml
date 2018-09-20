@@ -1,8 +1,10 @@
 build-legicash:
   image: registry.gitlab.com/legicash/legicash-facts:build-env
   script:
-    # run test net in "dev" mode
-    - make ethereum-net
-    # build and run Legicash
-    - make && make test
-    - ./_build/default/src/hello_legicash.exe
+    # Run ethereum test net in "dev" mode
+    - make run-ethereum-net
+    # Build Legicash
+    - make toplevel
+    # Run unit tests
+    - make test
+    - [ "$(echo 'Printf.printf "%s" (Hex.parse_0x_data "0x48656c6c6f2c20776f726c64210a"); exit 0;;' | ./bin/legicaml -no-version -noprompt -noinit)" = "Hello, world!" ]

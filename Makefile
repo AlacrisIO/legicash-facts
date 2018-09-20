@@ -15,15 +15,18 @@ SHOW:=@echo
 # use HIDE to run commands invisibly, unless VERBOSE defined
 HIDE:=$(if $(VERBOSE),,@)
 
-export LEGICASH_HOME=$(shell pwd)
+export LEGICASH_HOME:=$(shell pwd)
 
 BUILD_DIR:=_build/default
 
-all: api_scgi sidechain_server endpoints_test hello_legicash
+all: api_scgi sidechain_server endpoints_test
 
-.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run test-endpoints ethereum-net hello_legicash install uninstall test toplevel clean reset contract nginx stop_nginx install_contract
+.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run test-endpoints ethereum-net hello_legicash install uninstall test toplevel clean reset contract nginx stop_nginx
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli src/dune src/*/dune)
+
+
+### All the things to build:
 
 LEGILOGIC_LIB:=$(BUILD_DIR)/src/legilogic_lib/legilogic_lib.cmxs
 legilogic_lib: $(LEGILOGIC_LIB)
@@ -86,29 +89,7 @@ $(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(CONTRACT)
 	$(SHOW) "Building test endpoints executable"
 	$(HIDE) dune build src/endpoints/endpoints_test.exe
 
-run-side-chain-client: $(API_SCGI)
-	$(SHOW) "Running side chain client (SCGI server)"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(API_SCGI)
-
-run-side-chain-server: $(SIDE_CHAIN_SERVER)
-	$(SHOW) "Running side chain server"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_SERVER)
-
-test-endpoints : $(ENDPOINTS_TEST)
-	$(SHOW) "Testing endpoints"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(ENDPOINTS_TEST)
-
-# TODO: rename to run-ethereum-devnet or some such
-ethereum-net :
-	$(SHOW) "Starting Ethereum net"
-	$(HIDE) scripts/ethereum-testnet/run.sh
-
-HELLO_LEGICASH:=$(BUILD_DIR)/src/hello_legicash.exe
-hello_legicash: $(HELLO_LEGICASH)
-$(HELLO_LEGICASH): $(ML_SOURCES) $(CONTRACT)
-	$(SHOW) "Building main Legicash executable"
-	$(HIDE) dune build src/hello_legicash.exe
-
+# You don't usually need to install using opam, but if you want to:
 install: $(LEGICASH_LIB)
 ifeq ($(shell ocamlfind query -qe legicash 2> /dev/null),)
 	$(SHOW) "Installing Legicash library to OPAM"
@@ -128,30 +109,51 @@ else
 	$(SHOW) "Legicash library not installed in OPAM"
 endif
 
+### Running Unit tests:
 test: $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Running Legicash tests"
 	$(HIDE) dune runtest -j 1
 
+### Building a toplevel for interaction with our code:
 TOPLEVEL=$(BUILD_DIR)/src/legicaml.exe
 toplevel: $(TOPLEVEL)
 $(TOPLEVEL): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building custom OCaml toplevel"
 	$(HIDE) dune build src/legicaml.exe
 
-# name of custom toplevel
+### Playing our code from an OCaml toplevel:
 repl: ./bin/legicaml $(TOPLEVEL)
+	$(HIDE) echo "Starting Legicash OCaml toplevel..." ; echo
 	$(HIDE) rlwrap $<
 
-# Launch nginx:
+### TO RUN OUR INTEGRATION TESTS:
+# 1- Run Ethereum
+run-ethereum-net :
+	$(SHOW) "Starting private Ethereum net for testing"
+	$(HIDE) scripts/ethereum-testnet/run.sh
+
+# 2- Run our server
+run-side-chain-server: $(SIDE_CHAIN_SERVER)
+	$(SHOW) "Running side chain server"
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_SERVER)
+
+# 3- Run our client
+run-side-chain-client: $(API_SCGI)
+	$(SHOW) "Running side chain client (SCGI server)"
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(API_SCGI)
+
+# 4- Run nginx as a front-end to our client
 nginx:
 	./src/endpoints/nginx/start.sh
 
+# 5- Now you can run our integration tests
+test-endpoints : $(ENDPOINTS_TEST)
+	$(SHOW) "Testing endpoints"
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(ENDPOINTS_TEST)
+
+# You don't usually need to stop nginx, but in case you want to:
 stop_nginx:
 	./src/endpoints/nginx/stop.sh
-
-install_contract: src/install_contract.ml $(ML_SOURCES) $(CONTRACT)
-	$(SHOW) "Installing facilitator contract on main chain"
-	$(HIDE) dune build src/install_contract.exe
 
 clean:
 	$(SHOW) "Cleaning via dune"

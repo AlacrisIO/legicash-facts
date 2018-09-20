@@ -66,8 +66,6 @@ module Identity = struct
     let bind = (|>)
   end
   include Monad(I)
-  let get = identity
-  let make = identity
 end
 
 module type ErrorMonadS = sig

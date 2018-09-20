@@ -1,8 +1,8 @@
 #!/bin/bash -eu
 
 here=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-top=$(dirname "$here")
-build=$top/_build/default
+export LEGICASH_HOME=$(dirname "$here")
+build=$LEGICASH_HOME/_build/default
 legicaml=$build/src/legicaml.exe
 
 if [ ! -x $legicaml ] ; then
@@ -18,10 +18,6 @@ use_lib () {
     done
 }
 
-echo "Starting Legicash OCaml toplevel..."
-echo
+# Starting Legicash OCaml toplevel...
 use_lib legilogic_lib legilogic_ethereum legicash_lib
 $legicaml "${LIB[@]}" "$@"
-
-# TODO: make sure endpoints works by splitting library and executable initialization,
-# then include it in the library mix.
