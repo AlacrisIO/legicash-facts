@@ -54,12 +54,16 @@ open Main_chain
    FacilitatorState.t -> Confirmation.t signed -> conversation -> unit or_exn
 *)
 
-val install_contract : Address.t -> string -> unit Lwt_exn.t
-(** Given an address for whoever will pay to install it,
-    installs the facilitator contract on main chain, enabling corresponding actions on side chain *)
+val check_side_chain_contract_created : Address.t -> Address.t Lwt_exn.t
 
-val load_contract : unit -> unit Lwt_exn.t
-(** load facilitator contract address on main chain *)
+val create_side_chain_contract : Address.t -> string -> Address.t Lwt_exn.t
+(** Given an address for whoever will pay to install it and its Ethereum JSON-RPC password,
+    installs the facilitator contract on main chain, enabling the side chain *)
+
+val ensure_side_chain_contract_created : Address.t -> string -> unit Lwt_exn.t
+(** Given an address for whoever will pay to install it and its Ethereum JSON-RPC password,
+    ensures that a suitable contract is installed on the main chain, enabling corresponding actions on side chain *)
+
 
 
 (* useful functions for other test code *)

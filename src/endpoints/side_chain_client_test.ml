@@ -14,28 +14,25 @@ open Legicash_lib
 open Side_chain
 open Side_chain_facilitator
 
-open Endpoints
+open Side_chain_client_lib
 open Accounts
 
 (* types to use as JSON in POST bodies *)
 
 type deposit_withdrawal_json =
   { address : Address.t
-  ; amount : TokenAmount.t
-  }
-  [@@deriving to_yojson]
+  ; amount : TokenAmount.t }
+[@@deriving to_yojson]
 
 type address_json =
-  { address : Address.t
-  }
-  [@@deriving to_yojson]
+  { address : Address.t }
+[@@deriving to_yojson]
 
 type payment_json =
   { sender : Address.t
   ; recipient : Address.t
-  ; amount : TokenAmount.t
-  }
-  [@@deriving to_yojson]
+  ; amount : TokenAmount.t }
+[@@deriving to_yojson]
 
 let make_api_url query endpoint =
   let path = "api/" ^ endpoint in
@@ -78,16 +75,12 @@ let get_facilitator_transactions () =
   facilitator_state.current.transactions
 
 let make_threaded_test endpoint name address amount =
-  let json = deposit_withdrawal_json_to_yojson
-      { address
-      ; amount
-      }
-  in
-  send_post endpoint json
+  deposit_withdrawal_json_to_yojson { address; amount }
+  |> send_post endpoint
   >>= fun result_json ->
   if json_has_error result_json then
     let _ = Printf.eprintf "*** ERROR *** : Deposit test %s failed: %s\n%!"
-        name YoJson.(member "error" result_json |> to_string) in
+              name YoJson.(member "error" result_json |> to_string) in
     return_unit
   else if YoJson.mem "result" result_json then
     let result = YoJson.member "result" result_json in
@@ -104,8 +97,7 @@ let make_threaded_test endpoint name address amount =
         return_unit)
       else (
         Printf.printf "RESULT: %s\n%!" (string_of_yojson thread_result);
-        return_unit)
-    in
+        return_unit) in
     thread_loop ()
   else
     ( Printf.eprintf "Test %s failed, got neither error nor result\n%!" name;
@@ -115,9 +107,8 @@ let make_deposit_test = make_threaded_test "deposit"
 let make_withdrawal_test = make_threaded_test "withdrawal"
 
 let make_address_test endpoint ?(query=[]) name address =
-  let json = address_json_to_yojson { address }
-  in
-  send_post endpoint ~query json
+  address_json_to_yojson { address }
+  |> send_post endpoint ~query
   >>= fun result_json ->
   if json_has_error result_json then (
     Printf.eprintf "*** ERROR *** : Balance test for %s failed: %s\n%!"
@@ -145,13 +136,8 @@ let make_all_balances_test () =
     return_unit)
 
 let make_payment_test sender_name sender recipient_name recipient amount=
-  let json = payment_json_to_yojson
-      { sender
-      ; recipient
-      ; amount
-      }
-  in
-  send_post "payment" json
+  payment_json_to_yojson { sender; recipient; amount }
+  |> send_post "payment"
   >>= fun result_json ->
   if json_has_error result_json then (
     Printf.eprintf "*** ERROR *** : Payment test from %s to %s failed: %s\n%!"
@@ -243,12 +229,12 @@ let test_recent_transactions ?(limit=None) () =
     if ndx < num_users_to_test then
       let name,keys = get_user_keys ndx in
       (match limit with
-      | None ->
-        Printf.printf "RECENT TRANSACTIONS:  Name: %s; Address: %s\n%!" name (Address.to_0x_string keys.address);
-        make_recent_transactions_test name keys.address
-      | Some n ->
-        Printf.printf "RECENT TRANSACTIONS WITH LIMIT = %d:  Name: %s; Address: %s\n%!" n name (Address.to_0x_string keys.address);
-        make_recent_transactions_with_limit_test n name keys.address)
+       | None ->
+         Printf.printf "RECENT TRANSACTIONS:  Name: %s; Address: %s\n%!" name (Address.to_0x_string keys.address);
+         make_recent_transactions_test name keys.address
+       | Some n ->
+         Printf.printf "RECENT TRANSACTIONS WITH LIMIT = %d:  Name: %s; Address: %s\n%!" n name (Address.to_0x_string keys.address);
+         make_recent_transactions_with_limit_test n name keys.address)
       >>= fun () -> loop (ndx + 1)
     else
       return_unit

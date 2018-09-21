@@ -14,40 +14,58 @@ open Side_chain_user
 
 let contract_address_key = "legicash.contract-address"
 
-let install_contract installer_address password =
+exception Invalid_contract
+
+let check_side_chain_contract_created contract_address =
+  Ethereum_json_rpc.(eth_get_code (contract_address, BlockParameter.Latest))
+  >>= fun code ->
+  if code = Facilitator_contract_binary.contract_bytes then
+    return contract_address
+  else
+    (let addr = Address.to_0x_string contract_address in
+     Logging.log "Saved contract address %s invalid" addr;
+     Printf.eprintf
+       "Found contract address %s, but it doesn't contain the contract we expect.
+        Did you reset the state of the test ethereum network without resetting the
+        state of the test side-chain? If so, kill the side_chain_server and the
+        side_chain_client, and try again after resetting their state with `make clean`.\n"
+       addr;
+     raise Invalid_contract)
+
+let create_side_chain_contract installer_address password =
   let open Main_chain in
   Ethereum_transaction.ensure_private_key (keypair_of_address installer_address, password)
   >>= fun address ->
   assert (address = installer_address);
   Ethereum_transaction.unlock_account installer_address
   >>= fun _unlock_json ->
-  (* TODO: handle gas properly for production *)
-  let tx_header =
-    TxHeader.{ sender= installer_address
-             ; nonce= Nonce.zero
-             ; gas_price= TokenAmount.of_int 1
-             ; gas_limit= TokenAmount.of_int 1000000
-             ; value= TokenAmount.zero } in
-  let operation = Operation.CreateContract Facilitator_contract_binary.contract_bytes in
-  let transaction = { Transaction.tx_header; Transaction.operation } in
-  Ethereum_json_rpc.(eth_send_transaction (transaction_to_parameters transaction))
-  >>= fun transaction_hash ->
-  Ethereum_action.wait_for_confirmation transaction_hash
-  >>= fun _confirmation ->
-  Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
+  (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
+  Ethereum_action.(user_action address
+                     (make_signed_transaction
+                        (Operation.CreateContract Facilitator_contract_binary.contract_bytes)
+                        TokenAmount.zero))
+    (TokenAmount.of_int 1000000)
+  >>= Ethereum_action.(user_action address confirm_transaction)
+  >>= fun (_tx, confirmation) ->
+  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
   >>= arr Option.get
   >>= fun receipt ->
-  let contract_address = Option.get receipt.contractAddress in
-  Facilitator_contract.set_contract_address contract_address;
+  let contract_address = receipt.contractAddress |> Option.get in
   Address.to_0x_string contract_address
-  |> (of_lwt (Db.put contract_address_key) >>> of_lwt Db.commit)
+  |> of_lwt Lwt.(Db.put contract_address_key >>> Db.commit)
+  >>= const contract_address
 
-let load_contract () =
-  match Db.get contract_address_key with
-  | Some addr ->
-    Facilitator_contract.set_contract_address (Address.of_0x_string addr);
-    return ()
-  | None -> bork "Could not load contract address"
+let ensure_side_chain_contract_created installer_address password =
+  Logging.log "Ensuring the contract is installed...";
+  (match Db.get contract_address_key with
+   | Some addr ->
+     addr |> Address.of_0x_string |> check_side_chain_contract_created
+   | None ->
+     Logging.log "Not found, creating the contract...";
+     create_side_chain_contract installer_address password)
+  >>= fun contract_address ->
+  Facilitator_contract.set_contract_address contract_address;
+  return ()
 
 module Test = struct
   open Signing.Test
@@ -59,12 +77,11 @@ module Test = struct
   (* open account tests *)
 
   let create_side_chain_user_state_for_testing user_address =
-    let main_chain_user_state = Ethereum_action.UserState.load user_address in
     let trent_state = get_facilitator_state () in
     let confirmed_state = (facilitator_account_lens user_address).get trent_state in
     let user_account_state = {UserAccountState.empty with confirmed_state} in
     let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
-    UserState.{main_chain_user_state; facilitators;
+    UserState.{address = user_address; facilitators;
                notification_counter = Revision.zero; notifications = []}
 
   let make_alice_state () = create_side_chain_user_state_for_testing alice_address
@@ -115,8 +132,8 @@ module Test = struct
          start_facilitator trent_address
          >>= fund_accounts
          >>= fun () ->
-         install_contract trent_address ""
-         >>= fun () ->
+         create_side_chain_contract trent_address ""
+         >>= fun _ ->
          Ethereum_transaction.unlock_account alice_keys.address
          >>= fun _ ->
          let amount_to_deposit = TokenAmount.of_int 523 in

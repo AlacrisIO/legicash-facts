@@ -27,7 +27,7 @@ type facilitator_keys_config =
   ; password : string }
 [@@deriving of_yojson]
 
-let facilitator_address, password =
+let facilitator_address, facilitator_password =
   "facilitator_keys.json"
   |> Config.get_config_filename
   |> Yojsoning.yojson_of_file
@@ -114,14 +114,10 @@ let _ =
     (fun () ->
        of_lwt (fun () -> Db.open_connection ~db_name:Legibase.db_name) ()
        >>= fun () ->
-       Logging.log "Checking for facilitator contract...";
-       trying (Side_chain_action.load_contract >>> fun () -> Logging.log "found"; return ()) ()
-       >>= handling
-             (fun _ ->
-                Logging.log "Not found, creating the contract...";
-                Side_chain_action.install_contract facilitator_address password
-                >>= fun () -> Logging.log "done"; return ())
+       Side_chain_action.ensure_side_chain_contract_created facilitator_address facilitator_password
        >>= fun () ->
+       Logging.log "Using contract %s"
+         (Address.to_0x_string @@ Facilitator_contract.get_contract_address ());
        load_facilitator_state facilitator_address
        >>= fun _facilitator_state ->
        let%lwt _server = establish_server_with_client_address sockaddr process_request in

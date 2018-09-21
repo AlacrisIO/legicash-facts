@@ -85,11 +85,10 @@ let store_keys_on_testnet (name,keys) =
 
 let (address_to_user_state_tbl : (Address.t,Side_chain_user.UserState.t) Hashtbl.t) = Hashtbl.create number_of_accounts
 
-let create_side_chain_user_state user_address =
-  let main_chain_user_state = Ethereum_action.UserState.load user_address in
+let create_side_chain_user_state address =
   let (user_account_state : UserAccountState.t) = UserAccountState.empty in
   let facilitators = UserAccountStateMap.singleton trent_address user_account_state in
-  UserState.{main_chain_user_state; facilitators; notification_counter = Revision.zero; notifications= []}
+  UserState.{address; facilitators; notification_counter = Revision.zero; notifications= []}
 
 let create_user_states () =
   List.iter

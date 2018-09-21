@@ -199,34 +199,37 @@ module UserState = struct
     ; transaction_counter= Revision.zero
     ; ongoing_transactions= OngoingTransactions.empty }
   let load address =
-    Db.get (db_key address)
-    |> function
-    | None -> init address
-    | Some x -> x |> unmarshal_string
+    Db.get (db_key address) |> Option.get |> unmarshal_string
+  let save x = x |> marshal_string |> Db.put (db_key x.address)
+  let user_table = Hashtbl.create 4
+  let user_table_mutex = Lwt_mutex.create ()
+  let make_user_actor = SimpleActor.make ~commit:Lwt.(save >>> Db.commit)
+  let get address =
+    Lwt_mutex.with_lock user_table_mutex
+      (fun () ->
+         Lwt.return
+           (match Hashtbl.find_opt user_table address with
+            | Some x -> x
+            | None -> (try load address with Not_found -> init address) |> make_user_actor))
 end
 
 module UserAction = Action(UserState)
 module UserAsyncAction = AsyncAction(UserState)
 
-
-let _user_loop _address =
-  bottom ()
+let user_action address action input =
+  Lwt.(UserState.get address >>= fun actor -> SimpleActor.action actor action input)
 
 let make_tx_header (value, gas_limit) (user_state: UserState.t) =
   (* TODO: get gas price and nonce from geth *)
   let open UserAsyncAction in
-  let address = user_state.address in
+  let sender = user_state.address in
   user_state
   |> (of_lwt_exn eth_gas_price ()
       >>= fun gas_price ->
-      of_lwt_exn eth_get_transaction_count (address, BlockParameter.Pending)
+      of_lwt_exn eth_get_transaction_count (sender, BlockParameter.Pending)
       >>= fun nonce ->
       UserAsyncAction.return
-        { TxHeader.sender= address
-        ; TxHeader.nonce= nonce
-        ; TxHeader.gas_price= gas_price
-        ; TxHeader.gas_limit
-        ; TxHeader.value })
+        TxHeader.{sender; nonce; gas_price; gas_limit; value})
 
 let add_ongoing_transaction : (TransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr =
   fun transaction_status user_state ->

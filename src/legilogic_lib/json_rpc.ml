@@ -26,21 +26,21 @@ type request =
   ; method_name : string [@key "method"]
   ; params : yojson
   ; id : yojson } (* SHOULD be an integer *)
-[@@deriving yojson]
+[@@deriving yojson, show]
 
 (** Type of a successful JSON-RPC response. *)
 type result_response =
   { jsonrpc : string
   ; result : yojson
   ; id : yojson }
-[@@deriving yojson]
+[@@deriving yojson, show]
 
 (** Type of a failed JSON-RPC response. *)
 type error_response =
   { jsonrpc : string
   ; error : error
   ; id : yojson }
-[@@deriving yojson]
+[@@deriving yojson, show]
 
 
 let json_rpc_version = "2.0"

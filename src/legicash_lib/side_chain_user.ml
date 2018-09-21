@@ -92,7 +92,7 @@ exception User_not_found of string
 module UserState = struct
   [@warning "-39"]
   type t =
-    { main_chain_user_state: Ethereum_action.UserState.t
+    { address: Address.t
     ; facilitators: UserAccountStateMap.t
     ; notification_counter: Revision.t
     ; notifications: (Revision.t * yojson) list }
@@ -101,18 +101,12 @@ module UserState = struct
     type nonrec t = t
     let marshaling =
       marshaling4
-        (fun { main_chain_user_state
-             ; facilitators
-             ; notification_counter
-             ; notifications } ->
-          main_chain_user_state, facilitators, notification_counter, notifications)
-        (fun main_chain_user_state facilitators notification_counter notifications ->
-           { main_chain_user_state
-           ; facilitators
-           ; notification_counter
-           ; notifications })
-        Ethereum_action.UserState.marshaling UserAccountStateMap.marshaling Revision.marshaling
-        (list_marshaling (marshaling2 identity (fun x y -> x, y) Revision.marshaling yojson_marshaling))
+        (fun { address; facilitators; notification_counter; notifications } ->
+           address, facilitators, notification_counter, notifications)
+        (fun address facilitators notification_counter notifications ->
+           { address; facilitators; notification_counter; notifications })
+        Address.marshaling UserAccountStateMap.marshaling Revision.marshaling
+        (list_marshaling (marshaling2 identity pair Revision.marshaling yojson_marshaling))
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
@@ -121,12 +115,10 @@ module UserState = struct
   let user_state_key user_address =
     "LCUS0001" ^ (Address.to_big_endian_bits user_address)
   let save user_state =
-    let open Lwt in
-    save user_state (* <-- use inherited binding *)
-    >>= (fun () ->
-      let address = user_state.main_chain_user_state.address in
-      let key = user_state_key address in
-      Db.put key (Digest.to_big_endian_bits (digest user_state)))
+    Lwt.(save user_state (* <-- use inherited binding *)
+         >>= (fun () ->
+           Db.put (user_state_key user_state.address)
+             (Digest.to_big_endian_bits (digest user_state))))
   let load user_address =
     user_address |> user_state_key |> Db.get
     |> (function
@@ -166,23 +158,23 @@ let stub_confirmed_side_chain_state = ref Side_chain.State.empty
 
 let stub_confirmed_side_chain_state_digest = ref (State.digest Side_chain.State.empty)
 
-let make_rx_header facilitator_address user_state =
+let make_rx_header facilitator user_state =
   let open UserAction in
-  match UserAccountStateMap.find_opt facilitator_address user_state.UserState.facilitators with
+  match UserAccountStateMap.find_opt facilitator user_state.UserState.facilitators with
   | None -> fail Not_found user_state
-  | Some facilitator ->
+  | Some account_state ->
     return
-      { RxHeader.facilitator= facilitator_address
-      ; RxHeader.requester= user_state.main_chain_user_state.address
-      ; RxHeader.requester_revision=
-          Revision.add facilitator.confirmed_state.account_revision
-            (Revision.of_int (1 + List.length facilitator.pending_operations))
-      ; RxHeader.confirmed_main_chain_state_digest= !stub_confirmed_main_chain_state_digest
-      ; RxHeader.confirmed_main_chain_state_revision= !stub_confirmed_main_chain_state.revision
-      ; RxHeader.confirmed_side_chain_state_digest= !stub_confirmed_side_chain_state_digest
-      ; RxHeader.confirmed_side_chain_state_revision=
-          !stub_confirmed_side_chain_state.facilitator_revision
-      ; RxHeader.validity_within= default_validity_window }
+      RxHeader.{ facilitator
+               ; requester= user_state.address
+               ; requester_revision=
+                   Revision.add account_state.confirmed_state.account_revision
+                     (Revision.of_int (1 + List.length account_state.pending_operations))
+               ; confirmed_main_chain_state_digest= !stub_confirmed_main_chain_state_digest
+               ; confirmed_main_chain_state_revision= !stub_confirmed_main_chain_state.revision
+               ; confirmed_side_chain_state_digest= !stub_confirmed_side_chain_state_digest
+               ; confirmed_side_chain_state_revision=
+                   !stub_confirmed_side_chain_state.facilitator_revision
+               ; validity_within= default_validity_window }
       user_state
 
 let transaction_status_of_request rx = TransactionStatus.Requested rx
@@ -198,10 +190,10 @@ let transaction_status_of_request rx = TransactionStatus.Requested rx
 *)
 
 let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
-  fun facilitator_address ->
+  fun facilitator ->
     UserState.lens_facilitators |--
     defaulting_lens (konstant UserAccountState.empty)
-      (UserAccountStateMap.lens facilitator_address)
+      (UserAccountStateMap.lens facilitator)
 
 (** TODO: Handle cases of updates to previous transaction_statuss, rather than just new ones *)
 let add_user_transaction_status transaction_status user_state =
@@ -221,7 +213,7 @@ let remove_user_request signed_request user_state =
 let sign_request request user_state =
   UserAction.return
     (SignedUserTransactionRequest.make
-       (keypair_of_address user_state.UserState.main_chain_user_state.address)
+       (keypair_of_address user_state.UserState.address)
        request)
     user_state
 
@@ -261,14 +253,14 @@ let issue_user_transaction_request operation =
  *     if true (\* check that everything is correct *\) then
  *       {f with balance= TokenAmount.sub balance (TokenAmount.add withdrawal_amount withdrawal_fee)}
  *     else bork "I mistrusted your withdrawal operation"
- * 
+ *
  * (\** We assume most recent operation is to the left of the changes list,
  * *\)
  * let update_account_state_with_trusted_operations trusted_operations account_state =
  *   List.fold_right update_account_state_with_trusted_operation trusted_operations account_state
- * 
- * let [@warning "-32"] optimistic_facilitator_account_state facilitator_address user_state =
- *   match UserAccountStateMap.find_opt facilitator_address user_state.UserState.facilitators with
+ *
+ * let [@warning "-32"] optimistic_facilitator_account_state facilitator user_state =
+ *   match UserAccountStateMap.find_opt facilitator user_state.UserState.facilitators with
  *   | None -> AccountState.empty
  *   | Some {is_facilitator_valid; confirmed_state; pending_operations} ->
  *     match is_facilitator_valid with
@@ -278,19 +270,19 @@ let issue_user_transaction_request operation =
  *         (List.map (fun x -> x.TransactionStatus.request.payload.operation) pending_operations)
  *         confirmed_state *)
 
-let lift_main_chain_user_async_action_to_side_chain main_chain_user_async_action input user_state =
-  Lwt.bind
-    (main_chain_user_async_action input user_state.UserState.main_chain_user_state)
-    (fun (result, new_state) ->
-       Lwt.return (result, {user_state with main_chain_user_state= new_state}))
+let ethereum_action : ('i, 'o) Ethereum_action.UserAsyncAction.arr -> ('i, 'o) UserAsyncAction.arr =
+  fun action input user_state ->
+    UserAsyncAction.of_lwt_exn
+      (Ethereum_action.user_action user_state.UserState.address action) input user_state
 
-let deposit (facilitator_address, deposit_amount) =
+(* TODO: make this asynchronous rather than synchronous by
+   saving the signed transaction from make_deposit before we send it,
+   so we never send two different deposits due to a persistence race with a crash. *)
+let deposit (facilitator, deposit_amount) =
   let open UserAsyncAction in
-  get_facilitator_fee_schedule facilitator_address
+  get_facilitator_fee_schedule facilitator
   >>= fun {deposit_fee} ->
-  lift_main_chain_user_async_action_to_side_chain
-    Main_chain_action.deposit
-    (facilitator_address, (TokenAmount.add deposit_amount deposit_fee))
+  ethereum_action Main_chain_action.deposit (facilitator, (TokenAmount.add deposit_amount deposit_fee))
   >>= fun (main_chain_deposit, main_chain_deposit_confirmation) ->
   of_action issue_user_transaction_request
     (Deposit
@@ -303,9 +295,9 @@ let deposit (facilitator_address, deposit_amount) =
 let withdrawal_gas_limit = TokenAmount.of_int 1000000
 
 (* in Lwt monad, because we'll push the request to the main chain *)
-let withdrawal (facilitator_address, withdrawal_amount) =
+let withdrawal (facilitator, withdrawal_amount) =
   let open UserAsyncAction in
-  get_facilitator_fee_schedule facilitator_address
+  get_facilitator_fee_schedule facilitator
   >>= fun {withdrawal_fee} ->
   of_action issue_user_transaction_request
     (Withdrawal { withdrawal_amount ; withdrawal_fee })
@@ -313,9 +305,9 @@ let withdrawal (facilitator_address, withdrawal_amount) =
 let payment_fee_for FacilitatorFeeSchedule.{fee_per_billion} payment_amount =
   TokenAmount.(div (mul fee_per_billion payment_amount) one_billion_tokens)
 
-let payment (facilitator_address, recipient_address, payment_amount, memo) =
+let payment (facilitator, recipient_address, payment_amount, memo) =
   let open UserAsyncAction in
-  get_facilitator_fee_schedule facilitator_address
+  get_facilitator_fee_schedule facilitator
   >>= fun fee_schedule ->
   let payment_invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo} in
   let payment_fee = payment_fee_for fee_schedule payment_amount in
@@ -342,10 +334,10 @@ let push_side_chain_withdrawal_to_main_chain
   match request.operation with
   | Withdrawal details ->
     details
-    |> lift_main_chain_user_async_action_to_side_chain
-         Ethereum_action.(UserAsyncAction.
-                            (make_main_chain_withdrawal_transaction facilitator
-                             >>> Ethereum_action.confirm_transaction))
+    |> ethereum_action
+         Ethereum_action.UserAsyncAction.
+           (make_main_chain_withdrawal_transaction facilitator
+            >>> Ethereum_action.confirm_transaction)
   | Payment _
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"
@@ -415,7 +407,7 @@ let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.
     | _ ->
       bottom ()
 (*
-   | DepositWanted { facilitator_address; deposit_amount; deposit_fee } ->
+   | DepositWanted { facilitator; deposit_amount; deposit_fee } ->
    bottom ()
    | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
    | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
@@ -454,10 +446,10 @@ let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.
    or make it asynchronous by extending the UserState with the notion of requests that await
    knowledge of fee_schedule *)
    | Payment {facilitator: Address.t; recipient: Address.t; amount: TokenAmount.t; memo: string} ->
-   payment (facilitator_address, recipient, amount, memo)
+   payment (facilitator, recipient, amount, memo)
    >>= spawn_request_watcher
    >>= arr TransactionRequest.to_yojson
-   | 
+   |
    >>= fun transaction ->
    (* set timestamp, now that all processing on Trent is done *)
    payment_timestamp ();

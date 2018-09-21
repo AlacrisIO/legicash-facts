@@ -19,9 +19,9 @@ export LEGICASH_HOME:=$(shell pwd)
 
 BUILD_DIR:=_build/default
 
-all: api_scgi sidechain_server endpoints_test
+all: side_chain_client sidechain_server side_chain_client_test
 
-.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib endpoints api_scgi run test-endpoints ethereum-net hello_legicash install uninstall test toplevel clean reset contract nginx stop_nginx
+.PHONY: all force legilogic_lib legilogic_ethereum legicash_lib side_chain_client side_chain_client run test_side_chain_client ethereum_net hello_legicash install uninstall test toplevel clean reset contract nginx stop_nginx
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli src/dune src/*/dune)
 
@@ -40,7 +40,7 @@ $(LEGILOGIC_LIB_TEST): src/legilogic_lib/legilogic_lib_test.ml $(ML_SOURCES)
 	$(SHOW) "Building test legilogic_lib executable"
 	$(HIDE) dune build src/legilogic_lib/legilogic_lib_test.exe
 
-test-legilogic_lib : $(LEGILOGIC_LIB_TEST)
+test_legilogic_lib : $(LEGILOGIC_LIB_TEST)
 	$(SHOW) "Testing legilogic_lib"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(LEGILOGIC_LIB_TEST)
 
@@ -50,7 +50,7 @@ $(LEGILOGIC_ETHEREUM): $(ML_SOURCES)
 	$(SHOW) "Building Legilogic ethereum support"
 	$(HIDE) dune build src/legilogic_ethereum/legilogic_ethereum.a src/legilogic_ethereum/legilogic_ethereum.cmxa src/legilogic_ethereum/legilogic_ethereum.cmxs src/legilogic_ethereum/legilogic_ethereum.cma
 
-# for the endpoints demo, this is a simplified contract that just
+# for the side_chain_client demo, this is a simplified contract that just
 # logs deposits and withdrawals
 CONTRACT:=src/legicash_lib/facilitator_contract_binary.ml
 contract: $(CONTRACT)
@@ -65,29 +65,29 @@ $(LEGICASH_LIB): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Legicash library"
 	$(HIDE) dune build src/legicash_lib/legicash_lib.a src/legicash_lib/legicash_lib.cmxa src/legicash_lib/legicash_lib.cmxs src/legicash_lib/legicash_lib.cma
 
-ENDPOINTS:=$(BUILD_DIR)/src/endpoints/endpoints.cmxs
-endpoints: $(ENDPOINTS)
-$(ENDPOINTS): $(ML_SOURCES) $(CONTRACT)
-	$(SHOW) "Building endpoints library"
-	$(HIDE) dune build src/endpoints/endpoints.cmxs
+SIDE_CHAIN_CLIENT_LIB:=$(BUILD_DIR)/src/endpoints/side_chain_client_lib.cmxs
+side_chain_client_lib: $(SIDE_CHAIN_CLIENT_LIB)
+$(SIDE_CHAIN_CLIENT_LIB): $(ML_SOURCES) $(CONTRACT)
+	$(SHOW) "Building side_chain_client library"
+	$(HIDE) dune build src/endpoints/side_chain_client_lib.cmxs
 
 SIDE_CHAIN_SERVER:=$(BUILD_DIR)/src/legicash_lib/side_chain_server.exe
 sidechain_server: $(SIDE_CHAIN_SERVER)
 $(SIDE_CHAIN_SERVER): $(ML_SOURCES) $(CONTRACT)
-	$(SHOW) "Building side chain server"
+	$(SHOW) "Building Legicash side chain server executable"
 	$(HIDE) dune build src/legicash_lib/side_chain_server.exe
 
-API_SCGI:=$(BUILD_DIR)/src/endpoints/api_scgi.exe
-api_scgi: $(API_SCGI)
-$(API_SCGI): $(ML_SOURCES) $(CONTRACT)
-	$(SHOW) "Building Legicash side chain client / API SCGI executable"
-	$(HIDE) dune build src/endpoints/api_scgi.exe
+SIDE_CHAIN_CLIENT:=$(BUILD_DIR)/src/endpoints/side_chain_client.exe
+side_chain_client: $(SIDE_CHAIN_CLIENT)
+$(SIDE_CHAIN_CLIENT): $(ML_SOURCES) $(CONTRACT)
+	$(SHOW) "Building Legicash side chain client executable"
+	$(HIDE) dune build src/endpoints/side_chain_client.exe
 
-ENDPOINTS_TEST:=$(BUILD_DIR)/src/endpoints/endpoints_test.exe
-endpoints_test: $(ENDPOINTS_TEST)
-$(ENDPOINTS_TEST): src/endpoints/endpoints_test.ml $(ENDPOINTS) $(CONTRACT)
-	$(SHOW) "Building test endpoints executable"
-	$(HIDE) dune build src/endpoints/endpoints_test.exe
+SIDE_CHAIN_CLIENT_TEST:=$(BUILD_DIR)/src/endpoints/side_chain_client_test.exe
+side_chain_client_test: $(SIDE_CHAIN_CLIENT_TEST)
+$(SIDE_CHAIN_CLIENT_TEST): src/endpoints/side_chain_client_test.ml $(SIDE_CHAIN_CLIENT) $(CONTRACT)
+	$(SHOW) "Building Legicash side_chain_client_test executable"
+	$(HIDE) dune build src/endpoints/side_chain_client_test.exe
 
 # You don't usually need to install using opam, but if you want to:
 install: $(LEGICASH_LIB)
@@ -109,11 +109,6 @@ else
 	$(SHOW) "Legicash library not installed in OPAM"
 endif
 
-### Running Unit tests:
-test: $(ML_SOURCES) $(CONTRACT) force
-	$(SHOW) "Running Legicash tests"
-	$(HIDE) dune runtest -j 1
-
 ### Building a toplevel for interaction with our code:
 TOPLEVEL=$(BUILD_DIR)/src/legicaml.exe
 toplevel: $(TOPLEVEL)
@@ -126,35 +121,49 @@ repl: ./bin/legicaml $(TOPLEVEL)
 	$(HIDE) echo "Starting Legicash OCaml toplevel..." ; echo
 	$(HIDE) rlwrap $<
 
+### Running smoke test for the build:
+test_hello: repl $(ML_SOURCES) $(CONTRACT) force
+	[ "$$(echo 'Printf.printf "%s" (Hex.parse_0x_data "0x48656c6c6f2c20776f726c64210a"); exit 0;;' | ./bin/legicaml -no-version -noprompt -noinit)" = "Hello, world!" ]
+
+### Running unit tests
+test: $(ML_SOURCES) $(CONTRACT) force
+	$(SHOW) "Running Legicash tests"
+	$(HIDE) dune runtest -j 1
+
 ### TO RUN OUR INTEGRATION TESTS:
 # 1- Run Ethereum
-run-ethereum-net :
+run_ethereum_net :
 	$(SHOW) "Starting private Ethereum net for testing"
 	$(HIDE) scripts/ethereum-testnet/run.sh
 
 # 2- Run our server
-run-side-chain-server: $(SIDE_CHAIN_SERVER)
+run_side_chain_server: $(SIDE_CHAIN_SERVER)
 	$(SHOW) "Running side chain server"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_SERVER)
 
 # 3- Run our client
-run-side-chain-client: $(API_SCGI)
+run_side_chain_client: $(SIDE_CHAIN_CLIENT)
 	$(SHOW) "Running side chain client (SCGI server)"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(API_SCGI)
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_CLIENT)
 
 # 4- Run nginx as a front-end to our client
 nginx:
 	./src/endpoints/nginx/start.sh
 
-# 5- Now you can run our integration tests
-test-endpoints : $(ENDPOINTS_TEST)
-	$(SHOW) "Testing endpoints"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(ENDPOINTS_TEST)
+# 5- (Optional) To play with our system, you might want to fund a few accounts.
+fund_alice_and_bob:
+	./scripts/fund.sh
+
+# 6- Now you can run our integration tests
+test_side_chain_client : $(SIDE_CHAIN_CLIENT_TEST)
+	$(SHOW) "Testing side_chain_client"
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_CLIENT_TEST)
 
 # You don't usually need to stop nginx, but in case you want to:
 stop_nginx:
 	./src/endpoints/nginx/stop.sh
 
+# A good cleaning of our system, except that we preserve the state of the ethereum main chain.
 clean:
 	$(SHOW) "Cleaning via dune"
 	$(HIDE) dune clean
@@ -165,11 +174,14 @@ clean:
 	$(SHOW) "Removing run directory"
 	$(HIDE) rm -rf _run
 
+# Reset all servers
 reset:
 	$(SHOW) "Resetting Legicash state"
 	$(SHOW) " Stopping Ethereum network"
 	$(HIDE) killall -q geth 2> /dev/null || true
-	$(SHOW) " Stopping SCGI server"
-	$(HIDE) killall -q api_scgi.exe 2> /dev/null || true
-	$(SHOW) " Removing Legicash database"
-	$(HIDE) rm -rf _run/legicash
+	$(SHOW) " Stopping legicash server"
+	$(HIDE) killall -q side_chain_server.exe 2> /dev/null || true
+	$(SHOW) " Stopping legicash client"
+	$(HIDE) killall -q side_chain_client.exe 2> /dev/null || true
+	$(SHOW) " Removing Legicash databases"
+	$(HIDE) rm -rf _run/legicash _run/legicash_client

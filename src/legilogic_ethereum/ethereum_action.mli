@@ -53,11 +53,13 @@ module UserState : sig
     ; ongoing_transactions: OngoingTransactions.t }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
-  val load : Address.t -> t
+  val get : Address.t -> t SimpleActor.t Lwt.t
 end
 
 module UserAction : ActionS with type state = UserState.t
 module UserAsyncAction : AsyncActionS with type state = UserState.t
+
+val user_action: Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr
 
 val confirmation_of_transaction_receipt : TransactionReceipt.t -> Confirmation.t
 

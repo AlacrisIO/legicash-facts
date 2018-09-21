@@ -144,7 +144,7 @@ val eth_get_balance :
 
 val eth_get_code :
   ?timeout:float -> ?log:bool
-  -> Address.t * BlockParameter.t -> Data.t Lwt_exn.t
+  -> Address.t * BlockParameter.t -> Bytes.t Lwt_exn.t
 (** Get the code for the contract at given address at given block *)
 
 val eth_get_transaction_by_hash :

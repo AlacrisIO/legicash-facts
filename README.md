@@ -72,19 +72,27 @@ See the [Makefile](Makefile) for more fine-grained option.
 
 To experiment with our software, you need four components:
 
-  1. A private ethereum network in which to run the experiments. You can launch it with:
+  1. A private ethereum network in which to run the experiments.
+     You can launch it as follows,
+     with state kept in `_ethereum/` and logs in `_run/logs/testnet.log`:
 
-        make run-ethereum-net
+        make run_ethereum_net
 
-  2. A server for the side-chain. You can launch it with:
+  2. A server for the side-chain.
+     You can launch it as follows,
+     with state kept in `_run/legicash` and logs in `_run/logs/legicash.log`:
 
-        make run-side-chain-server
+        make run_side_chain_server
 
-  3. A client for the side-chain. You can launch it with:
+  3. A client for the side-chain.
+     You can launch it as follows,
+     with state kept in `_run/legicash-client` and logs in `_run/logs/legicash-client.log`:
 
-        make run-side-chain-client
+        make run_side_chain_client
 
-  4. The nginx webserver as a frontend to the above using the SCGI protocol:
+  4. The nginx webserver as a frontend to the above using the SCGI protocol.
+     You can launch it as follows,
+     with logs in `_run/logs/{access,error,access-legicash}.log`:
 
         make nginx
 
@@ -102,7 +110,7 @@ The tests run in our Continuous Integration framework are described in the Gitla
 
 Once you have all four steps above running, you can run our integration tests with:
 
-    make test-endpoints
+    make test_side_chain_client
 
 ## Developing it
 

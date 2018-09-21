@@ -107,7 +107,7 @@ module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type val
 *)
 module UserState : sig
   type t =
-    { main_chain_user_state: Ethereum_action.UserState.t
+    { address: Address.t
     ; facilitators: UserAccountStateMap.t
     ; notification_counter: Revision.t
     ; notifications: (Revision.t * yojson) list }

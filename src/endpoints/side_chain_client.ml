@@ -11,7 +11,7 @@ open Action
 open Legicash_lib
 open Side_chain
 
-open Endpoints
+open Side_chain_client_lib
 open Accounts
 open Actions
 

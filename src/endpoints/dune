@@ -1,21 +1,21 @@
-;; dune file for Legicash endpoints demo
+;; Legicash side chain client
 
 (env (dev (flags (:standard -w -39))))  ;; Unused rec flag
 
 (library
- (name endpoints)
+ (name side_chain_client_lib)
  (modules accounts actions)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson lwt_ppx))
  (libraries legicash_lib integers lwt lwt.unix ppx_deriving_yojson.runtime secp256k1 yojson))
 
 (executable
-  (name api_scgi)
-  (modules api_scgi)
+  (name side_chain_client)
+  (modules side_chain_client)
   (preprocess (pps ppx_deriving.std ppx_inline_test ppx_deriving_yojson))
-  (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime legicash_lib endpoints str scgi unix))
+  (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime legicash_lib side_chain_client_lib str scgi unix))
 
 (executable
- (name endpoints_test)
- (modules endpoints_test)
+ (name side_chain_client_test)
+ (modules side_chain_client_test)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson lwt_ppx))
- (libraries cohttp cohttp-lwt-unix endpoints ppx_deriving_yojson.runtime legilogic_lib lwt))
+ (libraries cohttp cohttp-lwt-unix side_chain_client_lib ppx_deriving_yojson.runtime legilogic_lib lwt))

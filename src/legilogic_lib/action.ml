@@ -437,6 +437,42 @@ module AsyncStream = struct
   let cons hd tl = Lwt.return @@ Cons {hd ; tl}
 end
 
+module SimpleActor = struct
+  open Lwt
+  type 'a t =
+    { get : unit -> 'a
+    ; update : ('a, 'a) Lwt.arr
+    ; mailbox : ('a, 'a) Lwt.arr Lwt_mvar.t }
+  let make ~commit initial_state =
+    let state_ref = ref initial_state in
+    let mailbox = Lwt_mvar.create_empty () in
+    let get () = !state_ref in
+    Lwt.async (fun () ->
+      Lwt.forever
+        (fun state ->
+           Lwt_mvar.take mailbox
+           >>= (|>) state)
+        initial_state);
+    let update state = commit state >>= (fun () -> state_ref := state; return state) in
+    { get ; update ; mailbox }
+  let peek actor = actor.get ()
+  let modify actor f = Lwt_mvar.put actor.mailbox (f >>> actor.update)
+  let action actor f i =
+    let (promise, copromise) = Lwt.task () in
+    Lwt_mvar.put actor.mailbox
+      (fun state ->
+         f i state
+         >>= fun (output, new_state) ->
+         actor.update new_state
+         >>= fun _ ->
+         Lwt.wakeup_later copromise output;
+         return new_state)
+    >>= fun () -> promise
+  let peek_action actor f i =
+    let state = actor.get () in
+    f i state >>= (fst >> return)
+end
+
 module Test = struct
   module Error_string_monad = ErrorMonad(struct
       type t = string

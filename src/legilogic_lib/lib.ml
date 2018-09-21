@@ -19,7 +19,7 @@ let konstant x _y = x
 
 let schoenfinkel x y z = x z (y z)
 
-let transpose x y z = x z y
+let flip x y z = x z y
 
 let zcompose x y z = x (y z)
 
@@ -31,6 +31,10 @@ let curry3 f x y z = f (x, y, z)
 let uncurry3 f (x, y, z) = f x y z
 let curry4 f x y z t = f (x, y, z, t)
 let uncurry4 f (x, y, z, t) = f x y z t
+
+let pair x y = x, y
+let triple x y z = x, y, z
+let quadruple x y z t = x, y, z, t
 
 let make_counter ?(start=0) () =
   let r = ref start in

@@ -168,7 +168,10 @@ module ExnMonad : ExnMonadS
 
     The inputs/outputs to the computations, and their corresponding states, are
     represented internally as pairs (value, state). We use that representation
-    here to describe method effects. *)
+    here to describe method effects.
+
+    TODO: add variants of the State monad and its derivatives that are parametric in the state type.
+*)
 module type StateMonadS = sig
   type state
   include MonadBaseS
@@ -396,3 +399,27 @@ end
 val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_channel, 'a) Lwt_exn.arr -> 'a Lwt_exn.t
 (** open a connection and run the function in it, closing input and output channels at the end.
     Return an Error Unix.Unix_error if the socket failed to be opened. *)
+
+(** Simple actor
+    You [make] an actor by providing an update action (that will, e.g. persist the state
+    as part of some suitable transaction), and an initial state of type 'a.
+    Then you can [modify] the actor by passing a Lwt arrow from 'a to 'a,
+    or run a stateful [action] from 'i to 'o operating on state 'a.
+    You can also [peek] at the last known state of the actor, or run a [peek_action]
+    that operates on the last known state and discards any modifications to it
+    (usually you would want to only run read-only actions).
+    Because peeking is asynchronous, you should only make decisions based on
+    monotonic aspects of the state, or on accumulated statistics about that state over time;
+    if you want synchronous access to the state, use a regular action.
+    TODO: define and use a Reader, Lwt, Exn monad instead of a State, Lwt, Exn monad for the peek_action.
+    TODO: learn monad transformers and the proper order of stacking of those monad transformers.
+    TODO: use an existing OCaml monad/monad transformer library.
+*)
+module SimpleActor : sig
+  type 'a t
+  val make : commit:('a, unit) Lwt.arr -> 'a -> 'a t
+  val modify : 'a t -> ('a, 'a) Lwt.arr -> unit Lwt.t
+  val action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwt.arr
+  val peek : 'a t -> 'a
+  val peek_action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwt.arr
+end

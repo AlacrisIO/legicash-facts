@@ -211,7 +211,7 @@ let eth_get_balance =
 
 let eth_get_code =
   ethereum_json_rpc "eth_getCode"
-    Data.of_yojson_exn
+    Yojsoning.Bytes.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
 
 let eth_get_transaction_by_hash =
