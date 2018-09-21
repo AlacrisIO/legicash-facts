@@ -118,7 +118,7 @@ $(BUILD_DIR)/$(TOPLEVEL): $(ML_SOURCES) $(CONTRACT)
 	$(HIDE) dune build $(TOPLEVEL)
 
 ### Playing our code from an OCaml toplevel:
-repl: ./bin/legicaml $(TOPLEVEL)
+repl: ./bin/legicaml $(BUILD_DIR)/$(TOPLEVEL)
 	$(HIDE) echo "Starting Alacris OCaml toplevel..." ; echo
 	$(HIDE) rlwrap $<
 
