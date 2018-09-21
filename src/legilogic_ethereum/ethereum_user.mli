@@ -6,7 +6,7 @@ open Signing
 open Types
 open Action
 
-open Main_chain
+open Ethereum_chain
 open Ethereum_json_rpc
 
 module FinalTransactionStatus : sig
@@ -43,7 +43,7 @@ module OngoingTransactions : sig
 end
 
 (** State for the user client.
-    confirmed_state is a digest of the confirmed Main_chain.State that this is relative to.
+    confirmed_state is a digest of the confirmed Ethereum_chain.State that this is relative to.
     confirmed_balance is the balance of the user account relative to that confirmed_state.
 *)
 module UserState : sig

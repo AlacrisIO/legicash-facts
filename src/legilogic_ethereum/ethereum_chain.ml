@@ -1,5 +1,3 @@
-(* See documentation in main_chain.mli *)
-
 open Legilogic_lib
 open Yojsoning
 open Marshaling

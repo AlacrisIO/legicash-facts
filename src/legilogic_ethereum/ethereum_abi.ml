@@ -7,7 +7,8 @@ open Integer
 open Digesting
 open Types
 open Signing
-open Main_chain
+
+open Ethereum_chain
 
 (* TODO: somehow work with our static types UInt256, UInt64, etc.? Maybe using GADTs somehow? *)
 

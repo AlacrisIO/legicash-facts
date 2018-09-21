@@ -24,14 +24,14 @@ end
 module TransactionStatus : sig
   type t =
     | DepositWanted of DepositWanted.t
-    | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
-    | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
+    | DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
+    | DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
     | Requested of UserTransactionRequest.t signed
     | SignedByFacilitator of TransactionCommitment.t
     | PostedToRegistry of TransactionCommitment.t
-    | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t (* TODO: define Confirmation.t *)
-    | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
-    | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* TODO: define Confirmation.t *)
+    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
     | Failed of UserTransactionRequest.t signed * yojson
 
   val signed_request : t -> UserTransactionRequest.t signed
@@ -140,13 +140,13 @@ module UserAsyncAction : AsyncActionS with type state = UserState.t
 
 val issue_user_transaction_request : (UserOperation.t, UserTransactionRequest.t signed) UserAction.arr
 
-(** Actually do the deposit on the Main_chain *)
+(** Actually do the deposit on the Ethereum_chain *)
 val deposit : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserAsyncAction.arr
 
 (*
-   (** Notify the facilitator that the deposit was confirmed on the Main_chain and should be acknowledged
+   (** Notify the facilitator that the deposit was confirmed on the Ethereum_chain and should be acknowledged
    on the Side_chain. *)
-   val request_deposit : (TokenAmount.t * Main_chain.Confirmation.t, UserRequest.t signed) UserAction.arr
+   val request_deposit : (TokenAmount.t * Ethereum_chain.Confirmation.t, UserRequest.t signed) UserAction.arr
 *)
 
 (* An withdrawal made on the side chain need a corresponding action on the main chain.
@@ -156,7 +156,7 @@ val deposit : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserA
    TODO: handle persistence and asynchronous action gracefully.
 *)
 val push_side_chain_withdrawal_to_main_chain :
-  Address.t -> (Transaction.t, Main_chain.Transaction.t * Main_chain.Confirmation.t) UserAsyncAction.arr
+  Address.t -> (Transaction.t, Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t) UserAsyncAction.arr
 
 (** Build a signed withdrawal request from specification *)
 val withdrawal : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserAsyncAction.arr
@@ -169,7 +169,7 @@ val payment : (Address.t * Address.t * TokenAmount.t * string, UserTransactionRe
 
 (*
    (** post an account_activity_status request for closing the account on the *main chain*. TBD *)
-   val initiate_individual_exit : (unit, Main_chain.Transaction.t) UserAsyncAction.arr
+   val initiate_individual_exit : (unit, Ethereum_chain.Transaction.t) UserAsyncAction.arr
 
    (** TBD Flow 3 Step 3: Alice, who can see the final state of her account,
    posts on the main chain a demand for the final funds.
@@ -177,9 +177,9 @@ val payment : (Address.t * Address.t * TokenAmount.t * string, UserTransactionRe
    This puts Trent and all verifiers on notice to check that Alice isn't lying,
    and post a lawsuit within a timeout window.
  *)
-   val request_account_liquidation : (Invoice.t, Main_chain.Transaction.t) UserAsyncAction.arr
+   val request_account_liquidation : (Invoice.t, Ethereum_chain.Transaction.t) UserAsyncAction.arr
 
-   val collect_account_liquidation_funds : (unit, Main_chain.Transaction.t) UserAsyncAction.arr
+   val collect_account_liquidation_funds : (unit, Ethereum_chain.Transaction.t) UserAsyncAction.arr
 *)
 
 val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr

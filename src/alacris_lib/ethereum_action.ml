@@ -1,6 +1,6 @@
 open Legilogic_ethereum
-open Ethereum_action
-open Main_chain
+open Ethereum_user
+open Ethereum_chain
 
 open Facilitator_contract
 

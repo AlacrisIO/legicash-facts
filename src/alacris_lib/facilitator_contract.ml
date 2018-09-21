@@ -4,7 +4,7 @@ open Legilogic_lib
 open Signing
 
 open Legilogic_ethereum
-open Main_chain
+open Ethereum_chain
 open Ethereum_abi
 
 let contract_address = ref Address.zero

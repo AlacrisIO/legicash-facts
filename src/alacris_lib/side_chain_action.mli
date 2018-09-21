@@ -3,7 +3,7 @@ open Action
 open Signing
 
 open Legilogic_ethereum
-open Main_chain
+open Ethereum_chain
 
 (* the "flows" mentioned here are those mentioned in the file "demo.md" *)
 

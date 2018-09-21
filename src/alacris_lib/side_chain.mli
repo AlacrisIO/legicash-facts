@@ -7,7 +7,7 @@ open Types
 open Merkle_trie
 
 open Legilogic_ethereum
-module TokenAmount = Main_chain.TokenAmount
+module TokenAmount = Ethereum_chain.TokenAmount
 
 (* TODO: use GADTs... but first teach ppx_deriving_yojson about them? *)
 
@@ -32,8 +32,8 @@ module UserOperation : sig
   type deposit_details =
     { deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t
-    ; main_chain_deposit: Main_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t }
+    ; main_chain_deposit: Ethereum_chain.Transaction.t
+    ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t }
   [@@deriving lens, yojson]
 
   type payment_details =
@@ -83,7 +83,7 @@ module RxHeader : sig
     { facilitator: Address.t
     ; requester: Address.t
     ; requester_revision: Revision.t
-    ; confirmed_main_chain_state_digest: digest (* Main_chain.State.t *)
+    ; confirmed_main_chain_state_digest: digest (* Ethereum_chain.State.t *)
     ; confirmed_main_chain_state_revision: Revision.t
     ; confirmed_side_chain_state_digest: digest (* State.t *)
     ; confirmed_side_chain_state_revision: Revision.t
@@ -223,7 +223,7 @@ module AccountMap : MerkleTrieS with type key = Address.t and type value = Accou
 (** public state of a facilitator side-chain, as posted to the court registry and main chain
 
     TODO: somehow store the following?
-    ; confirmed_main_chain_state: digest (* Main_chain.State.t *)
+    ; confirmed_main_chain_state: digest (* Ethereum_chain.State.t *)
     ; confirmed_side_chain_state: digest (* state previously posted on the above *)
     ; bond_posted: TokenAmount.t
     Or "just" keep changes in this data in the TransactionMap as objects beside requests?
@@ -267,7 +267,7 @@ end
 (** Private state of a facilitator (as opposed to what's public in the side-chain)
     TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
     Remember operations pending operations with the main chain?
-    Include a Main_chain.user_state? State for dealing with the court registry? *)
+    Include a Ethereum_chain.user_state? State for dealing with the court registry? *)
 module FacilitatorState : sig
   type t = { keypair: Keypair.t
            ; committed: State.t signed
@@ -300,7 +300,7 @@ end
 
 (** For now, the side chain contract records in its Ethereum on-chain state claims for state updates,
     so we only need a commitment to a state that was thus updated on-chain.
-    In the future, we may or may not want to include a Main_chain.Confirmation.t
+    In the future, we may or may not want to include a Ethereum_chain.Confirmation.t
     of the state update instead.
 *)
 module Confirmation = TransactionCommitment

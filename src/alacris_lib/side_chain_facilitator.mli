@@ -33,7 +33,7 @@ val post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
    (** For a facilitator, commit the state of the side-chain to the main-chain *)
    val commit_facilitator_state : (unit, unit) FacilitatorAsyncAction.arr
 
-   (* val embed_request: (user_request, Main_chain.transaction) user_action *)
+   (* val embed_request: (user_request, Ethereum_chain.transaction) user_action *)
 
    (** Flow 3 Step 2: Trent, who follows the main chain, checks for such exit requests.
    When one is found, Trent is on notice to post an update of his side-chain within

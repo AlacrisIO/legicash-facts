@@ -5,7 +5,7 @@ open Yojsoning
 open Digesting
 open Signing
 
-open Main_chain
+open Ethereum_chain
 
 (** Has a transaction given by a hash executed?
     Looks for a block number and block hash in the transaction receipt *)

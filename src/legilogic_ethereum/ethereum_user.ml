@@ -8,7 +8,7 @@ open Signing
 open Action
 open Lwt_exn
 
-open Main_chain
+open Ethereum_chain
 open Ethereum_json_rpc
 
 exception TransactionInvalidated of Transaction.t * yojson

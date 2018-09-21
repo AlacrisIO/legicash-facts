@@ -6,7 +6,7 @@ open Json_rpc
 open Signing
 open Types
 
-open Main_chain
+open Ethereum_chain
 
 type ethereum_rpc_config =
   { scheme : string

@@ -6,7 +6,7 @@ open Lwt_exn
 open Types
 
 open Legilogic_ethereum
-open Main_chain
+open Ethereum_chain
 
 open Side_chain
 open Side_chain_facilitator
@@ -33,19 +33,19 @@ let check_side_chain_contract_created contract_address =
      raise Invalid_contract)
 
 let create_side_chain_contract installer_address password =
-  let open Main_chain in
+  let open Ethereum_chain in
   Ethereum_transaction.ensure_private_key (keypair_of_address installer_address, password)
   >>= fun address ->
   assert (address = installer_address);
   Ethereum_transaction.unlock_account installer_address
   >>= fun _unlock_json ->
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
-  Ethereum_action.(user_action address
-                     (make_signed_transaction
-                        (Operation.CreateContract Facilitator_contract_binary.contract_bytes)
-                        TokenAmount.zero))
+  Ethereum_user.(user_action address
+                   (make_signed_transaction
+                      (Operation.CreateContract Facilitator_contract_binary.contract_bytes)
+                      TokenAmount.zero))
     (TokenAmount.of_int 1000000)
-  >>= Ethereum_action.(user_action address confirm_transaction)
+  >>= Ethereum_user.(user_action address confirm_transaction)
   >>= fun (_tx, confirmation) ->
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
   >>= arr Option.get
@@ -100,15 +100,15 @@ module Test = struct
     >>= fun balance ->
     if TokenAmount.compare min_balance balance > 0 then
       let tx_header =
-        Main_chain.TxHeader.
+        Ethereum_chain.TxHeader.
           { sender= funding_account
           ; nonce= Nonce.zero (* TODO: if we need this, it should be properly synched, if not, it shouldn't be needed in the interface *)
           ; gas_price= TokenAmount.of_int 1
           ; gas_limit= TokenAmount.of_int 1000000
           ; value= min_balance} in
-      let operation = Main_chain.Operation.TransferTokens address in
-      let transaction = Main_chain.{Transaction.tx_header; Transaction.operation} in
-      Ethereum_action.send_transaction transaction
+      let operation = Ethereum_chain.Operation.TransferTokens address in
+      let transaction = Ethereum_chain.{Transaction.tx_header; Transaction.operation} in
+      Ethereum_user.send_transaction transaction
       >>= const ()
     else
       return ()

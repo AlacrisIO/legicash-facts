@@ -26,14 +26,14 @@ end
 module TransactionStatus = struct
   type t =
     | DepositWanted of DepositWanted.t
-    | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
-    | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
+    | DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
+    | DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
     | Requested of UserTransactionRequest.t signed
     | SignedByFacilitator of TransactionCommitment.t
     | PostedToRegistry of TransactionCommitment.t
-    | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
-    | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
+    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
     | Failed of UserTransactionRequest.t signed * yojson
   [@@deriving yojson]
 
@@ -150,9 +150,9 @@ let get_facilitator_fee_schedule _facilitator_address =
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
 
-let stub_confirmed_main_chain_state = ref Main_chain.genesis_state
+let stub_confirmed_main_chain_state = ref Ethereum_chain.genesis_state
 
-let stub_confirmed_main_chain_state_digest = ref (Main_chain.State.digest Main_chain.genesis_state)
+let stub_confirmed_main_chain_state_digest = ref (Ethereum_chain.State.digest Ethereum_chain.genesis_state)
 
 let stub_confirmed_side_chain_state = ref Side_chain.State.empty
 
@@ -270,10 +270,10 @@ let issue_user_transaction_request operation =
  *         (List.map (fun x -> x.TransactionStatus.request.payload.operation) pending_operations)
  *         confirmed_state *)
 
-let ethereum_action : ('i, 'o) Ethereum_action.UserAsyncAction.arr -> ('i, 'o) UserAsyncAction.arr =
+let ethereum_action : ('i, 'o) Ethereum_user.UserAsyncAction.arr -> ('i, 'o) UserAsyncAction.arr =
   fun action input user_state ->
     UserAsyncAction.of_lwt_exn
-      (Ethereum_action.user_action user_state.UserState.address action) input user_state
+      (Ethereum_user.user_action user_state.UserState.address action) input user_state
 
 (* TODO: make this asynchronous rather than synchronous by
    saving the signed transaction from make_deposit before we send it,
@@ -282,7 +282,7 @@ let deposit (facilitator, deposit_amount) =
   let open UserAsyncAction in
   get_facilitator_fee_schedule facilitator
   >>= fun {deposit_fee} ->
-  ethereum_action Main_chain_action.deposit (facilitator, (TokenAmount.add deposit_amount deposit_fee))
+  ethereum_action Ethereum_action.deposit (facilitator, (TokenAmount.add deposit_amount deposit_fee))
   >>= fun (main_chain_deposit, main_chain_deposit_confirmation) ->
   of_action issue_user_transaction_request
     (Deposit
@@ -324,7 +324,7 @@ let make_main_chain_withdrawal_transaction
   let operation = Facilitator_contract.make_withdraw_call
                     facilitator ticket bond confirmed_state in
   let value = TokenAmount.sub withdrawal_amount withdrawal_fee in
-  Ethereum_action.make_signed_transaction operation value withdrawal_gas_limit
+  Ethereum_user.make_signed_transaction operation value withdrawal_gas_limit
 
 let push_side_chain_withdrawal_to_main_chain
       (facilitator : Address.t)
@@ -335,9 +335,9 @@ let push_side_chain_withdrawal_to_main_chain
   | Withdrawal details ->
     details
     |> ethereum_action
-         Ethereum_action.UserAsyncAction.
+         Ethereum_user.UserAsyncAction.
            (make_main_chain_withdrawal_transaction facilitator
-            >>> Ethereum_action.confirm_transaction)
+            >>> Ethereum_user.confirm_transaction)
   | Payment _
   | Deposit _ ->
     bork "Side chain transaction does not need subsequent interaction with main chain"
@@ -409,14 +409,14 @@ let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.
 (*
    | DepositWanted { facilitator; deposit_amount; deposit_fee } ->
    bottom ()
-   | DepositPosted of DepositWanted.t * Main_chain.Transaction.t
-   | DepositConfirmed of DepositWanted.t * Main_chain.Transaction.t * Main_chain.Confirmation.t
+   | DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
+   | DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
    | SignedByFacilitator of TransactionCommitment.t
    | PostedToRegistry of TransactionCommitment.t
-   | PostedToMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
-   | ConfirmedOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
-   | SettledOnMainChain of TransactionCommitment.t * Main_chain.Confirmation.t
-   | Failed of TransactionCommitment.t * Main_chain.Confirmation.t
+   | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+   | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+   | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+   | Failed of TransactionCommitment.t * Ethereum_chain.Confirmation.t
 *)
 
 

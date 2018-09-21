@@ -26,8 +26,7 @@ open Accounts
 type transaction_result =
   { side_chain_account_state : AccountState.t
   ; side_chain_tx_revision : Revision.t
-  ; main_chain_confirmation : Main_chain.Confirmation.t
-  }
+  ; main_chain_confirmation : Ethereum_chain.Confirmation.t }
 [@@deriving to_yojson]
 
 [@@@warning "-32"]
@@ -35,14 +34,12 @@ type payment_result =
   { sender_account : AccountState.t
   ; recipient_account : AccountState.t
   ; amount_transferred : TokenAmount.t
-  ; side_chain_tx_revision : Revision.t
-  }
+  ; side_chain_tx_revision : Revision.t }
 [@@deriving to_yojson]
 
 type tps_result =
   { transactions_per_second : int
-  ; time : string
-  }
+  ; time : string }
 [@@deriving to_yojson]
 
 let trent_address = Signing.Test.trent_address

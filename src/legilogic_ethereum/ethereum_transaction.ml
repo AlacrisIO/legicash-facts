@@ -1,3 +1,4 @@
+(** Somewhat higher-level wrappers around the basic functionality in ethereum_json_rpc *)
 open Legilogic_lib
 open Lib
 open Hex
@@ -9,7 +10,7 @@ open Action
 open Lwt_exn
 open Json_rpc
 
-open Main_chain
+open Ethereum_chain
 
 (* TODO: when to return false vs raise an exception? Add timeout & log *)
 let transaction_executed transaction_hash =
@@ -51,7 +52,7 @@ let transaction_execution_matches_transaction transaction_hash (transaction: Tra
    TODO: make that our marshaling strategy.
 *)
 let rlp_of_transaction transaction =
-  let open Main_chain in
+  let open Ethereum_chain in
   let open Ethereum_rlp in
   let tx_header = transaction.Transaction.tx_header in
   (* all items are strings, each character represents 2 digits in hex representation *)
@@ -233,7 +234,7 @@ module Test = struct
       ()
 
   let%test "call-contract-on-Ethereum-testnet" =
-    let open Main_chain in
+    let open Ethereum_chain in
     Lwt_exn.run
       (fun () ->
          get_first_account ()

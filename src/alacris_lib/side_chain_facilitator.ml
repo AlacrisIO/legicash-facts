@@ -116,7 +116,7 @@ let validate_user_transaction_request :
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
         (* TODO: CHECK FROM THE CONFIRMATION THAT THE CORRECT PERSON DID THE DEPOSIT,
            AND/OR THAT IT   WAS TAGGED WITH THE CORRECT RECIPIENT. *)
-        >>> check (Main_chain.is_confirmation_valid
+        >>> check (Ethereum_chain.is_confirmation_valid
                      main_chain_deposit_confirmation main_chain_deposit)
               (fun () -> "The main chain deposit confirmation is invalid")
       | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
@@ -216,9 +216,9 @@ exception Insufficient_balance of string
    Have more expensive process to account for old deposits?)
 *)
 let check_against_double_accounting
-      (main_chain_transaction : Main_chain.Transaction.t)
+      (main_chain_transaction : Ethereum_chain.Transaction.t)
   : ('a, 'a) FacilitatorAction.arr =
-  let witness = Main_chain.Transaction.digest main_chain_transaction in
+  let witness = Ethereum_chain.Transaction.digest main_chain_transaction in
   let lens =
     FacilitatorState.lens_current
     |-- State.lens_main_chain_transactions_posted

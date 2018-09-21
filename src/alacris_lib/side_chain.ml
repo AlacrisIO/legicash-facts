@@ -11,7 +11,7 @@ open Signing
 open Merkle_trie
 
 open Legilogic_ethereum
-module TokenAmount = Main_chain.TokenAmount
+module TokenAmount = Ethereum_chain.TokenAmount
 
 module Invoice = struct
   [@warning "-39"]
@@ -37,8 +37,8 @@ module UserOperation = struct
   type deposit_details =
     { deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t
-    ; main_chain_deposit: Main_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Main_chain.Confirmation.t }
+    ; main_chain_deposit: Ethereum_chain.Transaction.t
+    ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t }
   [@@deriving lens, yojson]
 
   type payment_details =
@@ -74,8 +74,8 @@ module UserOperation = struct
                { deposit_amount; deposit_fee; main_chain_deposit; main_chain_deposit_confirmation })
            TokenAmount.marshaling
            TokenAmount.marshaling
-           Main_chain.Transaction.marshaling
-           Main_chain.Confirmation.marshaling
+           Ethereum_chain.Transaction.marshaling
+           Ethereum_chain.Confirmation.marshaling
        ; marshaling3
            (function
              | Payment {payment_invoice; payment_fee; payment_expedited} ->

@@ -10,7 +10,7 @@ open Persisting
 open Types
 open Signing
 
-open Main_chain
+open Ethereum_chain
 
 (** Send a JSON-RPC 2.0 request to the Ethereum client, and return the response. *)
 val ethereum_json_rpc :
