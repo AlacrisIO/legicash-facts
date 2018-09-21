@@ -105,6 +105,8 @@ module Data = struct
     let yojsoning = yojsoning_map Hex.unparse_0x_data Hex.parse_0x_data string_yojsoning
   end
   include TrivialPersistable (PrePersistable)
+  let pp formatter x = Format.fprintf formatter "(parse_0x_data %S)" (Hex.unparse_0x_data x)
+  let show x = Format.asprintf "%a" pp x
 end
 
 module Unit = struct

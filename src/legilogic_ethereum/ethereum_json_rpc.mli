@@ -65,9 +65,9 @@ module TransactionInformation : sig
     ; to_: Address.t option [@key "to"] (* DATA, address of the receiver. null when its a contract creation transaction. *)
     ; transaction_index: Revision.t option [@key "transactionIndex"] (* integer of the transactions index position in the block. null when its pending. *)
     ; value: TokenAmount.t (* value transferred in Wei. *)
-    ; v: string option (* QUANTITY - ECDSA recovery id *)
-    ; r: string option (* DATA, 32 Bytes - ECDSA signature r *)
-    ; s: string option (* DATA, 32 Bytes - ECDSA signature s *) }
+    ; v: Quantity.t option (* QUANTITY - ECDSA recovery id *)
+    ; r: Data256.t option (* DATA, 32 Bytes - ECDSA signature r *)
+    ; s: Data256.t option (* DATA, 32 Bytes - ECDSA signature s *) } [@@deriving show]
   include YojsonableS with type t := t
 end
 
@@ -77,7 +77,7 @@ val transaction_to_parameters : Transaction.t -> TransactionParameters.t
 module SignedTransaction : sig
   type t =
     { raw: Data.t
-    ; tx: TransactionInformation.t }
+    ; tx: TransactionInformation.t } [@@deriving show]
   include PersistableS with type t := t
 end
 

@@ -112,10 +112,10 @@ module TransactionInformation = struct
     ; to_: Address.t option [@key "to"]
     ; transaction_index: Revision.t option [@key "transactionIndex"]
     ; value: TokenAmount.t
-    ; v: string option
-    ; r: string option
-    ; s: string option }
-  [@@deriving yojson]
+    ; v: Quantity.t option
+    ; r: Data256.t option
+    ; s: Data256.t option }
+  [@@deriving yojson, show]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
@@ -126,7 +126,7 @@ module SignedTransaction = struct
   type t =
     { raw: Data.t
     ; tx: TransactionInformation.t }
-  [@@deriving yojson]
+  [@@deriving yojson, show]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
@@ -179,14 +179,14 @@ module TransactionReceipt = struct
            end) : (PersistableS with type t := t))
 end
 
-let transaction_to_parameters Transaction.{tx_header = { sender; gas_limit; gas_price; value }; operation } =
+let transaction_to_parameters Transaction.{tx_header = { sender; nonce; gas_limit; gas_price; value }; operation } =
   let (to_, data) = match operation with
     | Operation.TransferTokens recipient -> (Some recipient, None)
     | Operation.CreateContract code -> (None, Some code)
     | Operation.CallFunction (recipient, data) -> (Some recipient, Some data) in
   TransactionParameters.
     { from= sender; to_; gas= Some gas_limit; gas_price = Some gas_price; value = Some value;
-      data ; nonce= None; condition= None }
+      data ; nonce= Some nonce; condition= None }
 
 let eth_accounts =
   ethereum_json_rpc "eth_accounts"
@@ -286,4 +286,8 @@ module Test = struct
   let%test "eth_latest_block get the current latest block" =
     (* Just checks that the block number is non-negative *)
     run (eth_block_number ~log:false >>> (Revision.sign >> (<=) 0 >> return)) ()
+
+  let%test "parse_signed_signature" =
+    let st = "{\"raw\":\"0xf8c90302830f4240940000000000000000000000000000000000000000820404b864cf2c52cb000000000000000000000000f47408143d327e4bc6a87ef4a70a4e0af09b9a1c00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000820a96a0f6683d2489560376326818813d4d2aac304feba152111c75d1a192c5b2660493a052660483b5855f5f2ca61c24682869702d3ed0c5b838eb1b7ed36c804221ed43\",\"tx\":{\"nonce\":\"0x3\",\"gasPrice\":\"0x2\",\"gas\":\"0xf4240\",\"to\":\"0x0000000000000000000000000000000000000000\",\"value\":\"0x404\",\"input\":\"0xcf2c52cb000000000000000000000000f47408143d327e4bc6a87ef4a70a4e0af09b9a1c00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000\",\"v\":\"0xa96\",\"r\":\"0xf6683d2489560376326818813d4d2aac304feba152111c75d1a192c5b2660493\",\"s\":\"0x52660483b5855f5f2ca61c24682869702d3ed0c5b838eb1b7ed36c804221ed43\",\"hash\":\"0xc34293fefd30282a189cce127a3636e2076b0fdf843bcf10361b0784061db2cf\"}}" |> yojson_of_string |> SignedTransaction.of_yojson_exn in
+    String.get st.SignedTransaction.raw 0 = '\xf8'
 end
