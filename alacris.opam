@@ -1,6 +1,6 @@
 opam-version: "1.2"
-maintainer: "Paul Steckler <steck@legi.cash>"
-authors: ["Paul Steckler <steck@legi.cash>"]
+maintainer: "Francois-Rene Rideau <fare@legi.cash>"
+authors: ["Francois-Rene Rideau <fare@legi.cash>"]
 homepage: "https://gitlab.com/legicash/legicash-facts"
 bug-reports: "https://gitlab.com/legicash/legicash-facts/issues"
 dev-repo: "https://gitlab.com/legicash/legicash-facts.git"
@@ -8,7 +8,7 @@ license: "LGPL 2.1"
 build: [
   [make]
 ]
-build-test: [make "test" ]
+build-test: [make "test"]
 install: [make]
 # TODO : use a template, generate version from version.ml
 version: "0.1"

@@ -16,8 +16,12 @@ For an overview, see also [our articles on Medium](https://medium.com/legi).
 
 ### License
 
+This code is being developed as free software by LegiLogic, Inc. (née Legicash),
+for the sake of Alacris, Ltd., that owns the copyright and publishes the code.
+
 The Legicash FaCTS software is distributed under the GNU Lesser General Public License,
 version 2.1. See the file [LICENSE](LICENSE).
+(This is the same license as used by the OCaml runtime.)
 
 ### Compatibility
 
@@ -80,19 +84,19 @@ To experiment with our software, you need four components:
 
   2. A server for the side-chain.
      You can launch it as follows,
-     with state kept in `_run/legicash` and logs in `_run/logs/legicash.log`:
+     with state kept in `_run/alacris-server` and logs in `_run/logs/alacris-server.log`:
 
         make run_side_chain_server
 
   3. A client for the side-chain.
      You can launch it as follows,
-     with state kept in `_run/legicash-client` and logs in `_run/logs/legicash-client.log`:
+     with state kept in `_run/alacris-client` and logs in `_run/logs/alacris-client.log`:
 
         make run_side_chain_client
 
   4. The nginx webserver as a frontend to the above using the SCGI protocol.
      You can launch it as follows,
-     with logs in `_run/logs/{access,error,access-legicash}.log`:
+     with logs in `_run/logs/{access,error,access-alacris}.log`:
 
         make nginx
 
@@ -116,7 +120,7 @@ Once you have all four steps above running, you can run our integration tests wi
 
 ### Open Source Community
 
-If you'd like to contribute to the Legicash codebase,
+If you'd like to contribute to the LegiLogic and Alacris codebases,
 please submit a Gitlab merge request, and note the following.
 
 ### Coding Style

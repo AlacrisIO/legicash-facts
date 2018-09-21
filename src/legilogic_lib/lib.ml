@@ -1,4 +1,3 @@
-(* lib.ml -- code widely used throughout Legicash codebase *)
 
 (** Common exceptions *)
 exception Not_implemented

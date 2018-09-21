@@ -15,7 +15,7 @@ open Signing
 
 open Legilogic_ethereum
 
-open Legicash_lib
+open Alacris_lib
 open Side_chain
 open Side_chain_client
 open Side_chain_user

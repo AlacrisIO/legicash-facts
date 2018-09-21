@@ -2,7 +2,7 @@
 
 val set_application_name : string -> unit
 (** sets application name, used to create environment variable indicating home directory;
-    default is "legicash"
+    default is "application"
 *)
 
 val get_home_environment_variable : unit -> string

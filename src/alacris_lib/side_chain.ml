@@ -1,5 +1,3 @@
-(* Types for LegiCash Facilitator side-chains *)
-(* NB: Comments are in the .mli file *)
 open Lwt.Infix
 
 open Legilogic_lib
@@ -590,7 +588,7 @@ module Test = struct
        in Side_chain_action.Test, the "deposit_and_payment_valid" test does
        a save and retrieval with nonempty such maps
     *)
-    Db.run ~db_name:Legibase.db_name
+    Db.run ~db_name:"alacris-server"
       (fun () ->
          FacilitatorState.save trent_state
          >>= Db.commit

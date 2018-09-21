@@ -8,7 +8,7 @@ open Lwt_exn
 open Legilogic_ethereum
 open Yojsoning
 
-open Legicash_lib
+open Alacris_lib
 open Side_chain
 open Side_chain_user
 open Side_chain_action.Test

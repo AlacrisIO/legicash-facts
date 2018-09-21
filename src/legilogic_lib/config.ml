@@ -1,6 +1,6 @@
 (* config.ml -- location of configuration files *)
 
-let application_name = ref "legicash"
+let application_name = ref "application"
 
 let set_application_name s = application_name := s
 

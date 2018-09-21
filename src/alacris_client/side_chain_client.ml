@@ -8,7 +8,7 @@ open Logging
 open Types
 open Action
 
-open Legicash_lib
+open Alacris_lib
 open Side_chain
 
 open Side_chain_client_lib
@@ -18,7 +18,8 @@ open Actions
 (* Side_chain also has a Request module *)
 module Request = Scgi.Request
 
-let _ = set_log_file "logs/legicash.log"
+let _ = Config.set_application_name "alacris"
+let _ = set_log_file "logs/alacris-client.log"
 
 type deposit_json =
   { address: Address.t

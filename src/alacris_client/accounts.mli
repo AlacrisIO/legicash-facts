@@ -4,7 +4,7 @@ open Legilogic_lib
 open Signing
 open Action
 
-open Legicash_lib
+open Alacris_lib
 open Side_chain_user
 
 val address_to_user_state_tbl : (Address.t,UserState.t)  Hashtbl.t

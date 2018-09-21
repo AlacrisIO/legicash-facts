@@ -12,7 +12,7 @@ open Side_chain
 open Side_chain_facilitator
 open Side_chain_user
 
-let contract_address_key = "legicash.contract-address"
+let contract_address_key = "alacris.contract-address"
 
 exception Invalid_contract
 

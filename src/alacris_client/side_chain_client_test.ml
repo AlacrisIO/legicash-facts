@@ -10,12 +10,15 @@ open Legilogic_lib
 open Signing
 open Yojsoning
 
-open Legicash_lib
+open Alacris_lib
 open Side_chain
 open Side_chain_facilitator
 
 open Side_chain_client_lib
 open Accounts
+
+let _ = Config.set_application_name "alacris"
+let _ = Logging.set_log_file "logs/alacris-client.log"
 
 (* types to use as JSON in POST bodies *)
 

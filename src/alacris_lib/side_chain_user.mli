@@ -1,4 +1,4 @@
-(* Types for LegiCash Facilitator side-chains *)
+(* Types for user side of Alacris side-chains *)
 open Legilogic_lib
 open Action
 open Yojsoning

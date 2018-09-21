@@ -1,9 +1,9 @@
-build-legicash:
+build-alacris:
   image: registry.gitlab.com/legicash/legicash-facts:build-env
   script:
     # Run ethereum test net in "dev" mode
     - make run_ethereum_net
-    # Build Legicash
+    # Build toplevel
     - make toplevel
     # Run unit tests
     - make test_hello test

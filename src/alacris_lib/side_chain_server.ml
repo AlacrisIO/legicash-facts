@@ -9,9 +9,12 @@ open Marshaling
 open Types
 open Signing
 
-open Legicash_lib
+open Alacris_lib
 open Side_chain_facilitator
 open Side_chain
+
+let _ =
+  Config.set_application_name "alacris"
 
 type side_chain_server_config =
   { port : int; }
@@ -112,7 +115,7 @@ let _ =
   Logging.log "*** STARTING SIDE CHAIN SERVER, PLEASE WAIT ***";
   Lwt_exn.run
     (fun () ->
-       of_lwt (fun () -> Db.open_connection ~db_name:Legibase.db_name) ()
+       of_lwt (fun () -> Db.open_connection ~db_name:"alacris-server") ()
        >>= fun () ->
        Side_chain_action.ensure_side_chain_contract_created facilitator_address facilitator_password
        >>= fun () ->

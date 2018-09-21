@@ -6,7 +6,7 @@ open Signing
 open Types
 open Action
 
-open Legicash_lib
+open Alacris_lib
 open Side_chain
 
 val error_json : ('a, unit, string, yojson) format4 -> 'a

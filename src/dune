@@ -1,8 +1,8 @@
-;; dune file for Legicash sources
+;; Alacris sources
 
 ;; See https://github.com/ocaml/dune/issues/515 .
-;; Note that that example includes a `release` stanza. We may want to copy parts
-;; of this to a `release` stanza later.
+;; Note that that example includes a `release` stanza.
+;; We may want to copy parts of this to a `release` stanza later.
 (env
  (dev
   (flags (:standard
@@ -25,19 +25,19 @@
   ))
 
 (library
- (name legicash_top)
+ (name alacris_top)
  (modules
   version)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
- (libraries legilogic_lib legilogic_ethereum legicash_lib)
+ (libraries legilogic_lib legilogic_ethereum alacris_lib)
  (inline_tests
     ; (flags (:standard -verbose))
     ))
 
-;; custom toplevel
+;; Our custom toplevel
 (executable
- (name legicaml)
- (modules legicaml)
- (libraries  compiler-libs.toplevel legicash_top legilogic_lib legilogic_ethereum legicash_lib)
+ (name toplevel)
+ (modules toplevel)
+ (libraries  compiler-libs.toplevel legilogic_lib legilogic_ethereum alacris_lib alacris_top)
  (link_flags -linkall -cclib -lintegers -I +threads)
  (modes byte))

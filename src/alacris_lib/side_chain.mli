@@ -1,4 +1,4 @@
-(* Types for LegiCash Facilitator side-chains *)
+(* Types for Alacris side-chains *)
 open Legilogic_lib
 open Digesting
 open Signing

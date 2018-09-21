@@ -30,7 +30,7 @@ killall geth > /dev/null 2>&1 || true
 geth \
     --dev \
     --mine \
-    --identity "LegicashEthereumDevNet" \
+    --identity "AlacrisEthereumDevNet" \
     --datadir $DATADIR \
     --nodiscover \
     --maxpeers 0 \

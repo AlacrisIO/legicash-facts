@@ -1,4 +1,4 @@
-;; Legicash side chain client
+;; Alacris side chain client
 
 (env (dev (flags (:standard -w -39))))  ;; Unused rec flag
 
@@ -6,13 +6,13 @@
  (name side_chain_client_lib)
  (modules accounts actions)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson lwt_ppx))
- (libraries legicash_lib integers lwt lwt.unix ppx_deriving_yojson.runtime secp256k1 yojson))
+ (libraries alacris_lib integers lwt lwt.unix ppx_deriving_yojson.runtime secp256k1 yojson))
 
 (executable
   (name side_chain_client)
   (modules side_chain_client)
   (preprocess (pps ppx_deriving.std ppx_inline_test ppx_deriving_yojson))
-  (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime legicash_lib side_chain_client_lib str scgi unix))
+  (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime alacris_lib side_chain_client_lib str scgi unix))
 
 (executable
  (name side_chain_client_test)
