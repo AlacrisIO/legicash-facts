@@ -20,9 +20,9 @@ export APPLICATION_HOME:=$(ALACRIS_HOME)
 
 BUILD_DIR:=_build/default
 
-all: side_chain_client sidechain_server side_chain_client_test
+all: build_all
 
-.PHONY: all force legilogic_lib legilogic_ethereum alacris_lib side_chain_client side_chain_client_test run test_side_chain_client ethereum_net install uninstall test toplevel clean reset contract nginx stop_nginx
+.PHONY: all build_all force legilogic_lib legilogic_ethereum alacris_lib side_chain_server side_chain_client side_chain_client_test run test_side_chain_client ethereum_net install uninstall test toplevel clean reset contract nginx stop_nginx
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli src/dune src/*/dune)
 
@@ -122,8 +122,12 @@ repl: ./bin/legicaml $(TOPLEVEL)
 	$(HIDE) echo "Starting Alacris OCaml toplevel..." ; echo
 	$(HIDE) rlwrap $<
 
+### Build all the stuff to build
+build_all: force
+	dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
+
 ### Running smoke test for the build:
-test_hello: repl $(ML_SOURCES) $(CONTRACT) force
+test_hello: toplevel $(ML_SOURCES) $(CONTRACT) force
 	[ "$$(echo 'Printf.printf "%s" (Hex.parse_0x_data "0x48656c6c6f2c20776f726c64210a"); exit 0;;' | ./bin/legicaml -no-version -noprompt -noinit)" = "Hello, world!" ]
 
 ### Running unit tests
