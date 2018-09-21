@@ -15,20 +15,22 @@ type ethereum_rpc_config =
 [@@deriving of_yojson]
 
 let ethereum_rpc_config =
-  let config_file = Config.get_config_filename "ethereum_config.json" in
-  match yojson_of_file config_file
-        |> ethereum_rpc_config_of_yojson with
-  | Ok config -> config
-  | Error msg -> bork "Error loading Ethereum JSON RPC configuration: %s" msg
+  lazy
+    (let config_file = Config.get_config_filename "ethereum_config.json" in
+     match yojson_of_file config_file
+           |> ethereum_rpc_config_of_yojson with
+     | Ok config -> config
+     | Error msg -> bork "Error loading Ethereum JSON RPC configuration: %s" msg)
 
 (** Network parameters for geth or other node on localhost *)
 let ethereum_net =
-  let { scheme; host; port } = ethereum_rpc_config in
-  Uri.make ~scheme ~host ~port ()
+  lazy
+    (let lazy { scheme; host; port } = ethereum_rpc_config in
+     Uri.make ~scheme ~host ~port ())
 
 let ethereum_json_rpc
       method_name result_decoder param_encoder ?(timeout=rpc_timeout) ?(log= !rpc_log) params =
-  json_rpc ethereum_net method_name result_decoder param_encoder ~timeout ~log params
+  json_rpc (Lazy.force ethereum_net) method_name result_decoder param_encoder ~timeout ~log params
 
 let yojson_noargs = fun () -> `Null
 let yojson_0args = fun () -> `List []
@@ -101,20 +103,25 @@ end
 
 module TransactionInformation = struct
   type t =
-    { block_hash: Digest.t option [@key "blockHash"] [@default None]
-    ; block_number: Revision.t option [@key "blockNumber"] [@default None]
-    ; from: Address.t option [@default None]
-    ; gas: TokenAmount.t
-    ; gas_price: TokenAmount.t [@key "gasPrice"]
-    ; hash: Digest.t
-    ; input: Yojsoning.Bytes.t
+    { hash: Digest.t
     ; nonce: Nonce.t
-    ; to_: Address.t option [@key "to"] [@default None]
+    ; block_hash: Digest.t option [@key "blockHash"] [@default None]
+    ; block_number: Revision.t option [@key "blockNumber"] [@default None]
     ; transaction_index: Revision.t option [@key "transactionIndex"] [@default None]
+    ; from: Address.t option [@default None]
+    ; to_: Address.t option [@key "to"] [@default None]
     ; value: TokenAmount.t
+    ; gas_price: TokenAmount.t [@key "gasPrice"]
+    ; gas: TokenAmount.t
+    ; input: Yojsoning.Bytes.t
     ; v: Quantity.t option [@default None]
-    ; r: Data256.t option [@default None]
-    ; s: Data256.t option [@default None] }
+    ; standard_v: Quantity.t option [@default None]
+    ; r: Quantity.t option [@default None]
+    ; raw: Data.t option [@default None]
+    ; public_key: PublicKey.t option [@key "publicKey"] [@default None]
+    ; network_id: Quantity.t option [@key "networkID"] [@default None]
+    ; creates: Digest.t option [@default None]
+    ; condition: yojson option [@default None] }
   [@@deriving yojson {strict = false}, show]
   include (YojsonPersistable (struct
              type nonrec t = t
@@ -159,19 +166,19 @@ end
 module TransactionReceipt = struct
   [@warning "-39"]
   type t =
-    { blockHash: Digest.t
-    ; blockNumber: Revision.t
-    ; contractAddress: Address.t option [@default None]
-    ; cumulativeGasUsed: TokenAmount.t
+    { block_hash: Digest.t [@key "blockHash"]
+    ; block_number: Revision.t [@key "blockNumber"]
+    ; contract_address: Address.t option [@key "contractAddress"] [@default None]
+    ; cumulative_gas_used: TokenAmount.t [@key "cumulativeGasUsed"]
     ; from: Address.t
     ; to_: Address.t option [@key "to"] [@default None]
-    ; gasUsed: TokenAmount.t
+    ; gas_used: TokenAmount.t [@key "gasUsed"]
     ; logs: LogObject.t list
-    ; logsBloom: Bloom.t
+    ; logs_bloom: Bloom.t [@key "logsBloom"]
     ; root: Digest.t option [@default None] [@default None]
     ; status: TokenAmount.t option [@default None] [@default None]
-    ; transactionHash: Digest.t
-    ; transactionIndex: Revision.t }
+    ; transaction_hash: Digest.t [@key "transactionHash"]
+    ; transaction_index: Revision.t [@key "transactionIndex"] }
   [@@deriving yojson {strict = false}]
   include (YojsonPersistable (struct
              type nonrec t = t

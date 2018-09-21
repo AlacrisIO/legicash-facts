@@ -7,6 +7,7 @@ open Lwt_exn
 
 open Legilogic_ethereum
 open Yojsoning
+open Ethereum_transaction.Test
 
 open Alacris_lib
 open Side_chain
@@ -169,13 +170,14 @@ let store_user_accounts () =
 
 let prepare_server =
   let open Lwt_exn in
-  (fun () -> printf "*** PREPARING SIDE CHAIN CLIENT/SCGI SERVER, PLEASE WAIT ***\n")
+  (fun () -> printf "*** PREPARING SIDE CHAIN CLIENT, PLEASE WAIT ***\n")
   >>> arr create_user_states
   >>> (fun () -> list_iter_s store_keys_on_testnet account_key_list)
   (* Use this when we have all 1300 accounts:
      list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
   >>> store_user_accounts
   >>> (* Ethereum dev mode provides prefunded address with a very large balance *)
+  (* TODO: move that to side_chain_client_test, remove it from regular client *)
   get_prefunded_address
   >>> (fun prefunded_address ->
     list_iter_s

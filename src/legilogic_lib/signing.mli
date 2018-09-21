@@ -1,4 +1,5 @@
 (** Signing data using Secp256k1 public-key cryptography *)
+open Lib
 open Yojsoning
 open Marshaling
 open Digesting
@@ -14,7 +15,10 @@ end
 type address = Address.t
 
 (** Public key in Secp256k1 public-key cryptography *)
-module PublicKey : YojsonMarshalableS (* with type t = Secp256k1.Key.public Secp256k1.Key.t *)
+module PublicKey : sig
+  include YojsonMarshalableS (* with type t = Secp256k1.Key.public Secp256k1.Key.t *)
+  include ShowableS with type t := t
+end
 type public_key = PublicKey.t
 
 (** Private key in Secp256k1 public-key cryptography *)

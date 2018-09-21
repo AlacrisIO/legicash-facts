@@ -27,9 +27,12 @@ mkdir $DATADIR
 # kill any existing geth
 killall geth > /dev/null 2>&1 || true
 
+TRENT=0xf47408143d327e4bc6a87ef4a70a4e0af09b9a1c
+
 geth \
     --dev \
     --mine \
+    --etherbase $TRENT \
     --identity "AlacrisEthereumDevNet" \
     --datadir $DATADIR \
     --nodiscover \

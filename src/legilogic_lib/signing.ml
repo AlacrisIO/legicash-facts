@@ -44,6 +44,8 @@ module PublicKey = struct
     let marshaling = {marshal;unmarshal}
   end
   include YojsonableOfPreMarshalable(P)
+  let pp formatter x = Format.fprintf formatter "%s" (x |> marshal_string |> unparse_0x_data)
+  let show x = Format.asprintf "%a" pp x
 end
 type public_key = PublicKey.t
 

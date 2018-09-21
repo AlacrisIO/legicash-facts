@@ -71,9 +71,6 @@ module Test : sig
   val create_account_on_testnet : Keypair.t -> address Lwt_exn.t
   (** creates an account on network with address created for side chain *)
 
-  val get_prefunded_address : unit -> Address.t Lwt_exn.t
-  (** gets the prefunded address on the test network *)
-
   val fund_account : ?min_balance:TokenAmount.t -> Address.t -> Address.t -> unit Lwt_exn.t
   (** transfers funds from funding account to account with given address, if balance less than min_balance *)
 end

@@ -42,11 +42,7 @@ end
 
 let confirmation_of_transaction_receipt =
   function
-    TransactionReceipt.
-      { transactionHash = transaction_hash
-      ; transactionIndex = transaction_index
-      ; blockNumber = block_number
-      ; blockHash = block_hash } ->
+    TransactionReceipt.{transaction_hash ; transaction_index; block_number; block_hash} ->
     Confirmation.{transaction_hash; transaction_index; block_number; block_hash}
 
 (** Number of blocks required for a transaction to be considered confirmed *)

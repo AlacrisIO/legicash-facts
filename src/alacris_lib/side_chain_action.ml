@@ -50,7 +50,7 @@ let create_side_chain_contract installer_address password =
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
   >>= arr Option.get
   >>= fun receipt ->
-  let contract_address = receipt.contractAddress |> Option.get in
+  let contract_address = receipt.contract_address |> Option.get in
   Address.to_0x_string contract_address
   |> of_lwt Lwt.(Db.put contract_address_key >>> Db.commit)
   >>= const contract_address
@@ -91,8 +91,6 @@ module Test = struct
     fun keys ->
       let password = "" in
       Ethereum_transaction.ensure_private_key (keys, password)
-
-  let get_prefunded_address = get_first_account
 
   let fund_account ?(min_balance=TokenAmount.of_int 1000000000)
         funding_account (address : Address.t) =

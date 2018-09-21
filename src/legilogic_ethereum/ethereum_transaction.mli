@@ -1,7 +1,6 @@
 (* ethereum_transaction.mli -- run transactions on Ethereum net via JSON RPC *)
 open Legilogic_lib
 open Action
-open Yojsoning
 open Digesting
 open Signing
 
@@ -22,19 +21,13 @@ val ensure_private_key : ?timeout:float -> ?log:bool -> keypair * string -> Addr
 val unlock_account : ?duration:int -> address -> bool Lwt_exn.t
 (** unlocks account for given duration (in seconds) on net *)
 
+val list_accounts : unit -> Address.t list Lwt_exn.t
+(** JSON list of account addresses on net *)
+
+val get_first_account : unit -> Address.t Lwt_exn.t
+(** get first account listed on net; for dev network, this is the prefunded account *)
+
 module Test : sig
-  val json_result_to_int : yojson -> int
-  (** convert "result" field, given as a string, to an int *)
-
-  val list_accounts : unit -> Address.t list Lwt_exn.t
-  (** JSON list of account addresses on net *)
-
-  val new_account : unit -> Address.t Lwt_exn.t
-  (** creates new account with given JSON address on net *)
-
-  val get_first_account : unit -> Address.t Lwt_exn.t
-  (** get first account listed on net; for dev network, this is the prefunded account *)
-
-  val wait_for_contract_execution : digest -> unit Lwt_exn.t
-  (** return when contract has completed *)
+  val get_prefunded_address : unit -> Address.t Lwt_exn.t
+  (** get the prefunded address on the test network *)
 end

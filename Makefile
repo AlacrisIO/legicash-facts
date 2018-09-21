@@ -142,12 +142,12 @@ run_ethereum_net :
 	$(HIDE) scripts/ethereum-devnet/run.sh
 
 # 2- Run our server
-run_side_chain_server: $(SIDE_CHAIN_SERVER)
+run_side_chain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
 	$(SHOW) "Running side chain server"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_SERVER)
 
 # 3- Run our client
-run_side_chain_client: $(SIDE_CHAIN_CLIENT)
+run_side_chain_client: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT)
 	$(SHOW) "Running side chain client (SCGI server)"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_CLIENT)
 
@@ -160,7 +160,7 @@ fund_alice_and_bob:
 	./scripts/fund.sh
 
 # 6- Now you can run our integration tests
-test_side_chain_client : $(SIDE_CHAIN_CLIENT_TEST)
+test_side_chain_client : $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
 	$(SHOW) "Testing side_chain_client"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_CLIENT_TEST)
 

@@ -117,26 +117,23 @@ let ensure_private_key ?(timeout=rpc_timeout) ?(log= !rpc_log) (keypair, passwor
 let unlock_account ?(duration=5) address =
   Ethereum_json_rpc.personal_unlock_account (address, "", Some duration)
 
+let list_accounts () =
+  Ethereum_json_rpc.personal_list_accounts ()
+
+let get_first_account =
+  list_accounts >>> catching_arr List.hd
+
+let transfer_tokens_gas = TokenAmount.of_int 21000
+
 module Test = struct
   open Ethereum_json_rpc
   open Ethereum_util.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
-  let json_result_to_int json =
-    YoJson.member "result" json |> YoJson.to_string |> int_of_string
+  let get_prefunded_address = get_first_account
 
-  let list_accounts () =
-    Ethereum_json_rpc.personal_list_accounts ()
-
-  let new_account () =
-    (* test accounts have empty password *)
-    Ethereum_json_rpc.personal_new_account ""
-
-  let get_first_account =
-    list_accounts >>> catching_arr List.hd
-
-  let is_testnet_up () =
+  let is_ethereum_net_up () =
     let max_tries = 10 in
     let rec poll_net n =
       if n > max_tries then
@@ -151,105 +148,56 @@ module Test = struct
     in
     poll_net 0
 
-  let get_nonce address =
-    eth_get_transaction_count (address, Ethereum_json_rpc.BlockParameter.Latest)
-
-  let wait_for_contract_execution transaction_hash =
-    let max_counter = 20 in
-    (* wait for transaction to appear in block *)
-    let rec loop counter () =
-      transaction_executed transaction_hash
-      >>= fun b ->
-      if counter > max_counter then
-        bork "Could not verify contract execution"
-      else if b then
-        return ()
-      else (of_lwt Lwt_unix.sleep 0.1 >>= loop (counter + 1))
-    in
-    loop 0 ()
-
   let%test "poll-for-testnet" =
-    is_testnet_up () || Lib.bork "Could not connect to Ethereum test net"
+    is_ethereum_net_up () || Lib.bork "Could not connect to Ethereum network"
 
   let%test "transfer-on-Ethereum-testnet" =
     Lwt_exn.run
       (fun () ->
-         get_first_account ()
+         get_prefunded_address ()
          >>= fun sender_address ->
-         new_account ()
+         Ethereum_json_rpc.personal_new_account ""
          >>= fun recipient_address ->
          (* unlock accounts *)
          unlock_account sender_address
          >>= fun _unlock_sender_json ->
-         unlock_account recipient_address
-         >>= fun _unlock_recipient_json ->
          (* we don't check opening balance, which may be too large to parse *)
          let transfer_amount = 22 in
-         get_nonce sender_address
-         >>= fun nonce ->
-         let tx_header =
-           { TxHeader.sender= sender_address
-           ; nonce= nonce
-           ; gas_price= TokenAmount.of_int 2
-           ; gas_limit= TokenAmount.of_int 1000000
-           ; value= TokenAmount.of_int transfer_amount }
-         in
-         let operation = Operation.TransferTokens recipient_address in
-         let transaction = {Transaction.tx_header; Transaction.operation} in
-         (* send tokens *)
-         eth_send_transaction (transaction_to_parameters transaction)
-         >>= fun transaction_hash ->
-         wait_for_contract_execution transaction_hash
-         >>= fun () ->
+         Ethereum_user.(user_action sender_address
+                          (make_signed_transaction
+                             (Operation.TransferTokens recipient_address)
+                             (TokenAmount.of_int transfer_amount)))
+           transfer_tokens_gas
+         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= fun (transaction, Confirmation.{transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash transaction)
       ()
 
   let%test "create-contract-on-Ethereum-testnet" =
     Lwt_exn.run
       (fun () ->
-         get_first_account ()
+         get_prefunded_address ()
          >>= fun sender_address ->
          unlock_account sender_address
          >>= fun _unlock_sender_json ->
-         get_nonce sender_address
-         >>= fun nonce ->
-         let tx_header =
-           { TxHeader.sender= sender_address
-           ; nonce= nonce
-           ; gas_price= TokenAmount.of_int 2
-           ; gas_limit= TokenAmount.of_int 1000000
-           ; value= TokenAmount.zero }
-         in
-         (* a valid contract contains compiled EVM code
-            for  testing, we just use a buffer with arbitrary contents
-         *)
-         let operation = Operation.CreateContract (Bytes.create 128) in
-         let transaction = {Transaction.tx_header; Transaction.operation} in
-         (* create contract *)
-         eth_send_transaction (transaction_to_parameters transaction)
-         >>= fun transaction_hash ->
-         wait_for_contract_execution transaction_hash
-         >>= fun () ->
-         transaction_execution_matches_transaction transaction_hash transaction)
+         Ethereum_user.(user_action sender_address
+                          (make_signed_transaction
+                             (Operation.CreateContract (Bytes.create 128))
+                             TokenAmount.zero))
+           (TokenAmount.of_int 100000)
+         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= fun (tx, {transaction_hash}) ->
+         transaction_execution_matches_transaction transaction_hash tx)
       ()
 
   let%test "call-contract-on-Ethereum-testnet" =
     let open Ethereum_chain in
     Lwt_exn.run
       (fun () ->
-         get_first_account ()
+         get_prefunded_address ()
          >>= fun sender_address ->
          unlock_account sender_address
          >>= fun _unlock_sender_json ->
-         get_nonce sender_address
-         >>= fun nonce ->
-         let tx_header =
-           { TxHeader.sender= sender_address
-           ; nonce= nonce
-           ; gas_price= TokenAmount.of_int 2
-           ; gas_limit= TokenAmount.of_int 1000000
-           ; value= TokenAmount.zero }
-         in
          (* for CallFunction:
 
             address should be a valid contract address
@@ -269,11 +217,13 @@ module Test = struct
            Operation.CallFunction
              ( Address.of_0x_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
              , Bytes.of_string (Digest.to_big_endian_bits hashed) ) in
-         let transaction = Transaction.{tx_header;operation} in
-         eth_send_transaction (transaction_to_parameters transaction)
-         >>= fun transaction_hash ->
-         wait_for_contract_execution transaction_hash
-         >>= fun () ->
+         Ethereum_user.(user_action sender_address
+                          (make_signed_transaction
+                             operation
+                             (TokenAmount.zero)))
+           (TokenAmount.of_int 1000000)
+         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= fun (transaction, Confirmation.{transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash transaction)
       ()
 
@@ -290,7 +240,7 @@ module Test = struct
          expect_string "c0de address"
            "0x53ae893e4b22d707943299a8d0c844df0e3d5557"
            (Address.to_0x_string keypair.address);
-         get_first_account ()
+         get_prefunded_address ()
          >>= fun sender_address ->
          let tx_header =
            TxHeader.{ sender= sender_address (* doesn't matter for transaction hash *)
@@ -331,56 +281,37 @@ module Test = struct
          in
          let code_bytes = parse_0x_bytes code in
          (* create a contract using "hello, world" EVM code *)
-         get_first_account ()
+         get_prefunded_address ()
          >>= fun sender_address ->
          unlock_account sender_address
          >>= fun _unlock_sender_json ->
-         get_nonce sender_address
-         >>= fun nonce ->
-         let tx_header =
-           { TxHeader.sender= sender_address
-           ; nonce= nonce
-           ; gas_price= TokenAmount.of_int 2
-           ; gas_limit= TokenAmount.of_int 1000000
-           ; value= TokenAmount.zero }
-         in
          (* a valid contract contains compiled EVM code
             for testing, we just use a buffer with arbitrary contents
          *)
-         let operation = Operation.CreateContract code_bytes in
-         let transaction = Transaction.{tx_header;operation} in
-         (* create contract *)
-         eth_send_transaction (transaction_to_parameters transaction)
-         >>= fun transaction_hash ->
-         wait_for_contract_execution transaction_hash
-         >>= fun () -> eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt ->
-         let contract_address = Option.get receipt.TransactionReceipt.contractAddress in
+         Ethereum_user.(user_action sender_address
+                          (make_signed_transaction
+                             (Operation.CreateContract code_bytes)
+                             (TokenAmount.zero)))
+           (TokenAmount.of_int 1000000)
+         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= fun (transaction, Confirmation.{transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash transaction
          >>= fun matches ->
          assert matches ;
          (* call the contract we've created *)
-         get_nonce sender_address
-         >>= fun nonce ->
-         let tx_header1 =
-           { TxHeader.sender= sender_address
-           ; nonce= nonce
-           ; gas_price= TokenAmount.of_int 2
-           ; gas_limit= TokenAmount.of_int 1000000
-           ; value= TokenAmount.zero }
-         in
-         let call = {function_name= "printHelloWorld"; parameters= []} in
-         let call_bytes = encode_function_call call in
-         let operation1 =
-           Operation.CallFunction (contract_address, call_bytes)
-         in
-         let transaction1 = Transaction.{tx_header= tx_header1;operation= operation1} in
-         eth_send_transaction (transaction_to_parameters transaction1)
-         >>= fun transaction_hash1 ->
-         wait_for_contract_execution transaction_hash1
-         >>= fun () ->
-         eth_get_transaction_receipt transaction_hash1
+         eth_get_transaction_receipt transaction_hash
+         >>= arr Option.get
+         >>= fun receipt ->
+         let contract_address = Option.get receipt.TransactionReceipt.contract_address in
+         let call_bytes = encode_function_call {function_name= "printHelloWorld"; parameters= []} in
+         Ethereum_user.(user_action sender_address
+                          (make_signed_transaction
+                             (Operation.CallFunction (contract_address, call_bytes))
+                             TokenAmount.zero))
+           (TokenAmount.of_int 1000000)
+         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= fun (_transaction, Confirmation.{transaction_hash}) ->
+         eth_get_transaction_receipt transaction_hash
          >>= arr Option.get
          >>= fun receipt1 ->
          (* verify that we called "printHelloWorld" *)
@@ -414,29 +345,21 @@ module Test = struct
          in
          let code_bytes = parse_0x_bytes code in
          (* create the contract *)
-         get_first_account ()
+         get_prefunded_address ()
          >>= fun sender_address ->
          unlock_account sender_address
          >>= fun _unlock_sender_json ->
-         get_nonce sender_address
-         >>= fun nonce ->
-         let tx_header =
-           { TxHeader.sender= sender_address
-           ; nonce= nonce
-           ; gas_price= TokenAmount.of_int 42
-           ; gas_limit= TokenAmount.of_int 1000000
-           ; value= TokenAmount.zero }
-         in
-         let operation = Operation.CreateContract code_bytes in
-         let transaction = Transaction.{tx_header;operation} in
-         eth_send_transaction (transaction_to_parameters transaction)
-         >>= fun transaction_hash ->
-         wait_for_contract_execution transaction_hash
-         >>= fun () ->
+         Ethereum_user.(user_action sender_address
+                          (make_signed_transaction
+                             (Operation.CreateContract code_bytes)
+                             (TokenAmount.zero)))
+           (TokenAmount.of_int 1000000)
+         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= fun (transaction, Confirmation.{transaction_hash}) ->
          eth_get_transaction_receipt transaction_hash
          >>= arr Option.get
          >>= fun receipt ->
-         let contract_address = Option.get receipt.contractAddress in
+         let contract_address = Option.get receipt.contract_address in
          (* check balance of new contract *)
          eth_get_balance (contract_address, Latest)
          >>= fun starting_balance ->
@@ -444,30 +367,19 @@ module Test = struct
          transaction_execution_matches_transaction transaction_hash transaction
          >>= fun matches ->
          assert matches;
-         (* call the fallback in the contract we've created *)
+         (* Call the fallback in the contract we've created.
+            It bypasses the regular ABI to access this address directly. *)
          let amount_to_transfer = TokenAmount.of_int 93490 in
-         get_nonce sender_address
-         >>= fun nonce ->
-         let tx_header1 =
-           { TxHeader.sender= sender_address
-           ; nonce= nonce
-           ; gas_price= TokenAmount.of_int 2
-           ; gas_limit= TokenAmount.of_int 1000000
-           ; value= amount_to_transfer }
-         in
-         (* use (dummy) facilitator address as code to trigger fallback *)
-         let facilitator_address =
-           Address.of_0x_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
-         let address_bytes = Ethereum_util.bytes_of_address facilitator_address in
-         (* TODO: This smells fishy; where is the hash of the function being called? *)
-         let operation1 =
-           Operation.CallFunction (contract_address, address_bytes) in
-         let transaction1 = Transaction.{tx_header= tx_header1;operation= operation1} in
-         eth_send_transaction (transaction_to_parameters transaction1)
-         >>= fun transaction_hash1 ->
-         wait_for_contract_execution transaction_hash1
-         >>= fun () ->
-         eth_get_transaction_receipt transaction_hash1
+         let facilitator_address = Address.of_0x_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
+         let call_bytes = Ethereum_util.bytes_of_address facilitator_address in
+         Ethereum_user.(user_action sender_address
+                          (make_signed_transaction
+                             (Operation.CallFunction (contract_address, call_bytes))
+                             amount_to_transfer))
+           (TokenAmount.of_int 1000000)
+         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= fun (_transaction, Confirmation.{transaction_hash}) ->
+         eth_get_transaction_receipt transaction_hash
          >>= arr Option.get
          >>= fun receipt1 ->
          (* verify that we called the fallback *)
@@ -498,14 +410,14 @@ module Test = struct
          assert (ending_balance = amount_to_transfer) ;
          (* now try invalid address, make sure it's not logged *)
          let bogus_address_bytes = parse_0x_bytes "0xFF" in
-         let operation2 = Operation.CallFunction (contract_address, bogus_address_bytes) in
-         let tx_header2 = tx_header1 in
-         let transaction2 = Transaction.{tx_header= tx_header2; operation= operation2} in
-         eth_send_transaction (transaction_to_parameters transaction2)
-         >>= fun transaction_hash2 ->
-         wait_for_contract_execution transaction_hash2
-         >>= fun () ->
-         eth_get_transaction_receipt transaction_hash2
+         Ethereum_user.(user_action sender_address
+                          (make_signed_transaction
+                             (Operation.CallFunction (contract_address, bogus_address_bytes))
+                             amount_to_transfer))
+           (TokenAmount.of_int 1000000)
+         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= fun (_transaction, Confirmation.{transaction_hash}) ->
+         eth_get_transaction_receipt transaction_hash
          >>= arr Option.get
          >>= fun receipt2 ->
          let logs2 = receipt2.logs in
