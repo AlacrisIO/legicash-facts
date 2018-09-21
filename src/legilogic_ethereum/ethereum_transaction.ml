@@ -32,7 +32,7 @@ let transaction_execution_matches_transaction transaction_hash (transaction: Tra
       (try
          (* for all operations, check these fields *)
          let tx_header = transaction.tx_header in
-         info.from = tx_header.sender
+         info.from = Some tx_header.sender
          && info.nonce = tx_header.nonce
          && TokenAmount.compare info.gas tx_header.gas_limit <= 0
          && TokenAmount.compare info.gas_price tx_header.gas_price <= 0

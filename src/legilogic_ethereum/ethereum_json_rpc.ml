@@ -85,14 +85,14 @@ end
 module TransactionParameters = struct
   type t =
     { from: Address.t
-    ; to_: Address.t option [@key "to"]
-    ; gas: TokenAmount.t option
-    ; gas_price: TokenAmount.t option [@key "gasPrice"]
-    ; value: TokenAmount.t option
-    ; data: Yojsoning.Bytes.t option
-    ; nonce: Nonce.t option
-    ; condition: TransactionCondition.t option }
-  [@@deriving yojson]
+    ; to_: Address.t option [@key "to"] [@default None]
+    ; gas: TokenAmount.t option [@default None]
+    ; gas_price: TokenAmount.t option [@key "gasPrice"] [@default None]
+    ; value: TokenAmount.t option [@default None]
+    ; data: Yojsoning.Bytes.t option [@default None]
+    ; nonce: Nonce.t option [@default None]
+    ; condition: TransactionCondition.t option [@default None] }
+  [@@deriving yojson {strict = false}]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
@@ -101,21 +101,21 @@ end
 
 module TransactionInformation = struct
   type t =
-    { block_hash: Digest.t option [@key "blockHash"]
-    ; block_number: Revision.t option [@key "blockNumber"]
-    ; from: Address.t
+    { block_hash: Digest.t option [@key "blockHash"] [@default None]
+    ; block_number: Revision.t option [@key "blockNumber"] [@default None]
+    ; from: Address.t option [@default None]
     ; gas: TokenAmount.t
     ; gas_price: TokenAmount.t [@key "gasPrice"]
     ; hash: Digest.t
     ; input: Yojsoning.Bytes.t
     ; nonce: Nonce.t
-    ; to_: Address.t option [@key "to"]
-    ; transaction_index: Revision.t option [@key "transactionIndex"]
+    ; to_: Address.t option [@key "to"] [@default None]
+    ; transaction_index: Revision.t option [@key "transactionIndex"] [@default None]
     ; value: TokenAmount.t
-    ; v: Quantity.t option
-    ; r: Data256.t option
-    ; s: Data256.t option }
-  [@@deriving yojson, show]
+    ; v: Quantity.t option [@default None]
+    ; r: Data256.t option [@default None]
+    ; s: Data256.t option [@default None] }
+  [@@deriving yojson {strict = false}, show]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
@@ -126,7 +126,7 @@ module SignedTransaction = struct
   type t =
     { raw: Data.t
     ; tx: TransactionInformation.t }
-  [@@deriving yojson, show]
+  [@@deriving yojson {strict = false}, show]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
@@ -137,15 +137,15 @@ module LogObject = struct
   [@warning "-39"]
   type t =
     { removed: bool
-    ; logIndex: Revision.t option
-    ; transactionIndex: Revision.t option
-    ; transactionHash: Digest.t option
-    ; blockNumber: Revision.t option
-    ; blockHash: Digest.t option
+    ; logIndex: Revision.t option [@default None]
+    ; transactionIndex: Revision.t option [@default None]
+    ; transactionHash: Digest.t option [@default None]
+    ; blockNumber: Revision.t option [@default None]
+    ; blockHash: Digest.t option [@default None]
     ; address: Address.t
     ; data: Yojsoning.Bytes.t
     ; topics: Digest.t list }
-  [@@deriving yojson]
+  [@@deriving yojson {strict = false}]
   include (Yojsonable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
@@ -161,18 +161,18 @@ module TransactionReceipt = struct
   type t =
     { blockHash: Digest.t
     ; blockNumber: Revision.t
-    ; contractAddress: Address.t option
+    ; contractAddress: Address.t option [@default None]
     ; cumulativeGasUsed: TokenAmount.t
     ; from: Address.t
-    ; to_: Address.t option [@key "to"]
+    ; to_: Address.t option [@key "to"] [@default None]
     ; gasUsed: TokenAmount.t
     ; logs: LogObject.t list
     ; logsBloom: Bloom.t
-    ; root: Digest.t option [@default None]
-    ; status: TokenAmount.t option [@default None]
+    ; root: Digest.t option [@default None] [@default None]
+    ; status: TokenAmount.t option [@default None] [@default None]
     ; transactionHash: Digest.t
     ; transactionIndex: Revision.t }
-  [@@deriving yojson]
+  [@@deriving yojson {strict = false}]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
@@ -271,7 +271,7 @@ let personal_list_accounts =
 let personal_new_account =
   ethereum_json_rpc "personal_newAccount"
     Address.of_yojson_exn
-    (fun password -> `List [`String password])
+    (yojson_1arg StringT.to_yojson)
 
 let personal_unlock_account =
   ethereum_json_rpc "personal_unlockAccount"

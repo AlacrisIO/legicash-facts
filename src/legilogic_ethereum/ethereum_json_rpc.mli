@@ -56,7 +56,7 @@ module TransactionInformation : sig
   type t =
     { block_hash: Digest.t option [@key "blockHash"] (* hash of the block where this transaction was in. null when its pending. *)
     ; block_number: Revision.t option [@key "blockNumber"] (* block number where this transaction was in. null when its pending. *)
-    ; from: Address.t (* address of the sender. *)
+    ; from: Address.t option (* address of the sender. *)
     ; gas: TokenAmount.t (* gas provided by the sender. *)
     ; gas_price: TokenAmount.t [@key "gasPrice"] (* gas price provided by the sender in Wei. *)
     ; hash: Digest.t (* hash of the transaction. *)
