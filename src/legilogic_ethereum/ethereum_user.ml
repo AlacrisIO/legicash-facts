@@ -244,11 +244,25 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) User
     >>= fun signed ->
     return (transaction, signed)
 
+exception Bad_password
+
+let ensure_account_unlocked ?(duration=5) address =
+  let password = password_of_address address in
+  Ethereum_json_rpc.personal_unlock_account (address, password, Some duration)
+  >>= function
+  | true -> return ()
+  | false -> fail Bad_password
+
+let unlock_account ?(duration=5) () state =
+  UserAsyncAction.of_lwt_exn (ensure_account_unlocked ~duration) state.UserState.address state
+
 let make_signed_transaction operation value gas_limit =
   let open UserAsyncAction in
   make_tx_header (value, gas_limit)
-  >>= (fun tx_header -> return Transaction.{tx_header; operation})
-  >>= sign_transaction
+  >>= fun tx_header ->
+  unlock_account ()
+  >>= fun () ->
+  sign_transaction Transaction.{tx_header; operation}
 
 let issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) UserAsyncAction.arr =
   fun x -> `Signed x |> add_ongoing_transaction

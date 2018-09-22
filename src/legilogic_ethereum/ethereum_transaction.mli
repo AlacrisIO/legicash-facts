@@ -18,9 +18,6 @@ val transaction_execution_matches_transaction : digest -> Transaction.t -> bool 
     Do not raise an error if the key was already imported. *)
 val ensure_private_key : ?timeout:float -> ?log:bool -> keypair * string -> Address.t Lwt_exn.t
 
-val unlock_account : ?duration:int -> address -> bool Lwt_exn.t
-(** unlocks account for given duration (in seconds) on net *)
-
 val list_accounts : unit -> Address.t list Lwt_exn.t
 (** JSON list of account addresses on net *)
 

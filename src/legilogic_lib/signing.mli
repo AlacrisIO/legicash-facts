@@ -42,9 +42,7 @@ module Signature : PersistableS with type t = signature
 type 'a signed = {payload: 'a; signature: signature}
 
 val signed_of_digest : ('a -> digest) -> keypair -> 'a -> 'a signed
-
-(** Secp256k1 context for signing and validation *)
-(* val secp256k1_ctx : Secp256k1.Context.t *)
+(** Make an ['a signed] record out of the 'a [digest] function, a [keypair] and the 'a payload *)
 
 (** given 0x-string public, private keys, generate Secp256k1 key pair *)
 val keypair_of_0x : string -> string -> keypair
@@ -70,6 +68,15 @@ val register_address : string -> address -> unit
 (** Unregister an address *)
 val unregister_address : string -> unit
 
+val register_password : address -> string -> unit
+(** Register a password to use to unlock that address with Ethereum JSON RPC *)
+
+val unregister_password : address -> unit
+(** Unregister the password used to unlock that address with Ethereum JSON RPC *)
+
+val password_of_address :  address -> string
+(** Get the password registered for use to unlock that address with Ethereum JSON RPC *)
+
 (** Register a keypair under a nickname -- typical usage would be to do that from reading
     a configuration file, or with the notional equivalent of ssh-add. *)
 val register_keypair : string -> keypair -> unit
@@ -79,8 +86,9 @@ val unregister_keypair : string -> unit
 
 val decode_keypairs : yojson -> (string * keypair) list
 
-(** Register all the keypairs in a file, stored as a json table mapping name to Keypair.t. *)
-val register_file_keypairs : string -> unit
+(** Register all the keypairs in a file, stored as a json table mapping name to Keypair.t,
+    with the provided password. *)
+val register_file_keypairs : string -> string -> unit
 
 (** given an address, find the corresponding keypair in suitable configuration files *)
 val keypair_of_address : address -> keypair

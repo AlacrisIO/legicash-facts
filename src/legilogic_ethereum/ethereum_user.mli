@@ -73,6 +73,9 @@ exception Still_pending
 val wait_for_confirmation : (Digest.t, Confirmation.t) Lwt_exn.arr
 (** Wait until a transaction (identified by its hash) has been confirmed by the main chain *)
 
+val unlock_account : ?duration:int -> unit -> unit UserAsyncAction.t
+(** unlocks account for given duration (in seconds) on net *)
+
 val make_signed_transaction : Operation.t -> TokenAmount.t -> TokenAmount.t ->
   (Transaction.t * SignedTransaction.t) UserAsyncAction.t
 (** Prepare a signed transaction, that you may later issue onto Ethereum network *)

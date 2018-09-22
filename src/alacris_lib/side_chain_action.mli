@@ -55,15 +55,17 @@ open Ethereum_chain
 *)
 
 val check_side_chain_contract_created : Address.t -> Address.t Lwt_exn.t
+(** Checks that a contract was created at the given address with the code we expect
+    from our side-chain. *)
 
-val create_side_chain_contract : Address.t -> string -> Address.t Lwt_exn.t
-(** Given an address for whoever will pay to install it and its Ethereum JSON-RPC password,
+val create_side_chain_contract : Address.t -> Address.t Lwt_exn.t
+(** Given an address for whoever will pay to install it (its keys and password already registered),
     installs the facilitator contract on main chain, enabling the side chain *)
 
-val ensure_side_chain_contract_created : Address.t -> string -> unit Lwt_exn.t
-(** Given an address for whoever will pay to install it and its Ethereum JSON-RPC password,
-    ensures that a suitable contract is installed on the main chain, enabling corresponding actions on side chain *)
-
+val ensure_side_chain_contract_created : Address.t -> unit Lwt_exn.t
+(** Given an address for whoever will pay to install it (its keys and password already registered),
+    ensures that a suitable contract is installed on the main chain,
+    enabling corresponding actions on side chain *)
 
 
 (* useful functions for other test code *)

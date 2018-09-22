@@ -30,17 +30,18 @@ type facilitator_keys_config =
   ; password : string }
 [@@deriving of_yojson]
 
-let facilitator_address, facilitator_password =
+let facilitator_address =
   "facilitator_keys.json"
   |> Config.get_config_filename
   |> Yojsoning.yojson_of_file
   |> facilitator_keys_config_of_yojson
   |> Lib.ResultOrString.get
-  |> function
-  | { nickname; keypair; password } ->
-    Logging.log "Using facilitator keypair %S %s" nickname (Address.to_0x_string keypair.address);
-    register_keypair nickname keypair;
-    keypair.address, password
+  |> fun { nickname; keypair; password } ->
+  let address = keypair.address in
+  Logging.log "Using facilitator keypair %S %s" nickname (Address.to_0x_string address);
+  register_keypair nickname keypair;
+  register_password address password;
+  address
 
 let config =
   "side_chain_server_config.json"
@@ -117,7 +118,7 @@ let _ =
     (fun () ->
        of_lwt (fun () -> Db.open_connection ~db_name:"alacris-server") ()
        >>= fun () ->
-       Side_chain_action.ensure_side_chain_contract_created facilitator_address facilitator_password
+       Side_chain_action.ensure_side_chain_contract_created facilitator_address
        >>= fun () ->
        Logging.log "Using contract %s"
          (Address.to_0x_string @@ Facilitator_contract.get_contract_address ());

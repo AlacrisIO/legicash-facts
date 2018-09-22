@@ -114,9 +114,6 @@ let ensure_private_key ?(timeout=rpc_timeout) ?(log= !rpc_log) (keypair, passwor
             else fail e
           | e -> fail e)
 
-let unlock_account ?(duration=5) address =
-  Ethereum_json_rpc.personal_unlock_account (address, "", Some duration)
-
 let list_accounts () =
   Ethereum_json_rpc.personal_list_accounts ()
 
@@ -156,9 +153,6 @@ module Test = struct
          >>= fun sender_address ->
          Ethereum_json_rpc.personal_new_account ""
          >>= fun recipient_address ->
-         (* unlock accounts *)
-         unlock_account sender_address
-         >>= fun _unlock_sender_json ->
          (* we don't check opening balance, which may be too large to parse *)
          let transfer_amount = 22 in
          Ethereum_user.(user_action sender_address transfer_tokens)
@@ -173,8 +167,6 @@ module Test = struct
       (fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
-         unlock_account sender_address
-         >>= fun _unlock_sender_json ->
          Ethereum_user.(user_action sender_address
                           (make_signed_transaction
                              (Operation.CreateContract (Bytes.create 128))
@@ -191,8 +183,6 @@ module Test = struct
       (fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
-         unlock_account sender_address
-         >>= fun _unlock_sender_json ->
          (* for CallFunction:
 
             address should be a valid contract address
@@ -278,8 +268,6 @@ module Test = struct
          (* create a contract using "hello, world" EVM code *)
          get_prefunded_address ()
          >>= fun sender_address ->
-         unlock_account sender_address
-         >>= fun _unlock_sender_json ->
          (* a valid contract contains compiled EVM code
             for testing, we just use a buffer with arbitrary contents
          *)
@@ -342,8 +330,6 @@ module Test = struct
          (* create the contract *)
          get_prefunded_address ()
          >>= fun sender_address ->
-         unlock_account sender_address
-         >>= fun _unlock_sender_json ->
          Ethereum_user.(user_action sender_address
                           (make_signed_transaction
                              (Operation.CreateContract code_bytes)

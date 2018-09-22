@@ -177,6 +177,14 @@ let nickname_of_address address =
 let address_of_nickname nickname =
   Hashtbl.find address_by_nickname nickname
 
+let password_for_address = Hashtbl.create 8
+let register_password address password =
+  Hashtbl.replace password_for_address address password
+let unregister_password address =
+  Hashtbl.remove password_for_address address
+let password_of_address address =
+  Hashtbl.find password_for_address address
+
 let keypair_by_address = Hashtbl.create 8
 let register_keypair nickname keypair =
   let address = keypair.Keypair.address in
@@ -194,10 +202,12 @@ let decode_keypairs =
   >> List.map (fun (name, kpjson) -> (name, (Keypair.of_yojson_exn kpjson)))
 
 (** TODO: Add a layer of encryption for these files. *)
-let register_file_keypairs =
-  Yojsoning.yojson_of_file
-  >> decode_keypairs
-  >> List.iter (uncurry register_keypair)
+let register_file_keypairs file password =
+  Yojsoning.yojson_of_file file
+  |> decode_keypairs
+  |> List.iter (fun (name, keypair) ->
+    register_keypair name keypair;
+    register_password keypair.Keypair.address password)
 
 (* convert OCaml string of suitable length (32 only?) to Secp256k1 msg format
    for strings representing hashes, the msg format is suitable for signing.
@@ -319,6 +329,7 @@ module Test = struct
       "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
   let trent_address = trent_keys.address
   let _ = register_keypair "Trent" trent_keys
+  let _ = register_password trent_address ""
 
   let alice_keys =
     make_keypair_from_hex
@@ -326,6 +337,7 @@ module Test = struct
       "04:23:a7:cd:9a:03:fa:9c:58:57:e5:14:ae:5a:cb:18:ca:91:e0:7d:69:45:3e:d8:51:36:ea:6a:00:36:10:67:b8:60:a5:b2:0f:11:53:33:3a:ef:2d:1b:a1:3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
   let alice_address = alice_keys.address
   let _ = register_keypair "Alice" alice_keys
+  let _ = register_password alice_address ""
 
   let bob_keys =
     make_keypair_from_hex
@@ -333,6 +345,7 @@ module Test = struct
       "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
   let bob_address = bob_keys.address
   let _ = register_keypair "Bob" bob_keys
+  let _ = register_password bob_address ""
 
   (* test validity of digital signatures *)
 

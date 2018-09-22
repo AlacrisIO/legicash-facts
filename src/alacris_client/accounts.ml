@@ -51,7 +51,7 @@ let account_names = user_names
 let _register_keypairs =
   "demo-keys-small.json" (* For larger account, use "demo-keys-big.json" *)
   |> Config.get_config_filename
-  |> register_file_keypairs
+  |> register_file_keypairs ""
 
 (* create local data structures reflecting registered keys *)
 let account_key_list =

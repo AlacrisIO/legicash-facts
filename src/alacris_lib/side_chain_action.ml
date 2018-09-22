@@ -16,6 +16,7 @@ let contract_address_key = "alacris.contract-address"
 
 exception Invalid_contract
 
+(* TODO: Issue a warning if it wasn't confirmed yet? *)
 let check_side_chain_contract_created contract_address =
   Ethereum_json_rpc.(eth_get_code (contract_address, BlockParameter.Latest))
   >>= fun code ->
@@ -32,13 +33,12 @@ let check_side_chain_contract_created contract_address =
        addr;
      raise Invalid_contract)
 
-let create_side_chain_contract installer_address password =
+let create_side_chain_contract installer_address =
   let open Ethereum_chain in
-  Ethereum_transaction.ensure_private_key (keypair_of_address installer_address, password)
+  Ethereum_transaction.ensure_private_key
+    (keypair_of_address installer_address, password_of_address installer_address)
   >>= fun address ->
   assert (address = installer_address);
-  Ethereum_transaction.unlock_account installer_address
-  >>= fun _unlock_json ->
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
   Ethereum_user.(user_action address
                    (make_signed_transaction
@@ -55,14 +55,14 @@ let create_side_chain_contract installer_address password =
   |> of_lwt Lwt.(Db.put contract_address_key >>> Db.commit)
   >>= const contract_address
 
-let ensure_side_chain_contract_created installer_address password =
+let ensure_side_chain_contract_created installer_address =
   Logging.log "Ensuring the contract is installed...";
   (match Db.get contract_address_key with
    | Some addr ->
      addr |> Address.of_0x_string |> check_side_chain_contract_created
    | None ->
      Logging.log "Not found, creating the contract...";
-     create_side_chain_contract installer_address password)
+     create_side_chain_contract installer_address)
   >>= fun contract_address ->
   Facilitator_contract.set_contract_address contract_address;
   return ()
@@ -89,8 +89,7 @@ module Test = struct
   (* create accounts, fund them *)
   let create_account_on_testnet : (keypair, address) Lwt_exn.arr =
     fun keys ->
-      let password = "" in
-      Ethereum_transaction.ensure_private_key (keys, password)
+      Ethereum_transaction.ensure_private_key (keys, password_of_address keys.Keypair.address)
 
   let fund_account ?(min_balance=TokenAmount.of_int 1000000000)
         funding_account (address : Address.t) =
@@ -114,12 +113,9 @@ module Test = struct
   let fund_accounts () =
     get_prefunded_address ()
     >>= fun prefunded_address ->
-    Ethereum_transaction.unlock_account prefunded_address
-    >>= fun _ ->
     list_iter_s
       (fun keys ->
          create_account_on_testnet keys
-         >>= Ethereum_transaction.unlock_account
          >>= fun _ -> fund_account prefunded_address keys.address)
       [alice_keys; bob_keys; trent_keys]
 
@@ -130,9 +126,7 @@ module Test = struct
          start_facilitator trent_address
          >>= fund_accounts
          >>= fun () ->
-         create_side_chain_contract trent_address ""
-         >>= fun _ ->
-         Ethereum_transaction.unlock_account alice_keys.address
+         create_side_chain_contract trent_address
          >>= fun _ ->
          let amount_to_deposit = TokenAmount.of_int 523 in
          let alice_state_ref = ref (make_alice_state ()) in
@@ -189,9 +183,6 @@ module Test = struct
       (fun () ->
          start_facilitator trent_address
          >>= fun () ->
-         (* previous test installs contract on test net *)
-         Ethereum_transaction.unlock_account ~duration:60 alice_keys.address
-         >>= fun _ ->
          (* deposit some funds first *)
          let amount_to_deposit = TokenAmount.of_int 1023 in
          let alice_state_ref = ref (make_alice_state ()) in
