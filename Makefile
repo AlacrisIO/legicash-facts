@@ -51,6 +51,12 @@ $(BUILD_DIR)/$(LEGILOGIC_ETHEREUM): $(ML_SOURCES)
 	$(SHOW) "Building Legilogic ethereum support"
 	$(HIDE) dune build $(LEGILOGIC_ETHEREUM)
 
+ETHEREUM_PREFUNDER:=src/legilogic_ethereum/ethereum_prefunder.exe
+ethereum_prefunder: $(BUILD_DIR)/$(ETHEREUM_PREFUNDER)
+$(BUILD_DIR)/$(ETHEREUM_PREFUNDER): $(ML_SOURCES)
+	$(SHOW) "Building Ethereum prefunder executable"
+	$(HIDE) dune build $(ETHEREUM_PREFUNDER)
+
 # for the side_chain_client demo, this is a simplified contract that just
 # logs deposits and withdrawals
 CONTRACT:=src/alacris_lib/facilitator_contract_binary.ml
@@ -124,7 +130,7 @@ repl: ./bin/legicaml $(BUILD_DIR)/$(TOPLEVEL)
 
 ### Build all the stuff to build
 build_all: force
-	dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
+	dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ETHEREUM_PREFUNDER) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
 
 ### Running smoke test for the build:
 test_hello: toplevel $(ML_SOURCES) $(CONTRACT) force
@@ -136,28 +142,29 @@ test: $(ML_SOURCES) $(CONTRACT) force
 	$(HIDE) dune runtest -j 1
 
 ### TO RUN OUR INTEGRATION TESTS:
-# 1- Run Ethereum
+# 1- Run a private Ethereum network
 run_ethereum_net :
 	$(SHOW) "Starting private Ethereum devnet"
 	$(HIDE) scripts/ethereum-devnet/run.sh
 
-# 2- Run our server
+# 2- Fund test accounts on the private Ethereum network,
+# importantly including the facilitator's account
+fund_accounts : $(BUILD_DIR)/$(ETHEREUM_PREFUNDER)
+	$(BUILD_DIR)/$(ETHEREUM_PREFUNDER) ./config/facilitator_keys.json ./config/demo-keys-small.json
+
+# 3- Run our server
 run_side_chain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
 	$(SHOW) "Running side chain server"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_SERVER)
 
-# 3- Run our client
+# 4- Run our client
 run_side_chain_client: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT)
 	$(SHOW) "Running side chain client (SCGI server)"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_CLIENT)
 
-# 4- Run nginx as a front-end to our client
+# 5- Run nginx as a front-end to our client
 nginx:
 	./src/alacris_client/nginx/start.sh
-
-# 5- (Optional) To play with our system, you might want to fund a few accounts.
-fund_alice_and_bob:
-	./scripts/fund.sh
 
 # 6- Now you can run our integration tests
 test_side_chain_client : $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)

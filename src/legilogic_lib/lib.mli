@@ -53,6 +53,8 @@ val pair : 'a -> 'b -> 'a * 'b
 val triple : 'a -> 'b -> 'c -> 'a * 'b * 'c
 val quadruple : 'a -> 'b -> 'c -> 'd -> 'a * 'b * 'c * 'd
 
+val singleton: 'a -> 'a list
+
 (** Simple counter *)
 val make_counter : ?start:int -> unit -> ?increment:int -> unit -> int
 

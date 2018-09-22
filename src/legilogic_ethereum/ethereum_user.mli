@@ -86,7 +86,7 @@ val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) UserAsy
 val confirm_transaction : (Transaction.t * SignedTransaction.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
 (** Issue a transaction on the Ethereum network, wait for it to be confirmed *)
 
-val transfer_tokens : (Address.t * TokenAmount.t, TransactionTracker.t) UserAsyncAction.arr
+val transfer_tokens : (Address.t * TokenAmount.t, Transaction.t * SignedTransaction.t) UserAsyncAction.arr
 (** Transfer tokens from one address to another on the main chain; asynchronous *)
 
 val send_transaction : (Transaction.t, Digest.t) Lwt_exn.arr

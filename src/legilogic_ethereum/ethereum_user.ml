@@ -267,9 +267,7 @@ let confirm_transaction =
 let transfer_gas_limit = TokenAmount.of_int 21000
 
 let transfer_tokens (recipient, amount) =
-  let open UserAsyncAction in
   make_signed_transaction (TransferTokens recipient) amount transfer_gas_limit
-  >>= issue_transaction
 
 module Test = struct
   let%test "exercise main_chain_block_notification_stream" =

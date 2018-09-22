@@ -35,6 +35,8 @@ let pair x y = x, y
 let triple x y z = x, y, z
 let quadruple x y z t = x, y, z, t
 
+let singleton x = [x]
+
 let make_counter ?(start=0) () =
   let r = ref start in
   fun ?(increment=1) () -> let count = !r in r := count + increment ; count

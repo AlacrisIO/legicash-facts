@@ -123,8 +123,6 @@ let list_accounts () =
 let get_first_account =
   list_accounts >>> catching_arr List.hd
 
-let transfer_tokens_gas = TokenAmount.of_int 21000
-
 module Test = struct
   open Ethereum_json_rpc
   open Ethereum_util.Test
@@ -163,11 +161,8 @@ module Test = struct
          >>= fun _unlock_sender_json ->
          (* we don't check opening balance, which may be too large to parse *)
          let transfer_amount = 22 in
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.TransferTokens recipient_address)
-                             (TokenAmount.of_int transfer_amount)))
-           transfer_tokens_gas
+         Ethereum_user.(user_action sender_address transfer_tokens)
+           (recipient_address, TokenAmount.of_int transfer_amount)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash transaction)
