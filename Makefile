@@ -22,7 +22,7 @@ BUILD_DIR:=_build/default
 
 all: build_all
 
-.PHONY: all build_all force legilogic_lib legilogic_ethereum alacris_lib side_chain_server side_chain_client side_chain_client_test run test_side_chain_client ethereum_net install uninstall test toplevel clean reset contract nginx stop_nginx
+.PHONY: all build_all force legilogic_lib legilogic_ethereum alacris_lib side_chain_server side_chain_client side_chain_client_test run test_side_chain_client ethereum_net install uninstall test toplevel clean reset contract nginx stop_nginx wc
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli src/dune src/*/dune)
 
@@ -197,3 +197,9 @@ reset:
 	$(HIDE) killall -q side_chain_client.exe 2> /dev/null || true
 	$(SHOW) " Removing Alacris databases"
 	$(HIDE) rm -rf _run/alacris_server _run/alacris_client
+
+# Source code stats
+wc: force
+	$(SHOW) "Lines of .ml or .mli code"
+	$(HIDE) for i in src/*/ ; do printf "%9s    %s\n" "$$(wc -l $$(find $$i -name '*.ml*') | tail -1 | (read a b ; echo $$a))" "$$i" ; done
+	$(HIDE) printf "%9s    %s\n" "$$(wc -l $$(find ./src -name '*.ml*') | tail -1 | (read a b ; echo $$a))" total
