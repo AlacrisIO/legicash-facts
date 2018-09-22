@@ -129,7 +129,7 @@ repl: ./bin/legicaml $(BUILD_DIR)/$(TOPLEVEL)
 	$(HIDE) rlwrap $<
 
 ### Build all the stuff to build
-build_all: force
+build_all: $(CONTRACT) force
 	dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ETHEREUM_PREFUNDER) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
 
 ### Running smoke test for the build:
