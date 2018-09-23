@@ -588,6 +588,7 @@ module Test = struct
        in Side_chain_action.Test, the "deposit_and_payment_valid" test does
        a save and retrieval with nonempty such maps
     *)
+    register_test_keypairs ();
     Db.run ~db_name:"alacris-server"
       (fun () ->
          FacilitatorState.save trent_state

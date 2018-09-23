@@ -142,7 +142,12 @@ module Test = struct
     in
     poll_net 0
 
-  let get_prefunded_address = get_first_account
+  let get_prefunded_address =
+    get_first_account
+    >>> (fun address ->
+      register_address "Croesus" address;
+      register_password address "";
+      return address)
 
   let display_balance display address balance =
     display

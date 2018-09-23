@@ -329,26 +329,29 @@ module Test = struct
       "0xb6fb0b7e61363ee2f748161338f56953e8aa42642e9990eff17e7de9aa895786"
       "0x0426bd9885f2c9e23d18c3025da70e71a4f7ce237124352882eafbd1cbb1e9742c4fe3847ce1a56a0d19df7a7d385a2134be05208b5d1ccc5d015f5e9a3ba0d7df"
   let trent_address = trent_keys.address
-  let _ = register_keypair "Trent" trent_keys
-  let _ = register_password trent_address ""
 
   let alice_keys =
     keypair_of_0x
       "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
       "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
   let alice_address = alice_keys.address
-  let _ = register_keypair "Alice" alice_keys
-  let _ = register_password alice_address ""
 
   let bob_keys =
     make_keypair_from_hex
       "f1:d3:cd:20:22:e1:d6:64:98:32:76:04:83:4d:f0:73:06:64:f7:1a:8d:d1:1e:46:a3:3b:4a:0e:bb:40:ca:8e"
       "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
   let bob_address = bob_keys.address
-  let _ = register_keypair "Bob" bob_keys
-  let _ = register_password bob_address ""
+
+  let register_test_keypairs () =
+    List.iter (fun (name, keypair) ->
+      register_keypair name keypair;
+      register_password keypair.address "")
+      ["Alice", alice_keys; "Trent", trent_keys; "Bob", bob_keys]
 
   (* test validity of digital signatures *)
+
+  let%test "register keypairs" =
+    register_test_keypairs (); true
 
   let%test "alice_signature" =
     let alice_data = "some arbitrary string for Alice to sign" in

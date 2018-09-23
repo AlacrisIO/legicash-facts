@@ -150,4 +150,5 @@ module Test : sig
   val alice_address : address
   val bob_keys : keypair
   val bob_address : address
+  val register_test_keypairs : unit -> unit
 end
