@@ -6,6 +6,7 @@ open Signing
 open Legilogic_ethereum
 open Ethereum_chain
 open Ethereum_abi
+open Ethereum_user
 
 let contract_address = ref Address.zero
 
@@ -27,3 +28,14 @@ let make_withdraw_call facilitator ticket bond confirmed_state =
                    ; abi_digest confirmed_state ] in
   let call = encode_function_call { function_name = "withdraw"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
+
+let deposit_gas_limit = TokenAmount.of_int 1000000
+
+(* create a signed deposit transaction, ready to be  call facilitator deposit function on main chain *)
+let make_deposit (facilitator_address, amount) =
+  make_signed_transaction (make_deposit_call facilitator_address) amount deposit_gas_limit
+
+let deposit (facilitator_address, amount) =
+  let open UserAsyncAction in
+  make_deposit (facilitator_address, amount)
+  >>= confirm_transaction

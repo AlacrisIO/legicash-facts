@@ -282,7 +282,7 @@ let deposit (facilitator, deposit_amount) =
   let open UserAsyncAction in
   get_facilitator_fee_schedule facilitator
   >>= fun {deposit_fee} ->
-  ethereum_action Ethereum_action.deposit (facilitator, (TokenAmount.add deposit_amount deposit_fee))
+  ethereum_action Facilitator_contract.deposit (facilitator, (TokenAmount.add deposit_amount deposit_fee))
   >>= fun (main_chain_deposit, main_chain_deposit_confirmation) ->
   of_action issue_user_transaction_request
     (Deposit
