@@ -36,6 +36,14 @@ module Test = struct
     let digest = digest_of_string data in
     expected = Digest.to_hex_string digest
 
+  (* test that Cryptokit's Keccak256 hash, that we use, is the same as Ethereum's
+     this is the hash and message found in function TestKeccak256Hash in
+     https://github.com/ethereum/go-ethereum/blob/master/crypto/crypto_test.go
+  *)
+  let%test "ethereum_keccak256_hash" =
+    mk_digest_test "abc"
+      "4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45"
+
   let%test "digest_1" =
     mk_digest_test "this is a test"
       "9fd09c38c2a5ae0a0bcd617872b735e37909ccc05c956460be7d3d03d881a0dc"

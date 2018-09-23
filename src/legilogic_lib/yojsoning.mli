@@ -81,4 +81,5 @@ val bytes_yojsoning : Bytes.t yojsoning
 module Bytes : sig
   include module type of Bytes
   include YojsonableS with type t := t
+  include ShowableS with type t := t
 end

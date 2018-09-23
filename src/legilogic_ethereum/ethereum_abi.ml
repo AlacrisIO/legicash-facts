@@ -7,7 +7,8 @@ open Integer
 open Digesting
 open Types
 open Signing
-open Main_chain
+
+open Ethereum_chain
 
 (* TODO: somehow work with our static types UInt256, UInt64, etc.? Maybe using GADTs somehow? *)
 
@@ -459,7 +460,7 @@ let encode_function_call function_call =
   Bytes.cat encoded_signature encoded_params
 
 module Test = struct
-  open Ethereum_util.Test
+  open Hex.Test
 
   let%test "int64-of-int64-encoding" =
     let ff = Z.of_int 0xff in

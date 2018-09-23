@@ -1,11 +1,11 @@
 #!/bin/bash -eu
 
 here=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-top=$(dirname "$here")
-build=$top/_build/default
-legicaml=$build/src/legicaml.exe
+export ALACRIS_HOME=$(dirname "$here")
+build=$ALACRIS_HOME/_build/default
+toplevel=$build/src/toplevel.exe
 
-if [ ! -x $legicaml ] ; then
+if [ ! -x $toplevel ] ; then
     echo "Please run \"make toplevel\" before running $0";
     exit 0
 fi
@@ -18,10 +18,6 @@ use_lib () {
     done
 }
 
-echo "Starting Legicash OCaml toplevel..."
-echo
-use_lib legilogic_lib legilogic_ethereum legicash_lib
-$legicaml "${LIB[@]}" "$@"
-
-# TODO: make sure endpoints works by splitting library and executable initialization,
-# then include it in the library mix.
+# Starting LegiLogic / Alacris OCaml toplevel...
+use_lib legilogic_lib legilogic_ethereum alacris_lib
+$toplevel "${LIB[@]}" "$@"

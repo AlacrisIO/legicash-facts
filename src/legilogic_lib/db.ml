@@ -88,7 +88,7 @@ let check_connection () =
     [Commit] is currently in progress. If so, it's false. *)
 let start_server ~db_name ~db () =
   let open Lwt in
-  Logging.log "Opening LevelDB connection to db %s\n%!" db_name;
+  Logging.log "Opening LevelDB connection to db %s" db_name;
   let rec outer_loop batch_id previous () =
     let transaction = LevelDB.Batch.make () in
     let (wait_on_batch_commit, notify_batch_commit) = Lwt.task () in
@@ -130,7 +130,7 @@ let start_server ~db_name ~db () =
     inner_loop ~ready:false ~triggered:false in
   outer_loop 0 Lwt.return_unit ()
 
-let open_connection ~db_name =
+let open_connection db_name =
   match !the_connection_ref with
   | Some x ->
     if x.db_name = db_name then
@@ -155,7 +155,7 @@ let request r =
   Lwt_mvar.put db_mailbox r
 
 let run ~db_name thunk =
-  Lwt_main.run (open_connection ~db_name >>= thunk)
+  Lwt_main.run (open_connection db_name >>= thunk)
 
 let async_commit continuation =
   request (Commit continuation)

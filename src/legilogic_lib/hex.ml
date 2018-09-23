@@ -128,6 +128,14 @@ let parse_0x_prefix parser hs =
 let unparse_0x_prefix printer x = "0x" ^ (printer x)
 
 module Test = struct
+  open Lib.Test
+
+  let expect_0x_string description expected string =
+    expect_string description expected (unparse_0x_data string)
+
+  let expect_0x_bytes description expected bytes =
+    expect_0x_string description expected (Bytes.to_string bytes)
+
   let%test "hex_string" =
     List.for_all
       (fun (bits, hex) ->

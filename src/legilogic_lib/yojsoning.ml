@@ -145,4 +145,6 @@ module Bytes = struct
              type t = Bytes.t
              let yojsoning = bytes_yojsoning
            end) : YojsonableS with type t := t)
+  let pp formatter x = Format.fprintf formatter "(parse_0x_bytes %S)" (Hex.unparse_0x_bytes x)
+  let show x = Format.asprintf "%a" pp x
 end

@@ -6,6 +6,6 @@ tezos
 *~
 *.tmp
 *.pyc
-legicash.install
-src/legicash_lib/facilitator_contract_binary.ml
+alacris.install
+src/alacris_lib/facilitator_contract_binary.ml
 foo

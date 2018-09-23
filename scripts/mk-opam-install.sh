@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# make legicash.install file, so it will contain current .cmi and .cmx files
+# make alacris.install file, so it will contain current .cmi and .cmx files
 
 GIT_ROOT=$(git rev-parse --show-toplevel)
 
-INSTALL_FILE=$GIT_ROOT/legicash.install
+INSTALL_FILE=$GIT_ROOT/alacris.install
 
 rm -f $INSTALL_FILE
 
@@ -34,16 +34,16 @@ basename_entry () {
 
 lib_invariants () {
     entry "META" "META"
-    entry "legicash.opam" "opam"
-    basename_entry "src/_build/default/legicash_lib.a"
-    basename_entry "src/_build/default/legicash_lib.cma"
-    basename_entry "src/_build/default/legicash_lib.cmxa"
-    basename_entry "src/_build/default/legicash_lib.cmxs"
+    entry "alacris.opam" "opam"
+    basename_entry "src/_build/default/alacris_lib/alacris_lib.a"
+    basename_entry "src/_build/default/alacris_lib/alacris_lib.cma"
+    basename_entry "src/_build/default/alacris_lib/alacris_lib.cmxa"
+    basename_entry "src/_build/default/alacris_lib/alacris_lib.cmxs"
 }
 
 lib_modules () {
     cd $GIT_ROOT && \
-	for file in $(ls src/_build/default/.legicash_lib.objs/*.cmi); do
+	for file in $(ls src/_build/default/alacris_lib/.alacris_lib.objs/*.cmi); do
 	    basename_entry $file
 	done
 }

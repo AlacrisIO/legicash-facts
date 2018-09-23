@@ -133,7 +133,7 @@ let decode (RlpEncoding s as encoding) =
   else bork "For encoding: %s, got leftover data: %s" (show encoding) (String.sub s offset (len - offset))
 
 module Test = struct
-  open Ethereum_util.Test
+  open Hex.Test
 
   (* tests of encoding, from reference given at top *)
 

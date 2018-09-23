@@ -2,7 +2,7 @@ pragma solidity ^0.4.23;
 import "claims.sol";
 
 /**
- * Contract defining an enum for all the types of claim in Legicash
+ * Contract defining an enum for all the types of claim in the Alacris contract
  */
 contract ClaimTypes is Claims {
 

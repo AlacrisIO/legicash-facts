@@ -60,7 +60,10 @@ module Duration : UIntS
 module StringT : PersistableS with type t = string
 
 (* string as data to be printed as 0x strings in JSON *)
-module Data : PersistableS with type t = string
+module Data : sig
+  include PersistableS with type t = string
+  include ShowableS with type t := t
+end
 
 (* This marshals to the empty string and json [null]. It is useful for
    type-system compatibility, e.g. you can have a tree with trivial leaves, to

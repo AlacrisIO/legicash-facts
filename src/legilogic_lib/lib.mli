@@ -21,7 +21,7 @@ val bottom : 'a -> 'b
 (** Check that calling a thunk indeed causes exception exn. A useful function for tests. *)
 val throws : exn -> (unit -> 'a) -> bool
 
-(* SKI combiantors and their name:
+(* SKI combinators and their name:
    https://www.johndcook.com/blog/2014/02/06/schonfinkel-combinators/ *)
 
 (** SKI combinators, 1: Identitätsfunktion *)
@@ -34,7 +34,7 @@ val konstant : 'a -> 'b -> 'a
 val schoenfinkel : ('a -> 'b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 
 (** SKI combinators, 4: verTauschungsfunktion (exchange funcTion), flip in Haskell *)
-val transpose : ('a -> 'b -> 'c) -> 'b -> 'a -> 'c
+val flip : ('a -> 'b -> 'c) -> 'b -> 'a -> 'c
 
 (** SKI combinators, 5: Zusammensetzungsfunktion (compoZition function), (.) in Haskell *)
 val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
@@ -48,6 +48,12 @@ val curry3 : ('a * 'b * 'c -> 'd) -> 'a -> 'b -> 'c -> 'd
 val uncurry3 : ('a -> 'b -> 'c -> 'd) -> 'a * 'b * 'c -> 'd
 val curry4 : ('a * 'b * 'c * 'd -> 'e) -> 'a -> 'b -> 'c -> 'd -> 'e
 val uncurry4 : ('a -> 'b -> 'c -> 'd -> 'e) -> 'a * 'b * 'c * 'd -> 'e
+
+val pair : 'a -> 'b -> 'a * 'b
+val triple : 'a -> 'b -> 'c -> 'a * 'b * 'c
+val quadruple : 'a -> 'b -> 'c -> 'd -> 'a * 'b * 'c * 'd
+
+val singleton: 'a -> 'a list
 
 (** Simple counter *)
 val make_counter : ?start:int -> unit -> ?increment:int -> unit -> int
@@ -441,3 +447,7 @@ val write_file : path:string -> string -> unit
 val read_file : string -> string
 
 val ignoring_errors : 'a -> ('b -> 'a) -> 'b -> 'a
+
+module Test : sig
+  val expect_string : string -> string -> string -> unit
+end

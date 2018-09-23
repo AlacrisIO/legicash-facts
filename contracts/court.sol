@@ -3,7 +3,7 @@ pragma solidity ^0.4.23;
 /**
  * Contract for a Court that adjudicates claims about side-chains managed by facilitators.
  *
- * This file is the main entry point of the Legicash contract.
+ * This file is the main entry point of the Alacris contract.
  * The contract is defined in parts imported from the files below:
  */
 import "claims.sol";
