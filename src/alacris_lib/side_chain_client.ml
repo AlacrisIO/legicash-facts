@@ -15,15 +15,17 @@ type side_chain_client_config =
 [@@deriving of_yojson]
 
 let config =
-  "side_chain_client_config.json"
-  |> Config.get_config_filename
-  |> yojson_of_file
-  |> side_chain_client_config_of_yojson
-  |> function
-  | Ok config -> config
-  | Error msg -> Lib.bork "Error loading side chain client configuration: %s" msg
+  lazy
+    ("side_chain_client_config.json"
+     |> Config.get_config_filename
+     |> yojson_of_file
+     |> side_chain_client_config_of_yojson
+     |> function
+     | Ok config -> config
+     | Error msg -> Lib.bork "Error loading side chain client configuration: %s" msg)
 
-let sockaddr = Unix.(ADDR_INET (inet_addr_of_string config.host,config.port))
+let sockaddr =
+  lazy (match config with lazy {host;port} -> Unix.(ADDR_INET (inet_addr_of_string host, port)))
 
 let decode_response unmarshaler =
   unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwt.arr
@@ -33,7 +35,7 @@ let post_query_request_to_side_chain_ (request : ExternalRequest.t) =
   match request with
   | `AdminQuery _
   | `UserQuery _ ->
-    with_connection sockaddr
+    with_connection (Lazy.force sockaddr)
       (fun (in_channel,out_channel) ->
          ExternalRequest.marshal_string request
          |> write_string_to_lwt_io_channel out_channel
@@ -51,7 +53,7 @@ let post_admin_query_request_to_side_chain (request : AdminQueryRequest.t) =
 (* transactions return Transactions *)
 let post_user_transaction_request_to_side_chain (request : UserTransactionRequest.t signed) =
   let (external_request : ExternalRequest.t) = `UserTransaction request in
-  with_connection sockaddr
+  with_connection (Lazy.force sockaddr)
     (fun (in_channel, out_channel) ->
        ExternalRequest.marshal_string external_request
        |> write_string_to_lwt_io_channel out_channel
