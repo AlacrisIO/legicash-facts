@@ -134,8 +134,8 @@ let open_connection db_name =
   match !the_connection_ref with
   | Some x ->
     if x.db_name = db_name then
-      Lwt_io.printf
-        "Process already has a LevelDB connection to db %s, won't start another one" db_name
+      (Logging.log "Process already has a LevelDB connection to db %s, won't start another one" db_name;
+       Lwt.return_unit)
     else
       bork "Cannot start a LevelDB connection to db %s because there's already one to %s"
         db_name x.db_name
