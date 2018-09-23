@@ -258,3 +258,9 @@ let read_file path =
 
 let ignoring_errors default f x =
   try f x with _ -> default
+
+module Test = struct
+  let expect_string description expected computed =
+    if not (computed = expected) then
+      bork "Expected %s to be %s but instead got %s instead" description expected computed
+end

@@ -50,17 +50,6 @@ let address_of_hex_string_with_checksum hs =
 let bytes_of_address address = Bytes.of_string (Address.to_big_endian_bits address)
 
 module Test = struct
-
-  let expect_string description expected computed =
-    if not (computed = expected) then
-      bork "Expected %s to be %s but instead got %s instead" description expected computed
-
-  let expect_0x_string description expected string =
-    expect_string description expected (unparse_0x_data string)
-
-  let expect_0x_bytes description expected bytes =
-    expect_0x_string description expected (Bytes.to_string bytes)
-
   let%test "0x_string <-> address" =
     List.for_all
       (fun (hex, ethhex) -> let address = Address.of_hex_string hex in

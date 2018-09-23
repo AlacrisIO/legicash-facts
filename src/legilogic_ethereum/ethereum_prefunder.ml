@@ -51,4 +51,5 @@ let _ =
   Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/legicash-server")
     (get_prefunded_address
      >>> fun prefunded_address ->
-     list_iter_s (ensure_prefunded prefunded_address amount) !args)
+     register_password prefunded_address "";
+     list_iter_s (ensure_prefunded prefunded_address amount) (List.rev !args))

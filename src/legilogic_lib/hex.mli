@@ -63,3 +63,8 @@ val parse_0x_bytes : string -> Bytes.t
 
 (** unparse some bytes as an ethereum-style 0x-prefixed hex string *)
 val unparse_0x_bytes : Bytes.t -> string
+
+module Test : sig
+  val expect_0x_string : string -> string -> string -> unit
+  val expect_0x_bytes : string -> string -> bytes -> unit
+end

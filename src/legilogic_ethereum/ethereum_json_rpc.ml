@@ -275,10 +275,20 @@ let personal_list_accounts =
     (list_of_yojson_exn Address.of_yojson_exn)
     yojson_noargs
 
+let personal_lock_account =
+  ethereum_json_rpc "personal_lockAccount"
+    YoJson.to_bool
+    (yojson_1arg Address.to_yojson)
+
 let personal_new_account =
   ethereum_json_rpc "personal_newAccount"
     Address.of_yojson_exn
     (yojson_1arg StringT.to_yojson)
+
+let personal_sign_transaction =
+  ethereum_json_rpc "personal_signTransaction"
+    SignedTransaction.of_yojson_exn
+    (yojson_2args TransactionParameters.to_yojson StringT.to_yojson)
 
 let personal_unlock_account =
   ethereum_json_rpc "personal_unlockAccount"

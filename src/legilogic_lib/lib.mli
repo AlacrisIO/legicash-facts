@@ -447,3 +447,7 @@ val write_file : path:string -> string -> unit
 val read_file : string -> string
 
 val ignoring_errors : 'a -> ('b -> 'a) -> 'b -> 'a
+
+module Test : sig
+  val expect_string : string -> string -> string -> unit
+end

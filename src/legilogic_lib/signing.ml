@@ -322,19 +322,20 @@ module Signed (P : PersistableS) = struct
 end
 
 module Test = struct
+  open Lib.Test
 
   let trent_keys =
-    make_keypair_from_hex
-      "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
-      "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
+    keypair_of_0x
+      "0xb6fb0b7e61363ee2f748161338f56953e8aa42642e9990eff17e7de9aa895786"
+      "0x0426bd9885f2c9e23d18c3025da70e71a4f7ce237124352882eafbd1cbb1e9742c4fe3847ce1a56a0d19df7a7d385a2134be05208b5d1ccc5d015f5e9a3ba0d7df"
   let trent_address = trent_keys.address
   let _ = register_keypair "Trent" trent_keys
   let _ = register_password trent_address ""
 
   let alice_keys =
-    make_keypair_from_hex
-      "d5:69:84:dc:08:3d:76:97:01:71:4e:eb:1d:4c:47:a4:54:25:5a:3b:bc:3e:9f:44:84:20:8c:52:bd:a3:b6:4e"
-      "04:23:a7:cd:9a:03:fa:9c:58:57:e5:14:ae:5a:cb:18:ca:91:e0:7d:69:45:3e:d8:51:36:ea:6a:00:36:10:67:b8:60:a5:b2:0f:11:53:33:3a:ef:2d:1b:a1:3b:1d:7a:52:de:28:69:d1:f6:23:71:bf:81:bf:80:3c:21:c6:7a:ca"
+    keypair_of_0x
+      "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
+      "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
   let alice_address = alice_keys.address
   let _ = register_keypair "Alice" alice_keys
   let _ = register_password alice_address ""
@@ -364,35 +365,21 @@ module Test = struct
     let trent_signature = make_signature digest_of_string trent_keys.private_key trent_data in
     is_signature_valid digest_of_string trent_keys.address trent_signature trent_data
 
-  (* test that Cryptokit's Keccak256 hash is same as Ethereum's
-
-     this is the hash and message found in function TestKeccak256Hash in
-     https://github.com/ethereum/go-ethereum/blob/master/crypto/crypto_test.go
-
-     we put this test here because parse_coloned_hex_string is not exported
-  *)
-
-  let%test "ethereum_keccak256_hash" =
-    let msg = "abc" in
-    let hash = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) msg in
-    hash
-    = parse_coloned_hex_string
-        "4e:03:65:7a:ea:45:a9:4f:c7:d4:7b:a8:26:c8:d6:67:c0:d1:e6:e3:3a:64:a0:36:ec:44:f5:8f:a1:2d:6c:45"
-
   (* test that addresses are really last 20 bytes of Keccak256 hash of public keys *)
-
   let%test "alice_address_from_public_key" =
     Address.to_0x_string alice_keys.address = "0xbbd17be6f683f72023873afeaa57c88d24b58884"
 
   let%test "bob_address_from_public_key" =
-    let bob_address = bob_keys.address in
-    unparse_coloned_hex_string (Address.to_big_endian_bits bob_address)
-    = "8a:6b:38:3d:f4:79:7f:28:67:2b:77:17:9e:be:3d:b9:03:cc:ad:34"
+    expect_string "bob address"
+      "0x8a6b383df4797f28672b77179ebe3db903ccad34"
+      (Address.to_0x_string bob_address);
+    true
 
   let%test "trent_address_from_public_key" =
-    let trent_address = trent_keys.address in
-    unparse_coloned_hex_string (Address.to_big_endian_bits trent_address)
-    = "f4:74:08:14:3d:32:7e:4b:c6:a8:7e:f4:a7:0a:4e:0a:f0:9b:9a:1c"
+    expect_string "trent address"
+      "0xf47408143d327e4bc6a87ef4a70a4e0af09b9a1c"
+      (Address.to_0x_string trent_address);
+    true
 
   let%test "trent_of_address" =
     keypair_of_address trent_address = trent_keys

@@ -183,7 +183,7 @@ val eth_sign :
 val eth_sign_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> SignedTransaction.t Lwt_exn.t
-(** Sign a transaction *)
+(** Sign a transaction from an unlocked account *)
 
 (* https://github.com/ethereum/go-ethereum/wiki/Management-APIs *)
 
@@ -199,9 +199,18 @@ val personal_list_accounts :
   ?timeout:float -> ?log:bool
   -> unit -> Address.t list Lwt_exn.t
 
+val personal_lock_account :
+  ?timeout:float -> ?log:bool
+  -> address -> bool Lwt_exn.t
+
 val personal_new_account :
   ?timeout:float -> ?log:bool
   -> string -> Address.t Lwt_exn.t
+
+val personal_sign_transaction :
+  ?timeout:float -> ?log:bool
+  -> TransactionParameters.t * string -> SignedTransaction.t Lwt_exn.t
+(** Sign a transaction without unlocking *)
 
 val personal_unlock_account :
   ?timeout:float -> ?log:bool

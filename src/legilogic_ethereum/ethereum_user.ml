@@ -237,17 +237,25 @@ let add_ongoing_transaction : (TransactionStatus.t, TransactionTracker.t) UserAs
        |> Lens.modify UserState.lens_ongoing_transactions
             (OngoingTransactions.add transaction_counter tracker))
 
+exception Missing_password
+exception Bad_password
+
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) UserAsyncAction.arr =
   fun transaction ->
     let open UserAsyncAction in
-    of_lwt_exn eth_sign_transaction (transaction_to_parameters transaction)
-    >>= fun signed ->
-    return (transaction, signed)
-
-exception Bad_password
+    (fun state ->
+       let address = state.UserState.address in
+       (try return (password_of_address address) state with
+        | Not_found ->
+          Logging.log "Couldn't find password for %s" (Address.to_0x_string address);
+          fail Missing_password state))
+    >>= fun password ->
+    of_lwt_exn personal_sign_transaction (transaction_to_parameters transaction, password)
+    >>= fun signed -> return (transaction, signed)
 
 let ensure_account_unlocked ?(duration=5) address =
   let password = password_of_address address in
+  Logging.log "ensure_account_unlocked";
   Ethereum_json_rpc.personal_unlock_account (address, password, Some duration)
   >>= function
   | true -> return ()
@@ -260,8 +268,6 @@ let make_signed_transaction operation value gas_limit =
   let open UserAsyncAction in
   make_tx_header (value, gas_limit)
   >>= fun tx_header ->
-  unlock_account ()
-  >>= fun () ->
   sign_transaction Transaction.{tx_header; operation}
 
 let issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) UserAsyncAction.arr =

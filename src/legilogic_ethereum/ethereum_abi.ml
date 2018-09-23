@@ -460,7 +460,7 @@ let encode_function_call function_call =
   Bytes.cat encoded_signature encoded_params
 
 module Test = struct
-  open Ethereum_util.Test
+  open Hex.Test
 
   let%test "int64-of-int64-encoding" =
     let ff = Z.of_int 0xff in

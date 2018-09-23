@@ -2,9 +2,6 @@ open Legilogic_lib
 open Action
 open Signing
 
-open Legilogic_ethereum
-open Ethereum_chain
-
 (* the "flows" mentioned here are those mentioned in the file "demo.md" *)
 
 (*

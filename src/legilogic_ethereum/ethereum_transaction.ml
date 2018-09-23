@@ -122,8 +122,8 @@ let get_first_account =
 
 module Test = struct
   open Ethereum_json_rpc
+  open Lib.Test
   open Signing.Test
-  open Ethereum_util.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
