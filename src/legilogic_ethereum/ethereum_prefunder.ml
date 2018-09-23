@@ -14,7 +14,7 @@ open Ethereum_transaction.Test
 let _ = Config.set_application_name "alacris"
 let _ = Logging.set_log_file (Config.get_application_home_dir () ^ "/_run/logs/ethereum_prefunder.log")
 
-let amount_ref = ref "1000000000000"
+let amount_ref = ref "100000000000000000000"
 let args = ref []
 
 let try_first_match a l =

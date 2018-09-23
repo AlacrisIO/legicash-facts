@@ -339,8 +339,9 @@ module SignaturePrefix : sig
   val state_update : t
 end
 
+val initial_fee_schedule : FacilitatorFeeSchedule.t
+
 module Test : sig
-  val trent_fee_schedule : FacilitatorFeeSchedule.t
   val trent_state : FacilitatorState.t
   (** sample facilitator state for testing *)
 end

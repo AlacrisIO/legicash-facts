@@ -527,15 +527,9 @@ let start_facilitator address =
       with Not_found ->
         (* TODO: move that somewhere else, and fail instead *)
         let open Side_chain in
-        let trent_fee_schedule : FacilitatorFeeSchedule.t =
-          { deposit_fee= TokenAmount.of_int 5
-          ; withdrawal_fee= TokenAmount.of_int 5
-          ; per_account_limit= TokenAmount.of_int 20000
-          ; fee_per_billion= TokenAmount.of_int 42 }
-        in
         let (confirmed_trent_state : Side_chain.State.t) =
           { facilitator_revision= Revision.of_int 0
-          ; spending_limit= TokenAmount.of_int 1000000
+          ; spending_limit= TokenAmount.of_int 1000000 (* TODO: fix that. *)
           ; accounts= AccountMap.empty
           ; transactions= TransactionMap.empty
           ; main_chain_transactions_posted= Merkle_trie.DigestSet.empty }
@@ -549,7 +543,7 @@ let start_facilitator address =
           { keypair= trent_keys
           ; committed= SignedState.make trent_keys confirmed_trent_state
           ; current= confirmed_trent_state
-          ; fee_schedule= trent_fee_schedule }
+          ; fee_schedule= initial_fee_schedule }
         in
         trent_genesis_state
     in

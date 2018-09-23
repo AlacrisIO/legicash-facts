@@ -554,18 +554,20 @@ module SignaturePrefix = struct
   let state_update = Address.of_hex_string "7E91CA540000000057A7E009DA7E000000000001"
 end
 
+(* 1 ether = 1e18 wei = 242 USD (as of 2018-09-23), with gas price of ~4.1 gwei *)
+let initial_fee_schedule =
+  FacilitatorFeeSchedule.
+    { deposit_fee= TokenAmount.of_string "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
+    ; withdrawal_fee= TokenAmount.of_string "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
+    ; per_account_limit= TokenAmount.of_string "10000000000000000000" (* 1e19 wei = 10 ether ~= 2420 USD *)
+    ; fee_per_billion= TokenAmount.of_string "1000000" } (* 1e6/1e9 = 1e-3 = .1% *)
+
+
 module Test = struct
 
   open Signing.Test
 
   (* a sample facilitator state *)
-
-  let trent_fee_schedule =
-    FacilitatorFeeSchedule.
-      { deposit_fee= TokenAmount.of_int 5
-      ; withdrawal_fee= TokenAmount.of_int 5
-      ; per_account_limit= TokenAmount.of_int 20000
-      ; fee_per_billion= TokenAmount.of_int 42 }
 
   let confirmed_trent_state =
     State.{ facilitator_revision= Revision.of_int 0
@@ -579,7 +581,7 @@ module Test = struct
     { keypair= trent_keys
     ; committed= SignedState.make trent_keys confirmed_trent_state
     ; current= confirmed_trent_state
-    ; fee_schedule= trent_fee_schedule }
+    ; fee_schedule= initial_fee_schedule }
 
   let%test "db-save-retrieve" =
     (* test whether retrieving a saved facilitator state yields the same state

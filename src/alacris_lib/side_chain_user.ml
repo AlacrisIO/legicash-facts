@@ -145,7 +145,7 @@ let get_first_facilitator =
 
 (** TODO: query the network, whatever, and find the fee schedule *)
 let get_facilitator_fee_schedule _facilitator_address =
-  UserAsyncAction.return Side_chain.Test.trent_fee_schedule
+  UserAsyncAction.return initial_fee_schedule
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256

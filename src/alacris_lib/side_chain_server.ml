@@ -82,7 +82,7 @@ let process_request client_address channels =
 
 let new_facilitator_state address =
   let keypair = keypair_of_address address in
-  let fee_schedule = Side_chain.Test.trent_fee_schedule in (* TODO: have some different fee schedule *)
+  let fee_schedule = Side_chain.initial_fee_schedule in (* TODO: support different fee schedules *)
   let current =
     Side_chain.State.
       { facilitator_revision= Revision.of_int 0
