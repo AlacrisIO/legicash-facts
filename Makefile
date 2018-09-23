@@ -15,7 +15,12 @@ SHOW:=@echo
 # use HIDE to run commands invisibly, unless VERBOSE defined
 HIDE:=$(if $(VERBOSE),,@)
 
+# Our applications recognize this as the top directory for the project, and look for files there
+# at runtime, e.g. for configuration.
 export ALACRIS_HOME:=$(shell pwd)
+
+# Some tests (for legilogic_lib and legilogic_ethereum) are run before the application is set
+# to "alacris" and so need this variable instead.
 export APPLICATION_HOME:=$(ALACRIS_HOME)
 
 BUILD_DIR:=_build/default
@@ -63,7 +68,7 @@ CONTRACT:=src/alacris_lib/facilitator_contract_binary.ml
 contract: $(CONTRACT)
 $(CONTRACT) : contracts/deposit-withdraw.sol $(wildcard contracts/*.sol)
 	$(SHOW) "Compiling facilitator contract"
-	$(HIDE)	cd contracts/ && solc --bin -o ../_build/contracts --overwrite court.sol
+	$(HIDE) cd contracts/ && solc --bin -o ../_build/contracts --overwrite court.sol
 	$(HIDE) awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' < ./_build/contracts/Court.bin > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
 
 ALACRIS_LIB:=src/alacris_lib/alacris_lib.cmxs
@@ -100,9 +105,9 @@ $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST): src/alacris_client/side_chain_client_tes
 install: $(ALACRIS_LIB)
 ifeq ($(shell ocamlfind query -qe alacris 2> /dev/null),)
 	$(SHOW) "Installing Alacris library to OPAM"
-	@ ./scripts/mk-opam-install.sh
-	@ opam pin -y add alacris . -n
-	@ opam install alacris
+	$(HIDE) ./scripts/mk-opam-install.sh
+	$(HIDE) opam pin -y add alacris . -n
+	$(HIDE) opam install alacris
 else
 	$(SHOW) "Alacris library already installed in OPAM"
 endif
@@ -110,14 +115,14 @@ endif
 uninstall:
 ifneq ($(shell ocamlfind query -qe alacris 2> /dev/null),)
 	$(SHOW) "Uninstalling Alacris library from OPAM"
-	@ opam uninstall alacris
-	@ opam pin remove alacris
+	$(HIDE) opam uninstall alacris
+	$(HIDE) opam pin remove alacris
 else
 	$(SHOW) "Alacris library not installed in OPAM"
 endif
 
 ### Building a toplevel for interaction with our code:
-TOPLEVEL=src/toplevel.exe
+TOPLEVEL:=src/toplevel.exe
 toplevel: $(BUILD_DIR)/$(TOPLEVEL)
 $(BUILD_DIR)/$(TOPLEVEL): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building custom OCaml toplevel"
@@ -125,16 +130,16 @@ $(BUILD_DIR)/$(TOPLEVEL): $(ML_SOURCES) $(CONTRACT)
 
 ### Playing our code from an OCaml toplevel:
 repl: ./bin/legicaml $(BUILD_DIR)/$(TOPLEVEL)
-	$(HIDE) echo "Starting Alacris OCaml toplevel..." ; echo
+	$(SHOW) "Starting Alacris OCaml toplevel..." ; echo
 	$(HIDE) rlwrap $<
 
 ### Build all the stuff to build
 build_all: $(CONTRACT) force
-	dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ETHEREUM_PREFUNDER) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
+	$(HIDE) dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ETHEREUM_PREFUNDER) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
 
 ### Running smoke test for the build:
 test_hello: toplevel $(ML_SOURCES) $(CONTRACT) force
-	[ "$$(echo 'Printf.printf "%s" (Hex.parse_0x_data "0x48656c6c6f2c20776f726c64210a"); exit 0;;' | ./bin/legicaml -no-version -noprompt -noinit)" = "Hello, world!" ]
+	$(HIDE) [ "$$(echo 'Printf.printf "%s" (Hex.parse_0x_data "0x48656c6c6f2c20776f726c64210a"); exit 0;;' | ./bin/legicaml -no-version -noprompt -noinit)" = "Hello, world!" ]
 
 ### Running unit tests
 test: $(ML_SOURCES) $(CONTRACT) force
@@ -150,7 +155,7 @@ run_ethereum_net :
 # 2- Fund test accounts on the private Ethereum network,
 # importantly including the facilitator's account
 fund_accounts : $(BUILD_DIR)/$(ETHEREUM_PREFUNDER)
-	$(BUILD_DIR)/$(ETHEREUM_PREFUNDER) ./config/facilitator_keys.json ./config/demo-keys-small.json
+	$(HIDE) $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) ./config/facilitator_keys.json ./config/demo-keys-small.json
 
 # 3- Run our server
 run_side_chain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
@@ -164,7 +169,7 @@ run_side_chain_client: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT)
 
 # 5- Run nginx as a front-end to our client
 nginx:
-	./src/alacris_client/nginx/start.sh
+	$(HIDE) ./src/alacris_client/nginx/start.sh
 
 # 6- Now you can run our integration tests
 test_side_chain_client : $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
@@ -173,7 +178,7 @@ test_side_chain_client : $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
 
 # You don't usually need to stop nginx, but in case you want to:
 stop_nginx:
-	./src/alacris_client/nginx/stop.sh
+	$(HIDE) ./src/alacris_client/nginx/stop.sh
 
 # A good cleaning of our system, except that we preserve the state of the ethereum main chain.
 clean:

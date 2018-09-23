@@ -147,6 +147,12 @@ Example code you may run includes:
 
 ### Running individual tests
 
+You can run tests in only one directory with a command like:
+
+```
+dune runtest src/alacris_lib
+```
+
 To reduce test running time during development,
 comment out the `(inline_tests)` sexp's in the `dune` files
 for the sublibraries you're not concerned with,

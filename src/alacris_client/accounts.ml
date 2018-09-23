@@ -12,7 +12,6 @@ open Ethereum_transaction.Test
 open Alacris_lib
 open Side_chain
 open Side_chain_user
-open Side_chain_action.Test
 open Side_chain_client
 
 (* users *)
@@ -162,12 +161,14 @@ let store_user_accounts () =
    address
    |> get_user_account
    |> fun {balance; account_revision} ->
-   Logging.log "%s account %s balance %s revision %s\n"
+   Logging.log "%s account %s balance %s revision %s"
    (nickname_of_address address) (Address.to_0x_string address)
    (TokenAmount.to_0x_string balance) (Revision.to_0x_string account_revision)
    |> Lwt_exn.return
 *)
 
+(* TODO: move the address prefunding to side_chain_client_test and/or to a special test client,
+   remove it from regular client *)
 let prepare_server =
   let open Lwt_exn in
   (fun () -> printf "*** PREPARING SIDE CHAIN CLIENT, PLEASE WAIT ***\n")
@@ -177,12 +178,6 @@ let prepare_server =
      list_iter_s (list_iter_p store_keys_on_testnet) (chunk_list account_key_list 13) *)
   >>> store_user_accounts
   >>> (* Ethereum dev mode provides prefunded address with a very large balance *)
-  (* TODO: move that to side_chain_client_test, remove it from regular client *)
   get_prefunded_address
-  >>> (fun prefunded_address ->
-    list_iter_s
-      (fun (name,(keys:Signing.keypair)) ->
-         printf "Funding account: %s\n" name
-         >>= (fun () -> fund_account prefunded_address keys.address))
-      account_key_list)
+  >>> (fun prefunded_address -> list_iter_s (ensure_test_account prefunded_address) account_key_list)
   >>> fun () -> printf "*** READY ***\n"

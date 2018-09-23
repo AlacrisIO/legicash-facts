@@ -66,13 +66,3 @@ val ensure_side_chain_contract_created : Address.t -> unit Lwt_exn.t
 (** Given an address for whoever will pay to install it (its keys and password already registered),
     ensures that a suitable contract is installed on the main chain,
     enabling corresponding actions on side chain *)
-
-
-(* useful functions for other test code *)
-module Test : sig
-  val create_account_on_testnet : Keypair.t -> address Lwt_exn.t
-  (** creates an account on network with address created for side chain *)
-
-  val fund_account : ?min_balance:TokenAmount.t -> Address.t -> Address.t -> unit Lwt_exn.t
-  (** transfers funds from funding account to account with given address, if balance less than min_balance *)
-end

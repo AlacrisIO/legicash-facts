@@ -1,6 +1,6 @@
 (* Managing the database connection *)
 
-val open_connection : db_name:string -> unit Lwt.t
+val open_connection : string -> unit Lwt.t
 (** Open a database. The db_name is the name of the database, which is a path
     absolute or relative to getcwd().
 

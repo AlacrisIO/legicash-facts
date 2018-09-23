@@ -122,11 +122,10 @@ let get_first_account =
 
 module Test = struct
   open Ethereum_json_rpc
+  open Signing.Test
   open Ethereum_util.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
-
-  let get_prefunded_address = get_first_account
 
   let is_ethereum_net_up () =
     let max_tries = 10 in
@@ -143,12 +142,58 @@ module Test = struct
     in
     poll_net 0
 
+  let get_prefunded_address = get_first_account
+
+  let display_balance display address balance =
+    display
+      (Address.to_0x_string address)
+      (try address |> nickname_of_address |> Printf.sprintf " (%s)" with Not_found -> "")
+      (TokenAmount.to_0x_string balance)
+
+  let ensure_address_prefunded prefunded_address amount address =
+    let open Lwt_exn in
+    let open TokenAmount in
+    eth_get_balance (address, BlockParameter.Pending)
+    >>= fun balance ->
+    if compare balance amount >= 0 then
+      display_balance (printf "Account %s%s contains %s wei.\n") address balance
+    else
+      begin
+        display_balance (printf "Account %s%s only contains %s wei. Funding.\n") address balance
+        >>= fun () ->
+        Ethereum_user.(user_action prefunded_address
+                         UserAsyncAction.(transfer_tokens >>> confirm_transaction))
+          (address, sub amount balance)
+        >>= fun _ ->
+        eth_get_balance (address, BlockParameter.Pending)
+        >>= fun balance ->
+        display_balance (printf "Account %s%s now contains %s wei.\n") address balance
+      end
+
+  (* create accounts, fund them *)
+  let ensure_test_account
+        ?(min_balance=TokenAmount.of_int 1000000000) prefunded_address (nickname, keypair) =
+    let address = keypair.Keypair.address in
+    let password = "" in
+    register_keypair nickname keypair;
+    register_password address password;
+    ensure_private_key (keypair, password)
+    >>= ensure_address_prefunded prefunded_address min_balance
+
+  let fund_accounts ?(min_balance=TokenAmount.of_int 1000000000) () =
+    get_prefunded_address ()
+    >>= fun prefunded_address ->
+    list_iter_s (ensure_test_account ~min_balance prefunded_address)
+      [("Alice", alice_keys); ("Bob", bob_keys); ("Trent", trent_keys)]
+
   let%test "poll-for-testnet" =
     is_ethereum_net_up () || Lib.bork "Could not connect to Ethereum network"
 
   let%test "transfer-on-Ethereum-testnet" =
     Lwt_exn.run
       (fun () ->
+         of_lwt Db.open_connection "testdb"
+         >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
          Ethereum_json_rpc.personal_new_account ""
@@ -165,6 +210,8 @@ module Test = struct
   let%test "create-contract-on-Ethereum-testnet" =
     Lwt_exn.run
       (fun () ->
+         of_lwt Db.open_connection "testdb"
+         >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
          Ethereum_user.(user_action sender_address
@@ -181,6 +228,8 @@ module Test = struct
     let open Ethereum_chain in
     Lwt_exn.run
       (fun () ->
+         of_lwt Db.open_connection "testdb"
+         >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
          (* for CallFunction:
@@ -218,6 +267,8 @@ module Test = struct
   let%test "compute-transaction-hash" =
     Lwt_exn.run
       (fun () ->
+         of_lwt Db.open_connection "testdb"
+         >>= fun () ->
          (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
          let keypair = keypair_of_0x
                          "0xc0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0de"
@@ -260,6 +311,8 @@ module Test = struct
     let open Ethereum_abi in
     Lwt_exn.run
       (fun () ->
+         of_lwt Db.open_connection "testdb"
+         >>= fun () ->
          (* code is result of running "solc --bin hello.sol", and prepending "0x" *)
          let code =
            "0x608060405234801561001057600080fd5b506101a7806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806339a7aa4814610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60607fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd912260405180806020018281038252600d8152602001807f48656c6c6f2c20776f726c64210000000000000000000000000000000000000081525060200191505060405180910390a16040805190810160405280600881526020017f476f6f64627965210000000000000000000000000000000000000000000000008152509050905600a165627a7a7230582024923934849b0e74a5091ac4b5c65d9b3b93d74726aff49fd5763bc136dac5c60029"
@@ -322,6 +375,8 @@ module Test = struct
     let open Ethereum_abi in
     Lwt_exn.run
       (fun () ->
+         of_lwt Db.open_connection "testdb"
+         >>= fun () ->
          (* code is result of running "solc --bin facilitator-fallback.sol", and prepending "0x" *)
          let code =
            "0x608060405234801561001057600080fd5b50610108806100206000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000602082015190506c01000000000000000000000000810490509190505600a165627a7a7230582098fc57c39988f3dcf9f7168b876b9f491273775ea6b44db8cb9483966fa1adc10029"
