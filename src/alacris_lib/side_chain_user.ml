@@ -179,16 +179,6 @@ let make_rx_header facilitator user_state =
 
 let transaction_status_of_request rx = TransactionStatus.Requested rx
 
-(*
-   let mk_tx_transaction_status tx =
-   TransactionStatus.
-   { request= (match tx.Transaction.tx_request with
-   | `UserTransaction signed_request -> signed_request
-   | _ -> bottom ())
-   ; transaction_option= Some tx
-   ; main_chain_confirmation_option= None }
-*)
-
 let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
   fun facilitator ->
     UserState.lens_facilitators |--
@@ -285,11 +275,7 @@ let deposit (facilitator, deposit_amount) =
   ethereum_action Facilitator_contract.deposit (facilitator, (TokenAmount.add deposit_amount deposit_fee))
   >>= fun (main_chain_deposit, main_chain_deposit_confirmation) ->
   of_action issue_user_transaction_request
-    (Deposit
-       { deposit_amount
-       ; deposit_fee
-       ; main_chain_deposit
-       ; main_chain_deposit_confirmation })
+    (Deposit { deposit_amount; deposit_fee; main_chain_deposit; main_chain_deposit_confirmation })
 
 (* TODO: find the actual gas limit *)
 let withdrawal_gas_limit = TokenAmount.of_int 1000000

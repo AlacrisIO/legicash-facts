@@ -10,8 +10,8 @@ open Types
 open Signing
 
 open Alacris_lib
-open Side_chain_facilitator
 open Side_chain
+open Side_chain_facilitator
 
 let _ =
   Config.set_application_name "alacris"
@@ -82,9 +82,9 @@ let process_request client_address channels =
 
 let new_facilitator_state address =
   let keypair = keypair_of_address address in
-  let fee_schedule = Side_chain.initial_fee_schedule in (* TODO: support different fee schedules *)
+  let fee_schedule = initial_fee_schedule in (* TODO: support different fee schedules *)
   let current =
-    Side_chain.State.
+    State.
       { facilitator_revision= Revision.of_int 0
       ; spending_limit= TokenAmount.of_int 100000000 (* TODO: start 0 and do facilitator deposit *)
       ; accounts= AccountMap.empty
@@ -96,7 +96,7 @@ let new_facilitator_state address =
 let load_facilitator_state address =
   Logging.log "Loading the side_chain state...";
   Db.check_connection ();
-  trying (catching_arr Side_chain.FacilitatorState.load) address
+  trying (catching_arr FacilitatorState.load) address
   >>= handling
         (function
           | Facilitator_not_found _ ->

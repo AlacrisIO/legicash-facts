@@ -1,4 +1,3 @@
-(* TODO: rename this module to ethereum_user ? *)
 open Legilogic_lib
 open Yojsoning
 open Persisting

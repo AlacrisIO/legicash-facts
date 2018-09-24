@@ -297,24 +297,26 @@ module Test = struct
     let throw_error = ref None in (* Whether to throw when getting block *)
     let get_block ?timeout ?log () =
       ignore timeout ; ignore log ;
-      if !throw_error <> None then (
-        throw_error := None;
-        fail @@ Option.get !throw_error)
-      else (current_block := succ !current_block; return @@ pred !current_block) in
+      match !throw_error with
+      | None -> let cb = !current_block in current_block := succ cb; return cb
+      | Some e -> throw_error := None; fail e in
     let start_block = of_int 10 in
     Lwt_exn.run
       (of_lwt (main_chain_block_notification_stream ~start_block ~get_block)
        >>> catching_lwt (AsyncStream.split 2)
-       >>> const true)
+       >>> (fun (l, s) ->
+         assert(l = [start_block; add one start_block]);
+         catching_lwt (AsyncStream.split 1) s)
+       >>> (fun (l, _s) ->
+         assert(l = [add start_block (of_int 2)]);
+         (* Deals gracefully with errors? *)
+         throw_error := Some (Internal_error "You FAIL!!!");
+         return true
+         (*         trying (catching_lwt (AsyncStream.split 1)) s)
+                    >>> (function
+                    | Error (Internal_error "You FAIL!!!") -> return true
+                    | Error e -> raise e
+                    | Ok (l, _) -> raise (Internal_error "blah %s, _" (string_of_yojson (`List (List.map Revision.to_string l))))) *)
+       ))
       ()
 end
-
-(* >>= fun (l, s) ->
- * assert(l = [start_block; add one start_block]);
- * catching_lwt (AsyncStream.take_list 1) s
- * >>= func (l, s) ->
- * assert(l = [add start_block (of_int 2)]);
- * throw_error := Some (Internal_error "You FAIL!!!");
- * (\* Deals gracefully with errors? *\)
- * throws (Internal_error "You FAIL!!!")
- *   (fun () -> AsyncStream.take_list stream 1); *)

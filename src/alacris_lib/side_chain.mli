@@ -264,20 +264,6 @@ module FacilitatorFeeSchedule : sig
   include PersistableS with type t := t
 end
 
-(** Private state of a facilitator (as opposed to what's public in the side-chain)
-    TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
-    Remember operations pending operations with the main chain?
-    Include a Ethereum_chain.user_state? State for dealing with the court registry? *)
-module FacilitatorState : sig
-  type t = { keypair: Keypair.t
-           ; committed: State.t signed
-           ; current: State.t
-           ; fee_schedule: FacilitatorFeeSchedule.t }
-  [@@deriving lens { prefix=true }]
-  include PersistableS with type t := t
-  val load : Address.t -> t
-end
-
 (** An attestation to commitment of a tx via a Merkle proof.
     The state that is root of the Merkle proof is not necessarily committed to the main chain,
     but is signed by Trent.
@@ -313,8 +299,6 @@ type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@der
 type update = {current_state: digest; availability_proof: court_clerk_confirmation list}
 (*[@@deriving lens { prefix = true }]*)
 
-exception Facilitator_not_found of string
-
 exception No_facilitator_yet
 
 exception Already_open
@@ -341,7 +325,3 @@ end
 
 val initial_fee_schedule : FacilitatorFeeSchedule.t
 
-module Test : sig
-  val trent_state : FacilitatorState.t
-  (** sample facilitator state for testing *)
-end

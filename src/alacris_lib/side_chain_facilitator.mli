@@ -1,9 +1,26 @@
 open Legilogic_lib
 open Yojsoning
+open Persisting
 open Action
 open Signing
 
 open Side_chain
+
+exception Facilitator_not_found of string
+
+(** Private state of a facilitator (as opposed to what's public in the side-chain)
+    TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?
+    Remember operations pending operations with the main chain?
+    Include a Ethereum_chain.user_state? State for dealing with the court registry? *)
+module FacilitatorState : sig
+  type t = { keypair: Keypair.t
+           ; committed: State.t signed
+           ; current: State.t
+           ; fee_schedule: FacilitatorFeeSchedule.t }
+  [@@deriving lens { prefix=true }]
+  include PersistableS with type t := t
+  val load : Address.t -> t
+end
 
 module FacilitatorAction : ActionS with type state = FacilitatorState.t
 module FacilitatorAsyncAction : AsyncActionS with type state = FacilitatorState.t

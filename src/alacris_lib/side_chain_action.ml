@@ -134,10 +134,10 @@ module Test = struct
            (* test whether retrieving saved facilitator state yields the same state
               like similar test in Side_chain.Test;  here we have nonempty account, confirmation maps *)
            let trent_state3 = get_facilitator_state () in
-           of_lwt Side_chain.FacilitatorState.save trent_state3
+           of_lwt FacilitatorState.save trent_state3
            >>= of_lwt Db.commit
            >>= fun () ->
-           let retrieved_state = Side_chain.FacilitatorState.load trent_address in
+           let retrieved_state = FacilitatorState.load trent_address in
            return (FacilitatorState.to_yojson_string retrieved_state
                    = FacilitatorState.to_yojson_string trent_state3))
         ()
