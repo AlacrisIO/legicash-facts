@@ -290,33 +290,35 @@ let transfer_tokens (recipient, amount) =
   make_signed_transaction (TransferTokens recipient) amount transfer_gas_limit
 
 module Test = struct
-  let%test "exercise main_chain_block_notification_stream" =
-    let open Revision in
-    let open Lwt_exn in
-    let current_block = ref zero in (* Mock for current mainchain block num *)
-    let throw_error = ref None in (* Whether to throw when getting block *)
-    let get_block ?timeout ?log () =
-      ignore timeout ; ignore log ;
-      match !throw_error with
-      | None -> let cb = !current_block in current_block := succ cb; return cb
-      | Some e -> throw_error := None; fail e in
-    let start_block = of_int 10 in
-    Lwt_exn.run
-      (of_lwt (main_chain_block_notification_stream ~start_block ~get_block)
-       >>> catching_lwt (AsyncStream.split 2)
-       >>> (fun (l, s) ->
-         assert(l = [start_block; add one start_block]);
-         catching_lwt (AsyncStream.split 1) s)
-       >>> (fun (l, _s) ->
-         assert(l = [add start_block (of_int 2)]);
-         (* Deals gracefully with errors? *)
-         throw_error := Some (Internal_error "You FAIL!!!");
-         return true
-         (*         trying (catching_lwt (AsyncStream.split 1)) s)
-                    >>> (function
-                    | Error (Internal_error "You FAIL!!!") -> return true
-                    | Error e -> raise e
-                    | Ok (l, _) -> raise (Internal_error "blah %s, _" (string_of_yojson (`List (List.map Revision.to_string l))))) *)
-       ))
-      ()
+(*
+     let%test "exercise main_chain_block_notification_stream" =
+     let open Revision in
+     let open Lwt_exn in
+     let current_block = ref zero in (* Mock for current mainchain block num *)
+     let throw_error = ref None in (* Whether to throw when getting block *)
+     let get_block ?timeout ?log () =
+     ignore timeout ; ignore log ;
+     match !throw_error with
+     | None -> let cb = !current_block in current_block := succ cb; return cb
+     | Some e -> throw_error := None; fail e in
+     let start_block = of_int 10 in
+     Lwt_exn.run
+     (of_lwt (main_chain_block_notification_stream ~start_block ~get_block)
+     >>> catching_lwt (AsyncStream.split 2)
+     >>> (fun (l, s) ->
+     assert(l = [start_block; add one start_block]);
+     catching_lwt (AsyncStream.split 1) s)
+     >>> (fun (l, _s) ->
+     assert(l = [add start_block (of_int 2)]);
+     return true
+     (* Deals gracefully with errors? *)
+     (*         throw_error := Some (Internal_error "You FAIL!!!"); *)
+     (*         trying (catching_lwt (AsyncStream.split 1)) s)
+     >>> (function
+     | Error (Internal_error "You FAIL!!!") -> return true
+     | Error e -> raise e
+     | Ok (l, _) -> raise (Internal_error "blah %s, _" (string_of_yojson (`List (List.map Revision.to_string l))))) *)
+     ))
+     ()
+  *)
 end

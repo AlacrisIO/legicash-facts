@@ -127,27 +127,25 @@ module Test = struct
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
-  let is_ethereum_net_up () =
-    let max_tries = 10 in
-    let rec poll_net n =
-      if n > max_tries then
-        false
-      else
-        try
-          let _ = get_first_account () in
-          true
-        with Unix.Unix_error(Unix.ECONNREFUSED, "connect", "") -> (
-            Unix.sleep 1;
-            poll_net (n + 1))
-    in
-    poll_net 0
+  let is_ethereum_net_up =
+    retry ~retry_window:0.05 ~max_window:1.0 ~max_retries:(Some 10) eth_block_number
+    >>> const true
 
-  let get_prefunded_address =
-    get_first_account
-    >>> (fun address ->
-      register_address "Croesus" address;
-      register_password address "";
-      return address)
+  let prefunded_address_mutex = Lwt_mutex.create ()
+  let prefunded_address = ref None
+
+  let get_prefunded_address () =
+    Lwt_mutex.with_lock prefunded_address_mutex
+      (fun () ->
+         match !prefunded_address with
+         | Some x -> return x
+         | None ->
+           get_first_account ()
+           >>= fun address ->
+           register_address "Croesus" address;
+           register_password address "";
+           prefunded_address := Some address;
+           return address)
 
   let display_balance display address balance =
     display
@@ -192,7 +190,7 @@ module Test = struct
       [("Alice", alice_keys); ("Bob", bob_keys); ("Trent", trent_keys)]
 
   let%test "poll-for-testnet" =
-    is_ethereum_net_up () || Lib.bork "Could not connect to Ethereum network"
+    run is_ethereum_net_up () || Lib.bork "Could not connect to Ethereum network"
 
   let%test "transfer-on-Ethereum-testnet" =
     Lwt_exn.run
