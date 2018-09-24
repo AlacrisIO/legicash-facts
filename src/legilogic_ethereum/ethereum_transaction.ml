@@ -149,8 +149,7 @@ module Test = struct
 
   let display_balance display address balance =
     display
-      (Address.to_0x_string address)
-      (try address |> nickname_of_address |> Printf.sprintf " (%s)" with Not_found -> "")
+      (nicknamed_string_of_address address)
       (TokenAmount.to_0x_string balance)
 
   let ensure_address_prefunded prefunded_address amount address =
@@ -159,10 +158,10 @@ module Test = struct
     eth_get_balance (address, BlockParameter.Pending)
     >>= fun balance ->
     if compare balance amount >= 0 then
-      display_balance (printf "Account %s%s contains %s wei.\n") address balance
+      display_balance (printf "Account %s contains %s wei.\n") address balance
     else
       begin
-        display_balance (printf "Account %s%s only contains %s wei. Funding.\n") address balance
+        display_balance (printf "Account %s only contains %s wei. Funding.\n") address balance
         >>= fun () ->
         Ethereum_user.(user_action prefunded_address
                          UserAsyncAction.(transfer_tokens >>> confirm_transaction))
@@ -170,7 +169,7 @@ module Test = struct
         >>= fun _ ->
         eth_get_balance (address, BlockParameter.Pending)
         >>= fun balance ->
-        display_balance (printf "Account %s%s now contains %s wei.\n") address balance
+        display_balance (printf "Account %s now contains %s wei.\n") address balance
       end
 
   (* create accounts, fund them *)

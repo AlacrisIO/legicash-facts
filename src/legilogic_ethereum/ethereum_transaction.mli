@@ -28,7 +28,7 @@ module Test : sig
   val get_prefunded_address : unit -> Address.t Lwt_exn.t
   (** get the prefunded address on the test network *)
 
-  val display_balance : (string -> string -> string -> 'a) -> Address.t -> TokenAmount.t -> 'a
+  val display_balance : (string -> string -> 'a) -> Address.t -> TokenAmount.t -> 'a
   (** display an account having the given balance given a way to print address, optional name and balance *)
 
   val ensure_address_prefunded : Address.t -> TokenAmount.t -> Address.t -> unit Lwt_exn.t

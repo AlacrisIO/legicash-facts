@@ -176,6 +176,11 @@ let nickname_of_address address =
   Hashtbl.find nickname_by_address address
 let address_of_nickname nickname =
   Hashtbl.find address_by_nickname nickname
+let nicknamed_string_of_address address =
+  let s = address |> Address.to_0x_string in
+  match try Some (nickname_of_address address) with Not_found -> None with
+  | Some nickname -> Printf.sprintf "%s (%s)" s nickname
+  | None -> s
 
 let password_for_address = Hashtbl.create 8
 let register_password address password =

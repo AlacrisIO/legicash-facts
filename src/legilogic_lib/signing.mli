@@ -87,8 +87,8 @@ val unregister_keypair : string -> unit
 val decode_keypairs : yojson -> (string * keypair) list
 
 (** [register_file_keypairs ~password file] registers all the keypairs in
-   [file], stored as a json table mapping name to Keypair.t, with the provided
-   [password]. *)
+    [file], stored as a json table mapping name to Keypair.t, with the provided
+    [password]. *)
 val register_file_keypairs : password:string -> string -> unit
 
 (** given an address, find the corresponding keypair in suitable configuration files *)
@@ -97,8 +97,12 @@ val keypair_of_address : address -> keypair
 (** given an address, find the corresponding nickname *)
 val nickname_of_address : address -> string
 
-(** given a nickname, find the corresponding  address *)
+(** given a nickname, find the corresponding address *)
 val address_of_nickname : string -> address
+
+(** given an address, yield a string with the address's 0x_string
+    followed by its nickname in parenthesis if found *)
+val nicknamed_string_of_address : address -> string
 
 (** Given a public_key, compute its address *)
 val address_of_public_key : public_key -> address
