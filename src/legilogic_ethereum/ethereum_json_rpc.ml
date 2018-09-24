@@ -28,8 +28,14 @@ let ethereum_net =
     (let lazy { scheme; host; port } = ethereum_rpc_config in
      Uri.make ~scheme ~host ~port ())
 
+(* TODO: have a pool of a small number of connections to geth, (1?)
+   to not overload it and end up with timeouts.
+   let ethereum_mutex = Lwt_mutex.create ()
+*)
+
 let ethereum_json_rpc
       method_name result_decoder param_encoder ?(timeout=rpc_timeout) ?(log= !rpc_log) params =
+  (*  Lwt_mutex.with_lock ethereum_mutex (fun () -> ... )*)
   json_rpc (Lazy.force ethereum_net) method_name result_decoder param_encoder ~timeout ~log params
 
 let yojson_noargs = fun () -> `Null

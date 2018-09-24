@@ -35,6 +35,7 @@ let ensure_prefunded prefunded_address amount string =
     ; yojson_of_file
       >> decode_keypairs
       >> List.map (fun (nickname, keypair) -> Some nickname, keypair.Keypair.address)]
+  (* TODO: make sure it works with list_iter_p here and below, and fix any race condition. *)
   |> list_iter_s (fun (nickname, address) ->
     (match nickname with
      | Some name -> register_address name address
@@ -43,7 +44,7 @@ let ensure_prefunded prefunded_address amount string =
 
 let _ =
   parse_argv Sys.argv
-    [("amount", Set_string amount_ref, "minimal amount at which to set each account, in wei")]
+    [("--amount", Set_string amount_ref, "minimal amount at which to set each account, in wei")]
     (fun x -> args := x :: !args)
     "ethereum_prefunder.exe";
   let amount = TokenAmount.of_string !amount_ref in
@@ -52,4 +53,5 @@ let _ =
     (get_prefunded_address
      >>> fun prefunded_address ->
      register_password prefunded_address "";
+     (* TODO: make sure it works with list_iter_p here and above, and fix any race condition. *)
      list_iter_s (ensure_prefunded prefunded_address amount) (List.rev !args))
