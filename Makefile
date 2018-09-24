@@ -174,7 +174,7 @@ nginx:
 # 6- Now you can run our integration tests
 test_side_chain_client : $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
 	$(SHOW) "Testing side_chain_client"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_CLIENT_TEST)
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
 
 # You don't usually need to stop nginx, but in case you want to:
 stop_nginx:
