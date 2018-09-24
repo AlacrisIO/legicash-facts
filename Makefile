@@ -160,12 +160,12 @@ fund_accounts : $(BUILD_DIR)/$(ETHEREUM_PREFUNDER)
 # 3- Run our server
 run_side_chain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
 	$(SHOW) "Running side chain server"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_SERVER)
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
 
 # 4- Run our client
 run_side_chain_client: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT)
 	$(SHOW) "Running side chain client (SCGI server)"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_CLIENT)
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(BUILD_DIR)/$(SIDE_CHAIN_CLIENT)
 
 # 5- Run nginx as a front-end to our client
 nginx:

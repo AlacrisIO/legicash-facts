@@ -86,8 +86,9 @@ val unregister_keypair : string -> unit
 
 val decode_keypairs : yojson -> (string * keypair) list
 
-(** Register all the keypairs in a file, stored as a json table mapping name to Keypair.t,
-    with the provided password. *)
+(** [register_file_keypairs ~password file] registers all the keypairs in
+   [file], stored as a json table mapping name to Keypair.t, with the provided
+   [password]. *)
 val register_file_keypairs : password:string -> string -> unit
 
 (** given an address, find the corresponding keypair in suitable configuration files *)
