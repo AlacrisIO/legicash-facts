@@ -48,7 +48,7 @@ let _ =
     "ethereum_prefunder.exe";
   let amount = TokenAmount.of_string !amount_ref in
   let open Lwt_exn in
-  Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/legicash-server")
+  Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/alacris-server")
     (get_prefunded_address
      >>> fun prefunded_address ->
      register_password prefunded_address "";

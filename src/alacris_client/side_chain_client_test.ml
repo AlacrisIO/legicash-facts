@@ -9,6 +9,7 @@ open Cohttp_lwt_unix
 open Legilogic_lib
 open Signing
 open Yojsoning
+open Action
 
 open Alacris_lib
 open Side_chain
@@ -252,13 +253,13 @@ let test_recent_transactions ?(limit=None) () =
 *)
 
 let _ =
-  Lwt_main.run (
-    test_deposits ()
-    >>= test_withdrawals
-    >>= test_balances
-    >>= test_statuses
-    >>= test_all_balances
-    >>= test_payments
-    >>= test_recent_transactions
-    >>= test_recent_transactions ~limit:(Some 3)
-    >>= do_exit)
+  Db.run ~db_name:"alacris-client"
+    Lwt.(test_deposits
+         >>> test_withdrawals
+         >>> test_balances
+         >>> test_statuses
+         >>> test_all_balances
+         >>> test_payments
+         >>> test_recent_transactions
+         >>> test_recent_transactions ~limit:(Some 3)
+         >>> do_exit)
