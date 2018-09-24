@@ -202,7 +202,7 @@ let decode_keypairs =
   >> List.map (fun (name, kpjson) -> (name, (Keypair.of_yojson_exn kpjson)))
 
 (** TODO: Add a layer of encryption for these files. *)
-let register_file_keypairs file password =
+let register_file_keypairs ~password file =
   Yojsoning.yojson_of_file file
   |> decode_keypairs
   |> List.iter (fun (name, keypair) ->
