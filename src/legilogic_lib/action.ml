@@ -96,14 +96,14 @@ module ErrorMonad (Error: TypeS) = struct
     | Error e -> a e
 end
 
-module type ExnMonadS = sig
+module type OrExnS = sig
   include ErrorMonadS with type error = exn
   val bork : ('a, unit, string, 'b t) format4 -> 'a
   val catching : ('i, 'o) arr -> ('i, 'o) arr
   val catching_arr : ('i -> 'o) -> ('i, 'o) arr
 end
 
-module ExnMonad = struct
+module OrExn = struct
   include ErrorMonad(struct type t = exn end)
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let catching a i = try a i with e -> Error e
@@ -145,8 +145,8 @@ module Lwt = struct
 end
 
 module type LwtExnS = sig
-  include ExnMonadS
-  val of_exn : ('a, 'b) ExnMonad.arr -> ('a, 'b) arr
+  include OrExnS
+  val of_exn : ('a, 'b) OrExn.arr -> ('a, 'b) arr
   val of_lwt : ('a -> 'b Lwt.t) -> ('a, 'b) arr
   val catching_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
   val retry : retry_window:float -> max_window:float -> max_retries:int option
@@ -201,7 +201,7 @@ end
 
 module type StatefulErrableActionS = sig
   include StateMonadS
-  include ExnMonadS
+  include OrExnS
     with type 'a t := 'a t
      and type ('i, 'o) arr := ('i, 'o) arr
   val assert_: (unit -> string) -> ('i, bool) readonly -> ('i, 'i) arr

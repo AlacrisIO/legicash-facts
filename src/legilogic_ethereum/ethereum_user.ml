@@ -12,6 +12,7 @@ open Ethereum_chain
 open Ethereum_json_rpc
 
 exception TransactionInvalidated of Transaction.t * yojson
+exception NonceTooLow
 
 module FinalTransactionStatus = struct
   [@warning "-39"]
@@ -28,16 +29,20 @@ end
 module TransactionStatus = struct
   [@warning "-39"]
   type t =
-    [ FinalTransactionStatus.t
+    [ `Wanted of Operation.t * TokenAmount.t * TokenAmount.t
     | `Signed of Transaction.t * SignedTransaction.t
-    | `Sent of Transaction.t * SignedTransaction.t * Digest.t ]
+    | `Sent of Transaction.t * SignedTransaction.t * Digest.t
+    | FinalTransactionStatus.t ]
   [@@deriving yojson]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
   let transaction = function
+    | `Wanted _ -> Lib.bork "No transaction yet"
     | `Signed (tx, _) | `Sent (tx, _, _) | `Confirmed (tx, _) | `Invalidated (tx, _) -> tx
+  let operation = function
+    | `Wanted (op, _, _) -> op | x -> (x |> transaction).Transaction.operation
 end
 
 let confirmation_of_transaction_receipt =
@@ -51,7 +56,7 @@ let block_depth_for_confirmation = Revision.of_int 0
 
 exception Still_pending
 
-let check_confirmation_deep_enough (confirmation : Confirmation.t) =
+let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmation.t t =
   eth_block_number ()
   >>= fun block_number ->
   if Revision.(is_add_valid confirmation.block_number block_depth_for_confirmation
@@ -61,12 +66,22 @@ let check_confirmation_deep_enough (confirmation : Confirmation.t) =
   else
     fail Still_pending
 
-let wait_for_confirmation =
-  Lwt_exn.retry ~retry_window:10.0 ~max_window:60.0 ~max_retries:None
-    (Ethereum_json_rpc.eth_get_transaction_receipt
-     >>> catching_arr Option.get
-     >>> arr confirmation_of_transaction_receipt
-     >>> check_confirmation_deep_enough)
+(** Wait until a transaction has been confirmed by the main chain. *)
+let wait_for_confirmation : (Transaction.t * Digest.t, Confirmation.t OrExn.t) Lwt_exn.arr =
+  Lwt_exn.retry ~retry_window:0.01 ~max_window:60.0 ~max_retries:None
+    (fun (transaction, transaction_hash) ->
+       Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
+       >>= (function
+         | None ->
+           let TxHeader.{sender;nonce} = transaction.Transaction.tx_header in
+           Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Pending)
+           >>= fun sender_nonce ->
+           if Nonce.(compare sender_nonce nonce > 0) then
+             return (Error NonceTooLow)
+           else
+             fail Still_pending
+         | Some x -> x |> confirmation_of_transaction_receipt |> check_confirmation_deep_enough
+           >>= arr Result.return))
 
 let send_transaction =
   transaction_to_parameters >> Ethereum_json_rpc.eth_send_transaction
@@ -105,6 +120,37 @@ let main_chain_block_notification_stream
     | Error e -> Lwt.return (Error e, next_block) in
   stream_of_poller ~delay poller start_block
 
+let make_tx_header (sender, value, gas_limit) =
+  (* TODO: get gas price and nonce from geth *)
+  eth_gas_price ()
+  >>= fun gas_price ->
+  eth_get_transaction_count (sender, BlockParameter.Pending)
+  >>= fun nonce ->
+  return TxHeader.{sender; nonce; gas_price; gas_limit; value}
+
+exception Missing_password
+exception Bad_password
+
+let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
+  fun transaction ->
+    let address = transaction.tx_header.sender in
+    (try return (password_of_address address) with
+     | Not_found ->
+       Logging.log "Couldn't find password for %s" (nicknamed_string_of_address address);
+       fail Missing_password)
+    >>= fun password -> personal_sign_transaction (transaction_to_parameters transaction, password)
+    >>= fun signed -> return (transaction, signed)
+
+let make_signed_transaction sender operation value gas_limit =
+  make_tx_header (sender, value, gas_limit)
+  >>= fun tx_header ->
+  sign_transaction Transaction.{tx_header; operation}
+
+let failed_operation operation sender value gas_limit =
+  Transaction.
+    { tx_header={sender;nonce=Nonce.zero;gas_price=TokenAmount.zero;gas_limit;value}
+    ; operation }
+
 module TransactionTracker = struct
   [@warning "-39"]
   type t =
@@ -120,27 +166,57 @@ module TransactionTracker = struct
     let open TransactionStatus in
     let status_ref = ref status in
     let get () = !status_ref in
-    let transaction = get () |> TransactionStatus.transaction in
-    let rec continue status =
-      assert (TransactionStatus.transaction status = transaction);
+    let rec continue (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
       match status with
-      | `Signed (t, SignedTransaction.{raw; tx}) ->
-        (* TODO: handle failure gracefully *)
+      | `Wanted (operation, value, gas_limit) ->
+        make_signed_transaction address operation value gas_limit
+        >>= ((function
+          | Ok s -> `Signed s
+          | Error error -> invalidate ~error (failed_operation operation address value gas_limit))
+         >> update)
+      | `Signed ((transaction: Transaction.t), (SignedTransaction.{raw} as signed)) ->
         Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
-                            eth_send_raw_transaction) raw)
-        >>= fun transaction_hash ->
-        `Sent (t, SignedTransaction.{raw;tx}, transaction_hash) |> update
-      | `Sent (transaction, _, transaction_hash) ->
+                            (trying eth_send_raw_transaction
+                             >>> function
+                             | Ok _ as r -> return r
+                             | Error (Json_rpc.Rpc_error {code= -32000; message="nonce too low"}) ->
+                               return (Error NonceTooLow)
+                             | Error e -> fail e))
+                   raw)
+        >>= ((function
+          | Ok transaction_hash ->
+            `Sent (transaction, signed, transaction_hash)
+          | Error NonceTooLow ->
+            `Wanted (transaction.operation,
+                     transaction.tx_header.value,
+                     transaction.tx_header.gas_limit)
+          | Error error -> invalidate ~error transaction)
+         >> update)
+      | `Sent (transaction, signed, transaction_hash) ->
         (* TODO: Also add the possibility of invalidating the transaction,
            by e.g. querying the blockchain for the sending address's current nonce,
            and marking the transaction invalidated if a more recent nonce was found.
            TODO: retry sending after timeout if still not sent. *)
-        Lwt_exn.run_lwt wait_for_confirmation transaction_hash
-        >>= fun confirmation ->
-        `Confirmed (transaction, confirmation) |> update
+        Lwt_exn.run_lwt wait_for_confirmation (transaction, transaction_hash)
+        >>= ((function
+          | Ok confirmation -> `Confirmed (transaction, confirmation)
+          | Error NonceTooLow ->
+            `Wanted (transaction.operation, transaction.tx_header.value, transaction.tx_header.gas_limit)
+          | Error error ->
+            invalidate ~signed ~error transaction)
+         >> update)
+      (* TODO: send notifications for confirmed and invalidated. *)
       | `Confirmed x -> `Confirmed x |> return
       | `Invalidated x -> `Invalidated x |> return
-    and update status =
+    and invalidate ?signed ?hash ~error transaction =
+      `Invalidated (transaction,
+                    `Assoc
+                      (Option.(to_list (map (fun s -> ("signed", SignedTransaction.to_yojson s)) signed))
+                       @ Option.(to_list (map (fun h -> ("transaction_hash", Digest.to_yojson h)) hash))
+                       @ [("error", match error with
+                       | Json_rpc.Rpc_error e -> Json_rpc.error_to_yojson e
+                       | _ -> `String (Printexc.to_string error))]))
+    and update (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
       Db.put db_key (marshal_string status)
       >>= Db.commit
       >>= fun () ->
@@ -215,18 +291,6 @@ module UserAsyncAction = AsyncAction(UserState)
 let user_action address action input =
   Lwt.(UserState.get address >>= fun actor -> SimpleActor.action actor action input)
 
-let make_tx_header (value, gas_limit) (user_state: UserState.t) =
-  (* TODO: get gas price and nonce from geth *)
-  let open UserAsyncAction in
-  let sender = user_state.address in
-  user_state
-  |> (of_lwt_exn eth_gas_price ()
-      >>= fun gas_price ->
-      of_lwt_exn eth_get_transaction_count (sender, BlockParameter.Pending)
-      >>= fun nonce ->
-      UserAsyncAction.return
-        TxHeader.{sender; nonce; gas_price; gas_limit; value})
-
 let add_ongoing_transaction : (TransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr =
   fun transaction_status user_state ->
     let transaction_counter = user_state.transaction_counter in
@@ -236,22 +300,6 @@ let add_ongoing_transaction : (TransactionStatus.t, TransactionTracker.t) UserAs
        |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
        |> Lens.modify UserState.lens_ongoing_transactions
             (OngoingTransactions.add transaction_counter tracker))
-
-exception Missing_password
-exception Bad_password
-
-let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) UserAsyncAction.arr =
-  fun transaction ->
-    let open UserAsyncAction in
-    (fun state ->
-       let address = state.UserState.address in
-       (try return (password_of_address address) state with
-        | Not_found ->
-          Logging.log "Couldn't find password for %s" (Address.to_0x_string address);
-          fail Missing_password state))
-    >>= fun password ->
-    of_lwt_exn personal_sign_transaction (transaction_to_parameters transaction, password)
-    >>= fun signed -> return (transaction, signed)
 
 let ensure_account_unlocked ?(duration=5) address =
   let password = password_of_address address in
@@ -263,12 +311,6 @@ let ensure_account_unlocked ?(duration=5) address =
 
 let unlock_account ?(duration=5) () state =
   UserAsyncAction.of_lwt_exn (ensure_account_unlocked ~duration) state.UserState.address state
-
-let make_signed_transaction operation value gas_limit =
-  let open UserAsyncAction in
-  make_tx_header (value, gas_limit)
-  >>= fun tx_header ->
-  sign_transaction Transaction.{tx_header; operation}
 
 let issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) UserAsyncAction.arr =
   fun x -> `Signed x |> add_ongoing_transaction
@@ -286,8 +328,8 @@ let confirm_transaction =
 
 let transfer_gas_limit = TokenAmount.of_int 21000
 
-let transfer_tokens (recipient, amount) =
-  make_signed_transaction (TransferTokens recipient) amount transfer_gas_limit
+let transfer_tokens (sender, recipient, amount) =
+  make_signed_transaction sender (Operation.TransferTokens recipient) amount transfer_gas_limit
 
 module Test = struct
 (*

@@ -32,8 +32,11 @@ let make_withdraw_call facilitator ticket bond confirmed_state =
 let deposit_gas_limit = TokenAmount.of_int 1000000
 
 (* create a signed deposit transaction, ready to be  call facilitator deposit function on main chain *)
-let make_deposit (facilitator_address, amount) =
-  make_signed_transaction (make_deposit_call facilitator_address) amount deposit_gas_limit
+let make_deposit (facilitator_address, amount) state =
+  UserAsyncAction.of_lwt_exn
+    (make_signed_transaction state.UserState.address
+       (make_deposit_call facilitator_address) amount) deposit_gas_limit
+    state
 
 let deposit (facilitator_address, amount) =
   let open UserAsyncAction in

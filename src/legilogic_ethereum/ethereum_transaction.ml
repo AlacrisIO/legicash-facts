@@ -163,13 +163,11 @@ module Test = struct
       begin
         display_balance (printf "Account %s only contains %s wei. Funding.\n") address balance
         >>= fun () ->
-        Ethereum_user.(user_action prefunded_address
-                         UserAsyncAction.(transfer_tokens >>> confirm_transaction))
-          (address, sub amount balance)
-        >>= fun _ ->
-        eth_get_balance (address, BlockParameter.Pending)
-        >>= fun balance ->
-        display_balance (printf "Account %s now contains %s wei.\n") address balance
+        (prefunded_address, address, sub amount balance)
+        |> Ethereum_user.transfer_tokens
+        >>= Ethereum_user.(user_action prefunded_address confirm_transaction)
+        >>= fun _ -> eth_get_balance (address, BlockParameter.Pending)
+        >>= fun balance -> display_balance (printf "Account %s now contains %s wei.\n") address balance
       end
 
   (* create accounts, fund them *)
@@ -202,8 +200,8 @@ module Test = struct
          >>= fun recipient_address ->
          (* we don't check opening balance, which may be too large to parse *)
          let transfer_amount = 22 in
-         Ethereum_user.(user_action sender_address transfer_tokens)
-           (recipient_address, TokenAmount.of_int transfer_amount)
+         (sender_address, recipient_address, TokenAmount.of_int transfer_amount)
+         |> Ethereum_user.transfer_tokens
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash transaction)
@@ -216,10 +214,10 @@ module Test = struct
          >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CreateContract (Bytes.create 128))
-                             TokenAmount.zero))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CreateContract (Bytes.create 128))
+           TokenAmount.zero
            (TokenAmount.of_int 100000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (tx, {transaction_hash}) ->
@@ -253,10 +251,10 @@ module Test = struct
            Operation.CallFunction
              ( Address.of_0x_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
              , Bytes.of_string (Digest.to_big_endian_bits hashed) ) in
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             operation
-                             (TokenAmount.zero)))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           operation
+           TokenAmount.zero
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
@@ -326,10 +324,10 @@ module Test = struct
          (* a valid contract contains compiled EVM code
             for testing, we just use a buffer with arbitrary contents
          *)
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CreateContract code_bytes)
-                             (TokenAmount.zero)))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CreateContract code_bytes)
+           TokenAmount.zero
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
@@ -342,10 +340,10 @@ module Test = struct
          >>= fun receipt ->
          let contract_address = Option.get receipt.TransactionReceipt.contract_address in
          let call_bytes = encode_function_call {function_name= "printHelloWorld"; parameters= []} in
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CallFunction (contract_address, call_bytes))
-                             TokenAmount.zero))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CallFunction (contract_address, call_bytes))
+           TokenAmount.zero
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->
@@ -387,10 +385,10 @@ module Test = struct
          (* create the contract *)
          get_prefunded_address ()
          >>= fun sender_address ->
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CreateContract code_bytes)
-                             (TokenAmount.zero)))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CreateContract code_bytes)
+           TokenAmount.zero
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
@@ -410,10 +408,10 @@ module Test = struct
          let amount_to_transfer = TokenAmount.of_int 93490 in
          let facilitator_address = Address.of_0x_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
          let call_bytes = Ethereum_util.bytes_of_address facilitator_address in
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CallFunction (contract_address, call_bytes))
-                             amount_to_transfer))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CallFunction (contract_address, call_bytes))
+           amount_to_transfer
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->
@@ -448,10 +446,10 @@ module Test = struct
          assert (ending_balance = amount_to_transfer) ;
          (* now try invalid address, make sure it's not logged *)
          let bogus_address_bytes = parse_0x_bytes "0xFF" in
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CallFunction (contract_address, bogus_address_bytes))
-                             amount_to_transfer))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CallFunction (contract_address, bogus_address_bytes))
+           amount_to_transfer
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->

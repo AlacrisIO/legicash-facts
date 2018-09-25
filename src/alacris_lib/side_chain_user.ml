@@ -23,28 +23,38 @@ module DepositWanted = struct
   [@@deriving yojson]
 end
 
+module FinalTransactionStatus = struct
+  type t =
+    [ `SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | `Failed of UserTransactionRequest.t signed * yojson ]
+  [@@deriving yojson]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+
 module TransactionStatus = struct
   type t =
-    | DepositWanted of DepositWanted.t
-    | DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
-    | DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
-    | Requested of UserTransactionRequest.t signed
-    | SignedByFacilitator of TransactionCommitment.t
-    | PostedToRegistry of TransactionCommitment.t
-    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | Failed of UserTransactionRequest.t signed * yojson
+    [ `DepositWanted of DepositWanted.t
+    | `DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
+    | `DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
+    | `Requested of UserTransactionRequest.t signed
+    | `SignedByFacilitator of TransactionCommitment.t
+    | `PostedToRegistry of TransactionCommitment.t
+    | `PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | `ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | FinalTransactionStatus.t ]
   [@@deriving yojson]
 
-  let signed_request = function
-    | DepositWanted _ | DepositPosted _ | DepositConfirmed _ ->
+  let signed_request : t -> UserTransactionRequest.t signed = function
+    | `DepositWanted _ | `DepositPosted _ | `DepositConfirmed _ ->
       bork "deposit not requested on side-chain yet"
-    | Requested signed_request | Failed (signed_request, _) -> signed_request
-    | SignedByFacilitator tc | PostedToRegistry tc
-    | PostedToMainChain (tc, _) | ConfirmedOnMainChain (tc, _) | SettledOnMainChain (tc, _) ->
+    | `Requested signed_request | `Failed (signed_request, _) -> signed_request
+    | `SignedByFacilitator tc | `PostedToRegistry tc
+    | `PostedToMainChain (tc, _) | `ConfirmedOnMainChain (tc, _) | `SettledOnMainChain (tc, _) ->
       tc.transaction.tx_request |> TransactionRequest.signed_request
-  let request x = (signed_request x).payload
+  let request : t -> UserTransactionRequest.t = fun x -> (signed_request x).payload
 
   module P = struct
     type nonrec t = t
@@ -177,7 +187,7 @@ let make_rx_header facilitator user_state =
                ; validity_within= default_validity_window }
       user_state
 
-let transaction_status_of_request rx = TransactionStatus.Requested rx
+let transaction_status_of_request rx = `Requested rx
 
 let facilitator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
   fun facilitator ->
@@ -301,16 +311,19 @@ let payment (facilitator, recipient_address, payment_amount, memo) =
     (Payment {payment_invoice; payment_fee; payment_expedited= false})
 
 (** We should be signing the RLP, not the marshaling! *)
-let make_main_chain_withdrawal_transaction
-      facilitator UserOperation.{withdrawal_amount;withdrawal_fee} =
-  (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
-  let ticket = Revision.zero in (* TODO: implement ticketing *)
-  let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
-  let bond = TokenAmount.zero in (* TODO: where does this come from? *)
-  let operation = Facilitator_contract.make_withdraw_call
-                    facilitator ticket bond confirmed_state in
-  let value = TokenAmount.sub withdrawal_amount withdrawal_fee in
-  Ethereum_user.make_signed_transaction operation value withdrawal_gas_limit
+let make_main_chain_withdrawal_transaction :
+  address -> (UserOperation.withdrawal_details, Ethereum_chain.Transaction.t * Ethereum_json_rpc.SignedTransaction.t) Ethereum_user.UserAsyncAction.arr =
+  fun facilitator UserOperation.{withdrawal_amount;withdrawal_fee} state ->
+    (* TODO: should the withdrawal fee agree with the facilitator state fee schedule? where to enforce? *)
+    let ticket = Revision.zero in (* TODO: implement ticketing *)
+    let confirmed_state = Digest.zero in (* TODO: is this just a digest of the facilitator state here? *)
+    let bond = TokenAmount.zero in (* TODO: where does this come from? *)
+    let operation = Facilitator_contract.make_withdraw_call
+                      facilitator ticket bond confirmed_state in
+    let value = TokenAmount.sub withdrawal_amount withdrawal_fee in
+    Ethereum_user.(UserAsyncAction.of_lwt_exn
+                     (make_signed_transaction state.UserState.address operation value) withdrawal_gas_limit)
+      state
 
 let push_side_chain_withdrawal_to_main_chain
       (facilitator : Address.t)
@@ -373,7 +386,6 @@ let _notify_error status error = add_error_notification {status;error}
 *)
 let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.t =
   let open Lwt in
-  let open TransactionStatus in
   fun mailbox request_key status ->
     let update status =
       (* First, persist the new state! *)
@@ -381,14 +393,14 @@ let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.
       >>= fun () -> (* Then, post the new status to the mailbox *)
       Lwt_mvar.put mailbox status in
     match status with
-    | Failed _ -> return_unit
-    | Requested request ->
+    | `Failed _ -> return_unit
+    | `Requested request ->
       request
       |> Side_chain_client.post_user_transaction_request_to_side_chain
       >>= Lwt.arr
             (function
-              | Ok tc -> SignedByFacilitator tc
-              | Error error -> Failed (request, Exception.to_yojson error))
+              | Ok tc -> `SignedByFacilitator tc
+              | Error error -> `Failed (request, Exception.to_yojson error))
       >>= update
     | _ ->
       bottom ()

@@ -17,11 +17,13 @@ end
 
 module TransactionStatus : sig
   type t =
-    [ FinalTransactionStatus.t
+    [ `Wanted of Operation.t * TokenAmount.t * TokenAmount.t
     | `Signed of Transaction.t * SignedTransaction.t
-    | `Sent of Transaction.t * SignedTransaction.t * Digest.t ]
+    | `Sent of Transaction.t * SignedTransaction.t * Digest.t
+    | FinalTransactionStatus.t ]
   include PersistableS with type t := t
   val transaction : t -> Transaction.t
+  val operation : t -> Operation.t
 end
 
 module TransactionTracker : sig
@@ -69,15 +71,13 @@ val block_depth_for_confirmation : Revision.t
 exception Still_pending
 (** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
 
-val wait_for_confirmation : (Digest.t, Confirmation.t) Lwt_exn.arr
-(** Wait until a transaction (identified by its hash) has been confirmed by the main chain *)
-
 val unlock_account : ?duration:int -> unit -> unit UserAsyncAction.t
 (** unlocks account for given duration (in seconds) on net *)
 
-val make_signed_transaction : Operation.t -> TokenAmount.t -> TokenAmount.t ->
-  (Transaction.t * SignedTransaction.t) UserAsyncAction.t
-(** Prepare a signed transaction, that you may later issue onto Ethereum network *)
+val make_signed_transaction : Address.t -> Operation.t -> TokenAmount.t -> TokenAmount.t ->
+  (Transaction.t * SignedTransaction.t) Lwt_exn.t
+(** Prepare a signed transaction, that you may later issue onto Ethereum network,
+    from given address, with given operation, value and gas_limit *)
 
 val issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) UserAsyncAction.arr
 (** Issue a signed transaction on the Ethereum network, return a tracker *)
@@ -88,7 +88,7 @@ val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) UserAsy
 val confirm_transaction : (Transaction.t * SignedTransaction.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
 (** Issue a transaction on the Ethereum network, wait for it to be confirmed *)
 
-val transfer_tokens : (Address.t * TokenAmount.t, Transaction.t * SignedTransaction.t) UserAsyncAction.arr
+val transfer_tokens : (Address.t * Address.t * TokenAmount.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr
 (** Transfer tokens from one address to another on the main chain; asynchronous *)
 
 val send_transaction : (Transaction.t, Digest.t) Lwt_exn.arr

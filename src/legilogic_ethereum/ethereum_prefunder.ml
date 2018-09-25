@@ -35,8 +35,7 @@ let ensure_prefunded prefunded_address amount string =
     ; yojson_of_file
       >> decode_keypairs
       >> List.map (fun (nickname, keypair) -> Some nickname, keypair.Keypair.address)]
-  (* TODO: Fix race condition #7 and make sure it works with list_iter_p here and below. *)
-  |> list_iter_s (fun (nickname, address) ->
+  |> list_iter_p (fun (nickname, address) ->
     (match nickname with
      | Some name -> register_address name address
      | None -> ());
@@ -54,4 +53,4 @@ let _ =
      >>> fun prefunded_address ->
      register_password prefunded_address "";
      (* TODO: Fix race condition #7 and make sure it works with list_iter_p here and above. *)
-     list_iter_s (ensure_prefunded prefunded_address amount) (List.rev !args))
+     list_iter_p (ensure_prefunded prefunded_address amount) (List.rev !args))

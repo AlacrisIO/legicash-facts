@@ -142,7 +142,7 @@ module ErrorMonad (Error: TypeS) : ErrorMonadS
 (** Signature for an [ErrorMonadS] which catches exceptions and returns them as
     monadic errors, i.e., as values of type [error], which can be recognized as
     such by subsequent [ErrorMonadS]. *)
-module type ExnMonadS = sig
+module type OrExnS = sig
   include ErrorMonadS with type error = exn
 
   val bork : ('a, unit, string, 'b t) format4 -> 'a
@@ -156,8 +156,8 @@ module type ExnMonadS = sig
       presented as monadic errors. Same as arr >> catching *)
 end
 
-(** See docstring for ExnMonadS.  *)
-module ExnMonad : ExnMonadS
+(** See docstring for OrExnS.  *)
+module OrExn : OrExnS
   with type 'a t = 'a or_exn
    and type ('i, 'o) arr = 'i -> 'o or_exn
 
@@ -205,10 +205,10 @@ module Lwt : sig
 end
 
 module type LwtExnS = sig
-  include ExnMonadS
+  include OrExnS
 
-  val of_exn : ('i, 'o) ExnMonad.arr -> ('i, 'o) arr
-  (** [of_exn a] given a ExnMonad arrow [a] that has no asynchronous effects, returns an arrow *)
+  val of_exn : ('i, 'o) OrExn.arr -> ('i, 'o) arr
+  (** [of_exn a] given a OrExn arrow [a] that has no asynchronous effects, returns an arrow *)
 
   val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
   (** [of_lwt a] given a Lwt arrow [a] that doesn't fail returns a Lwt_exn arrow that
@@ -255,7 +255,7 @@ end
 
 module type StatefulErrableActionS = sig
   include StateMonadS
-  include ExnMonadS
+  include OrExnS
     with type 'a t := 'a t
      and type ('i, 'o) arr := ('i, 'o) arr
 
@@ -269,7 +269,7 @@ module type StatefulErrableActionS = sig
 
   (** run a Lwt_exn computation on a global state ref; at the end, update the state ref
    *then* either return the value (if successful) or raise an exception (if one was caught
-      via the [ExnMonad] machinery.) *)
+      via the [OrExn] machinery.) *)
   val run : state ref -> ('i, 'o) arr -> 'i -> 'o
 end
 

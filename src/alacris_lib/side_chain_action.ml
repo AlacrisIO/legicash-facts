@@ -39,10 +39,10 @@ let create_side_chain_contract installer_address =
   >>= fun address ->
   assert (address = installer_address);
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
-  Ethereum_user.(user_action address
-                   (make_signed_transaction
-                      (Operation.CreateContract Facilitator_contract_binary.contract_bytes)
-                      TokenAmount.zero))
+  Ethereum_user.make_signed_transaction
+    address
+    (Operation.CreateContract Facilitator_contract_binary.contract_bytes)
+    TokenAmount.zero
     (TokenAmount.of_int 1000000)
   >>= Ethereum_user.(user_action address confirm_transaction)
   >>= fun (_tx, confirmation) ->
@@ -93,7 +93,7 @@ module Test = struct
            >>= fun () ->
            create_side_chain_contract trent_address
            >>= fun _ ->
-           let amount_to_deposit = TokenAmount.of_int 523 in
+           let amount_to_deposit = TokenAmount.of_string "500000000000000000" in
            let alice_state_ref = ref (make_alice_state ()) in
            UserAsyncAction.run_lwt_exn alice_state_ref deposit (trent_address, amount_to_deposit)
            >>= fun signed_request1 ->
@@ -107,7 +107,7 @@ module Test = struct
            let alice_expected_deposit = amount_to_deposit in
            assert (alice_account.balance = alice_expected_deposit) ;
            (* open Bob's account *)
-           let payment_amount = TokenAmount.of_int 17 in
+           let payment_amount = TokenAmount.of_string "170000000000000000" in
            UserAsyncAction.run_lwt_exn alice_state_ref payment (trent_address, bob_address, payment_amount, "")
            >>= fun signed_request2 ->
            post_user_transaction_request signed_request2
@@ -152,7 +152,7 @@ module Test = struct
          start_facilitator trent_address
          >>= fun () ->
          (* deposit some funds first *)
-         let amount_to_deposit = TokenAmount.of_int 1023 in
+         let amount_to_deposit = TokenAmount.of_string "1000000000000000000" in
          let alice_state_ref = ref (make_alice_state ()) in
          let initial_balance =
            (UserAccountStateMap.find trent_address !alice_state_ref.facilitators).confirmed_state.balance in
@@ -169,7 +169,7 @@ module Test = struct
          let alice_balance_expected_after_deposit = TokenAmount.add initial_balance alice_expected_deposit in
          assert (alice_account.balance = alice_balance_expected_after_deposit);
          (* withdrawal back to main chain *)
-         let amount_to_withdraw = TokenAmount.of_int 42 in
+         let amount_to_withdraw = TokenAmount.of_string "100000000000000000" in
          UserAsyncAction.run_lwt_exn alice_state_ref get_facilitator_fee_schedule ()
          >>= fun fee_schedule ->
          let withdrawal_fee = fee_schedule.withdrawal_fee in

@@ -19,21 +19,26 @@ module DepositWanted : sig
   [@@deriving yojson]
 end
 
+module FinalTransactionStatus : sig
+  type t =
+    [ `SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | `Failed of UserTransactionRequest.t signed * yojson ]
+  [@@deriving yojson]
+end
+
 
 (** side chain operation + knowledge about the operation *)
 module TransactionStatus : sig
   type t =
-    | DepositWanted of DepositWanted.t
-    | DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
-    | DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
-    | Requested of UserTransactionRequest.t signed
-    | SignedByFacilitator of TransactionCommitment.t
-    | PostedToRegistry of TransactionCommitment.t
-    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* TODO: define Confirmation.t *)
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | Failed of UserTransactionRequest.t signed * yojson
-
+    [ `DepositWanted of DepositWanted.t
+    | `DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
+    | `DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
+    | `Requested of UserTransactionRequest.t signed
+    | `SignedByFacilitator of TransactionCommitment.t
+    | `PostedToRegistry of TransactionCommitment.t
+    | `PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* TODO: define Confirmation.t *)
+    | `ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | FinalTransactionStatus.t ]
   val signed_request : t -> UserTransactionRequest.t signed
   val request : t -> UserTransactionRequest.t
 
