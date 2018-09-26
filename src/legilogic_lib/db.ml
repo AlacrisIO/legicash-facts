@@ -24,16 +24,23 @@ open Lwt.Infix
 
 open Lib
 open Action
+open Marshaling
 
 type db = LevelDB.db
 type transaction = LevelDB.writebatch
 
 (* type snapshot = LevelDB.snapshot *)
 
+type ('key, 'value) kv = {key: 'key; value: 'value}
+let kv_to_yojson key_to_yojson value_to_yojson {key; value} =
+  `List [key_to_yojson key; value_to_yojson value]
+
 (** Interaction with mutating state in LevelDB *)
 type request =
-  (** Store [data] at [key] in LevelDB *)
-  | Put of {key: string; data: string}
+  (** Store [value] at [key] in the database *)
+  | Put of (string, string) kv
+  (** Store many key value pairs in the database *)
+  | PutMany of (string, string) kv list
   (** Remove [key] from LevelDB *)
   | Remove of string
   (** Actually send batched [put] and [remove] [request]s to LevelDB *)
@@ -45,10 +52,12 @@ type request =
 
 (* For debugging purposes only *)
 let [@warning "-32"] yojson_of_request = function
-  | Put {key; data} -> `List [`String "Put"
-                             ;`String (Hex.unparse_hex_string key)
-                             ;`String (Hex.unparse_hex_string data)]
-  | Remove key -> `List [`String "Remove"; `String (Hex.unparse_hex_string key)]
+  | Put {key; value} -> `List [`String "Put"
+                              ; Data.to_yojson key
+                              ; Data.to_yojson value]
+  | PutMany list -> `List [`String "PutMany";
+                           `List (List.map (kv_to_yojson Data.to_yojson Data.to_yojson) list)]
+  | Remove key -> `List [`String "Remove"; Data.to_yojson key]
   | Commit _ -> `List [`String "Commit"]
   | Ready n -> `List [`String "Ready"; `Int n]
   | Test_get_batch_id _ -> `List [`String "Test_get_batch_id"]
@@ -108,9 +117,12 @@ let start_server ~db_name ~db () =
       else
         Lwt_mvar.take db_mailbox
         >>= function
-        | Put {key;data} ->
-          (*Logging.log "PUT key: %s data: %s" (Hex.unparse_0x_data key) (Hex.unparse_0x_data data);*)
-          LevelDB.Batch.put transaction key data;
+        | Put {key;value} ->
+          (*Logging.log "PUT key: %s value: %s" (Hex.unparse_0x_data key) (Hex.unparse_0x_data value);*)
+          LevelDB.Batch.put transaction key value;
+          inner_loop ~ready ~triggered
+        | PutMany list ->
+          List.iter (fun {key; value} -> LevelDB.Batch.put transaction key value) list;
           inner_loop ~ready ~triggered
         | Remove key ->
           (*Logging.log "REMOVE key: %s" (Hex.unparse_0x_data key);*)
@@ -158,7 +170,7 @@ let run ~db_name thunk =
   Lwt_main.run (open_connection db_name >>= thunk)
 
 let async_commit continuation =
-  request (Commit continuation)
+  Commit continuation |> request
 
 let commit () =
   let (promise, resolver) = Lwt.task () in
@@ -170,13 +182,16 @@ let has_key key =
 let get key =
   LevelDB.get (the_db ()) key
 (* Uncomment this line to spy on db read accesses:
-   |> function None -> Printf.printf "key %s not found\n%!" (Hex.unparse_hex_string key) ; None | Some data -> Printf.printf "key %s data %s\n%!" (Hex.unparse_hex_string key) (Hex.unparse_hex_string data); Some data *)
+   |> function None -> Printf.printf "key %s not found\n%!" (Hex.unparse_hex_string key) ; None | Some data -> Printf.printf "key %s value %s\n%!" (Hex.unparse_hex_string key) (Hex.unparse_hex_string data); Some data *)
 
-let put key data =
-  request (Put {key; data})
+let put key value =
+  Put {key; value} |> request
+
+let put_many list =
+  PutMany list |> request
 
 let remove key =
-  request (Remove key)
+  Remove key |> request
 
 module Test = struct
   let get_batch_id () =

@@ -99,14 +99,8 @@ module StringT = struct
 end
 
 module Data = struct
-  module PrePersistable = struct
-    type t = string
-    let marshaling = String1G.marshaling
-    let yojsoning = yojsoning_map Hex.unparse_0x_data Hex.parse_0x_data string_yojsoning
-  end
-  include TrivialPersistable (PrePersistable)
-  let pp formatter x = Format.fprintf formatter "(parse_0x_data %S)" (Hex.unparse_0x_data x)
-  let show x = Format.asprintf "%a" pp x
+  include Data
+  include (TrivialPersistable (Data) : PersistableS with type t := t)
 end
 
 module Unit = struct

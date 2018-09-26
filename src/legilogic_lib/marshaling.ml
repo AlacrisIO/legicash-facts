@@ -400,6 +400,17 @@ end
 (** Length-prefixed string where the length fits in 32 bits *)
 module String1G = StringL(Length1G)
 
+module Data = struct
+  module P = struct
+    type t = string
+    let marshaling = String1G.marshaling
+    let yojsoning = yojsoning_map Hex.unparse_0x_data Hex.parse_0x_data string_yojsoning
+  end
+  include YojsonMarshalable(P)
+  let pp formatter x = Format.fprintf formatter "(parse_0x_data %S)" (Hex.unparse_0x_data x)
+  let show x = Format.asprintf "%a" pp x
+end
+
 let marshal_list m buffer l =
   let len = List.length l in
   Length1G.marshal buffer len;

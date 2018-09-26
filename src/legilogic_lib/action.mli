@@ -1,5 +1,11 @@
 open Lib
 
+(* TODO: a variant Action2, ActionX or Interaction,
+   where all types have an extra parameter: ('a, 'x) t, ('i, 'o, 'x) arr
+   TODO: either become compatible with
+   https://github.com/rgrinberg/ocaml-mtl/blob/master/lib/mtl.mli
+*)
+
 (** 'output or exception *)
 type +'output or_exn = ('output, exn) result
 

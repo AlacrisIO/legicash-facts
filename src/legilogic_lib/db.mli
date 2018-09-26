@@ -1,5 +1,7 @@
 (* Managing the database connection *)
 
+(** TODO: virtualize the notion of database interface so we can have nested commits? *)
+
 val open_connection : string -> unit Lwt.t
 (** Open a database. The db_name is the name of the database, which is a path
     absolute or relative to getcwd().
@@ -19,6 +21,7 @@ val check_connection : unit -> unit
 
 
 (* User access primitives *)
+type ('key, 'value) kv = {key: 'key; value: 'value}
 
 val has_key : string -> bool
 (** Does the database have an entry with this key? *)
@@ -29,6 +32,10 @@ val get : string -> string option
 val put : string -> string -> unit Lwt.t
 (** Given a key and a value, add an entry mapping that key to that value in the database
     as part of the current transaction. *)
+
+val put_many : (string, string) kv list -> unit Lwt.t
+(** Given a list of {key;value} pairs, atomically add an entry mapping each key
+    to the corresponding value in the database as part of the same, current transaction. *)
 
 val remove : string -> unit Lwt.t
 (** Given a key and a value, remove any entry mapping that key to a value in the database
