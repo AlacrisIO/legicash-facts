@@ -20,14 +20,20 @@
     style, except that flagging an object as persisted for walk optimization can be done directly.
     A conceptual mess? Yes it is! All because OCaml's type system can't deal with this kind of abstraction.
 *)
-open Lwt.Infix
-
 open Lib
-open Action
 open Marshaling
+open Action
+open Lwt
 
 type db = LevelDB.db
-type transaction = LevelDB.writebatch
+type batch = LevelDB.writebatch
+
+type transaction = int
+
+(* "transactions" will block the batch from being sent to disk for committing
+   until all currently open transactions are closed, even though the batch may otherwise be ready to merge.
+   On the other hand, while a batch is ready but waiting for transactions to be closed,
+   attempts to open new transaction will themselves be blocked. *)
 
 (* type snapshot = LevelDB.snapshot *)
 
@@ -47,6 +53,10 @@ type request =
   | Commit of unit Lwt.u
   (** Internal message indicating that LevelDB is available for interaction *)
   | Ready of int
+  (** Open Transaction *)
+  | Open_transaction of transaction Lwt.u
+  (** Close a Transaction *)
+  | Close_transaction of transaction
   (** For testing purposes only, get the batch id *)
   | Test_get_batch_id of int Lwt.u
 
@@ -60,6 +70,8 @@ let [@warning "-32"] yojson_of_request = function
   | Remove key -> `List [`String "Remove"; Data.to_yojson key]
   | Commit _ -> `List [`String "Commit"]
   | Ready n -> `List [`String "Ready"; `Int n]
+  | Open_transaction _ -> `List [`String "Open_transaction"]
+  | Close_transaction _ -> `List [`String "Close_transaction"]
   | Test_get_batch_id _ -> `List [`String "Test_get_batch_id"]
 
 (* One might be tempted to use Lwt.task instead of an option ref to define
@@ -99,19 +111,30 @@ let start_server ~db_name ~db () =
   let open Lwt in
   Logging.log "Opening LevelDB connection to db %s" db_name;
   let rec outer_loop batch_id previous () =
-    let transaction = LevelDB.Batch.make () in
+    let transaction_counter = ref 0 in
+    let open_transactions : (transaction, unit) Hashtbl.t = Hashtbl.create 64 in
+    let open_transaction u =
+      let transaction = !transaction_counter in
+      transaction_counter := transaction + 1;
+      Hashtbl.replace open_transactions transaction ();
+      Lwt.wakeup_later u transaction in
+    let blocked_transactions : transaction Lwt.u list ref = ref [] in
+    let batch = LevelDB.Batch.make () in
     let (wait_on_batch_commit, notify_batch_commit) = Lwt.task () in
     Lwt.async (fun () -> previous >>= fun () -> Lwt_mvar.put db_mailbox (Ready batch_id));
-    let rec inner_loop ~ready ~triggered =
-      if triggered && ready then
+    let rec inner_loop ~ready ~triggered ~held =
+      if triggered && ready && not held then
         begin
           (*Logging.log "COMMIT BATCH %d!" batch_id;*)
           (* Fork a system thread to handle the commit;
              when it's done, wakeup the wait_on_batch_commit promise *)
           Lwt.async ((fun () -> Lwt_preemptive.detach
-                                  (fun () -> LevelDB.Batch.write db ~sync:true transaction) ())
+                                  (fun () -> LevelDB.Batch.write db ~sync:true batch) ())
                      (*>>> (fun () -> Logging.log "BATCH %d COMMITTED!" batch_id; Lwt.return_unit)*)
                      >>> Lwt.arr (Lwt.wakeup_later notify_batch_commit));
+          transaction_counter := 0;
+          List.iter open_transaction !blocked_transactions;
+          blocked_transactions := [];
           outer_loop (batch_id + 1) wait_on_batch_commit ()
         end
       else
@@ -119,27 +142,38 @@ let start_server ~db_name ~db () =
         >>= function
         | Put {key;value} ->
           (*Logging.log "PUT key: %s value: %s" (Hex.unparse_0x_data key) (Hex.unparse_0x_data value);*)
-          LevelDB.Batch.put transaction key value;
-          inner_loop ~ready ~triggered
+          LevelDB.Batch.put batch key value;
+          inner_loop ~ready ~triggered ~held
         | PutMany list ->
-          List.iter (fun {key; value} -> LevelDB.Batch.put transaction key value) list;
-          inner_loop ~ready ~triggered
+          List.iter (fun {key; value} -> LevelDB.Batch.put batch key value) list;
+          inner_loop ~ready ~triggered ~held
         | Remove key ->
           (*Logging.log "REMOVE key: %s" (Hex.unparse_0x_data key);*)
-          LevelDB.Batch.delete transaction key;
-          inner_loop ~ready ~triggered
+          LevelDB.Batch.delete batch key;
+          inner_loop ~ready ~triggered ~held
         | Commit continuation ->
           (*Logging.log "COMMIT in batch %d" batch_id;*)
           Lwt.async (fun () -> wait_on_batch_commit
                       >>= Lwt.arr (Lwt.wakeup_later continuation));
-          inner_loop ~ready ~triggered:true
+          inner_loop ~ready ~triggered:true ~held
         | Ready n ->
           assert (n = batch_id);
-          inner_loop ~ready:true ~triggered
+          inner_loop ~ready:true ~triggered ~held
+        | Open_transaction u ->
+          (* TODO: assert that the transaction_counter never wraps around?
+             Or check and block further transactions? *)
+          if held then
+            blocked_transactions := u :: !blocked_transactions
+          else
+            open_transaction u;
+          inner_loop ~ready ~triggered ~held:true
+        | Close_transaction transaction ->
+          Hashtbl.remove open_transactions transaction;
+          inner_loop ~ready ~triggered ~held:(Hashtbl.length open_transactions > 0)
         | Test_get_batch_id continuation ->
           Lwt.wakeup_later continuation batch_id;
-          inner_loop ~ready ~triggered in
-    inner_loop ~ready:false ~triggered:false in
+          inner_loop ~ready ~triggered ~held in
+    inner_loop ~ready:false ~triggered:false ~held:(Hashtbl.length open_transactions > 0) in
   outer_loop 0 Lwt.return_unit ()
 
 let open_connection db_name =
@@ -192,6 +226,23 @@ let put_many list =
 
 let remove key =
   Remove key |> request
+
+let open_transaction () =
+  let (promise, resolver) = Lwt.task () in
+  Open_transaction resolver |> request
+  >>= fun () -> promise
+
+let commit_transaction tx =
+  Close_transaction tx |> request
+  >>= commit
+
+let with_transaction thunk =
+  open_transaction ()
+  >>= fun tx ->
+  thunk ()
+  >>= fun result ->
+  commit_transaction tx
+  >>= const result
 
 module Test = struct
   let get_batch_id () =

@@ -1,4 +1,5 @@
 (* Managing the database connection *)
+open Action
 
 (** TODO: virtualize the notion of database interface so we can have nested commits? *)
 
@@ -47,6 +48,16 @@ val commit : unit -> unit Lwt.t
 val async_commit : unit Lwt.u -> unit Lwt.t
 (** Commit the current transaction and resolve the promise given as parameter
     when it's fully flushed to disk. *)
+
+type transaction
+
+val open_transaction : unit -> transaction Lwt.t
+(** Start a transaction. *)
+
+val commit_transaction : transaction -> unit Lwt.t
+(** Start a transaction. *)
+
+val with_transaction : ((unit, 'a) Lwt.arr, 'a) Lwt.arr
 
 module Test : sig
   val get_batch_id : unit -> int Lwt.t
