@@ -17,12 +17,12 @@ end
 
 module TransactionStatus : sig
   type t =
-    [ `Wanted of Operation.t * TokenAmount.t * TokenAmount.t
+    [ `Wanted of PreTransaction.t
     | `Signed of Transaction.t * SignedTransaction.t
     | `Sent of Transaction.t * SignedTransaction.t * Digest.t
     | FinalTransactionStatus.t ]
   include PersistableS with type t := t
-  val transaction : t -> Transaction.t
+  val pre_transaction : t -> PreTransaction.t
   val operation : t -> Operation.t
 end
 
@@ -57,10 +57,11 @@ module UserState : sig
   val get : Address.t -> t SimpleActor.t Lwt.t
 end
 
-module UserAction : ActionS with type state = UserState.t
 module UserAsyncAction : AsyncActionS with type state = UserState.t
 
 val user_action: Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr
+
+val add_ongoing_transaction : (TransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr
 
 val confirmation_of_transaction_receipt : TransactionReceipt.t -> Confirmation.t
 
@@ -84,6 +85,9 @@ val issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker
 
 val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) UserAsyncAction.arr
 (** Track a transaction until it is either confirmed or invalidated *)
+
+val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
+(** Check that the final transaction status is indeed confirmed, or fail *)
 
 val confirm_transaction : (Transaction.t * SignedTransaction.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
 (** Issue a transaction on the Ethereum network, wait for it to be confirmed *)

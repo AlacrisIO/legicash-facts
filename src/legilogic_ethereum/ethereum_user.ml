@@ -29,7 +29,7 @@ end
 module TransactionStatus = struct
   [@warning "-39"]
   type t =
-    [ `Wanted of Operation.t * TokenAmount.t * TokenAmount.t
+    [ `Wanted of PreTransaction.t
     | `Signed of Transaction.t * SignedTransaction.t
     | `Sent of Transaction.t * SignedTransaction.t * Digest.t
     | FinalTransactionStatus.t ]
@@ -38,11 +38,11 @@ module TransactionStatus = struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
-  let transaction = function
-    | `Wanted _ -> Lib.bork "No transaction yet"
-    | `Signed (tx, _) | `Sent (tx, _, _) | `Confirmed (tx, _) | `Invalidated (tx, _) -> tx
-  let operation = function
-    | `Wanted (op, _, _) -> op | x -> (x |> transaction).Transaction.operation
+  let pre_transaction : t -> PreTransaction.t = function
+    | `Wanted p -> p
+    | `Signed (tx, _) | `Sent (tx, _, _) | `Confirmed (tx, _) | `Invalidated (tx, _) ->
+      Transaction.pre_transaction tx
+  let operation = fun x -> (x |> pre_transaction).operation
 end
 
 let confirmation_of_transaction_receipt =
@@ -151,6 +151,8 @@ let failed_operation operation sender value gas_limit =
     { tx_header={sender;nonce=Nonce.zero;gas_price=TokenAmount.zero;gas_limit;value}
     ; operation }
 
+(* TODO: take as parameter a nonce-tracking actor passed around by the caller
+   (ultimately, the user state for the given address *)
 module TransactionTracker = struct
   [@warning "-39"]
   type t =
@@ -168,7 +170,7 @@ module TransactionTracker = struct
     let get () = !status_ref in
     let rec continue (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
       match status with
-      | `Wanted (operation, value, gas_limit) ->
+      | `Wanted {operation; value; gas_limit} ->
         make_signed_transaction address operation value gas_limit
         >>= ((function
           | Ok s -> `Signed s
@@ -187,9 +189,7 @@ module TransactionTracker = struct
           | Ok transaction_hash ->
             `Sent (transaction, signed, transaction_hash)
           | Error NonceTooLow ->
-            `Wanted (transaction.operation,
-                     transaction.tx_header.value,
-                     transaction.tx_header.gas_limit)
+            `Wanted (Transaction.pre_transaction transaction)
           | Error error -> invalidate ~error transaction)
          >> update)
       | `Sent (transaction, signed, transaction_hash) ->
@@ -201,7 +201,7 @@ module TransactionTracker = struct
         >>= ((function
           | Ok confirmation -> `Confirmed (transaction, confirmation)
           | Error NonceTooLow ->
-            `Wanted (transaction.operation, transaction.tx_header.value, transaction.tx_header.gas_limit)
+            `Wanted (Transaction.pre_transaction transaction)
           | Error error ->
             invalidate ~signed ~error transaction)
          >> update)
@@ -285,7 +285,6 @@ module UserState = struct
             | None -> (try load address with Not_found -> init address) |> make_user_actor))
 end
 
-module UserAction = Action(UserState)
 module UserAsyncAction = AsyncAction(UserState)
 
 let user_action address action input =
@@ -318,13 +317,17 @@ let issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker
 let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) UserAsyncAction.arr =
   fun {promise} state -> Lwt.bind promise (fun x -> UserAsyncAction.return x state)
 
+let check_transaction_confirmed :
+  (FinalTransactionStatus.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
+  = function
+    | `Confirmed x -> UserAsyncAction.return x
+    | `Invalidated (tx, yo) -> UserAsyncAction.fail (TransactionInvalidated (tx, yo))
+
 let confirm_transaction =
   let open UserAsyncAction in
   issue_transaction
   >>> track_transaction
-  >>> function
-  | `Confirmed x -> return x
-  | `Invalidated (tx, yo) -> fail (TransactionInvalidated (tx, yo))
+  >>> check_transaction_confirmed
 
 let transfer_gas_limit = TokenAmount.of_int 21000
 

@@ -51,12 +51,16 @@ module Operation : sig
   include PersistableS with type t := t
 end
 
-(* contract, data *)
+module PreTransaction : sig
+  type t = {operation: Operation.t; value: TokenAmount.t; gas_limit: TokenAmount.t}
+  include PersistableS with type t := t
+end
 
 module Transaction : sig
   type t = {tx_header: TxHeader.t; operation: Operation.t}
   [@@deriving lens { prefix=true } ]
   include PersistableS with type t := t
+  val pre_transaction: t -> PreTransaction.t
 end
 
 (** Confirmation of a transaction on the main chain

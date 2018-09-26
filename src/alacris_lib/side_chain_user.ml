@@ -17,7 +17,7 @@ open Side_chain
 module DepositWanted = struct
   [@@@warning "-39"]
   type t =
-    { facilitator_address: Address.t
+    { facilitator: Address.t
     ; deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t }
   [@@deriving yojson]
@@ -62,6 +62,108 @@ module TransactionStatus = struct
   end
   include (YojsonPersistable (P) : PersistableS with type t := t)
 end
+
+(*
+   module TransactionTracker = struct
+   [@warning "-39"]
+   type t =
+   { address : Address.t
+   ; facilitator : Address.t
+   ; revision : Revision.t
+   ; promise : FinalTransactionStatus.t Lwt.t
+   ; get : unit -> TransactionStatus.t }
+   let db_key : user:Address.t -> facilitator:Address.t -> Revision.t -> string =
+   fun ~user ~facilitator revision ->
+   Printf.sprintf "ALTT%s%s%s"
+   (Address.to_big_endian_bits user)
+   (Address.to_big_endian_bits facilitator)
+   (Revision.to_big_endian_bits revision)
+   let make : user:Address.t -> facilitator:Address.t -> Revision.t -> TransactionStatus.t -> t =
+   fun ~user ~facilitator revision status ->
+   let db_key = db_key ~user ~facilitator revision in
+   let open Lwt in
+   let open TransactionStatus in
+   let status_ref = ref status in
+   let get () = !status_ref in
+   let rec continue (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
+   match status with
+   | `DepositWanted {facilitator; deposit_amount; deposit_fee} ->
+   TokenAmount.(add deposit_amount deposit_fee)
+   |> Facilitator_contract.pre_deposit ~sender:user ~facilitator
+   >>= fun pre_transaction ->
+   (* TODO: have a single transaction for queueing the `Wanted and the `DepositPosted *)
+   Ethereum_user.(user_action user add_ongoing_transaction (`Wanted signed))
+
+   >>> track_transaction
+   >>> check_transaction_confirmed)
+   >>= ((function
+   | Ok (transaction, confirmation) ->
+
+   | Error error -> invalidate ~error (failed_operation operation address value gas_limit))
+   >> update)
+   | `Signed ((transaction: Transaction.t), (SignedTransaction.{raw} as signed)) ->
+   Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
+   (trying eth_send_raw_transaction
+   >>> function
+   | Ok _ as r -> return r
+   | Error (Json_rpc.Rpc_error {code= -32000; message="nonce too low"}) ->
+   return (Error NonceTooLow)
+   | Error e -> fail e))
+   raw)
+   >>= ((function
+   | Ok transaction_hash ->
+   `Sent (transaction, signed, transaction_hash)
+   | Error NonceTooLow ->
+   `Wanted (transaction.operation,
+   transaction.tx_header.value,
+   transaction.tx_header.gas_limit)
+   | Error error -> invalidate ~error transaction)
+   >> update)
+   | `Sent (transaction, signed, transaction_hash) ->
+   (* TODO: Also add the possibility of invalidating the transaction,
+   by e.g. querying the blockchain for the sending address's current nonce,
+   and marking the transaction invalidated if a more recent nonce was found.
+   TODO: retry sending after timeout if still not sent. *)
+   Lwt_exn.run_lwt wait_for_confirmation (transaction, transaction_hash)
+   >>= ((function
+   | Ok confirmation -> `Confirmed (transaction, confirmation)
+   | Error NonceTooLow ->
+   `Wanted (transaction.operation, transaction.tx_header.value, transaction.tx_header.gas_limit)
+   | Error error ->
+   invalidate ~signed ~error transaction)
+   >> update)
+   (* TODO: send notifications for confirmed and invalidated. *)
+   | `Confirmed x -> `Confirmed x |> return
+   | `Invalidated x -> `Invalidated x |> return
+   and invalidate ?signed ?hash ~error transaction =
+   `Invalidated (transaction,
+   `Assoc
+   (Option.(to_list (map (fun s -> ("signed", SignedTransaction.to_yojson s)) signed))
+   @ Option.(to_list (map (fun h -> ("transaction_hash", Digest.to_yojson h)) hash))
+   @ [("error", match error with
+   | Json_rpc.Rpc_error e -> Json_rpc.error_to_yojson e
+   | _ -> `String (Printexc.to_string error))]))
+   and update (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
+   Db.put db_key (marshal_string status)
+   >>= Db.commit
+   >>= fun () ->
+   status_ref := status;
+   continue status in
+   {address; revision; promise= continue status; get}
+   let load address revision =
+   let db_key = db_key address revision in
+   Db.get db_key |> Option.get |> TransactionStatus.unmarshal_string |> make address revision
+   module P = struct
+   type nonrec t = t
+   let marshaling =
+   marshaling2
+   (fun {address; revision} -> address, revision) load
+   Address.marshaling Revision.marshaling
+   let yojsoning = yojsoning_of_marshaling marshaling
+   end
+   include (TrivialPersistable (P) : PersistableS with type t := t)
+   end
+*)
 
 module UserAccountState = struct
   [@warning "-39"]
@@ -155,7 +257,7 @@ let get_first_facilitator =
 
 (** TODO: query the network, whatever, and find the fee schedule *)
 let get_facilitator_fee_schedule _facilitator_address =
-  UserAsyncAction.return initial_fee_schedule
+  Lwt_exn.return initial_fee_schedule
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
@@ -280,7 +382,7 @@ let ethereum_action : ('i, 'o) Ethereum_user.UserAsyncAction.arr -> ('i, 'o) Use
    so we never send two different deposits due to a persistence race with a crash. *)
 let deposit (facilitator, deposit_amount) =
   let open UserAsyncAction in
-  get_facilitator_fee_schedule facilitator
+  of_lwt_exn get_facilitator_fee_schedule facilitator
   >>= fun {deposit_fee} ->
   ethereum_action Facilitator_contract.deposit (facilitator, (TokenAmount.add deposit_amount deposit_fee))
   >>= fun (main_chain_deposit, main_chain_deposit_confirmation) ->
@@ -293,7 +395,7 @@ let withdrawal_gas_limit = TokenAmount.of_int 1000000
 (* in Lwt monad, because we'll push the request to the main chain *)
 let withdrawal (facilitator, withdrawal_amount) =
   let open UserAsyncAction in
-  get_facilitator_fee_schedule facilitator
+  of_lwt_exn get_facilitator_fee_schedule facilitator
   >>= fun {withdrawal_fee} ->
   of_action issue_user_transaction_request
     (Withdrawal { withdrawal_amount ; withdrawal_fee })
@@ -303,7 +405,7 @@ let payment_fee_for FacilitatorFeeSchedule.{fee_per_billion} payment_amount =
 
 let payment (facilitator, recipient_address, payment_amount, memo) =
   let open UserAsyncAction in
-  get_facilitator_fee_schedule facilitator
+  of_lwt_exn get_facilitator_fee_schedule facilitator
   >>= fun fee_schedule ->
   let payment_invoice = Invoice.{recipient= recipient_address; amount= payment_amount; memo} in
   let payment_fee = payment_fee_for fee_schedule payment_amount in

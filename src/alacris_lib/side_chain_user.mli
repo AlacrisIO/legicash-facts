@@ -13,7 +13,7 @@ open Side_chain
 
 module DepositWanted : sig
   type t =
-    { facilitator_address: Address.t
+    { facilitator: Address.t
     ; deposit_amount: TokenAmount.t
     ; deposit_fee: TokenAmount.t }
   [@@deriving yojson]
@@ -187,7 +187,7 @@ val payment : (Address.t * Address.t * TokenAmount.t * string, UserTransactionRe
    val collect_account_liquidation_funds : (unit, Ethereum_chain.Transaction.t) UserAsyncAction.arr
 *)
 
-val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr
+val get_facilitator_fee_schedule : (Address.t, FacilitatorFeeSchedule.t) Lwt_exn.arr
 
 val mark_request_rejected : (UserTransactionRequest.t signed, unit) UserAction.arr
 
