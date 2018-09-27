@@ -182,3 +182,90 @@ a list of all the tests being run will be displayed by `make test`.
 See how [Coq does it](https://github.com/coq/coq/blob/master/dev/doc/profiling.txt#L22).
 Basically, call `perf` with `perf report -g fractal,callee --no-children`;
 but it's worth reading the man page to see the options.
+
+## Understanding the Source Code
+
+### Directory structure
+
+The large-scale structure of the code is suggested by the `Makefile` in the top directory
+and the `dune` files in each directory.
+
+* [`src/`](src/) Source code in OCaml for the demo side-chain.
+  In each directory there is a `dune` file that explains which files are where;
+  by convention, the files in the dune file ought to be listed in topological dependency order
+  (though that's not tool-enforced).
+    * [`legilogic_lib`](src/legilogic_lib/): library of mostly general purpose code, including persistence
+    * [`legilogic_ethereum`](src/legilogic_ethereum/): library to interface with the ethereum blockchain
+    * [`alacris_lib`](src/alacris_lib/): the alacris side-chain and its support
+      (TODO: move all but common code from there to `alacris_client` below and a new `alacris_server` TBD)
+    * [`alacris_client`](src/alacris_client/): client for the alacris side-chain
+        * [`nginx`](src/alacris_client/nginx/): nginx configuration for a front-end to the side-chain client.
+* [`contracts`](contracts/) Source code in Solidity (for now) for the demo contract:
+
+### Where the meat is
+
+Most of the code is written in OCaml, and you should always read the `.mli` files
+before the `.ml` files: they give you a sense of the functionality exposed,
+and they are also where the comments lie.
+
+The core logic of the side-chain is in functions `validate_user_transaction_request`
+and `effect_validated_user_transaction_request` in module `Alacris_lib.Side_chain_facilitator`
+that is defined in files
+[`src/alacris_lib/side_chain_facilitator.mli`](src/alacris_lib/side_chain_facilitator.mli) and
+[`src/alacris_lib/side_chain_facilitator.ml`](src/alacris_lib/side_chain_facilitator.ml)
+(note the correspondance between OCaml modules and pairs of interface and implementation files).
+In a sense, everything else is plumbing around this core functionality.
+
+But already, you see that these core functions are not exported in the `.mli` file, and
+instead protected by the `post_user_transaction_request` abstraction,
+that filters transaction with the former function, then posts the valid ones to a mailbox,
+where a single threaded actor runs the `inner_transaction_request_loop` that
+processes them serially.
+To fully understand the control flow for this abstraction, you need to understand:
+  * The general actor model that is being used (notably made popular by Erlang).
+  * The implementation of this actor model using OCaml's `Lwt` library and the `Lwt_mvar` mailboxes.
+  * The monadic style made popular by Haskell programmers
+  * The specific monad foundations we lay down in `Legilogic_lib.Action`.
+
+As for the data model, it's largely described in `Alacris_lib.Side_chain`,
+which itself strongly relies on `Legilogic_ethereum.Ethereum_chain` and
+`Legilogic_ethereum.Ethereum_json_rpc`.
+
+The data model in turn relies on a lot of infrastructure
+to automate most of I/O and persistence, from `Legilogic_lib`
+to deal with input and output in terms of
+Ethereum-compatible JSON data structures (`Legilogic_lib.Yojsoning`),
+not-so-Ethereum-compatible marshaling (`Legilogic_lib.Marshaling`)
+(TODO: make it match Ethereum RLP encoding),
+low-level database access with transactions (`Legilogic_lib.Db`),
+digesting the marshaled data using Ethereum's Keccak256 (`Legilogic_lib.Digesting`),
+a content-addressed store based on storing the above marshaled data in the previous database
+(`Legilogic_lib.Persisting`),
+the usual types made persistent (`Legilogic_lib.Types`),
+patricia tries (`Legilogic_lib.Trie`),
+persistent patricia merkle tries (`Legilogic_lib.Merkle_Trie`),
+plus several additional support files.
+
+On those bases sit the client code.
+Simpler, the Ethereum client code, mostly in `Legilogic_ethereum.Ethereum_user`,
+relies heavily on `geth` (go-ethereum)
+via its JSON RPC interface `Legilogic_ethereum.Ethereum_json_rpc`,
+to deal with the blockchain itself.
+But even there, avoiding the race condition whereby a crash at the wrong moment
+would cause a deposit to be sent twice, transactions are managed by actors
+that persist their state at every transition
+(see notably `Legilogic_ethereum.Ethereum_user.TransactionTracker`).
+The client for the side-chain (in `Alacris_lib.Side_chain_user`)
+follows the same general pattern, but with extra complexity,
+since some transactions on the side-chain need to have one or multiple
+corresponding actions on the main chain.
+
+This client communicates with the main chain ethereum node (`geth`) with JSON RPC,
+but with the facilitator using a simple ad hoc TCP/IP protocol
+that simply uses our marshaling to send requests and responses back.
+The front-end interface (in TypeScript, running in the brower)
+talks with the client using an _ad hoc_ JSON protocol (TODO: make it JSON RPC).
+The client is split between `src/alacris_lib/` and `src/alacris_client/`,
+but hopefully most code should move to `src/alacris_client/` while most
+of the server code should move to a `src/alacris_server/` (to be created),
+with only the common types being left in `src/alacris_lib/`.
