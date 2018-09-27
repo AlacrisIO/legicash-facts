@@ -269,3 +269,43 @@ The client is split between `src/alacris_lib/` and `src/alacris_client/`,
 but hopefully most code should move to `src/alacris_client/` while most
 of the server code should move to a `src/alacris_server/` (to be created),
 with only the common types being left in `src/alacris_lib/`.
+
+### Comment on Simplicity vs Complexity
+
+The software may look complex to you, but I'll argue it's actually quite simple,
+considering the problem that it solves, and the simplicity metric that matters.
+
+The code here is optimized for provability:
+Even though it's not actually written in Coq,
+it is written in a way that should hopefully make it straightforward to port the code
+to a tool that allows for formal verification of correctness properties.
+It emphasizes pure functional programming with a lot of higher-order functions
+that make most side-effects explicit;
+strong typing, with types that allow to obtain a lot of correctness assurance
+just by the structure of the types;
+a terse style that requires one to adopt a lot of the `Legilogic_lib` library
+(and notably the monads in `Action`) to be able to read the code;
+a lot of left-to-right operators `|>`, `>>`,`>>=`, `>>>`,
+with a slight preference for function composition over function application when possible,
+which sometimes makes code a bit like in a concatenative language.
+
+In the end, it takes absorbing a sizeable amount of context and concepts to read the code;
+but I'll argue that all this abstraction pays its own weight,
+as it keeps the code reasonably-sized.
+Without this infrastructure, the code might be locally easier to read per line of code,
+but it would also be much larger, and globally much harder to read:
+all the same patterns that abstraction summarizes would still exist,
+but they would be manually expanded, with errors, the effects harder to read and track,
+turning into a maintenance nightmare when the expansion changes
+but the programmer fails to update every site.
+
+Don't be scared by the apparent complexity. You'll get used to the concepts and primitives,
+after which it will not be that hard, and actually simpler than without those concepts.
+Also, it was hard for me, too, and I still made it in the end, and you don't have to do it
+again from scratch, because it's already been done and you can lean on the solution.
+
+A lot of the code is in a style that despite the use of functional abstractions
+still feels quite low-level. That's fine. Eventually, the code should be generated
+from higher-level descriptions. Until then, this is the code base we have,
+and completing a first version of what the higher-level code should be compiled into
+is a great first step before to develop the compiler that automates the job in the future.
