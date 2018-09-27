@@ -304,13 +304,17 @@ let user_action address action input =
 
 let add_ongoing_transaction : (TransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr =
   fun transaction_status user_state ->
-    let transaction_counter = user_state.transaction_counter in
-    let tracker = TransactionTracker.make user_state.address transaction_counter transaction_status in
-    UserAsyncAction.return tracker
-      (user_state
-       |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
-       |> Lens.modify UserState.lens_ongoing_transactions
-            (OngoingTransactions.add transaction_counter tracker))
+    Db.with_transaction
+      (fun () ->
+         let transaction_counter = user_state.transaction_counter in
+         let tracker = TransactionTracker.make user_state.address transaction_counter transaction_status in
+         user_state
+         |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
+         |> Lens.modify UserState.lens_ongoing_transactions
+              (OngoingTransactions.add transaction_counter tracker)
+         |> fun new_state ->
+         Lwt.bind (UserState.save new_state)
+           (fun () -> UserAsyncAction.return tracker new_state))
 
 let ensure_account_unlocked ?(duration=5) address =
   let password = password_of_address address in
