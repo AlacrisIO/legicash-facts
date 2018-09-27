@@ -22,7 +22,7 @@ end
 module FinalTransactionStatus : sig
   type t =
     [ `SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | `Failed of UserTransactionRequest.t signed * yojson ]
+    | `Failed of yojson ]
   [@@deriving yojson]
 end
 
@@ -31,7 +31,7 @@ end
 module TransactionStatus : sig
   type t =
     [ `DepositWanted of DepositWanted.t
-    | `DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
+    | `DepositPosted of DepositWanted.t * Ethereum_user.TransactionTracker.t
     | `DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
     | `Requested of UserTransactionRequest.t signed
     | `SignedByFacilitator of TransactionCommitment.t

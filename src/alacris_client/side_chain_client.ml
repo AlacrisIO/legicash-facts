@@ -1,5 +1,4 @@
 open Scgi
-open Lwt
 
 open Legilogic_lib
 open Signing
@@ -7,6 +6,7 @@ open Yojsoning
 open Logging
 open Types
 open Action
+open Lwter
 
 open Alacris_lib
 open Side_chain

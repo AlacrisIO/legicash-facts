@@ -18,6 +18,7 @@ module FinalTransactionStatus = struct
   [@warning "-39"]
   type t =
     [ `Confirmed of Transaction.t * Confirmation.t
+    (* TODO: have a proper data structure, not "yojson" *)
     | `Invalidated of Transaction.t * yojson ]
   [@@deriving yojson]
   include (YojsonPersistable (struct
@@ -88,7 +89,7 @@ let send_transaction =
 
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
   'value AsyncStream.t Lwt.t =
-  let open Lwt in
+  let open Lwter in
   fun ~delay poller state ->
     let nap () = Lwt_unix.sleep delay in
     let rec continue state () =
@@ -96,7 +97,7 @@ let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action ->
       >>= function
       | Ok value, new_state ->
         Lwt.return @@ AsyncStream.cons value
-                        (nap () >>= continue new_state >>= identity)
+                        (nap () >>= continue new_state |> join)
       | Error _, new_state ->
         nap () >>= continue new_state
     in
@@ -151,6 +152,10 @@ let failed_operation operation sender value gas_limit =
     { tx_header={sender;nonce=Nonce.zero;gas_price=TokenAmount.zero;gas_limit;value}
     ; operation }
 
+let exn_to_yojson = function
+  | Json_rpc.Rpc_error e -> Json_rpc.error_to_yojson e
+  | e -> `String (Printexc.to_string e)
+
 (* TODO: take as parameter a nonce-tracking actor passed around by the caller
    (ultimately, the user state for the given address *)
 module TransactionTracker = struct
@@ -162,6 +167,9 @@ module TransactionTracker = struct
     ; get : unit -> TransactionStatus.t }
   let db_key address revision =
     Printf.sprintf "ETHT%s%s" (Address.to_big_endian_bits address) (Revision.to_big_endian_bits revision)
+  (* TODO: do we really not need a mutex here? *)
+  (* TODO: add a transaction between this and the UserState *)
+  let trackers : (Address.t * Revision.t, t) Hashtbl.t = Hashtbl.create 64
   let make : Address.t -> Revision.t -> TransactionStatus.t -> t = fun address revision status ->
     let db_key = db_key address revision in
     let open Lwt in
@@ -213,9 +221,7 @@ module TransactionTracker = struct
                     `Assoc
                       (Option.(to_list (map (fun s -> ("signed", SignedTransaction.to_yojson s)) signed))
                        @ Option.(to_list (map (fun h -> ("transaction_hash", Digest.to_yojson h)) hash))
-                       @ [("error", match error with
-                       | Json_rpc.Rpc_error e -> Json_rpc.error_to_yojson e
-                       | _ -> `String (Printexc.to_string error))]))
+                       @ [("error", exn_to_yojson error)]))
     and update (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
       Db.put db_key (marshal_string status)
       >>= Db.commit
@@ -223,14 +229,20 @@ module TransactionTracker = struct
       status_ref := status;
       continue status in
     {address; revision; promise= continue status; get}
+    |> fun tracker -> Hashtbl.replace trackers (address, revision) tracker; tracker
+  (* TODO: create a memoization helper in Lib and use it here *)
   let load address revision =
-    let db_key = db_key address revision in
-    Db.get db_key |> Option.get |> TransactionStatus.unmarshal_string |> make address revision
+    db_key address revision
+    |> Db.get
+    |> Option.get
+    |> TransactionStatus.unmarshal_string
+    |> make address revision
+  let get address revision = memoize ~table:trackers (uncurry load) (address, revision)
   module P = struct
     type nonrec t = t
     let marshaling =
       marshaling2
-        (fun {address; revision} -> address, revision) load
+        (fun {address; revision} -> address, revision) get
         Address.marshaling Revision.marshaling
     let yojsoning = yojsoning_of_marshaling marshaling
   end
@@ -275,7 +287,7 @@ module UserState = struct
   let save x = x |> marshal_string |> Db.put (db_key x.address)
   let user_table = Hashtbl.create 4
   let user_table_mutex = Lwt_mutex.create ()
-  let make_user_actor = SimpleActor.make ~commit:Lwt.(save >>> Db.commit)
+  let make_user_actor = SimpleActor.make ~commit:Lwter.(save >>> Db.commit)
   let get address =
     Lwt_mutex.with_lock user_table_mutex
       (fun () ->

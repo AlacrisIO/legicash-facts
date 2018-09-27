@@ -493,9 +493,9 @@ let batch_timeout_trigger_in_seconds = 0.01
 let batch_size_trigger_in_requests = 1000
 
 let inner_transaction_request_loop =
-  let open Lwt in
+  let open Lwter in
   fun facilitator_state_ref ->
-    return (!facilitator_state_ref, 0, return_unit)
+    return (!facilitator_state_ref, 0, Lwt.return_unit)
     >>= forever
           (fun (facilitator_state, batch_id, previous) ->
              (* The promise sent back to requesters, that they have to wait on
@@ -531,7 +531,7 @@ let inner_transaction_request_loop =
                       (* Start a timeout to trigger flushing, but only after some entry is written *)
                       Lwt.async (fun () -> Lwt_unix.sleep batch_timeout_trigger_in_seconds
                                   >>= fun () -> Lwt.wakeup_later time_trigger ();
-                                  return_unit);
+                                  Lwt.return_unit);
                     request_batch new_facilitator_state new_size)
                | `Flush id ->
                  assert (id = batch_id);

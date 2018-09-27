@@ -51,7 +51,7 @@ let create_side_chain_contract installer_address =
   >>= fun receipt ->
   let contract_address = receipt.contract_address |> Option.get in
   Address.to_0x_string contract_address
-  |> of_lwt Lwt.(Db.put contract_address_key >>> Db.commit)
+  |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
   >>= const contract_address
 
 let ensure_side_chain_contract_created installer_address =

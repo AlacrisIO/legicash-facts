@@ -26,7 +26,7 @@ end
 module FinalTransactionStatus = struct
   type t =
     [ `SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | `Failed of UserTransactionRequest.t signed * yojson ]
+    | `Failed of yojson ]
   [@@deriving yojson]
   include (YojsonPersistable (struct
              type nonrec t = t
@@ -37,7 +37,7 @@ end
 module TransactionStatus = struct
   type t =
     [ `DepositWanted of DepositWanted.t
-    | `DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
+    | `DepositPosted of DepositWanted.t * Ethereum_user.TransactionTracker.t
     | `DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
     | `Requested of UserTransactionRequest.t signed
     | `SignedByFacilitator of TransactionCommitment.t
@@ -47,14 +47,17 @@ module TransactionStatus = struct
     | FinalTransactionStatus.t ]
   [@@deriving yojson]
 
-  let signed_request : t -> UserTransactionRequest.t signed = function
-    | `DepositWanted _ | `DepositPosted _ | `DepositConfirmed _ ->
-      bork "deposit not requested on side-chain yet"
-    | `Requested signed_request | `Failed (signed_request, _) -> signed_request
+  let signed_request_opt : t -> UserTransactionRequest.t signed option = function
+    | `DepositWanted _ | `DepositPosted _ | `DepositConfirmed _ | `Failed _ -> None
+    | `Requested signed_request -> Some signed_request
     | `SignedByFacilitator tc | `PostedToRegistry tc
     | `PostedToMainChain (tc, _) | `ConfirmedOnMainChain (tc, _) | `SettledOnMainChain (tc, _) ->
-      tc.transaction.tx_request |> TransactionRequest.signed_request
-  let request : t -> UserTransactionRequest.t = fun x -> (signed_request x).payload
+      tc.transaction.tx_request |> TransactionRequest.signed_request |> Option.return
+  let signed_request = signed_request_opt >> Option.get
+
+  let request_opt : t -> UserTransactionRequest.t option =
+    signed_request_opt >> Option.map (fun x -> x.payload)
+  let request = request_opt >> Option.get
 
   module P = struct
     type nonrec t = t
@@ -63,107 +66,117 @@ module TransactionStatus = struct
   include (YojsonPersistable (P) : PersistableS with type t := t)
 end
 
-(*
-   module TransactionTracker = struct
-   [@warning "-39"]
-   type t =
-   { address : Address.t
-   ; facilitator : Address.t
-   ; revision : Revision.t
-   ; promise : FinalTransactionStatus.t Lwt.t
-   ; get : unit -> TransactionStatus.t }
-   let db_key : user:Address.t -> facilitator:Address.t -> Revision.t -> string =
-   fun ~user ~facilitator revision ->
-   Printf.sprintf "ALTT%s%s%s"
-   (Address.to_big_endian_bits user)
-   (Address.to_big_endian_bits facilitator)
-   (Revision.to_big_endian_bits revision)
-   let make : user:Address.t -> facilitator:Address.t -> Revision.t -> TransactionStatus.t -> t =
-   fun ~user ~facilitator revision status ->
-   let db_key = db_key ~user ~facilitator revision in
-   let open Lwt in
-   let open TransactionStatus in
-   let status_ref = ref status in
-   let get () = !status_ref in
-   let rec continue (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
-   match status with
-   | `DepositWanted {facilitator; deposit_amount; deposit_fee} ->
-   TokenAmount.(add deposit_amount deposit_fee)
-   |> Facilitator_contract.pre_deposit ~sender:user ~facilitator
-   >>= fun pre_transaction ->
-   (* TODO: have a single transaction for queueing the `Wanted and the `DepositPosted *)
-   Ethereum_user.(user_action user add_ongoing_transaction (`Wanted signed))
+module TransactionTracker = struct
+  [@warning "-39"]
+  type t =
+    { user : Address.t
+    ; facilitator : Address.t
+    ; revision : Revision.t
+    ; promise : FinalTransactionStatus.t Lwt.t
+    ; get : unit -> TransactionStatus.t }
+  let db_key : user:Address.t -> facilitator:Address.t -> Revision.t -> string =
+    fun ~user ~facilitator revision ->
+      Printf.sprintf "ALTT%s%s%s"
+        (Address.to_big_endian_bits user)
+        (Address.to_big_endian_bits facilitator)
+        (Revision.to_big_endian_bits revision)
+  let trackers : (Address.t * Address.t * Revision.t, t) Hashtbl.t = Hashtbl.create 64
+  let make : user:Address.t -> facilitator:Address.t -> Revision.t -> TransactionStatus.t -> t =
+    fun ~user ~facilitator revision status ->
+      let db_key = db_key ~user ~facilitator revision in
+      let open Lwt in
+      let open TransactionStatus in
+      let status_ref = ref status in
+      let get () = !status_ref in
+      let rec continue (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
+        match status with
+        | `DepositWanted ({facilitator; deposit_amount; deposit_fee} as deposit_wanted) ->
+          Db.with_transaction
+            (fun () ->
+               TokenAmount.(add deposit_amount deposit_fee)
+               |> Facilitator_contract.pre_deposit ~facilitator
+               |> fun pre_transaction ->
+               (* TODO: have a single transaction for queueing the `Wanted and the `DepositPosted *)
+               Ethereum_user.(user_action user add_ongoing_transaction (`Wanted pre_transaction))
+               >>= function
+               | Error error -> invalidate ~deposit_wanted ~error |> update
+               | Ok tracker -> `DepositPosted (deposit_wanted, tracker) |> update)
+        | `DepositPosted (wanted, tracker) ->
+          (* TODO: have the tracker notify us when it's done *)
+          ignore (wanted, tracker);
+          bottom ()
+        | _ -> bottom ()
+           (*
+         | Ok (transaction, confirmation) ->
 
-   >>> track_transaction
-   >>> check_transaction_confirmed)
-   >>= ((function
-   | Ok (transaction, confirmation) ->
-
-   | Error error -> invalidate ~error (failed_operation operation address value gas_limit))
-   >> update)
-   | `Signed ((transaction: Transaction.t), (SignedTransaction.{raw} as signed)) ->
-   Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
-   (trying eth_send_raw_transaction
-   >>> function
-   | Ok _ as r -> return r
-   | Error (Json_rpc.Rpc_error {code= -32000; message="nonce too low"}) ->
-   return (Error NonceTooLow)
-   | Error e -> fail e))
-   raw)
-   >>= ((function
-   | Ok transaction_hash ->
-   `Sent (transaction, signed, transaction_hash)
-   | Error NonceTooLow ->
-   `Wanted (transaction.operation,
-   transaction.tx_header.value,
-   transaction.tx_header.gas_limit)
-   | Error error -> invalidate ~error transaction)
-   >> update)
-   | `Sent (transaction, signed, transaction_hash) ->
-   (* TODO: Also add the possibility of invalidating the transaction,
-   by e.g. querying the blockchain for the sending address's current nonce,
-   and marking the transaction invalidated if a more recent nonce was found.
-   TODO: retry sending after timeout if still not sent. *)
-   Lwt_exn.run_lwt wait_for_confirmation (transaction, transaction_hash)
-   >>= ((function
-   | Ok confirmation -> `Confirmed (transaction, confirmation)
-   | Error NonceTooLow ->
-   `Wanted (transaction.operation, transaction.tx_header.value, transaction.tx_header.gas_limit)
-   | Error error ->
-   invalidate ~signed ~error transaction)
-   >> update)
-   (* TODO: send notifications for confirmed and invalidated. *)
-   | `Confirmed x -> `Confirmed x |> return
-   | `Invalidated x -> `Invalidated x |> return
-   and invalidate ?signed ?hash ~error transaction =
-   `Invalidated (transaction,
-   `Assoc
-   (Option.(to_list (map (fun s -> ("signed", SignedTransaction.to_yojson s)) signed))
-   @ Option.(to_list (map (fun h -> ("transaction_hash", Digest.to_yojson h)) hash))
-   @ [("error", match error with
-   | Json_rpc.Rpc_error e -> Json_rpc.error_to_yojson e
-   | _ -> `String (Printexc.to_string error))]))
-   and update (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
-   Db.put db_key (marshal_string status)
-   >>= Db.commit
-   >>= fun () ->
-   status_ref := status;
-   continue status in
-   {address; revision; promise= continue status; get}
-   let load address revision =
-   let db_key = db_key address revision in
-   Db.get db_key |> Option.get |> TransactionStatus.unmarshal_string |> make address revision
-   module P = struct
-   type nonrec t = t
-   let marshaling =
-   marshaling2
-   (fun {address; revision} -> address, revision) load
-   Address.marshaling Revision.marshaling
-   let yojsoning = yojsoning_of_marshaling marshaling
-   end
-   include (TrivialPersistable (P) : PersistableS with type t := t)
-   end
-*)
+         | Error error -> invalidate ~error (failed_operation operation address value gas_limit))
+         >> update)
+         | `Signed ((transaction: Transaction.t), (SignedTransaction.{raw} as signed)) ->
+         Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
+         (trying eth_send_raw_transaction
+         >>> function
+         | Ok _ as r -> return r
+         | Error (Json_rpc.Rpc_error {code= -32000; message="nonce too low"}) ->
+         return (Error NonceTooLow)
+         | Error e -> fail e))
+         raw)
+         >>= ((function
+         | Ok transaction_hash ->
+         `Sent (transaction, signed, transaction_hash)
+         | Error NonceTooLow ->
+         `Wanted (transaction.operation,
+         transaction.tx_header.value,
+         transaction.tx_header.gas_limit)
+         | Error error -> invalidate ~error transaction)
+         >> update)
+         | `Sent (transaction, signed, transaction_hash) ->
+         (* TODO: Also add the possibility of invalidating the transaction,
+         by e.g. querying the blockchain for the sending address's current nonce,
+         and marking the transaction invalidated if a more recent nonce was found.
+         TODO: retry sending after timeout if still not sent. *)
+         Lwt_exn.run_lwt wait_for_confirmation (transaction, transaction_hash)
+         >>= ((function
+         | Ok confirmation -> `Confirmed (transaction, confirmation)
+         | Error NonceTooLow ->
+         `Wanted (transaction.operation, transaction.tx_header.value, transaction.tx_header.gas_limit)
+         | Error error ->
+         invalidate ~signed ~error transaction)
+         >> update)
+         (* TODO: send notifications for confirmed and invalidated. *)
+         | `Confirmed x -> `Confirmed x |> return
+         | `Failed x -> `Failed x |> return
+      *)
+      and invalidate ?deposit_wanted ~error =
+        ignore deposit_wanted;
+        `Failed (`Assoc [("error", Ethereum_user.exn_to_yojson error)])
+      and update (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
+        Db.put db_key (marshal_string status)
+        >>= Db.commit
+        >>= fun () ->
+        status_ref := status;
+        continue status in
+      {user; facilitator; revision; promise= continue status; get}
+      |> fun tracker -> Hashtbl.replace trackers (user, facilitator, revision) tracker; tracker
+  let load ~user ~facilitator revision =
+    db_key ~user ~facilitator revision
+    |> Db.get
+    |> Option.get
+    |> TransactionStatus.unmarshal_string
+    |> make ~user ~facilitator revision
+  let get user facilitator revision =
+    memoize ~table:trackers
+      (fun (user, facilitator, revision) -> load ~user ~facilitator revision)
+      (user, facilitator, revision)
+  module P = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling3
+        (fun {user; facilitator; revision} -> user, facilitator, revision) get
+        Address.marshaling Address.marshaling Revision.marshaling
+    let yojsoning = yojsoning_of_marshaling marshaling
+  end
+  include (TrivialPersistable (P) : PersistableS with type t := t)
+end
 
 module UserAccountState = struct
   [@warning "-39"]
@@ -309,7 +322,7 @@ let remove_user_request signed_request user_state =
   let facilitator = signed_request.payload.UserTransactionRequest.rx_header.facilitator in
   Lens.modify
     (facilitator_lens facilitator |-- UserAccountState.lens_pending_operations)
-    (List.filter (fun x -> x |> TransactionStatus.signed_request != signed_request))
+    (List.filter (fun x -> x |> TransactionStatus.signed_request_opt != Some signed_request))
     user_state
 
 let sign_request request user_state =
@@ -499,10 +512,10 @@ let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.
     | `Requested request ->
       request
       |> Side_chain_client.post_user_transaction_request_to_side_chain
-      >>= Lwt.arr
+      >>= Lwter.arr
             (function
               | Ok tc -> `SignedByFacilitator tc
-              | Error error -> `Failed (request, Exception.to_yojson error))
+              | Error error -> `Failed (Exception.to_yojson error)) (* TODO: include request context *)
       >>= update
     | _ ->
       bottom ()

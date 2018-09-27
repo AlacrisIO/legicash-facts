@@ -105,6 +105,12 @@ module type MonadS = sig
   include ApplicativeS with type 'a t := 'a t
   include ArrowS with type ('i, 'o) arr = 'i -> 'o t (* Kleisli arrows, a.k.a. monadic function *)
 
+  (** the join operator:
+      join x = x >>= identity
+      x >>= f = join (map f x)
+  *)
+  val join : 'a t t -> 'a t
+
   (** Synonym for [bind]. Composes an ['i t] monad with an ['i -> 'o t] arrow *)
   val (>>=) : 'i t -> ('i -> 'o t) -> 'o t
 
@@ -201,13 +207,20 @@ module StateMonad (State: TypeS) : StateMonadS
    and type 'a t = State.t -> ('a * State.t)
    and type ('i, 'o) readonly = 'i -> State.t -> 'o
 
-(** Translation of Lwt monadic notation to ours, for consistency. *)
-module Lwt : sig
+(** Translation of Lwt monadic notation to ours, for consistency.
+    The name "Lwter" is a a bad pun on "Lwt" and "Later"; it sounds like a kluge,
+    which is exactly what it is:
+    This is not an alternative to Lwt, just a thin layer above,
+    slightly "better" suited for our purposes,
+    yet slightly incompatible (see `Lwt.join` vs `Lwter.join`).
+    It is not meant as an alternative to Lwt, or a rewrite, or anything:
+    it is "an extension of a subset of Lwt", with which it shares a common core,
+    but developed differently.
+*)
+module Lwter : sig
   include MonadS
     with type 'a t = 'a Lwt.t
      and type ('i, 'o) arr = 'i -> 'o Lwt.t
-  type 'a u = 'a Lwt.u
-  include module type of Lwt with type 'a t := 'a t and type 'a u := 'a u
 end
 
 module type LwtExnS = sig
@@ -216,11 +229,11 @@ module type LwtExnS = sig
   val of_exn : ('i, 'o) OrExn.arr -> ('i, 'o) arr
   (** [of_exn a] given a OrExn arrow [a] that has no asynchronous effects, returns an arrow *)
 
-  val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val of_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
   (** [of_lwt a] given a Lwt arrow [a] that doesn't fail returns a Lwt_exn arrow that
       returns its successful result. *)
 
-  val catching_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val catching_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
   (** Catch exceptions in an Lwt arrow. Same as of_lwt >> catching *)
 
   val retry : retry_window:float -> max_window:float -> max_retries:int option
@@ -235,7 +248,7 @@ end
 module Lwt_exn : sig
   include LwtExnS
     with type 'a t = 'a or_exn Lwt.t
-     and type ('i, 'o) arr = ('i, 'o or_exn) Lwt.arr
+     and type ('i, 'o) arr = ('i, 'o or_exn) Lwter.arr
 
   val run_lwt : ('i, 'o) arr -> 'i -> 'o Lwt.t
   (** [run_lwt a x] runs an Lwt_exn arrow [a] on an initial value [x] in an existing Lwt context,
@@ -318,7 +331,7 @@ module type AsyncActionS = sig
   (** From a [Lwt_exn] arrow to an AsyncAction arrow *)
   val of_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr
   (** From a [Lwt] arrow to an AsyncAction arrow *)
-  val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val of_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
 
   (* val catching_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr *)
 end
@@ -331,7 +344,7 @@ module AsyncAction (State : TypeS) : AsyncActionS
 
 (** Given a mailbox and a way to make messages from a pair of input and output-co-promise, return
     an Lwt Kleisli arrow that goes from input to output *)
-val simple_client : 'msg Lwt_mvar.t -> ('i * 'o Lwt.u -> 'msg) -> ('i, 'o) Lwt.arr
+val simple_client : 'msg Lwt_mvar.t -> ('i * 'o Lwt.u -> 'msg) -> ('i, 'o) Lwter.arr
 
 (** Given a mailbox for messages being a pair of input and output-co-promise,
     and given an AsyncAction arrow for some type of state, and an initial state of that type,
@@ -342,19 +355,19 @@ val simple_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o, 'state) async_action 
     call the asynchronous action in a sequentialized way, and an action that given an initial state
     for the server will create a background server thread to actually process the client requests. *)
 val simple_client_make_server : ('i, 'o, 'state) async_action ->
-  ('i, 'o) Lwt.arr * ('state -> _ Lwt.t)
+  ('i, 'o) Lwter.arr * ('state -> _ Lwt.t)
 
 (** Given a mailbox for messages being a pair of input and output-co-promise,
     and given an Lwt arrow return a background thread that sequentially processes those messages. *)
-val stateless_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt.arr -> _ Lwt.t
+val stateless_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwter.arr -> _ Lwt.t
 
 (** Given an AsyncAction arrow and an initial state,
     return a client Lwt arrow that provides sequentialized access to the action arrow *)
-val sequentialize : ('i, 'o, 'state) async_action -> 'state -> ('i, 'o) Lwt.arr
+val sequentialize : ('i, 'o, 'state) async_action -> 'state -> ('i, 'o) Lwter.arr
 
 (** Given an AsyncAction arrow and an initial state,
     return a client Lwt arrow that provides sequentialized access to the action arrow *)
-val stateless_sequentialize : ('i, 'o) Lwt.arr -> ('i, 'o) Lwt.arr
+val stateless_sequentialize : ('i, 'o) Lwter.arr -> ('i, 'o) Lwter.arr
 
 (*
    (** Given a mailbox for messages being a pair of input and output-co-promise,
@@ -362,12 +375,12 @@ val stateless_sequentialize : ('i, 'o) Lwt.arr -> ('i, 'o) Lwt.arr
    In a given process, you might as well do without a mailbox, but if you have to have a mailbox anyway...
  *)
 
-   val stateless_parallel_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt.arr -> _ Lwt.t
+   val stateless_parallel_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwter.arr -> _ Lwt.t
 
    (** Given a Lwt arrow, return a client Lwt arrow that does the same thing,
    but going through the bottleneck of a mailbox.
    In a given process, you might as well do without the entire mailbox thing! *)
-   val stateless_parallelize : ('i, 'o) Lwt.arr -> ('i, 'o) Lwt.arr
+   val stateless_parallelize : ('i, 'o) Lwter.arr -> ('i, 'o) Lwter.arr
 
 *)
 
@@ -423,9 +436,9 @@ val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_cha
 *)
 module SimpleActor : sig
   type 'a t
-  val make : commit:('a, unit) Lwt.arr -> 'a -> 'a t
-  val modify : 'a t -> ('a, 'a) Lwt.arr -> unit Lwt.t
-  val action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwt.arr
+  val make : commit:('a, unit) Lwter.arr -> 'a -> 'a t
+  val modify : 'a t -> ('a, 'a) Lwter.arr -> unit Lwt.t
+  val action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwter.arr
   val peek : 'a t -> 'a
-  val peek_action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwt.arr
+  val peek_action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwter.arr
 end

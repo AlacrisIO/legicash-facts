@@ -448,6 +448,8 @@ val read_file : string -> string
 
 val ignoring_errors : 'a -> ('b -> 'a) -> 'b -> 'a
 
+val memoize : ?table:('i, 'o) Hashtbl.t -> ('i -> 'o) -> 'i -> 'o
+
 module Test : sig
   val expect_string : string -> string -> string -> unit
 end

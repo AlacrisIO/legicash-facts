@@ -57,7 +57,7 @@ val open_transaction : unit -> transaction Lwt.t
 val commit_transaction : transaction -> unit Lwt.t
 (** Start a transaction. *)
 
-val with_transaction : ((unit, 'a) Lwt.arr, 'a) Lwt.arr
+val with_transaction : ((unit, 'a) Lwter.arr, 'a) Lwter.arr
 
 module Test : sig
   val get_batch_id : unit -> int Lwt.t

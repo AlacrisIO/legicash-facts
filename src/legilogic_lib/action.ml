@@ -40,11 +40,13 @@ module type MonadS = sig
   include MonadBaseS
   include ApplicativeS with type 'a t := 'a t
   include ArrowS with type ('i, 'o) arr = 'i -> 'o t
+  val join : 'a t t -> 'a t
   val (>>=) : 'a t -> ('a, 'b) arr -> 'b t
   val (>>|) : 'a t -> ('a -> 'b) -> 'b t
 end
 module Monad (M : MonadBaseS) = struct
   include M
+  let join x = bind x identity
   let (>>=) = bind
   let map f m = bind m (f >> return)
   let (<$>) = map
@@ -134,21 +136,19 @@ module StateMonad (State: TypeS) = struct
   let map_state f x s = (x, f s)
 end
 
-module Lwt = struct
-  include Lwt
+module Lwter = struct
   include (Monad(struct
              type +'a t = 'a Lwt.t
              let return = Lwt.return
              let bind = Lwt.bind
-           end) : MonadS with type 'a t := 'a t)
-  let map = Lwt.map
+           end))
 end
 
 module type LwtExnS = sig
   include OrExnS
   val of_exn : ('a, 'b) OrExn.arr -> ('a, 'b) arr
   val of_lwt : ('a -> 'b Lwt.t) -> ('a, 'b) arr
-  val catching_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val catching_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
   val retry : retry_window:float -> max_window:float -> max_retries:int option
     -> ('i, 'o) arr -> ('i, 'o) arr
 end
@@ -260,7 +260,7 @@ module type AsyncActionS = sig
   val run_lwt : state ref -> ('i, 'o) arr -> 'i -> 'o Lwt.t
   val of_action : ('i -> state -> 'o or_exn * state) -> ('i, 'o) arr
   val of_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr
-  val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val of_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
 end
 module AsyncAction (State : TypeS) = struct
   type state = State.t
@@ -325,7 +325,7 @@ let simple_client mailbox make_message =
     >>= fun () -> promise
 
 let simple_server mailbox processor =
-  let open Lwt in
+  let open Lwter in
   forever
     (fun state ->
        Lwt_mvar.take mailbox
@@ -346,7 +346,7 @@ let sequentialize processor state =
   client
 
 let stateless_server mailbox processor =
-  let open Lwt in
+  let open Lwter in
   () |>
   forever
     (fun () ->
@@ -438,17 +438,17 @@ module AsyncStream = struct
 end
 
 module SimpleActor = struct
-  open Lwt
+  open Lwter
   type 'a t =
     { get : unit -> 'a
-    ; update : ('a, 'a) Lwt.arr
-    ; mailbox : ('a, 'a) Lwt.arr Lwt_mvar.t }
+    ; update : ('a, 'a) Lwter.arr
+    ; mailbox : ('a, 'a) Lwter.arr Lwt_mvar.t }
   let make ~commit initial_state =
     let state_ref = ref initial_state in
     let mailbox = Lwt_mvar.create_empty () in
     let get () = !state_ref in
     Lwt.async (fun () ->
-      Lwt.forever
+      forever
         (fun state ->
            Lwt_mvar.take mailbox
            >>= (|>) state)

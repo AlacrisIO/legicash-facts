@@ -28,7 +28,7 @@ let sockaddr =
   lazy (match config with lazy {host;port} -> Unix.(ADDR_INET (inet_addr_of_string host, port)))
 
 let decode_response unmarshaler =
-  unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwt.arr
+  unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwter.arr
 
 (* queries return JSON *)
 let post_query_request_to_side_chain_ (request : ExternalRequest.t) =

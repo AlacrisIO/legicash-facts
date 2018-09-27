@@ -23,7 +23,7 @@
 open Lib
 open Marshaling
 open Action
-open Lwt
+open Lwter
 
 type db = LevelDB.db
 type batch = LevelDB.writebatch
@@ -131,7 +131,7 @@ let start_server ~db_name ~db () =
           Lwt.async ((fun () -> Lwt_preemptive.detach
                                   (fun () -> LevelDB.Batch.write db ~sync:true batch) ())
                      (*>>> (fun () -> Logging.log "BATCH %d COMMITTED!" batch_id; Lwt.return_unit)*)
-                     >>> Lwt.arr (Lwt.wakeup_later notify_batch_commit));
+                     >>> Lwter.arr (Lwt.wakeup_later notify_batch_commit));
           transaction_counter := 0;
           List.iter open_transaction !blocked_transactions;
           blocked_transactions := [];
@@ -154,7 +154,7 @@ let start_server ~db_name ~db () =
         | Commit continuation ->
           (*Logging.log "COMMIT in batch %d" batch_id;*)
           Lwt.async (fun () -> wait_on_batch_commit
-                      >>= Lwt.arr (Lwt.wakeup_later continuation));
+                      >>= Lwter.arr (Lwt.wakeup_later continuation));
           inner_loop ~ready ~triggered:true ~held
         | Ready n ->
           assert (n = batch_id);

@@ -254,12 +254,12 @@ let test_recent_transactions ?(limit=None) () =
 
 let _ =
   Db.run ~db_name:"alacris-client"
-    Lwt.(test_deposits
-         >>> test_withdrawals
-         >>> test_balances
-         >>> test_statuses
-         >>> test_all_balances
-         >>> test_payments
-         >>> test_recent_transactions
-         >>> test_recent_transactions ~limit:(Some 3)
-         >>> do_exit)
+    Lwter.(test_deposits
+           >>> test_withdrawals
+           >>> test_balances
+           >>> test_statuses
+           >>> test_all_balances
+           >>> test_payments
+           >>> test_recent_transactions
+           >>> test_recent_transactions ~limit:(Some 3)
+           >>> do_exit)

@@ -33,7 +33,7 @@ module TransactionTracker : sig
     ; promise : FinalTransactionStatus.t Lwt.t
     ; get : unit -> TransactionStatus.t }
   val make : Address.t -> Revision.t -> TransactionStatus.t -> t
-  val load : Address.t -> Revision.t -> t
+  val get : Address.t -> Revision.t -> t
   include PersistableS with type t := t
 end
 
@@ -107,3 +107,5 @@ val main_chain_block_notification_stream :
 (** [main_chain_block_notification_stream () start delay] is an asynchronous
     stream of notifications that a new block has been observed, based on polling
     geth every [delay] seconds, and starting with block [start]*)
+
+val exn_to_yojson : exn -> yojson
