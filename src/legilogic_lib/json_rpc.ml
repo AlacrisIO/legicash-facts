@@ -99,10 +99,10 @@ let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
     >>= handling malformed_response
     >>= fun response_json ->
     response_json
-    |> trying (catching_arr (result_response_of_yojson >> ResultOrString.get))
+    |> trying (catching_arr (result_response_of_yojson >> OrString.get))
     >>= handling (fun _ ->
       response_json
-      |> trying (catching_arr (error_response_of_yojson >> ResultOrString.get))
+      |> trying (catching_arr (error_response_of_yojson >> OrString.get))
       >>= handling malformed_response
       >>= fun {jsonrpc;error;id} -> checking jsonrpc error id
       >>= fun e -> fail (Rpc_error e))
@@ -154,7 +154,7 @@ module Test = struct
   let%test "decode result" =
     Lwt_main.run
       (decode_response YoJson.to_int (`Int 42) "{\"jsonrpc\":\"2.0\",\"result\":1776,\"id\":42}")
-    |> ResultOrExn.get |> (=) 1776
+    |> OrExn.get |> (=) 1776
 
   let%test "decode error 1" =
     Lwt_main.run

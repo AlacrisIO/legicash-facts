@@ -66,6 +66,18 @@ module TransactionStatus = struct
   include (YojsonPersistable (P) : PersistableS with type t := t)
 end
 
+module AccountRevisionTracker = struct
+  type t =
+    { user : Address.t
+    ; facilitator : Address.t
+    ; actor : Revision.t SimpleActor.t }
+(*
+       let make ~user ~facilitator revision =
+       let actor = SimpleActor.make ~save:(
+       {user;facilitator;actor}
+    *)
+end
+
 module TransactionTracker = struct
   [@warning "-39"]
   type t =
@@ -81,8 +93,11 @@ module TransactionTracker = struct
         (Address.to_big_endian_bits facilitator)
         (Revision.to_big_endian_bits revision)
   let trackers : (Address.t * Address.t * Revision.t, t) Hashtbl.t = Hashtbl.create 64
-  let make : user:Address.t -> facilitator:Address.t -> Revision.t -> TransactionStatus.t -> t =
-    fun ~user ~facilitator revision status ->
+  [@@@warning "-32-27"]
+  let make : user:Address.t -> facilitator:Address.t -> Revision.t ->
+    nonce_tracker:(Revision.t SimpleActor.t) ->
+    TransactionStatus.t -> t =
+    fun ~user ~facilitator revision ~nonce_tracker status ->
       let db_key = db_key ~user ~facilitator revision in
       let open Lwt in
       let open TransactionStatus in
@@ -98,54 +113,31 @@ module TransactionTracker = struct
                |> fun pre_transaction ->
                (* TODO: have a single transaction for queueing the `Wanted and the `DepositPosted *)
                Ethereum_user.(user_action user add_ongoing_transaction (`Wanted pre_transaction))
-               >>= function
-               | Error error -> invalidate ~deposit_wanted ~error |> update
-               | Ok tracker -> `DepositPosted (deposit_wanted, tracker) |> update)
-        | `DepositPosted (wanted, tracker) ->
-          (* TODO: have the tracker notify us when it's done *)
-          ignore (wanted, tracker);
+               >>= ((function
+                 | Error error -> invalidate ~deposit_wanted ~error
+                 | Ok tracker -> `DepositPosted (deposit_wanted, tracker)) >> update))
+        | `DepositPosted (deposit_wanted, (tracker: Ethereum_user.TransactionTracker.t)) ->
+          tracker.promise
+          >>= ((function
+            | `Invalidated (tx, yo) -> Lib.bork "TODO: invalidate ~deposit_wanted ~error"
+            | `Confirmed (transaction, confirmation) ->
+              `DepositConfirmed (deposit_wanted, transaction, confirmation)) >> update)
+        | `DepositConfirmed (deposit_wanted, transaction, confirmation) ->
           bottom ()
-        | _ -> bottom ()
-           (*
-         | Ok (transaction, confirmation) ->
+        (*           with_transaction
+                     (fun () ->
+                     make_user_transaction_request user facilitator operation
+                     >>= 
+                     >>= fun rx_header -> return UserTransactionRequest.{rx_header; operation}
+                     >>= sign_request
 
-         | Error error -> invalidate ~error (failed_operation operation address value gas_limit))
-         >> update)
-         | `Signed ((transaction: Transaction.t), (SignedTransaction.{raw} as signed)) ->
-         Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
-         (trying eth_send_raw_transaction
-         >>> function
-         | Ok _ as r -> return r
-         | Error (Json_rpc.Rpc_error {code= -32000; message="nonce too low"}) ->
-         return (Error NonceTooLow)
-         | Error e -> fail e))
-         raw)
-         >>= ((function
-         | Ok transaction_hash ->
-         `Sent (transaction, signed, transaction_hash)
-         | Error NonceTooLow ->
-         `Wanted (transaction.operation,
-         transaction.tx_header.value,
-         transaction.tx_header.gas_limit)
-         | Error error -> invalidate ~error transaction)
-         >> update)
-         | `Sent (transaction, signed, transaction_hash) ->
-         (* TODO: Also add the possibility of invalidating the transaction,
-         by e.g. querying the blockchain for the sending address's current nonce,
-         and marking the transaction invalidated if a more recent nonce was found.
-         TODO: retry sending after timeout if still not sent. *)
-         Lwt_exn.run_lwt wait_for_confirmation (transaction, transaction_hash)
-         >>= ((function
-         | Ok confirmation -> `Confirmed (transaction, confirmation)
-         | Error NonceTooLow ->
-         `Wanted (transaction.operation, transaction.tx_header.value, transaction.tx_header.gas_limit)
-         | Error error ->
-         invalidate ~signed ~error transaction)
-         >> update)
-         (* TODO: send notifications for confirmed and invalidated. *)
-         | `Confirmed x -> `Confirmed x |> return
-         | `Failed x -> `Failed x |> return
-      *)
+                     xxx)
+                     make_rx_header facilitator
+                     >>= 
+                     Requested of UserTransactionRequest.t signed
+                     ) >> update)
+        *)
+        | _ -> bottom ()
       and invalidate ?deposit_wanted ~error =
         ignore deposit_wanted;
         `Failed (`Assoc [("error", Ethereum_user.exn_to_yojson error)])
@@ -162,7 +154,8 @@ module TransactionTracker = struct
     |> Db.get
     |> Option.get
     |> TransactionStatus.unmarshal_string
-    |> make ~user ~facilitator revision
+    |> bottom ()
+  (*|> make ~user ~facilitator revision XXXXXXX*)
   let get user facilitator revision =
     memoize ~table:trackers
       (fun (user, facilitator, revision) -> load ~user ~facilitator revision)
@@ -282,6 +275,41 @@ let stub_confirmed_main_chain_state_digest = ref (Ethereum_chain.State.digest Et
 let stub_confirmed_side_chain_state = ref Side_chain.State.empty
 
 let stub_confirmed_side_chain_state_digest = ref (State.digest Side_chain.State.empty)
+
+[@@@warning "-32-27"]
+let get_keypair_of_address user =
+  Lwt_exn.catching_arr keypair_of_address user
+
+module UserRevisionTracker = struct
+  type t = Revision.t
+end
+
+(*
+   let make_user_transaction_request user facilitator operation =
+   let open Lwt_exn in
+   let revision
+   >>= fun rx_header ->
+   return UserTransactionRequest.
+   { rx_header=
+   RxHeader.
+   { facilitator
+   ; requester= user_state.address
+   ; requester_revision=
+   Revision.add account_state.confirmed_state.account_revision
+   (Revision.of_int (1 + List.length account_state.pending_operations))
+   ; confirmed_main_chain_state_digest= !stub_confirmed_main_chain_state_digest
+   ; confirmed_main_chain_state_revision= !stub_confirmed_main_chain_state.revision
+   ; confirmed_side_chain_state_digest= !stub_confirmed_side_chain_state_digest
+   ; confirmed_side_chain_state_revision=
+   !stub_confirmed_side_chain_state.facilitator_revision
+   ; validity_within= default_validity_window }
+   user_state
+   ; operation }
+   >>= fun request ->
+   get_keypair_of_address user
+   >>= fun keypair ->
+   SignedUserTransactionRequest.make keypair request
+*)
 
 let make_rx_header facilitator user_state =
   let open UserAction in
@@ -519,18 +547,6 @@ let _transaction_loop : 'a Lwt_mvar.t -> string -> TransactionStatus.t -> _ Lwt.
       >>= update
     | _ ->
       bottom ()
-(*
-   | DepositWanted { facilitator; deposit_amount; deposit_fee } ->
-   bottom ()
-   | DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
-   | DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
-   | SignedByFacilitator of TransactionCommitment.t
-   | PostedToRegistry of TransactionCommitment.t
-   | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-   | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-   | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-   | Failed of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-*)
 
 
 (** The user_loop is the server that handles the UserState.t, responds to queries about this state,

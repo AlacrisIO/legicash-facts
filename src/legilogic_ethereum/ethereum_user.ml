@@ -287,7 +287,7 @@ module UserState = struct
   let save x = x |> marshal_string |> Db.put (db_key x.address)
   let user_table = Hashtbl.create 4
   let user_table_mutex = Lwt_mutex.create ()
-  let make_user_actor = SimpleActor.make ~commit:Lwter.(save >>> Db.commit)
+  let make_user_actor = SimpleActor.make ~save:Lwter.(save >>> Db.commit)
   let get address =
     Lwt_mutex.with_lock user_table_mutex
       (fun () ->

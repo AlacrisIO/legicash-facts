@@ -1,7 +1,7 @@
 (** Persisting Data *)
-open Lwt.Infix
-
 open Lib
+open Action
+open Lwter
 open Yojsoning
 open Marshaling
 open Digesting
@@ -46,6 +46,7 @@ let db_value_of_digest unmarshal_string digest =
   digest |> db_string_of_digest |> unmarshal_string
 
 (** TODO: have a version that computes the digest from the marshal_string *)
+(** Have both content- and intent- addressed storage in the same framework *)
 let saving_walker methods context x =
   methods.make_persistent
     (fun x ->
@@ -113,3 +114,74 @@ module YojsonPersistable (J: PreYojsonableS) = struct
   let marshal_string = MJ.marshal_string
 end
 
+let persistent_actor_no_default_state key_prefix to_yojson_string _context key =
+  Lib.bork "Failed to load key %s %s: Not_found" key_prefix (to_yojson_string key)
+
+module type PersistentActorBaseS = sig
+  module Key : YojsonMarshalableS
+  type key = Key.t
+  val key_prefix : string
+  type context
+  module State : PersistableS
+  type state = State.t
+  type activity
+  type t = state SimpleActor.t * activity
+  val make_default_state : context -> key -> state
+  val make_activity : context -> key -> state SimpleActor.t -> activity
+  val behavior : context -> key -> activity -> (state SimpleActor.t, unit) Lwter.arr
+  val is_synchronous : bool
+end
+
+module PersistentActor (Base: PersistentActorBaseS) = struct
+  include Base
+  open Lwter
+  let table = Hashtbl.create 8
+  let db_key key = key_prefix ^ (Key.marshal_string key)
+  let save key state =
+    State.walk_dependencies State.dependency_walking saving_context state
+    >>= fun () ->
+    State.marshal_string state |> Db.put (db_key key)
+    >>= Db.commit
+  let resume context key state =
+    match Hashtbl.find_opt table key with
+    | Some _ -> Lib.bork "object with key ~s ~s already resumed!" key_prefix (Key.to_yojson_string key)
+    | None ->
+      if is_synchronous then
+        (let actor = SimpleActor.make ~save:(save key >>> Db.commit) state in
+         let activity = make_activity context key actor in
+         Hashtbl.replace table key (actor, activity);
+         Lwt.async (fun () -> behavior context key activity actor);
+         (actor, activity))
+      else
+        (let hook_ref = ref const_unit in
+         let spawn_commit_hook () = Lwt.async !hook_ref in
+         let actor = SimpleActor.make ~save:(save key >>> arr spawn_commit_hook) state in
+         let activity = make_activity context key actor in
+         let hook () = behavior context key activity actor in
+         hook_ref := hook;
+         Hashtbl.replace table key (actor, activity);
+         spawn_commit_hook ();
+         (actor, activity))
+  let make context key initial_state =
+    match Db.get (db_key key) with
+    | Some _ -> Lib.bork "object with key %s %s already created!" key_prefix (Key.to_yojson_string key)
+    | None ->
+      save key initial_state
+      >>= fun () ->
+      resume context key initial_state
+      |> return
+  let get context key =
+    let db_key = db_key key in
+    match Hashtbl.find_opt table key with
+    | Some x -> x
+    | None -> (match Db.get db_key with
+      | Some s -> (try State.unmarshal_string s with
+          e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"
+                 key_prefix (Key.to_yojson_string key) (Hex.unparse_0x_data s) (Printexc.to_string e))
+      | None -> make_default_state context key) |> resume context key
+  let peek x = fst x |> SimpleActor.peek
+  let peek_action x a = SimpleActor.peek_action (fst x) a
+  let modify x a = SimpleActor.modify (fst x) a
+  let action x a = SimpleActor.action (fst x) a
+  let activity x = snd x
+end

@@ -184,8 +184,14 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
   module Trie = Trie (Key) (Value) (DigestValueType) (Synth) (Type) (Wrap)
   include Trie
   include (Type.T : PersistableS with type t := t)
+
+  (* Override the bottom yojsoning from Type *)
+  let yojsoning = Trie.yojsoning
   let to_yojson = Trie.to_yojson
   let of_yojson = Trie.of_yojson
+  let of_yojson_exn = Trie.of_yojson_exn
+  let to_yojson_string = Trie.to_yojson_string
+  let of_yojson_string_exn = Trie.of_yojson_string_exn
 
   let check_invariant t =
     check_invariant t &&

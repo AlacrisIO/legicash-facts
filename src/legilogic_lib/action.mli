@@ -169,9 +169,34 @@ module type OrExnS = sig
 end
 
 (** See docstring for OrExnS.  *)
-module OrExn : OrExnS
-  with type 'a t = 'a or_exn
-   and type ('i, 'o) arr = 'i -> 'o or_exn
+module OrExn : sig
+  include OrExnS
+    with type 'a t = 'a or_exn
+     and type ('i, 'o) arr = 'i -> 'o or_exn
+  val get : 'a t -> 'a (* should it instead be called [run]? *)
+  val of_option : ('i -> 'o option) -> ('i, 'o) arr
+  val of_or_string : ('i -> ('o, string) result) -> ('i, 'o) arr
+end
+
+module OrString : sig
+  include ErrorMonadS
+    with type 'a t = ('a, string) result
+     and type ('i, 'o) arr = 'i -> ('o, string) result
+     and type error = string
+  val get : 'a t -> 'a
+
+  val bork : ('a, unit, string, 'b t) format4 -> 'a
+  (** Internal error *)
+
+  val catching : ('i, 'o) arr -> ('i, 'o) arr
+  (** Run an arrow that may raise exceptions, catch any exception and reify them monadically *)
+
+  val catching_arr : ('i -> 'o) -> ('i, 'o) arr
+  (** Run an OCaml function that may raise exceptions, which are caught and
+      presented as monadic errors. Same as arr >> catching *)
+
+  val of_or_exn : ('i, 'o) OrExn.arr -> ('i, 'o) arr
+end
 
 (** Signature for expression of composable computational effects which have a
     tracked state threaded through them (the [state] variable inherited from
@@ -221,6 +246,7 @@ module Lwter : sig
   include MonadS
     with type 'a t = 'a Lwt.t
      and type ('i, 'o) arr = 'i -> 'o Lwt.t
+  val const_unit : (_, unit) arr
 end
 
 module type LwtExnS = sig
@@ -420,25 +446,43 @@ val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_cha
     Return an Error Unix.Unix_error if the socket failed to be opened. *)
 
 (** Simple actor
-    You [make] an actor by providing an update action (that will, e.g. persist the state
-    as part of some suitable transaction), and an initial state of type 'a.
-    Then you can [modify] the actor by passing a Lwt arrow from 'a to 'a,
-    or run a stateful [action] from 'i to 'o operating on state 'a.
-    You can also [peek] at the last known state of the actor, or run a [peek_action]
-    that operates on the last known state and discards any modifications to it
-    (usually you would want to only run read-only actions).
-    Because peeking is asynchronous, you should only make decisions based on
-    monotonic aspects of the state, or on accumulated statistics about that state over time;
+    You [make] an actor by providing, beside an initial state of type ['state] (at the end),
+    a [save] action that will persist the state as part of some suitable transaction,
+    either synchronously
+
+    Then, you can call the [modify] function to modify the actor
+    by passing a [('state, 'state) Lwter.arr] arrow.
+    Or you can call [action] and pass it an [('i, 'o, 'state) async_action] arrow
+    as well as an ['i] input, and it will return an ['o] output after side-effecting
+    but before saving the state.
+
+    You can also [peek] at the last known saved state of the actor, or run a [peek_action]
+    that operates on the last known saved state and discards any modifications to it
+    (usually you would want to only run read-only actions; TODO: implement async_reader).
+    Because the actions are asynchronous, it is possible (though unlikely) that
+    the peeking will see a slightly earlier or later version of the state than is current;
+    therefore, you should only make decisions based on constant or monotonic aspects of the state,
+    or on accumulated statistics that do not have to be overly precise;
     if you want synchronous access to the state, use a regular action.
+
+    See [Persisting.SynchronousPersistentAction] and [Persisting.AsynchronousPersistentAction]
+    for more specific uses of this pattern.
+
+    If you use [SimpleActor] directly instead of through these persistent elaborations,
+    note that the actor won't call the [save] function on the initial state.
+    If you need the initial state you use to create the actor to persist because it's not
+    an empty default state given the context, you need to do that by yourself before you create
+    the actor, or at least before it's first used.
+
     TODO: define and use a Reader, Lwt, Exn monad instead of a State, Lwt, Exn monad for the peek_action.
     TODO: learn monad transformers and the proper order of stacking of those monad transformers.
     TODO: use an existing OCaml monad/monad transformer library.
 *)
 module SimpleActor : sig
-  type 'a t
-  val make : commit:('a, unit) Lwter.arr -> 'a -> 'a t
-  val modify : 'a t -> ('a, 'a) Lwter.arr -> unit Lwt.t
-  val action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwter.arr
-  val peek : 'a t -> 'a
-  val peek_action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwter.arr
+  type 'state t
+  val make : ?save:('state, unit) Lwter.arr -> 'state -> 'state t
+  val modify : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
+  val action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+  val peek : 'state t -> 'state
+  val peek_action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
 end

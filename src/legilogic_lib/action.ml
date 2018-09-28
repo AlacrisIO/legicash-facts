@@ -110,6 +110,31 @@ module OrExn = struct
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let catching a i = try a i with e -> Error e
   let catching_arr a i = try Ok (a i) with e -> Error e
+  let get = function
+    | Ok x -> x
+    | Error e -> raise e
+  let of_option f x =
+    match (f x) with
+    | Some r -> Ok r
+    | None -> Error Not_found
+  let of_or_string f x =
+    match f x with
+    | Ok x -> Ok x
+    | Error e -> Error (Internal_error e)
+end
+
+module OrString = struct
+  include ErrorMonad(struct type t = string end)
+  let bork fmt = Printf.ksprintf fail fmt
+  let catching a i = try a i with e -> Error (Printexc.to_string e)
+  let catching_arr a = catching (arr a)
+  let get = function
+    | Ok x -> x
+    | Error e -> raise (Internal_error e)
+  let of_or_exn f x =
+    match f x with
+    | Ok x -> Ok x
+    | Error e -> Error (Printexc.to_string e)
 end
 
 module type StateMonadS = sig
@@ -142,6 +167,7 @@ module Lwter = struct
              let return = Lwt.return
              let bind = Lwt.bind
            end))
+  let const_unit _ = Lwt.return_unit
 end
 
 module type LwtExnS = sig
@@ -162,7 +188,7 @@ module Lwt_exn = struct
       let bind m a = Lwt.bind m (function Ok x -> a x | Error e -> fail e)
     end)
   let run_lwt mf x =
-    Lwt.bind (mf x) (ResultOrExn.get >> Lwt.return)
+    Lwt.bind (mf x) (OrExn.get >> Lwt.return)
   let run mf x = run_lwt mf x |> Lwt_main.run
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let catching f x = try f x with e -> fail e
@@ -234,7 +260,7 @@ module Action (State : TypeS) = struct
   let of_readonly p x s = return (p x s) s
   let assert_ where test value state =
     (if test value state then Ok value else Error (Assertion_failed (where ()))), state
-  let run r mf x = match (mf x !r) with (roe, s) -> r := s ; ResultOrExn.get roe
+  let run r mf x = match (mf x !r) with (roe, s) -> r := s ; OrExn.get roe
   let to_async a x s = a x s |> Lwt.return
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let catching f x s = try f x s with e -> fail e s
@@ -282,7 +308,7 @@ module AsyncAction (State : TypeS) = struct
   let run_lwt_exn r mf x = (* TODO: switch run_lwt and run_lwt_exn ? *)
     Lwt.bind (mf x !r) (fun (roe, s) -> r := s ; Lwt.return roe)
   let run_lwt r mf x =
-    Lwt.bind (mf x !r) (fun (roe, s) -> r := s ; ResultOrExn.get roe |> Lwt.return)
+    Lwt.bind (mf x !r) (fun (roe, s) -> r := s ; OrExn.get roe |> Lwt.return)
   let run r mf x = run_lwt r mf x |> Lwt_main.run
   type ('i, 'o) readonly = 'i -> state -> 'o
   let of_readonly p x s = return (p x s) s
@@ -407,6 +433,7 @@ let write_string_to_lwt_io_channel out_channel s =
   >>= fun () -> Lwt_stream.of_string s |> catching_lwt (write_chars out_channel)
   >>= fun () -> catching_lwt flush out_channel (* flushing is critical *)
 
+(* TODO: some kind of try ... finally to always close the channels *)
 let with_connection sockaddr f =
   let open Lwt_exn in
   catching_lwt Lwt_io.open_connection sockaddr
@@ -439,37 +466,44 @@ end
 
 module SimpleActor = struct
   open Lwter
-  type 'a t =
-    { get : unit -> 'a
-    ; update : ('a, 'a) Lwter.arr
-    ; mailbox : ('a, 'a) Lwter.arr Lwt_mvar.t }
-  let make ~commit initial_state =
+  type 'state t =
+    { state_ref : 'state ref
+    ; save : ('state, unit) Lwter.arr
+    ; mailbox : ('state, 'state) Lwter.arr Lwt_mvar.t }
+  let make ?(save=const_unit) initial_state =
     let state_ref = ref initial_state in
     let mailbox = Lwt_mvar.create_empty () in
-    let get () = !state_ref in
     Lwt.async (fun () ->
       forever
         (fun state ->
            Lwt_mvar.take mailbox
            >>= (|>) state)
         initial_state);
-    let update state = commit state >>= (fun () -> state_ref := state; return state) in
-    { get ; update ; mailbox }
-  let peek actor = actor.get ()
-  let modify actor f = Lwt_mvar.put actor.mailbox (f >>> actor.update)
+    { state_ref ; save ; mailbox }
+  let peek actor = !(actor.state_ref)
+  let poke actor ?respond ~get_new_state transform =
+    Lwt_mvar.put actor.mailbox
+      (transform
+       >>> (fun output ->
+         let new_state = get_new_state output in
+         (match respond with
+          | None -> ()
+          | Some f -> Lwt.async (fun () -> f output));
+         actor.save new_state
+         >>= fun () ->
+         actor.state_ref := new_state;
+         return new_state))
+  let modify actor f =
+    poke actor ~get_new_state:identity f
   let action actor f i =
     let (promise, copromise) = Lwt.task () in
-    Lwt_mvar.put actor.mailbox
-      (fun state ->
-         f i state
-         >>= fun (output, new_state) ->
-         actor.update new_state
-         >>= fun _ ->
-         Lwt.wakeup_later copromise output;
-         return new_state)
+    poke actor
+      ~respond:(fun (o, _) -> Lwt.wakeup_later copromise o; Lwt.return_unit)
+      ~get_new_state:snd
+      (f i)
     >>= fun () -> promise
   let peek_action actor f i =
-    let state = actor.get () in
+    let state = peek actor in
     f i state >>= (fst >> return)
 end
 

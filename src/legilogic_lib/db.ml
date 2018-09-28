@@ -46,19 +46,37 @@ type request =
   (** Store [value] at [key] in the database *)
   | Put of (string, string) kv
   (** Store many key value pairs in the database *)
-  | PutMany of (string, string) kv list
+  | PutMany of (string, string) kv list (* Do we still need PutMany for performance? Semantically it's not needed since we have transactions *)
   (** Remove [key] from LevelDB *)
   | Remove of string
-  (** Actually send batched [put] and [remove] [request]s to LevelDB *)
+  (** Register a promise to be fulfilled after the commit.
+      The system must otherwise ensure that the action that follows this promise
+      will be restarted by a new instance of this program in case the process crashes after this commit,
+      or is otherwise some client's responsibility to restart if the program acts as a server.
+  *)
   | Commit of unit Lwt.u
-  (** Internal message indicating that LevelDB is available for interaction *)
-  | Ready of int
+  (** Register post-commit finalizer actions to be run after this batch commits
+      and before the next batch commits, with a db key identifier.
+      This would typically spawn an async or some such.
+      The action should always be the same for a given key,
+      or otherwise change monotonically within a batch,
+      so that multiple calls be meaningful, and/or the system must ensure
+      a key only gets activated once per batch.
+      Presumably to be called within a transaction.
+  *)
+  | Commit_hook of string * (unit -> unit Lwt.t)
+  (** Internal message indicating that LevelDB is available for interaction,
+      the previous transaction of given number having been committed,
+      and the following list of synchronous hooks having been registered at previous batch. *)
+  | Ready of int * (string * (unit -> unit Lwt.t)) list
   (** Open Transaction *)
   | Open_transaction of transaction Lwt.u
   (** Close a Transaction *)
   | Close_transaction of transaction
-  (** For testing purposes only, get the batch id *)
-  | Test_get_batch_id of int Lwt.u
+  (** Get the batch id: not just for testing,
+      but also, within a transaction, to get the id to prepare a hook,
+      e.g. to send newly committed but previously unsent messages. *)
+  | Get_batch_id of int Lwt.u
 
 (* For debugging purposes only *)
 let [@warning "-32"] yojson_of_request = function
@@ -69,10 +87,11 @@ let [@warning "-32"] yojson_of_request = function
                            `List (List.map (kv_to_yojson Data.to_yojson Data.to_yojson) list)]
   | Remove key -> `List [`String "Remove"; Data.to_yojson key]
   | Commit _ -> `List [`String "Commit"]
-  | Ready n -> `List [`String "Ready"; `Int n]
+  | Commit_hook _ -> `List [`String "Commit_hook"]
+  | Ready (n, _) -> `List [`String "Ready"; `Int n]
   | Open_transaction _ -> `List [`String "Open_transaction"]
   | Close_transaction _ -> `List [`String "Close_transaction"]
-  | Test_get_batch_id _ -> `List [`String "Test_get_batch_id"]
+  | Get_batch_id _ -> `List [`String "Test_get_batch_id"]
 
 (* One might be tempted to use Lwt.task instead of an option ref to define
    the db_name, db. Unhappily, at least as far as the db goes,
@@ -111,6 +130,8 @@ let start_server ~db_name ~db () =
   let open Lwt in
   Logging.log "Opening LevelDB connection to db %s" db_name;
   let rec outer_loop batch_id previous () =
+    let notify_list = ref [] in
+    let hooks = Hashtbl.create 16 in
     let transaction_counter = ref 0 in
     let open_transactions : (transaction, unit) Hashtbl.t = Hashtbl.create 64 in
     let open_transaction u =
@@ -121,17 +142,24 @@ let start_server ~db_name ~db () =
     let blocked_transactions : transaction Lwt.u list ref = ref [] in
     let batch = LevelDB.Batch.make () in
     let (wait_on_batch_commit, notify_batch_commit) = Lwt.task () in
-    Lwt.async (fun () -> previous >>= fun () -> Lwt_mvar.put db_mailbox (Ready batch_id));
+    Lwt.async (fun () ->
+      previous
+      >>= fun (notify_list, hooks) ->
+      List.iter (flip Lwt.wakeup_later ()) notify_list;
+      Lwt_mvar.put db_mailbox (Ready (batch_id, hooks)));
     let rec inner_loop ~ready ~triggered ~held =
       if triggered && ready && not held then
         begin
           (*Logging.log "COMMIT BATCH %d!" batch_id;*)
           (* Fork a system thread to handle the commit;
              when it's done, wakeup the wait_on_batch_commit promise *)
-          Lwt.async ((fun () -> Lwt_preemptive.detach
-                                  (fun () -> LevelDB.Batch.write db ~sync:true batch) ())
-                     (*>>> (fun () -> Logging.log "BATCH %d COMMITTED!" batch_id; Lwt.return_unit)*)
-                     >>> Lwter.arr (Lwt.wakeup_later notify_batch_commit));
+          Lwt.async (fun () ->
+            Lwt_preemptive.detach
+              (fun () -> LevelDB.Batch.write db ~sync:true batch) ()
+            >>= fun () ->
+            (* Logging.log "BATCH %d COMMITTED!" batch_id;*)
+            Lwt.wakeup_later notify_batch_commit (!notify_list, bindings_of_hashtbl hooks);
+            return_unit);
           transaction_counter := 0;
           List.iter open_transaction !blocked_transactions;
           blocked_transactions := [];
@@ -151,13 +179,17 @@ let start_server ~db_name ~db () =
           (*Logging.log "REMOVE key: %s" (Hex.unparse_0x_data key);*)
           LevelDB.Batch.delete batch key;
           inner_loop ~ready ~triggered ~held
-        | Commit continuation ->
+        | Commit notify ->
           (*Logging.log "COMMIT in batch %d" batch_id;*)
-          Lwt.async (fun () -> wait_on_batch_commit
-                      >>= Lwter.arr (Lwt.wakeup_later continuation));
+          notify_list := notify::!notify_list;
           inner_loop ~ready ~triggered:true ~held
-        | Ready n ->
+        | Commit_hook (key, hook) ->
+          Hashtbl.replace hooks key hook;
+          inner_loop ~ready ~triggered ~held
+        | Ready (n, hooks) ->
           assert (n = batch_id);
+          Lwt_list.iter_s (fun (_key, hook) -> hook ()) hooks
+          >>= fun () ->
           inner_loop ~ready:true ~triggered ~held
         | Open_transaction u ->
           (* TODO: assert that the transaction_counter never wraps around?
@@ -170,11 +202,11 @@ let start_server ~db_name ~db () =
         | Close_transaction transaction ->
           Hashtbl.remove open_transactions transaction;
           inner_loop ~ready ~triggered ~held:(Hashtbl.length open_transactions > 0)
-        | Test_get_batch_id continuation ->
+        | Get_batch_id continuation ->
           Lwt.wakeup_later continuation batch_id;
           inner_loop ~ready ~triggered ~held in
     inner_loop ~ready:false ~triggered:false ~held:(Hashtbl.length open_transactions > 0) in
-  outer_loop 0 Lwt.return_unit ()
+  outer_loop 0 (Lwt.return ([],[])) ()
 
 let open_connection db_name =
   match !the_connection_ref with
@@ -210,6 +242,9 @@ let commit () =
   let (promise, resolver) = Lwt.task () in
   async_commit resolver >>= fun () -> promise
 
+let commit_hook key action =
+  Commit_hook (key, action) |> request
+
 let has_key key =
   LevelDB.mem (the_db ()) key
 
@@ -244,9 +279,7 @@ let with_transaction thunk =
   commit_transaction tx
   >>= const result
 
-module Test = struct
-  let get_batch_id () =
-    let (t,u) = Lwt.task () in
-    request (Test_get_batch_id u)
-    >>= fun () -> t
-end
+let get_batch_id () =
+  let (t,u) = Lwt.task () in
+  request (Get_batch_id u)
+  >>= fun () -> t

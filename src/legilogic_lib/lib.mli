@@ -94,8 +94,12 @@ end
 val map_fst : ('a -> 'b) -> 'a * 'c -> 'b * 'c
 
 module Result : sig
+  type ('ok, 'error) t = ('ok, 'error) result
+
   (** Result as the error monad, applicative, etc., over the Ok clause *)
-  val return : 'a -> ('a, 'b) result
+  val return : 'ok -> ('ok, 'error) t
+
+  val fail : 'error -> ('ok, 'error) t
 
   val bind : ('a, 'err) result -> ('a -> ('b, 'err) result) -> ('b, 'err) result
 
@@ -103,20 +107,12 @@ module Result : sig
   val map : ('a -> 'b) -> ('a, 'err) result -> ('b, 'err) result
 
   (** map_error *)
-  val map_error : ('a -> 'b) -> ('c, 'a) result -> ('c, 'b) result
+  val map_error : ('a -> 'b) -> ('ok, 'a) result -> ('ok, 'b) result
 
   (** list map over result *)
   val list_map : ('a -> ('b, 'err) result) -> 'a list -> ('b list, 'err) result
 
-  val get : ('a, 'b) result -> 'a
-end
-
-module ResultOrExn : sig
-  val get : ('a, exn) result -> 'a
-end
-
-module ResultOrString : sig
-  val get : ('a, string) result -> 'a
+  val get : ('ok, 'error) result -> 'ok
 end
 
 (** [list_foldlk f a l k] is the same as [k @@ List.fold_left f a l]. (CPS for
@@ -449,6 +445,8 @@ val read_file : string -> string
 val ignoring_errors : 'a -> ('b -> 'a) -> 'b -> 'a
 
 val memoize : ?table:('i, 'o) Hashtbl.t -> ('i -> 'o) -> 'i -> 'o
+
+val bindings_of_hashtbl : ('k, 'v) Hashtbl.t -> ('k * 'v) list
 
 module Test : sig
   val expect_string : string -> string -> string -> unit

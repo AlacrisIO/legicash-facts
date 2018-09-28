@@ -35,7 +35,7 @@ let facilitator_address =
   |> Config.get_config_filename
   |> Yojsoning.yojson_of_file
   |> facilitator_keys_config_of_yojson
-  |> Lib.ResultOrString.get
+  |> OrString.get
   |> fun { nickname; keypair; password } ->
   let address = keypair.address in
   Logging.log "Using facilitator keypair %S %s" nickname (Address.to_0x_string address);
@@ -55,6 +55,7 @@ let config =
 let sockaddr = Unix.(ADDR_INET (inet_addr_any, config.port))
 
 (* TODO: pass request id, so we can send a JSON RPC style reply? *)
+(* TODO: have some try ... finally construct handle the closing of the channels *)
 let process_request_exn _client_address (in_channel,out_channel) =
   let encode_response marshaler =
     marshaler |> Tag.marshal_result_or_exn |> marshal_string_of_marshal |> arr in
@@ -72,13 +73,17 @@ let process_request_exn _client_address (in_channel,out_channel) =
   (* TODO: We need to always close, and thus exit the Lwt_exn monad and properly handle the Result
      (e.g. by turning it into a yojson that fulfills the JSON RPC interface) before we close.
   *)
-  >>= write_string_to_lwt_io_channel out_channel
+  >>= catching (write_string_to_lwt_io_channel out_channel)
   >>= fun () -> catching_lwt close in_channel
   >>= fun () -> catching_lwt close out_channel
 
 (* squeeze Lwt_exn into Lwt *)
 let process_request client_address channels =
-  run_lwt (process_request_exn client_address) channels
+  run_lwt (trying (catching (process_request_exn client_address))
+           >>> handling (fun e ->
+             Logging.log "Exception while processing server request: %s" (Printexc.to_string e);
+             return ()))
+    channels
 
 let new_facilitator_state address =
   let keypair = keypair_of_address address in
