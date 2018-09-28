@@ -159,31 +159,46 @@ let exn_to_yojson = function
 (* TODO: take as parameter a nonce-tracking actor passed around by the caller
    (ultimately, the user state for the given address *)
 module TransactionTracker = struct
-  [@warning "-39"]
-  type t =
-    { address : Address.t
-    ; revision : Revision.t
-    ; promise : FinalTransactionStatus.t Lwt.t
-    ; get : unit -> TransactionStatus.t }
-  let db_key address revision =
-    Printf.sprintf "ETHT%s%s" (Address.to_big_endian_bits address) (Revision.to_big_endian_bits revision)
-  (* TODO: do we really not need a mutex here? *)
-  (* TODO: add a transaction between this and the UserState *)
-  let trackers : (Address.t * Revision.t, t) Hashtbl.t = Hashtbl.create 64
-  let make : Address.t -> Revision.t -> TransactionStatus.t -> t = fun address revision status ->
-    let db_key = db_key address revision in
-    let open Lwt in
-    let open TransactionStatus in
-    let status_ref = ref status in
-    let get () = !status_ref in
-    let rec continue (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
-      match status with
-      | `Wanted {operation; value; gas_limit} ->
-        make_signed_transaction address operation value gas_limit
-        >>= ((function
-          | Ok s -> `Signed s
-          | Error error -> invalidate ~error (failed_operation operation address value gas_limit))
-         >> update)
+  module Base = struct
+    module Key = struct
+      [@@@warning "-39"]
+      type t= { user : Address.t; revision : Revision.t } [@@deriving yojson]
+      include (YojsonMarshalable(struct
+                 type nonrec t = t
+                 let yojsoning = {to_yojson;of_yojson}
+                 let marshaling = marshaling2
+                                    (fun {user;revision} -> user,revision)
+                                    (fun user revision -> {user;revision})
+                                    Address.marshaling Revision.marshaling
+               end): YojsonMarshalableS with type t := t)
+    end
+    let key_prefix = "ETTT"
+    type context = { user: Address.t } (* TODO: Revision tracking actor *)
+    module State = TransactionStatus
+    (* TODO: inspection? cancellation? split private and public activities? *)
+    type activity = FinalTransactionStatus.t Lwt.t * FinalTransactionStatus.t Lwt.u
+    let make_activity _context _key _actor = Lwt.task ()
+    let is_synchronous = true
+    let make_default_state = persistent_actor_no_default_state key_prefix Key.to_yojson_string
+
+    let invalidate ?signed ?hash ~error transaction =
+      false, `Invalidated (transaction,
+                    `Assoc
+                      (Option.(to_list (map (fun s -> ("signed", SignedTransaction.to_yojson s)) signed))
+                       @ Option.(to_list (map (fun h -> ("transaction_hash", Digest.to_yojson h)) hash))
+                       @ [("error", exn_to_yojson error)]))
+
+    let behavior context _key (_, notify) actor =
+      let finalize final_status =
+        Lwt.wakeup_later notify final_status;
+        false, final_status in
+      let step () (status : TransactionStatus.t) : (bool * TransactionStatus.t) Lwt.t =
+        match status with
+        | `Wanted {operation; value; gas_limit} ->
+          make_signed_transaction context.user operation value gas_limit
+          >>= (function
+              | Ok s -> true, `Signed s
+              | Error error -> invalidate ~error (failed_operation operation address value gas_limit))
       | `Signed ((transaction: Transaction.t), (SignedTransaction.{raw} as signed)) ->
         Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
                             (trying eth_send_raw_transaction
@@ -193,60 +208,35 @@ module TransactionTracker = struct
                                return (Error NonceTooLow)
                              | Error e -> fail e))
                    raw)
-        >>= ((function
+        >>= (function
           | Ok transaction_hash ->
-            `Sent (transaction, signed, transaction_hash)
+            true, `Sent (transaction, signed, transaction_hash)
           | Error NonceTooLow ->
-            `Wanted (Transaction.pre_transaction transaction)
+            true, `Wanted (Transaction.pre_transaction transaction)
           | Error error -> invalidate ~error transaction)
-         >> update)
       | `Sent (transaction, signed, transaction_hash) ->
         (* TODO: Also add the possibility of invalidating the transaction,
            by e.g. querying the blockchain for the sending address's current nonce,
            and marking the transaction invalidated if a more recent nonce was found.
            TODO: retry sending after timeout if still not sent. *)
         Lwt_exn.run_lwt wait_for_confirmation (transaction, transaction_hash)
-        >>= ((function
-          | Ok confirmation -> `Confirmed (transaction, confirmation)
-          | Error NonceTooLow ->
-            `Wanted (Transaction.pre_transaction transaction)
-          | Error error ->
-            invalidate ~signed ~error transaction)
-         >> update)
+        >>= (function
+            | Ok confirmation -> `Confirmed (transaction, confirmation) |> finalize
+            | Error NonceTooLow ->
+              true, `Wanted (Transaction.pre_transaction transaction)
+            | Error error ->
+              invalidate ~signed ~error transaction)
       (* TODO: send notifications for confirmed and invalidated. *)
-      | `Confirmed x -> `Confirmed x |> return
-      | `Invalidated x -> `Invalidated x |> return
-    and invalidate ?signed ?hash ~error transaction =
-      `Invalidated (transaction,
-                    `Assoc
-                      (Option.(to_list (map (fun s -> ("signed", SignedTransaction.to_yojson s)) signed))
-                       @ Option.(to_list (map (fun h -> ("transaction_hash", Digest.to_yojson h)) hash))
-                       @ [("error", exn_to_yojson error)]))
-    and update (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
-      Db.put db_key (marshal_string status)
-      >>= Db.commit
-      >>= fun () ->
-      status_ref := status;
-      continue status in
-    {address; revision; promise= continue status; get}
-    |> fun tracker -> Hashtbl.replace trackers (address, revision) tracker; tracker
-  (* TODO: create a memoization helper in Lib and use it here *)
-  let load address revision =
-    db_key address revision
-    |> Db.get
-    |> Option.get
-    |> TransactionStatus.unmarshal_string
-    |> make address revision
-  let get address revision = memoize ~table:trackers (uncurry load) (address, revision)
-  module P = struct
-    type nonrec t = t
-    let marshaling =
-      marshaling2
-        (fun {address; revision} -> address, revision) get
-        Address.marshaling Revision.marshaling
-    let yojsoning = yojsoning_of_marshaling marshaling
+      | `Confirmed x -> `Confirmed x |> finalize
+      | `Invalidated x -> `Invalidated x |> finalize in
+      let rec loop () =
+        action actor step ()
+        >>= fun continue ->
+        if continue then loop () else Lwt.return_unit in
+      loop ()
   end
-  include (TrivialPersistable (P) : PersistableS with type t := t)
+  include PersistentActor(Base)
+  let promise x = x |> activity |> fst
 end
 
 module OngoingTransactions = struct

@@ -1,5 +1,6 @@
 open Legilogic_lib
 open Yojsoning
+open Marshaling
 open Persisting
 open Signing
 open Types
@@ -27,8 +28,14 @@ module TransactionStatus : sig
 end
 
 module TransactionTracker : sig
+  type context = { user: Address.t }
+  module Key : sig
+    type t= { user : Address.t; revision : Revision.t }
+    include YojsonMarshalableS with type t := t
+  end
+  include PersistentActor with type key = Key.t
   type t =
-    { address : Address.t
+    { user : Address.t
     ; revision : Revision.t
     ; promise : FinalTransactionStatus.t Lwt.t
     ; get : unit -> TransactionStatus.t }

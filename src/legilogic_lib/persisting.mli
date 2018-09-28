@@ -160,12 +160,13 @@ module type PersistentActorBaseS = sig
   *)
 end
 
-module PersistentActor (Base: PersistentActorBaseS) : sig
-  type key = Base.Key.t
-  type context = Base.context
-  type state = Base.State.t
-  type activity = Base.activity
-  type t = state SimpleActor.t * activity
+(** See documentation above for [PersistentActorBaseS] and for [Action.SimpleActor] *)
+module type PersistentActorS = sig
+  type key
+  type context
+  type state
+  type activity
+  type t
   val make : context -> key -> state -> t Lwt.t
   val get : context -> key -> t
   val peek : t -> state
@@ -174,3 +175,10 @@ module PersistentActor (Base: PersistentActorBaseS) : sig
   val action : t -> ('i, 'o, state) async_action -> ('i, 'o) Lwter.arr
   val activity : t -> activity
 end
+
+module PersistentActor (Base: PersistentActorBaseS) :
+  PersistentActorS
+  with type key = Base.Key.t
+   and type context = Base.context
+   and type state = Base.State.t
+   and type activity = Base.activity

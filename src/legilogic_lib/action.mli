@@ -478,11 +478,15 @@ val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_cha
     TODO: learn monad transformers and the proper order of stacking of those monad transformers.
     TODO: use an existing OCaml monad/monad transformer library.
 *)
-module SimpleActor : sig
+module type SimpleActorS = sig
   type 'state t
-  val make : ?save:('state, unit) Lwter.arr -> 'state -> 'state t
   val modify : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
   val action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
   val peek : 'state t -> 'state
   val peek_action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+end
+
+module SimpleActor : sig
+  include SimpleActorS
+  val make : ?save:('state, unit) Lwter.arr -> 'state -> 'state t
 end

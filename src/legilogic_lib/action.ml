@@ -464,6 +464,14 @@ module AsyncStream = struct
   let cons hd tl = Lwt.return @@ Cons {hd ; tl}
 end
 
+module type SimpleActorS = sig
+  type 'state t
+  val modify : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
+  val action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+  val peek : 'state t -> 'state
+  val peek_action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+end
+
 module SimpleActor = struct
   open Lwter
   type 'state t =

@@ -129,6 +129,21 @@ module type PersistentActorBaseS = sig
   val is_synchronous : bool
 end
 
+module type PersistentActorS = sig
+  type key
+  type context
+  type state
+  type activity
+  type t
+  val make : context -> key -> state -> t Lwt.t
+  val get : context -> key -> t
+  val peek : t -> state
+  val peek_action : t -> ('i, 'o, state) async_action -> ('i, 'o) Lwter.arr
+  val modify : t -> (state -> state Lwt.t) -> unit Lwt.t
+  val action : t -> ('i, 'o, state) async_action -> ('i, 'o) Lwter.arr
+  val activity : t -> activity
+end
+
 module PersistentActor (Base: PersistentActorBaseS) = struct
   include Base
   type key = Key.t
