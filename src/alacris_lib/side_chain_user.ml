@@ -79,96 +79,111 @@ module AccountRevisionTracker = struct
 end
 
 module TransactionTracker = struct
-  [@warning "-39"]
-  type t =
-    { user : Address.t
-    ; facilitator : Address.t
-    ; revision : Revision.t
-    ; promise : FinalTransactionStatus.t Lwt.t
-    ; get : unit -> TransactionStatus.t }
-  let db_key : user:Address.t -> facilitator:Address.t -> Revision.t -> string =
-    fun ~user ~facilitator revision ->
-      Printf.sprintf "ALTT%s%s%s"
-        (Address.to_big_endian_bits user)
-        (Address.to_big_endian_bits facilitator)
-        (Revision.to_big_endian_bits revision)
-  let trackers : (Address.t * Address.t * Revision.t, t) Hashtbl.t = Hashtbl.create 64
-  [@@@warning "-32-27"]
-  let make : user:Address.t -> facilitator:Address.t -> Revision.t ->
-    nonce_tracker:(Revision.t SimpleActor.t) ->
-    TransactionStatus.t -> t =
-    fun ~user ~facilitator revision ~nonce_tracker status ->
-      let db_key = db_key ~user ~facilitator revision in
-      let open Lwt in
-      let open TransactionStatus in
-      let status_ref = ref status in
-      let get () = !status_ref in
-      let rec continue (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
-        match status with
-        | `DepositWanted ({facilitator; deposit_amount; deposit_fee} as deposit_wanted) ->
-          Db.with_transaction
-            (fun () ->
-               TokenAmount.(add deposit_amount deposit_fee)
-               |> Facilitator_contract.pre_deposit ~facilitator
-               |> fun pre_transaction ->
-               (* TODO: have a single transaction for queueing the `Wanted and the `DepositPosted *)
-               Ethereum_user.(user_action user add_ongoing_transaction (`Wanted pre_transaction))
-               >>= ((function
-                 | Error error -> invalidate ~deposit_wanted ~error
-                 | Ok tracker -> `DepositPosted (deposit_wanted, tracker)) >> update))
-        | `DepositPosted (deposit_wanted, (tracker: Ethereum_user.TransactionTracker.t)) ->
-          tracker.promise
-          >>= ((function
-            | `Invalidated (tx, yo) -> Lib.bork "TODO: invalidate ~deposit_wanted ~error"
-            | `Confirmed (transaction, confirmation) ->
-              `DepositConfirmed (deposit_wanted, transaction, confirmation)) >> update)
-        | `DepositConfirmed (deposit_wanted, transaction, confirmation) ->
-          bottom ()
-        (*           with_transaction
-                     (fun () ->
-                     make_user_transaction_request user facilitator operation
-                     >>= 
-                     >>= fun rx_header -> return UserTransactionRequest.{rx_header; operation}
-                     >>= sign_request
-
-                     xxx)
-                     make_rx_header facilitator
-                     >>= 
-                     Requested of UserTransactionRequest.t signed
-                     ) >> update)
-        *)
-        | _ -> bottom ()
-      and invalidate ?deposit_wanted ~error =
-        ignore deposit_wanted;
-        `Failed (`Assoc [("error", Ethereum_user.exn_to_yojson error)])
-      and update (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
-        Db.put db_key (marshal_string status)
-        >>= Db.commit
-        >>= fun () ->
-        status_ref := status;
-        continue status in
-      {user; facilitator; revision; promise= continue status; get}
-      |> fun tracker -> Hashtbl.replace trackers (user, facilitator, revision) tracker; tracker
-  let load ~user ~facilitator revision =
-    db_key ~user ~facilitator revision
-    |> Db.get
-    |> Option.get
-    |> TransactionStatus.unmarshal_string
-    |> bottom ()
-  (*|> make ~user ~facilitator revision XXXXXXX*)
-  let get user facilitator revision =
-    memoize ~table:trackers
-      (fun (user, facilitator, revision) -> load ~user ~facilitator revision)
-      (user, facilitator, revision)
-  module P = struct
-    type nonrec t = t
-    let marshaling =
-      marshaling3
-        (fun {user; facilitator; revision} -> user, facilitator, revision) get
-        Address.marshaling Address.marshaling Revision.marshaling
-    let yojsoning = yojsoning_of_marshaling marshaling
+  module Base = struct
+    module Key = struct
+      [@@@warning "-39"]
+      type t= { user : Address.t; facilitator : Address.t; revision : Revision.t } [@@deriving yojson]
+      include (YojsonMarshalable(struct
+                 type nonrec t = t
+                 let yojsoning = {to_yojson;of_yojson}
+                 let marshaling = marshaling3
+                                    (fun {user;facilitator;revision} -> user,facilitator,revision)
+                                    (fun user facilitator revision -> {user;facilitator;revision})
+                                    Address.marshaling Address.marshaling Revision.marshaling
+               end): YojsonMarshalableS with type t := t)
+    end
+    type key = Key.t
+    let key_prefix = "ALTT"
+    type context = unit (* TODO: Revision tracking actor *)
+    module State = TransactionStatus
+    type state = State.t
+    (* TODO: inspection? cancellation? split private and public activities? *)
+    type activity = FinalTransactionStatus.t Lwt.t * FinalTransactionStatus.t Lwt.u
+    let is_synchronous = true
+    let make_activity _context _key _actor = Lwt.task ()
+    let behavior _ _ _ = Lwter.const_unit (* TODO XXXXXX *)
+    let make_default_state = persistent_actor_no_default_state key_prefix Key.to_yojson_string
   end
-  include (TrivialPersistable (P) : PersistableS with type t := t)
+  include PersistentActor(Base)
+(*
+       let trackers : (Address.t * Address.t * Revision.t, t) Hashtbl.t = Hashtbl.create 64
+       [@@@warning "-32-27"]
+       let make : user:Address.t -> facilitator:Address.t -> Revision.t ->
+       nonce_tracker:(Revision.t SimpleActor.t) ->
+       TransactionStatus.t -> t =
+       fun ~user ~facilitator revision ~nonce_tracker status ->
+       let db_key = db_key ~user ~facilitator revision in
+       let open Lwt in
+       let open TransactionStatus in
+       let status_ref = ref status in
+       let get () = !status_ref in
+       let rec continue (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
+       match status with
+       | `DepositWanted ({facilitator; deposit_amount; deposit_fee} as deposit_wanted) ->
+       Db.with_transaction
+       (fun () ->
+       TokenAmount.(add deposit_amount deposit_fee)
+       |> Facilitator_contract.pre_deposit ~facilitator
+       |> fun pre_transaction ->
+       (* TODO: have a single transaction for queueing the `Wanted and the `DepositPosted *)
+       Ethereum_user.(user_action user add_ongoing_transaction (`Wanted pre_transaction))
+       >>= ((function
+       | Error error -> invalidate ~deposit_wanted ~error
+       | Ok tracker -> `DepositPosted (deposit_wanted, tracker)) >> update))
+       | `DepositPosted (deposit_wanted, (tracker: Ethereum_user.TransactionTracker.t)) ->
+       tracker.promise
+       >>= ((function
+       | `Invalidated (tx, yo) -> Lib.bork "TODO: invalidate ~deposit_wanted ~error"
+       | `Confirmed (transaction, confirmation) ->
+       `DepositConfirmed (deposit_wanted, transaction, confirmation)) >> update)
+       | `DepositConfirmed (deposit_wanted, transaction, confirmation) ->
+       bottom ()
+       (*           with_transaction
+       (fun () ->
+       make_user_transaction_request user facilitator operation
+       >>= 
+       >>= fun rx_header -> return UserTransactionRequest.{rx_header; operation}
+       >>= sign_request
+
+       xxx)
+       make_rx_header facilitator
+       >>= 
+       Requested of UserTransactionRequest.t signed
+       ) >> update)
+     *)
+       | _ -> bottom ()
+       and invalidate ?deposit_wanted ~error =
+       ignore deposit_wanted;
+       `Failed (`Assoc [("error", Ethereum_user.exn_to_yojson error)])
+       and update (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
+       Db.put db_key (marshal_string status)
+       >>= Db.commit
+       >>= fun () ->
+       status_ref := status;
+       continue status in
+       {user; facilitator; revision; promise= continue status; get}
+       |> fun tracker -> Hashtbl.replace trackers (user, facilitator, revision) tracker; tracker
+       let load ~user ~facilitator revision =
+       db_key ~user ~facilitator revision
+       |> Db.get
+       |> Option.get
+       |> TransactionStatus.unmarshal_string
+       |> bottom ()
+       (*|> make ~user ~facilitator revision XXXXXXX*)
+       let get user facilitator revision =
+       memoize ~table:trackers
+       (fun (user, facilitator, revision) -> load ~user ~facilitator revision)
+       (user, facilitator, revision)
+       module P = struct
+       type nonrec t = t
+       let marshaling =
+       marshaling3
+       (fun {user; facilitator; revision} -> user, facilitator, revision) get
+       Address.marshaling Address.marshaling Revision.marshaling
+       let yojsoning = yojsoning_of_marshaling marshaling
+       end
+       include (TrivialPersistable (P) : PersistableS with type t := t)
+    *)
 end
 
 module UserAccountState = struct

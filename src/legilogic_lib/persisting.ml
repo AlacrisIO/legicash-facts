@@ -119,21 +119,21 @@ let persistent_actor_no_default_state key_prefix to_yojson_string _context key =
 
 module type PersistentActorBaseS = sig
   module Key : YojsonMarshalableS
-  type key = Key.t
   val key_prefix : string
   type context
   module State : PersistableS
-  type state = State.t
   type activity
-  type t = state SimpleActor.t * activity
-  val make_default_state : context -> key -> state
-  val make_activity : context -> key -> state SimpleActor.t -> activity
-  val behavior : context -> key -> activity -> (state SimpleActor.t, unit) Lwter.arr
+  val make_default_state : context -> Key.t -> State.t
+  val make_activity : context -> Key.t -> State.t SimpleActor.t -> activity
+  val behavior : context -> Key.t -> activity -> (State.t SimpleActor.t, unit) Lwter.arr
   val is_synchronous : bool
 end
 
 module PersistentActor (Base: PersistentActorBaseS) = struct
   include Base
+  type key = Key.t
+  type state = State.t
+  type t = state SimpleActor.t * activity
   open Lwter
   let table = Hashtbl.create 8
   let db_key key = key_prefix ^ (Key.marshal_string key)

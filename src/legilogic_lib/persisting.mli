@@ -114,7 +114,6 @@ val persistent_actor_no_default_state : string -> ('key -> string) -> _ -> 'key 
 *)
 module type PersistentActorBaseS = sig
   module Key : YojsonMarshalableS
-  type key = Key.t
   (** Marshalable key used to locate the actor state in the DB
       For global objects, the key is unit, the system better load the object at restart.
       For other objects, the key must contain a revision number that must be incremented,
@@ -130,24 +129,20 @@ module type PersistentActorBaseS = sig
   (** Inherited context for the actor: beyond the key, data and activities from the surrounding scope. *)
 
   module State : PersistableS
-  type state = State.t
   (** State of the actor, to be stored in the DB *)
 
   type activity
   (** The in-image activity, as visible in the application: promises, mailboxes, refs, etc. *)
 
-  type t = state SimpleActor.t * activity
-  (** resulting type *)
-
-  val make_default_state : context -> key -> state
+  val make_default_state : context -> Key.t -> State.t
   (** create a default state if none is present in the DB.
       May call [persistent_actor_no_default_state key_prefix Key.to_yojson_string]
       if there is no meaningful such default state. *)
 
-  val make_activity : context -> key -> state SimpleActor.t -> activity
+  val make_activity : context -> Key.t -> State.t SimpleActor.t -> activity
   (** given an initial state, make the activity *)
 
-  val behavior : context -> key -> activity -> (state SimpleActor.t, unit) Lwter.arr
+  val behavior : context -> Key.t -> activity -> (State.t SimpleActor.t, unit) Lwter.arr
   (** behavior to run in the background to interact with the actor (???) *)
 
   val is_synchronous : bool
@@ -166,11 +161,11 @@ module type PersistentActorBaseS = sig
 end
 
 module PersistentActor (Base: PersistentActorBaseS) : sig
-  type key
-  type context
-  type state
-  type activity
-  type t
+  type key = Base.Key.t
+  type context = Base.context
+  type state = Base.State.t
+  type activity = Base.activity
+  type t = state SimpleActor.t * activity
   val make : context -> key -> state -> t Lwt.t
   val get : context -> key -> t
   val peek : t -> state
