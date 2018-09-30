@@ -34,7 +34,7 @@ let pre_deposit ~facilitator amount =
 let deposit (facilitator, amount) =
   let open Ethereum_user in
   let open UserAsyncAction in
-  `Wanted (pre_deposit ~facilitator amount)
+  OngoingTransactionStatus.Wanted (pre_deposit ~facilitator amount)
   |> (add_ongoing_transaction >>> track_transaction >>> check_transaction_confirmed)
 
 let make_withdraw_call facilitator ticket bond confirmed_state =

@@ -76,6 +76,7 @@ module type ErrorMonadS = sig
   val fail : error -> _ t
   val trying : ('i,'o) arr -> ('i, ('o, error) result) arr
   val handling : (error,'a) arr -> (('a, error) result, 'a) arr
+  val (>>=|) : 'a t -> (unit -> 'a t) -> 'a t
 end
 
 module ErrorMonad (Error: TypeS) = struct
@@ -96,6 +97,7 @@ module ErrorMonad (Error: TypeS) = struct
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let (>>=|) x f = match x with Ok v -> return v | Error _ -> f ()
 end
 
 module type OrExnS = sig
@@ -110,6 +112,7 @@ module OrExn = struct
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let catching a i = try a i with e -> Error e
   let catching_arr a i = try Ok (a i) with e -> Error e
+  let (>>=|) x f = match x with Ok _ -> x | Error _ -> f ()
   let get = function
     | Ok x -> x
     | Error e -> raise e
@@ -128,6 +131,7 @@ module OrString = struct
   let bork fmt = Printf.ksprintf fail fmt
   let catching a i = try a i with e -> Error (Printexc.to_string e)
   let catching_arr a = catching (arr a)
+  let (>>=|) x f = match x with Ok _ -> x | Error _ -> f ()
   let get = function
     | Ok x -> x
     | Error e -> raise (Internal_error e)
@@ -198,6 +202,7 @@ module Lwt_exn = struct
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let (>>=|) x f = Lwt.bind x (function Ok v -> return v | Error _ -> f ())
   let of_exn a x = a x |> Lwt.return
   let of_lwt a x = Lwt.bind (a x) return
   let list_iter_s f = of_lwt (Lwt_list.iter_s (run_lwt f))
@@ -269,6 +274,7 @@ module Action (State : TypeS) = struct
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let (>>=|) x f s = match x s with (Ok _, _) as x' -> x' | (Error _, s') -> f () s'
 end
 
 module type AsyncActionS = sig
@@ -324,6 +330,7 @@ module AsyncAction (State : TypeS) = struct
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let (>>=|) x f s = Lwt.bind (x s) (function (Ok v, s') -> return v s' | (Error _, s') -> f () s')
   let rec retry ~retry_window ~max_window ~max_retries action input s =
     let open Lwt in
     action input s

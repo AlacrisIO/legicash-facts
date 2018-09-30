@@ -28,6 +28,9 @@ val rpc_log : bool ref
 val json_rpc : Uri.t -> string -> (yojson -> 'a) -> ('b -> yojson) ->
   ?timeout:float -> ?log:bool -> 'b -> 'a Lwt_exn.t
 
+val exn_to_yojson : exn to_yojson
+val exn_of_yojson : exn of_yojson
+
 (** The error codes from and including -32768 to -32000 are reserved for pre-defined errors.
     Any code within this range, but not defined explicitly below is reserved for future use. The error codes are nearly the same as those suggested for XML-RPC at the following url: http://xmlrpc-epi.sourceforge.net/specs/rfc.fault_codes.php
     The remainder of the space is available for application defined errors.

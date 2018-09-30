@@ -142,6 +142,9 @@ module type ErrorMonadS = sig
   (** Handling errors from a computation the result of which was previously reified with [trying]
       It is the monadic equivalent of the "with" part of OCaml's "try/with" construct *)
   val handling : (error,'a) arr -> (('a, error) result, 'a) arr
+
+  val (>>=|) : 'a t -> (unit -> 'a t) -> 'a t
+  (** Try the second alternative if the first one fails *)
 end
 
 (** See docstring for ErrorMonadS. Note that here the base type for the monad is

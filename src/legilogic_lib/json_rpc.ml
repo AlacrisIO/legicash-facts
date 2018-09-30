@@ -52,10 +52,22 @@ let rpc_timeout = 10.0
 
 let rpc_log = ref true
 
+let exn_to_yojson = function
+  | Rpc_error e -> error_to_yojson e
+  | e -> `String (Printexc.to_string e)
+
+let exn_of_yojson yo =
+  let open OrString in
+  (error_of_yojson yo >>| fun e -> Rpc_error e)
+  >>=| fun () ->
+  match yo with
+  | `String s -> Ok (Internal_error s)
+  | _ -> Error (Printf.sprintf "bad exn json: %s" (string_of_yojson yo))
+
 let parse_error e =
   Rpc_error {code= -32700;
              message="An error occurred on the server while parsing the JSON text.";
-             data=`String (Printexc.to_string e)}
+             data=exn_to_yojson e}
 let invalid_request request =
   Rpc_error {code= -32600;
              message="The JSON sent is not a valid Request object.";

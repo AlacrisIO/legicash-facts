@@ -1,5 +1,4 @@
 open Legilogic_lib
-open Yojsoning
 open Marshaling
 open Persisting
 open Signing
@@ -9,20 +8,29 @@ open Action
 open Ethereum_chain
 open Ethereum_json_rpc
 
+module OngoingTransactionStatus : sig
+  type t =
+    | Wanted of PreTransaction.t
+    | Signed of Transaction.t * SignedTransaction.t
+    | Sent of Transaction.t * SignedTransaction.t * Digest.t
+  include PersistableS with type t := t
+  val pre_transaction : t -> PreTransaction.t
+end
+
 module FinalTransactionStatus : sig
   type t =
-    [ `Confirmed of Transaction.t * Confirmation.t
-    | `Invalidated of Transaction.t * yojson ]
+    | Confirmed of Transaction.t * Confirmation.t
+    | Failed of OngoingTransactionStatus.t * exn
   include PersistableS with type t := t
+  val pre_transaction : t -> PreTransaction.t
 end
 
 module TransactionStatus : sig
   type t =
-    [ `Wanted of PreTransaction.t
-    | `Signed of Transaction.t * SignedTransaction.t
-    | `Sent of Transaction.t * SignedTransaction.t * Digest.t
-    | FinalTransactionStatus.t ]
+    | Ongoing of OngoingTransactionStatus.t
+    | Final of FinalTransactionStatus.t
   include PersistableS with type t := t
+  val of_ongoing : OngoingTransactionStatus.t -> t
   val of_final : FinalTransactionStatus.t -> t
   val pre_transaction : t -> PreTransaction.t
   val operation : t -> Operation.t
@@ -64,7 +72,7 @@ module UserAsyncAction : AsyncActionS with type state = UserState.t
 
 val user_action: Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr
 
-val add_ongoing_transaction : (TransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr
+val add_ongoing_transaction : (OngoingTransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr
 
 val confirmation_of_transaction_receipt : TransactionReceipt.t -> Confirmation.t
 
@@ -111,4 +119,3 @@ val main_chain_block_notification_stream :
     stream of notifications that a new block has been observed, based on polling
     geth every [delay] seconds, and starting with block [start]*)
 
-val exn_to_yojson : exn -> yojson
