@@ -27,7 +27,16 @@ BUILD_DIR:=_build/default
 
 all: build_all
 
-.PHONY: all build_all force legilogic_lib legilogic_ethereum alacris_lib side_chain_server side_chain_client side_chain_client_test run test_side_chain_client run_ethereum_net fund_accounts run_side_chain_server run_side_chain_client install uninstall test toplevel clean reset contract nginx stop_nginx wc
+.PHONY: all build_all force \
+	legilogic_lib legilogic_lib_test test_legilogic_lib \
+	legilogic_ethereum ethereum_prefunder legilogic_ethereum_test test_legilogic_ethereum \
+	contract alacris_lib side_chain_client_lib \
+	side_chain_server side_chain_client side_chain_client_test \
+	install uninstall \
+	toplevel repl test_hello test \
+	run_ethereum_net fund_accounts run_side_chain_server run_side_chain_client nginx \
+	test_side_chain_client \
+	stop_nginx clean reset wc
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli src/dune src/*/dune)
 
