@@ -31,7 +31,7 @@ end
 module TransactionStatus : sig
   type t =
     [ `DepositWanted of DepositWanted.t
-    | `DepositPosted of DepositWanted.t * Ethereum_user.TransactionTracker.t
+    | `DepositPosted of DepositWanted.t * Ethereum_user.TransactionTracker.Key.t
     | `DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
     | `Requested of UserTransactionRequest.t signed
     | `SignedByFacilitator of TransactionCommitment.t

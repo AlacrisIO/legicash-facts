@@ -481,12 +481,7 @@ module SimpleActor = struct
   let make ?(save=const_unit) initial_state =
     let state_ref = ref initial_state in
     let mailbox = Lwt_mvar.create_empty () in
-    Lwt.async (fun () ->
-      forever
-        (fun state ->
-           Lwt_mvar.take mailbox
-           >>= (|>) state)
-        initial_state);
+    Lwt.async (fun () -> initial_state |> forever (fun state -> Lwt_mvar.take mailbox >>= (|>) state));
     { state_ref ; save ; mailbox }
   let peek actor = !(actor.state_ref)
   let poke actor ?respond ~get_new_state transform =
@@ -511,8 +506,7 @@ module SimpleActor = struct
       (f i)
     >>= fun () -> promise
   let peek_action actor f i =
-    let state = peek actor in
-    f i state >>= (fst >> return)
+    peek actor |> f i >>= (fst >> return) (* TODO: use async_reader then remove fst *)
 end
 
 module Test = struct

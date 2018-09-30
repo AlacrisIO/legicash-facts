@@ -117,38 +117,30 @@ end
 let persistent_actor_no_default_state key_prefix to_yojson_string _context key =
   Lib.bork "Failed to load key %s %s: Not_found" key_prefix (to_yojson_string key)
 
-module type PersistentActorBaseS = sig
+type ('context, 'key, 'state, 'activity) behavior =
+  | Synchronous of ('context -> 'key -> 'state SimpleActor.t -> 'activity * (unit, unit) Lwter.arr)
+  | Asynchronous of ('context -> 'key -> 'state SimpleActor.t -> 'activity * (unit, unit) Lwter.arr * (unit, unit) Lwter.arr)
+module type PersistentActivityBaseS = sig
+  type context
   module Key : YojsonMarshalableS
   val key_prefix : string
-  type context
   module State : PersistableS
-  type activity
   val make_default_state : context -> Key.t -> State.t
-  val make_activity : context -> Key.t -> State.t SimpleActor.t -> activity
-  val behavior : context -> Key.t -> activity -> (State.t SimpleActor.t, unit) Lwter.arr
-  val is_synchronous : bool
+  type t
+  val behavior : (context, Key.t, State.t, t) behavior
 end
-
-module type PersistentActorS = sig
+module type PersistentActivityS = sig
   type key
   type context
   type state
-  type activity
   type t
-  val make : context -> key -> state -> t Lwt.t
+  val make : context -> key -> (unit, state) Lwter.arr -> t Lwt.t
   val get : context -> key -> t
-  val peek : t -> state
-  val peek_action : t -> ('i, 'o, state) async_action -> ('i, 'o) Lwter.arr
-  val modify : t -> (state -> state Lwt.t) -> unit Lwt.t
-  val action : t -> ('i, 'o, state) async_action -> ('i, 'o) Lwter.arr
-  val activity : t -> activity
 end
-
-module PersistentActor (Base: PersistentActorBaseS) = struct
+module PersistentActivity (Base: PersistentActivityBaseS) = struct
   include Base
   type key = Key.t
   type state = State.t
-  type t = state SimpleActor.t * activity
   open Lwter
   let table = Hashtbl.create 8
   let db_key key = key_prefix ^ (Key.marshal_string key)
@@ -156,47 +148,58 @@ module PersistentActor (Base: PersistentActorBaseS) = struct
     State.walk_dependencies State.dependency_walking saving_context state
     >>= fun () ->
     State.marshal_string state |> Db.put (db_key key)
-    >>= Db.commit
-  let resume context key state =
-    match Hashtbl.find_opt table key with
-    | Some _ -> Lib.bork "object with key ~s ~s already resumed!" key_prefix (Key.to_yojson_string key)
-    | None ->
-      if is_synchronous then
-        (let actor = SimpleActor.make ~save:(save key >>> Db.commit) state in
-         let activity = make_activity context key actor in
-         Hashtbl.replace table key (actor, activity);
-         Lwt.async (fun () -> behavior context key activity actor);
-         (actor, activity))
-      else
-        (let hook_ref = ref const_unit in
-         let spawn_commit_hook () = Lwt.async !hook_ref in
-         let actor = SimpleActor.make ~save:(save key >>> arr spawn_commit_hook) state in
-         let activity = make_activity context key actor in
-         let hook () = behavior context key activity actor in
-         hook_ref := hook;
-         Hashtbl.replace table key (actor, activity);
-         spawn_commit_hook ();
-         (actor, activity))
-  let make context key initial_state =
+
+  let resume_helper =
+    match behavior with
+    | Synchronous b ->
+      fun context key ->
+        (Db.commit,
+         fun actor ->
+           b context key actor)
+    | Asynchronous b ->
+      fun context key ->
+        let hook_ref = ref const_unit in
+        let spawn_commit_hook () = arr Lwt.async !hook_ref in
+        (spawn_commit_hook,
+         fun actor ->
+           let (activity, background, on_commit) = b context key actor in
+           hook_ref := on_commit;
+           activity, background)
+
+  (** given the context, the key, a boolean whether the data is being newly computed not, and
+      an arrow to compute the initial state, resume the actor.
+      If the actor is synchronous but wasn't committed yet, save it before anything else.
+      TODO: have a better story for atomicity of initialization
+  *)
+  let resume context key init =
+    (match Hashtbl.find_opt table key with
+     | None -> ()
+     | Some _ -> Lib.bork "object with key ~s ~s already resumed!" key_prefix (Key.to_yojson_string key));
+    let (commit, wrap_actor) = resume_helper context key in
+    let save state = Db.with_transaction (fun () -> save key state >>= commit) in
+    (* If the initial state is newly computed, as opposed to default or loaded,
+       we must first force the actor to save it, before the state is made available: *)
+    let actor = SimpleActor.make ~save init in
+    let activity, background = wrap_actor actor in
+    Lwt.async background;
+    Hashtbl.replace table key activity;
+    activity
+  let make context key init =
     match Db.get (db_key key) with
     | Some _ -> Lib.bork "object with key %s %s already created!" key_prefix (Key.to_yojson_string key)
     | None ->
-      save key initial_state
-      >>= fun () ->
-      resume context key initial_state
-      |> return
+      Db.with_transaction (init >>> fun state -> save key state >>= const state)
+      >>= arr (resume context key)
   let get context key =
     let db_key = db_key key in
     match Hashtbl.find_opt table key with
     | Some x -> x
-    | None -> (match Db.get db_key with
-      | Some s -> (try State.unmarshal_string s with
-          e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"
-                 key_prefix (Key.to_yojson_string key) (Hex.unparse_0x_data s) (Printexc.to_string e))
-      | None -> make_default_state context key) |> resume context key
-  let peek x = fst x |> SimpleActor.peek
-  let peek_action x a = SimpleActor.peek_action (fst x) a
-  let modify x a = SimpleActor.modify (fst x) a
-  let action x a = SimpleActor.action (fst x) a
-  let activity x = snd x
+    | None ->
+      let state =
+        match Db.get db_key with
+        | Some s -> (try State.unmarshal_string s with
+            e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"
+                   key_prefix (Key.to_yojson_string key) (Hex.unparse_0x_data s) (Printexc.to_string e))
+        | None -> make_default_state context key in
+      resume context key state
 end

@@ -37,7 +37,7 @@ end
 module TransactionStatus = struct
   type t =
     [ `DepositWanted of DepositWanted.t
-    | `DepositPosted of DepositWanted.t * Ethereum_user.TransactionTracker.t
+    | `DepositPosted of DepositWanted.t * Ethereum_user.TransactionTracker.Key.t
     | `DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
     | `Requested of UserTransactionRequest.t signed
     | `SignedByFacilitator of TransactionCommitment.t
@@ -98,13 +98,16 @@ module TransactionTracker = struct
     module State = TransactionStatus
     type state = State.t
     (* TODO: inspection? cancellation? split private and public activities? *)
-    type activity = FinalTransactionStatus.t Lwt.t * FinalTransactionStatus.t Lwt.u
-    let is_synchronous = true
-    let make_activity _context _key _actor = Lwt.task ()
-    let behavior _ _ _ = Lwter.const_unit (* TODO XXXXXX *)
+    type t = FinalTransactionStatus.t Lwt.t
+    let behavior =
+      Synchronous
+        (fun _context _key _actor ->
+           let (promise, _notify) = Lwt.task () in
+           (* TODO XXXXXX *)
+           promise, Lwter.const_unit)
     let make_default_state = persistent_actor_no_default_state key_prefix Key.to_yojson_string
   end
-  include PersistentActor(Base)
+  include PersistentActivity(Base)
 (*
        let trackers : (Address.t * Address.t * Revision.t, t) Hashtbl.t = Hashtbl.create 64
        [@@@warning "-32-27"]

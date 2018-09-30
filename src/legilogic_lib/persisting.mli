@@ -87,7 +87,7 @@ module OCamlPersistable (T: TypeS) : PersistableS with type t = T.t
 
 val persistent_actor_no_default_state : string -> ('key -> string) -> _ -> 'key -> _
 
-(** PersistentActor
+(** PersistentActivity
 
     An elaboration of [Action.SimpleActor] whereby the state is persisted to the database.
 
@@ -112,18 +112,22 @@ val persistent_actor_no_default_state : string -> ('key -> string) -> _ -> 'key 
     that only close over marshalable data that is part of the name.
     There probably needs be a monadic type for such functions.
 *)
-module type PersistentActorBaseS = sig
+type ('context, 'key, 'state, 'activity) behavior =
+  | Synchronous of ('context -> 'key -> 'state SimpleActor.t -> 'activity * (unit, unit) Lwter.arr)
+  | Asynchronous of ('context -> 'key -> 'state SimpleActor.t -> 'activity * (unit, unit) Lwter.arr * (unit, unit) Lwter.arr)
+module type PersistentActivityBaseS = sig
   module Key : YojsonMarshalableS
-  (** Marshalable key used to locate the actor state in the DB
-      For global objects, the key is unit, the system better load the object at restart.
+  (** Key used to locate the actor state in the DB, by marshaling it with given prefix
+      For global objects, the key is unit, and the system better load the object at restart.
       For other objects, the key must contain a revision number that must be incremented,
       an identifying tuple or a digest thereof, or a random nonce that must be generated.
       The key must itself be somehow registered and persisted in an object managing the wider scope
-      with a narrower key, as part of the same transaction that creates the object.
+      with a narrower key (transitively, down to a global object), as part of the same transaction
+      that creates the object.
   *)
 
   val key_prefix : string
-  (** a prefix to the key *)
+  (** a prefix to the database key *)
 
   type context
   (** Inherited context for the actor: beyond the key, data and activities from the surrounding scope. *)
@@ -131,54 +135,50 @@ module type PersistentActorBaseS = sig
   module State : PersistableS
   (** State of the actor, to be stored in the DB *)
 
-  type activity
-  (** The in-image activity, as visible in the application: promises, mailboxes, refs, etc. *)
+  type t
+  (** The external type of the in-image activity, as visible within the rest of the application:
+      an actor, a promise, a mailbox, a ref, of a record of several of previous, etc. *)
 
   val make_default_state : context -> Key.t -> State.t
   (** create a default state if none is present in the DB.
       May call [persistent_actor_no_default_state key_prefix Key.to_yojson_string]
       if there is no meaningful such default state. *)
 
-  val make_activity : context -> Key.t -> State.t SimpleActor.t -> activity
-  (** given an initial state, make the activity *)
+  val behavior : (context, Key.t, State.t, t) behavior
+  (** Behavior of the activity.
 
-  val behavior : context -> Key.t -> activity -> (State.t SimpleActor.t, unit) Lwter.arr
-  (** behavior to run in the background to interact with the actor (???) *)
+      If Synchronous, then the state will be committed to the database after each and every
+      state transition. Thus there can be only one state transition per database commit batch,
+      so about 60 per second on a typical 2018 PC. But the behavior is quite simple:
+      given context, Key.t, and a SimpleActor.t that serializes the given state,
+      specify an [activity] to return (of type [t]) and an arrow to run as a [background] thread,
+      that will interpose itself between the internal actor and the external activity.
 
-  val is_synchronous : bool
-  (** If [is_synchronous], then state is committed at every state transition
-      as due to call to [modify] or [action], before the next state transition may take place.
-      The background [behavior] is called once when the actor is instantiated,
-      and has to handle the entire actor's lifecycle.
-      Thus there can be only one state transition per database commit batch,
-      so about 60 per second on a typical 2018 PC.
-
-      If not [is_synchronous], then multiple state transitions may be batched,
-      and the [behavior] is called once and only once after every batch commit.
-
-      TODO: have a more uniform [behavior], or have two distinct functors.
+      If Asynchronous, then multiple state transitions may be batched, and the activity has
+      to keep track of what has or hasn't been committed yet. Given context, Key.t, and a
+      SimpleActor.t that serializes the given state, the behavior not only returns an [activity]
+      (of type [t]) and an arrow to run as a [background] thread, but also an arrow to run as
+      an asynchronous [on_commit] callback every time the database commits state for this actor.
+      The hook that can communicate with the actor or the background activity to initiate the
+      processing of committed data. Beware: since this hook is asynchronous, by the time it's run,
+      things can have changed a lot and new uncommitted changes may be present, and/or things can
+      have changed not at all because a previously received signal already caused all the work to
+      be done.
   *)
 end
 
-(** See documentation above for [PersistentActorBaseS] and for [Action.SimpleActor] *)
-module type PersistentActorS = sig
+(** See documentation above for [PersistentActivityBaseS] and for [Action.SimpleActor] *)
+module type PersistentActivityS = sig
   type key
   type context
   type state
-  type activity
   type t
-  val make : context -> key -> state -> t Lwt.t
+  val make : context -> key -> (unit, state) Lwter.arr -> t Lwt.t
   val get : context -> key -> t
-  val peek : t -> state
-  val peek_action : t -> ('i, 'o, state) async_action -> ('i, 'o) Lwter.arr (* TODO: use async_reader instead *)
-  val modify : t -> (state -> state Lwt.t) -> unit Lwt.t
-  val action : t -> ('i, 'o, state) async_action -> ('i, 'o) Lwter.arr
-  val activity : t -> activity
 end
-
-module PersistentActor (Base: PersistentActorBaseS) :
-  PersistentActorS
+module PersistentActivity (Base: PersistentActivityBaseS) :
+  PersistentActivityS
   with type key = Base.Key.t
    and type context = Base.context
    and type state = Base.State.t
-   and type activity = Base.activity
+   and type t = Base.t

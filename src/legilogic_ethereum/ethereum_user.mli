@@ -23,31 +23,27 @@ module TransactionStatus : sig
     | `Sent of Transaction.t * SignedTransaction.t * Digest.t
     | FinalTransactionStatus.t ]
   include PersistableS with type t := t
+  val of_final : FinalTransactionStatus.t -> t
   val pre_transaction : t -> PreTransaction.t
   val operation : t -> Operation.t
 end
 
 module TransactionTracker : sig
-  type context = { user: Address.t }
   module Key : sig
     type t= { user : Address.t; revision : Revision.t }
     include YojsonMarshalableS with type t := t
   end
-  include PersistentActor with type key = Key.t
-  type t =
-    { user : Address.t
-    ; revision : Revision.t
-    ; promise : FinalTransactionStatus.t Lwt.t
-    ; get : unit -> TransactionStatus.t }
-  val make : Address.t -> Revision.t -> TransactionStatus.t -> t
-  val get : Address.t -> Revision.t -> t
-  include PersistableS with type t := t
+  include PersistentActivityS
+    with type key = Key.t
+     and type context = unit
+     and type state = TransactionStatus.t
+     and type t = FinalTransactionStatus.t Lwt.t
 end
 
 module OngoingTransactions : sig
-  include Trie.SimpleTrieS with type key = Revision.t and type value = TransactionTracker.t
+  include Trie.SimpleTrieS with type key = Revision.t and type value = unit
   val keys : t -> Revision.t list
-  val load : Address.t -> Revision.t list -> t
+  val of_keys : Revision.t list -> t
 end
 
 (** State for the user client.
