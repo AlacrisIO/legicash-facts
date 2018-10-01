@@ -187,65 +187,66 @@ module TransactionTracker = struct
     let make_default_state = persistent_actor_no_default_state key_prefix Key.to_yojson_string
     (* TODO: inspection? cancellation? *)
     type t = FinalTransactionStatus.t Lwt.t
-    let behavior =
-      Synchronous
-        (fun () key actor ->
-           let (promise, notify) = Lwt.task () in
-           let continue (status : OngoingTransactionStatus.t) =
-             return (true, TransactionStatus.Ongoing status) in
-           let finalize (status : FinalTransactionStatus.t) =
-             Lwt.wakeup_later notify status;
-             return (false, TransactionStatus.Final status) in
-           let invalidate transaction_status error =
-             finalize (Failed (transaction_status, error)) in
-           let step () (status : TransactionStatus.t) : (bool * TransactionStatus.t) Lwt.t =
-             match status with
-             | Ongoing ongoing ->
-               (match ongoing with
-                | Wanted {operation; value; gas_limit} ->
-                  make_signed_transaction key.Key.user operation value gas_limit
-                  >>= (function
-                    | Ok (t,c) -> OngoingTransactionStatus.Signed (t,c) |> continue
-                    | Error error -> invalidate ongoing error)
-                | Signed ((transaction: Transaction.t), (SignedTransaction.{raw} as signed)) ->
-                  Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
-                                      (trying eth_send_raw_transaction
-                                       >>> function
-                                       | Ok _ as r -> return r
-                                       | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
-                                         return (Error NonceTooLow)
-                                       | Error e -> fail e))
-                             raw)
-                  >>= (function
-                    | Ok transaction_hash ->
-                      OngoingTransactionStatus.Sent (transaction, signed, transaction_hash) |> continue
-                    | Error NonceTooLow ->
-                      OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
-                    | Error error -> invalidate ongoing error)
-                | Sent (transaction, _signed, transaction_hash) ->
-                  (* TODO: Also add the possibility of invalidating the transaction,
-                     by e.g. querying the blockchain for the sending address's current nonce,
-                     and marking the transaction invalidated if a more recent nonce was found.
-                     TODO: retry sending after timeout if still not sent. *)
-                  Lwt_exn.run_lwt wait_for_confirmation (transaction, transaction_hash)
-                  >>= (function
-                    | Ok confirmation -> FinalTransactionStatus.Confirmed (transaction, confirmation) |> finalize
-                    | Error NonceTooLow ->
-                      OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
-                    | Error error -> invalidate ongoing error))
-             | Final x -> finalize x in
-           let rec loop () =
-             SimpleActor.action actor step ()
-             >>= function
-             | true -> loop ()
-             | false -> Lwt.return_unit in
-           promise, loop)
+    let commit_behavior = Synchronous
+    let on_commit = None
+    let behavior () key actor =
+      let (promise, notify) = Lwt.task () in
+      let continue (status : OngoingTransactionStatus.t) =
+        return (true, TransactionStatus.Ongoing status) in
+      let finalize (status : FinalTransactionStatus.t) =
+        Lwt.wakeup_later notify status;
+        return (false, TransactionStatus.Final status) in
+      let invalidate transaction_status error =
+        finalize (Failed (transaction_status, error)) in
+      let step () (status : TransactionStatus.t) : (bool * TransactionStatus.t) Lwt.t =
+        match status with
+        | Ongoing ongoing ->
+          (match ongoing with
+           | Wanted {operation; value; gas_limit} ->
+             make_signed_transaction key.Key.user operation value gas_limit
+             >>= (function
+               | Ok (t,c) -> OngoingTransactionStatus.Signed (t,c) |> continue
+               | Error error -> invalidate ongoing error)
+           | Signed ((transaction: Transaction.t), (SignedTransaction.{raw} as signed)) ->
+             Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
+                                 (trying eth_send_raw_transaction
+                                  >>> function
+                                  | Ok _ as r -> return r
+                                  | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
+                                    return (Error NonceTooLow)
+                                  | Error e -> fail e))
+                        raw)
+             >>= (function
+               | Ok transaction_hash ->
+                 OngoingTransactionStatus.Sent (transaction, signed, transaction_hash) |> continue
+               | Error NonceTooLow ->
+                 OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
+               | Error error -> invalidate ongoing error)
+           | Sent (transaction, _signed, transaction_hash) ->
+             (* TODO: Also add the possibility of invalidating the transaction,
+                by e.g. querying the blockchain for the sending address's current nonce,
+                and marking the transaction invalidated if a more recent nonce was found.
+                TODO: retry sending after timeout if still not sent. *)
+             Lwt_exn.run_lwt wait_for_confirmation (transaction, transaction_hash)
+             >>= (function
+               | Ok confirmation -> FinalTransactionStatus.Confirmed (transaction, confirmation) |> finalize
+               | Error NonceTooLow ->
+                 OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
+               | Error error -> invalidate ongoing error))
+        | Final x -> finalize x in
+      let rec loop () =
+        SimpleActor.action actor step ()
+        >>= function
+        | true -> loop ()
+        | false -> Lwt.return_unit in
+      promise, loop
   end
   include PersistentActivity(Base)
   module Key = Base.Key
 end
 
 module OngoingTransactions = struct
+  (* TODO: implement and use SimpleTrieSet *)
   include Trie.SimpleTrie (Revision) (Unit)
   let keys = bindings >> List.map fst
   let of_keys = List.map (fun key -> key, ()) >> of_bindings
@@ -260,7 +261,7 @@ module UserState = struct
   [@@deriving lens { prefix=true }, yojson]
   let marshaling =
     marshaling3
-      (fun {address; transaction_counter; ongoing_transactions} ->
+      (fun { address; transaction_counter; ongoing_transactions} ->
          address, transaction_counter, OngoingTransactions.keys ongoing_transactions)
       (fun address transaction_counter ongoing_transactions_keys ->
          {address; transaction_counter;
@@ -271,63 +272,59 @@ module UserState = struct
              let marshaling = marshaling
              let yojsoning = {to_yojson;of_yojson}
            end) : PersistableS with type t := t)
-  let db_key address =
-    "ETUS" ^ (Address.to_big_endian_bits address)
-  let init address =
-    { address
-    ; transaction_counter= Revision.zero
-    ; ongoing_transactions= OngoingTransactions.empty }
-  let load user =
-    Db.get (db_key user) |> Option.get |> unmarshal_string
-    |> fun s ->
-    OngoingTransactions.iter
-      (fun revision () -> TransactionTracker.(get () Key.{user; revision}) |> ignore)
-      s.ongoing_transactions; s
-  let save x = x |> marshal_string |> Db.put (db_key x.address)
-  let user_table = Hashtbl.create 4
-  let user_table_mutex = Lwt_mutex.create ()
-  let make_user_actor = SimpleActor.make ~save:Lwter.(save >>> Db.commit)
-  let get address =
-    Lwt_mutex.with_lock user_table_mutex
-      (fun () ->
-         Lwt.return
-           (match Hashtbl.find_opt user_table address with
-            | Some x -> x
-            | None -> (try load address with Not_found -> init address) |> make_user_actor))
+end
+
+module User = struct
+  module Base = struct
+    module Key = Address
+    let key_prefix = "ETUS"
+    type context = unit
+    module State = UserState
+    type t = State.t SimpleActor.t
+    let make_default_state _context user =
+      UserState.
+        { address= user
+        ; transaction_counter= Revision.zero
+        ; ongoing_transactions= OngoingTransactions.empty }
+    let resume_transactions context user actor () =
+      let State.{ongoing_transactions} = SimpleActor.peek actor in
+      OngoingTransactions.keys ongoing_transactions
+      |> List.iter (fun revision -> TransactionTracker.get context {user; revision} |> ignore);
+      Lwt.return_unit
+    let commit_behavior = Asynchronous
+    let on_commit = None
+    let behavior context user actor = actor, resume_transactions context user actor
+  end
+  include PersistentActivity(Base)
+  module Key = Base.Key
+  module State = Base.State
 end
 
 module UserAsyncAction = AsyncAction(UserState)
 
 let user_action address action input =
-  Lwt.(UserState.get address >>= fun actor -> SimpleActor.action actor action input)
+  SimpleActor.action (User.get () address) action input
 
 let add_ongoing_transaction : (OngoingTransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr =
   fun transaction_status user_state ->
-    Db.with_transaction
-      (fun () ->
-         let open Lwt in
-         let transaction_counter = user_state.transaction_counter in
-         TransactionTracker.(make () Key.{user= user_state.address; revision= transaction_counter}
-                               (Lwter.const (TransactionStatus.Ongoing transaction_status)))
-         >>= fun tracker ->
-         user_state
-         |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
-         |> Lens.modify UserState.lens_ongoing_transactions
-              (OngoingTransactions.add transaction_counter ())
-         |> fun new_state ->
-         UserState.save new_state
-         >>= fun () -> UserAsyncAction.return tracker new_state)
+    let open Lwt in
+    let transaction_counter = user_state.transaction_counter in
+    TransactionTracker.(make () Key.{user= user_state.address; revision= transaction_counter}
+                          (Lwter.const (TransactionStatus.Ongoing transaction_status)))
+    >>= fun tracker ->
+    UserAsyncAction.return tracker
+      (user_state
+       |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
+       |> Lens.modify UserState.lens_ongoing_transactions
+            (OngoingTransactions.add transaction_counter ()))
 
-let ensure_account_unlocked ?(duration=5) address =
+let unlock_account ?(duration=5) address =
   let password = password_of_address address in
   Logging.log "ensure_account_unlocked";
   Ethereum_json_rpc.personal_unlock_account (address, password, Some duration)
   >>= function
   | true -> return ()
   | false -> fail Bad_password
-
-let unlock_account ?(duration=5) () state =
-  UserAsyncAction.of_lwt_exn (ensure_account_unlocked ~duration) state.UserState.address state
 
 let issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) UserAsyncAction.arr =
   fun (t, s) -> OngoingTransactionStatus.Signed (t, s) |> add_ongoing_transaction

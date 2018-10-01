@@ -33,7 +33,18 @@ type transaction = int
 (* "transactions" will block the batch from being sent to disk for committing
    until all currently open transactions are closed, even though the batch may otherwise be ready to merge.
    On the other hand, while a batch is ready but waiting for transactions to be closed,
-   attempts to open new transaction will themselves be blocked. *)
+   attempts to open new transaction will themselves be blocked.
+
+   NB: We do not at this time implement *nested* transactions... you will deadlock if you try,
+   and thus you must develop a strict discipline of transaction ownership to avoid the issue,
+   clearly identifying what are the "top-level" functions that contain transactions,
+   and sub-functions that don't --- yet without typing support at this time.
+   To properly implement nested transactions, we'd need to carry around a transaction context
+   in some dynamic binding. Since OCaml and Lwt don't implement dynamic bindings, we'd have to
+   implement our own solution based on some reader monad (transformation layer) to all our
+   monads to provide dynamic binding.
+   We could also have some trivial session types to force top-level vs non-top-level functions.
+*)
 
 (* type snapshot = LevelDB.snapshot *)
 
@@ -129,10 +140,10 @@ let check_connection () =
 let start_server ~db_name ~db () =
   let open Lwt in
   Logging.log "Opening LevelDB connection to db %s" db_name;
+  let transaction_counter = ref 0 in
   let rec outer_loop batch_id previous () =
     let notify_list = ref [] in
     let hooks = Hashtbl.create 16 in
-    let transaction_counter = ref 0 in
     let open_transactions : (transaction, unit) Hashtbl.t = Hashtbl.create 64 in
     let open_transaction u =
       let transaction = !transaction_counter in
@@ -150,17 +161,16 @@ let start_server ~db_name ~db () =
     let rec inner_loop ~ready ~triggered ~held =
       if triggered && ready && not held then
         begin
-          (*Logging.log "COMMIT BATCH %d!" batch_id;*)
+          Logging.log "COMMIT BATCH %d!" batch_id;
           (* Fork a system thread to handle the commit;
              when it's done, wakeup the wait_on_batch_commit promise *)
           Lwt.async (fun () ->
             Lwt_preemptive.detach
               (fun () -> LevelDB.Batch.write db ~sync:true batch) ()
             >>= fun () ->
-            (* Logging.log "BATCH %d COMMITTED!" batch_id;*)
+            Logging.log "BATCH %d COMMITTED!" batch_id;
             Lwt.wakeup_later notify_batch_commit (!notify_list, bindings_of_hashtbl hooks);
             return_unit);
-          transaction_counter := 0;
           List.iter open_transaction !blocked_transactions;
           blocked_transactions := [];
           outer_loop (batch_id + 1) wait_on_batch_commit ()
@@ -271,13 +281,15 @@ let commit_transaction tx =
   Close_transaction tx |> request
   >>= commit
 
-let with_transaction thunk =
-  open_transaction ()
-  >>= fun tx ->
-  thunk ()
-  >>= fun result ->
-  commit_transaction tx
-  >>= const result
+let with_transaction f i =
+  Logging.log "Starting a new transaction...";
+  open_transaction () >>= fun tx ->
+  Logging.log "Started transaction %d" tx;
+  f i >>= fun o ->
+  Logging.log "Committing transaction %d" tx;
+  commit_transaction tx >>= fun _ ->
+  Logging.log "Committed transaction %d" tx;
+  return o
 
 let get_batch_id () =
   let (t,u) = Lwt.task () in

@@ -91,9 +91,9 @@ val persistent_actor_no_default_state : string -> ('key -> string) -> _ -> 'key 
 
     An elaboration of [Action.SimpleActor] whereby the state is persisted to the database.
 
-    Note that the [action] function will return _before_ the state is saved. That's OK if the caller
-    (1) uses the result as part of a [Db.with_transaction], and (2) waits for [Db.commit] before
-    to communicate with any external system based on this result.
+    Note that the [action] function will return _before_ the transaction is committed.
+    That's OK if the caller (1) uses the result as part of a [Db.with_transaction], and
+    (2) waits for [Db.commit] before to communicate with any external system based on this result.
 
     TODO: Clojure agents have it right: they can register messages to be sent
     (equivalent to arbitrary asynchronous actions being spawned, yet reified)
@@ -112,9 +112,7 @@ val persistent_actor_no_default_state : string -> ('key -> string) -> _ -> 'key 
     that only close over marshalable data that is part of the name.
     There probably needs be a monadic type for such functions.
 *)
-type ('context, 'key, 'state, 'activity) behavior =
-  | Synchronous of ('context -> 'key -> 'state SimpleActor.t -> 'activity * (unit, unit) Lwter.arr)
-  | Asynchronous of ('context -> 'key -> 'state SimpleActor.t -> 'activity * (unit, unit) Lwter.arr * (unit, unit) Lwter.arr)
+type synchronous_behavior = Synchronous | Asynchronous
 module type PersistentActivityBaseS = sig
   module Key : YojsonMarshalableS
   (** Key used to locate the actor state in the DB, by marshaling it with given prefix
@@ -144,27 +142,34 @@ module type PersistentActivityBaseS = sig
       May call [persistent_actor_no_default_state key_prefix Key.to_yojson_string]
       if there is no meaningful such default state. *)
 
-  val behavior : (context, Key.t, State.t, t) behavior
-  (** Behavior of the activity.
+  val commit_behavior : synchronous_behavior
+  (** Should we commit synchronously or asynchronously with the event loop?
 
       If Synchronous, then the state will be committed to the database after each and every
       state transition. Thus there can be only one state transition per database commit batch,
-      so about 60 per second on a typical 2018 PC. But the behavior is quite simple:
-      given context, Key.t, and a SimpleActor.t that serializes the given state,
-      specify an [activity] to return (of type [t]) and an arrow to run as a [background] thread,
-      that will interpose itself between the internal actor and the external activity.
+      so about 60 per second on a typical 2018 PC.
 
       If Asynchronous, then multiple state transitions may be batched, and the activity has
-      to keep track of what has or hasn't been committed yet. Given context, Key.t, and a
-      SimpleActor.t that serializes the given state, the behavior not only returns an [activity]
-      (of type [t]) and an arrow to run as a [background] thread, but also an arrow to run as
-      an asynchronous [on_commit] callback every time the database commits state for this actor.
+      to keep track of what has or hasn't been committed yet.
+  *)
+
+  val behavior : context -> Key.t -> State.t SimpleActor.t -> t * (unit, unit) Lwter.arr
+  (** Behavior of the activity.
+
+      Given context, Key.t, and a SimpleActor.t that serializes the given state, specify:
+   * an [activity] to return (of type [t]), interface visible to the rest of the application;
+   * an arrow to run as a [background] thread, that will interpose itself between the
+      internal actor and the external activity;
+   * an option [on_commit] hook to call after each database commit that modifies
+      the state of the actor, based on which e.g. to trigger sending messages.
+
       The hook that can communicate with the actor or the background activity to initiate the
       processing of committed data. Beware: since this hook is asynchronous, by the time it's run,
       things can have changed a lot and new uncommitted changes may be present, and/or things can
       have changed not at all because a previously received signal already caused all the work to
       be done.
   *)
+  val on_commit : (context -> Key.t -> (State.t, State.t) Lwter.arr Lwt_mvar.t -> (unit, unit) Lwter.arr) option
 end
 
 (** See documentation above for [PersistentActivityBaseS] and for [Action.SimpleActor] *)

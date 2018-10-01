@@ -99,12 +99,12 @@ module TransactionTracker = struct
     type state = State.t
     (* TODO: inspection? cancellation? split private and public activities? *)
     type t = FinalTransactionStatus.t Lwt.t
-    let behavior =
-      Synchronous
-        (fun _context _key _actor ->
-           let (promise, notify) = Lwt.task () in
-           (* TODO XXXXXX *)
-           promise, Lwter.const_unit)
+    let commit_behavior = Synchronous
+    let on_commit = None
+    let behavior _context _key _actor =
+      let (promise, _notify) = Lwt.task () in
+      (* TODO XXXXXX *)
+      promise, Lwter.const_unit
     let make_default_state = persistent_actor_no_default_state key_prefix Key.to_yojson_string
   end
   include PersistentActivity(Base)
@@ -123,8 +123,6 @@ module TransactionTracker = struct
        let rec continue (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
        match status with
        | `DepositWanted ({facilitator; deposit_amount; deposit_fee} as deposit_wanted) ->
-       Db.with_transaction
-       (fun () ->
        TokenAmount.(add deposit_amount deposit_fee)
        |> Facilitator_contract.pre_deposit ~facilitator
        |> fun pre_transaction ->

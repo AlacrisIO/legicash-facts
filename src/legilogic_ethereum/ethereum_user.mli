@@ -65,7 +65,16 @@ module UserState : sig
     ; ongoing_transactions: OngoingTransactions.t }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
-  val get : Address.t -> t SimpleActor.t Lwt.t
+end
+
+module User : sig
+  module Key = Address
+  module State = UserState
+  include PersistentActivityS
+    with type key = Key.t
+     and type context = unit
+     and type state = State.t
+     and type t = State.t SimpleActor.t
 end
 
 module UserAsyncAction : AsyncActionS with type state = UserState.t
@@ -83,7 +92,7 @@ val block_depth_for_confirmation : Revision.t
 exception Still_pending
 (** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
 
-val unlock_account : ?duration:int -> unit -> unit UserAsyncAction.t
+val unlock_account : ?duration:int -> address -> unit Lwt_exn.t
 (** unlocks account for given duration (in seconds) on net *)
 
 val make_signed_transaction : Address.t -> Operation.t -> TokenAmount.t -> TokenAmount.t ->

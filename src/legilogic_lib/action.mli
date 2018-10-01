@@ -450,10 +450,17 @@ val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_cha
 
 (** Simple actor
     You [make] an actor by providing, beside an initial state of type ['state] (at the end),
-    a [save] action that will persist the state as part of some suitable transaction,
-    either synchronously
+    a [with_transaction] wrapper that will persist the state as part of some suitable transaction,
+    either synchronously or asynchronously.
 
-    Then, you can call the [modify] function to modify the actor
+    Note how we follow the Clojure model where the internal actor state is dumb data
+    (so it can be persisted), and the messages are functions, rather than the opposite
+    where the actor contains stateful code and messages are dumb data.
+    Maybe we should further separate things in three: the state as dumb data,
+    the code that processes messages while operating on the state,
+    and the messages as dumb data.
+
+    Then, you can call the [poke] function to modify the actor
     by passing a [('state, 'state) Lwter.arr] arrow.
     Or you can call [action] and pass it an [('i, 'o, 'state) async_action] arrow
     as well as an ['i] input, and it will return an ['o] output after side-effecting
@@ -483,7 +490,7 @@ val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_cha
 *)
 module type SimpleActorS = sig
   type 'state t
-  val modify : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
+  val poke : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
   val action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
   val peek : 'state t -> 'state
   val peek_action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
@@ -491,5 +498,7 @@ end
 
 module SimpleActor : sig
   include SimpleActorS
-  val make : ?save:('state, unit) Lwter.arr -> 'state -> 'state t
+  val make : ?mailbox:(('state, 'state) Lwter.arr Lwt_mvar.t)
+    -> ?with_transaction:(('state, 'state) Lwter.arr -> ('state, 'state) Lwter.arr)
+    -> 'state -> 'state t
 end

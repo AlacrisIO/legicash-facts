@@ -473,7 +473,7 @@ end
 
 module type SimpleActorS = sig
   type 'state t
-  val modify : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
+  val poke : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
   val action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
   val peek : 'state t -> 'state
   val peek_action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
@@ -483,34 +483,27 @@ module SimpleActor = struct
   open Lwter
   type 'state t =
     { state_ref : 'state ref
-    ; save : ('state, unit) Lwter.arr
     ; mailbox : ('state, 'state) Lwter.arr Lwt_mvar.t }
-  let make ?(save=const_unit) initial_state =
+  let make ?(mailbox=Lwt_mvar.create_empty ()) ?(with_transaction=identity) initial_state =
     let state_ref = ref initial_state in
-    let mailbox = Lwt_mvar.create_empty () in
-    Lwt.async (fun () -> initial_state |> forever (fun state -> Lwt_mvar.take mailbox >>= (|>) state));
-    { state_ref ; save ; mailbox }
+    Lwt.async (fun () ->
+      initial_state
+      |> forever
+           (fun state ->
+              Lwt_mvar.take mailbox >>= fun transform ->
+              with_transaction transform state
+              >>= fun new_state ->
+              state_ref := new_state;
+              return new_state));
+    { state_ref ; mailbox }
   let peek actor = !(actor.state_ref)
-  let poke actor ?respond ~get_new_state transform =
-    Lwt_mvar.put actor.mailbox
-      (transform
-       >>> (fun output ->
-         let new_state = get_new_state output in
-         (match respond with
-          | None -> ()
-          | Some f -> Lwt.async (fun () -> f output));
-         actor.save new_state
-         >>= fun () ->
-         actor.state_ref := new_state;
-         return new_state))
-  let modify actor f =
-    poke actor ~get_new_state:identity f
+  let poke actor transform = Lwt_mvar.put actor.mailbox transform
   let action actor f i =
-    let (promise, copromise) = Lwt.task () in
+    let (promise, notify) = Lwt.task () in
     poke actor
-      ~respond:(fun (o, _) -> Lwt.wakeup_later copromise o; Lwt.return_unit)
-      ~get_new_state:snd
-      (f i)
+      (f i >>> fun (o, s) ->
+       Lwt.wakeup_later notify o;
+       return s)
     >>= fun () -> promise
   let peek_action actor f i =
     peek actor |> f i >>= (fst >> return) (* TODO: use async_reader then remove fst *)

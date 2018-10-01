@@ -78,7 +78,7 @@ val open_transaction : unit -> transaction Lwt.t
 val commit_transaction : transaction -> unit Lwt.t
 (** Start a transaction. *)
 
-val with_transaction : ((unit, 'a) Lwter.arr, 'a) Lwter.arr
+val with_transaction : ('i, 'o) Lwter.arr -> ('i, 'o) Lwter.arr
 
 val get_batch_id : unit -> int Lwt.t
 (** Get the id of the current batch, so you can test whether it has changed the proper amount *)
