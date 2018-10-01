@@ -337,14 +337,15 @@ module Test = struct
 
   let alice_keys =
     keypair_of_0x
-      "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
-      "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
+      "0xfdc8f15b2dd9229b0b9246094393afc23b3b705c07e674f6cb614120d1627818"
+      "0x045562695c85f88f6cbaec121d2a3da6666c5dc8540d86358bd569a1882bbe6ddcf45b76f5643133939c8e7a339947ca1b115290d577343023d79c256dbc54bc97"
   let alice_address = alice_keys.address
 
   let bob_keys =
-    make_keypair_from_hex
-      "f1:d3:cd:20:22:e1:d6:64:98:32:76:04:83:4d:f0:73:06:64:f7:1a:8d:d1:1e:46:a3:3b:4a:0e:bb:40:ca:8e"
-      "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
+    keypair_of_0x
+      "0x9b21b9b06ba77824b8ba6a815f5a075229a708ae88ba7fd935c968fe2c3df172"
+      "0x049e0a7e3c05e3328c603b0c27fbfdfc5030c95d9ad179a431c14f81e30a64ce95f625447e182a8be718d45f9ab9723f9b8571dd5c5752daa66feb84938b095805"
+
   let bob_address = bob_keys.address
 
   let register_test_keypairs () =
@@ -375,11 +376,11 @@ module Test = struct
 
   (* test that addresses are really last 20 bytes of Keccak256 hash of public keys *)
   let%test "alice_address_from_public_key" =
-    Address.to_0x_string alice_keys.address = "0xbbd17be6f683f72023873afeaa57c88d24b58884"
+    Address.to_0x_string alice_keys.address = "0xc54e86dffb87b9736e2e35dd85c775358f1c31ce"
 
   let%test "bob_address_from_public_key" =
     expect_string "bob address"
-      "0x8a6b383df4797f28672b77179ebe3db903ccad34"
+      "0x9ccaed210ce8c0cb49c5ad1c4f583406c264ba69"
       (Address.to_0x_string bob_address);
     true
 
