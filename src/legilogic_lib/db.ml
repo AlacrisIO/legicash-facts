@@ -149,6 +149,7 @@ let start_server ~db_name ~db () =
       let transaction = !transaction_counter in
       transaction_counter := transaction + 1;
       Hashtbl.replace open_transactions transaction ();
+      (*Logging.log "OPEN TRANSACTION %d, now have %d" transaction (Hashtbl.length open_transactions); *)
       Lwt.wakeup_later u transaction in
     let blocked_transactions : transaction Lwt.u list ref = ref [] in
     let batch = LevelDB.Batch.make () in
@@ -161,14 +162,14 @@ let start_server ~db_name ~db () =
     let rec inner_loop ~ready ~triggered ~held =
       if triggered && ready && not held then
         begin
-          Logging.log "COMMIT BATCH %d!" batch_id;
+          (*Logging.log "COMMIT BATCH %d!" batch_id;*)
           (* Fork a system thread to handle the commit;
              when it's done, wakeup the wait_on_batch_commit promise *)
           Lwt.async (fun () ->
             Lwt_preemptive.detach
               (fun () -> LevelDB.Batch.write db ~sync:true batch) ()
             >>= fun () ->
-            Logging.log "BATCH %d COMMITTED!" batch_id;
+            (*Logging.log "BATCH %d COMMITTED!" batch_id;*)
             Lwt.wakeup_later notify_batch_commit (!notify_list, bindings_of_hashtbl hooks);
             return_unit);
           List.iter open_transaction !blocked_transactions;
@@ -205,12 +206,14 @@ let start_server ~db_name ~db () =
           (* TODO: assert that the transaction_counter never wraps around?
              Or check and block further transactions? *)
           if held then
-            blocked_transactions := u :: !blocked_transactions
+            ((*Logging.log "HOLDING A TRANSACTION";*)
+              blocked_transactions := u :: !blocked_transactions)
           else
             open_transaction u;
           inner_loop ~ready ~triggered ~held:true
         | Close_transaction transaction ->
           Hashtbl.remove open_transactions transaction;
+          (*Logging.log "CLOSE TRANSACTION %d, remain %d" transaction (Hashtbl.length open_transactions); (* XXX *)*)
           inner_loop ~ready ~triggered ~held:(Hashtbl.length open_transactions > 0)
         | Get_batch_id continuation ->
           Lwt.wakeup_later continuation batch_id;
@@ -277,18 +280,21 @@ let open_transaction () =
   Open_transaction resolver |> request
   >>= fun () -> promise
 
-let commit_transaction tx =
+let close_transaction tx =
   Close_transaction tx |> request
+
+let commit_transaction tx =
+  close_transaction tx
   >>= commit
 
 let with_transaction f i =
-  Logging.log "Starting a new transaction...";
+  (*Logging.log "Starting a new transaction...";*)
   open_transaction () >>= fun tx ->
-  Logging.log "Started transaction %d" tx;
+  (*Logging.log "Started transaction %d" tx;*)
   f i >>= fun o ->
-  Logging.log "Committing transaction %d" tx;
-  commit_transaction tx >>= fun _ ->
-  Logging.log "Committed transaction %d" tx;
+  (*Logging.log "Committing transaction %d" tx;*)
+  close_transaction tx >>= fun _ ->
+  (*Logging.log "Committed transaction %d" tx;*)
   return o
 
 let get_batch_id () =

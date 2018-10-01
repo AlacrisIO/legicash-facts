@@ -151,28 +151,39 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
     | Synchronous -> (fun s -> Db.commit () >>= const s)
     | Asynchronous -> (fun s -> Lwt.async Db.commit; return s)
   let resume context key initial_state =
+    (*Logging.log "RESUME prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string initial_state);*)
     (match Hashtbl.find_opt table key with
      | None -> ()
      | Some _ -> Lib.bork "object with key ~s ~s already resumed!" key_prefix (Key.to_yojson_string key));
     let mailbox = Lwt_mvar.create_empty () in
     let saving = match on_commit with
       | None ->
-        fun state -> save key state >>= fun () -> return state
+        fun state ->
+          save key state >>= fun () ->
+          (*Logging.log "DONE SAVING prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string state);*)
+          return state
       | Some oc ->
         let hook = oc context key mailbox in
         let db_key = db_key key in
         fun state ->
           save key state >>= fun () ->
           Db.commit_hook db_key hook >>= fun () ->
+          (*Logging.log "DONE SAVING prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string state);*)
           return state in
     let with_transaction transform state =
-      state |> Db.with_transaction (transform >>> saving) >>= committing in
+      (*Logging.log "BEFORE TRANSACTION, prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string state);*)
+      (* TODO: why does putting the with_transaction around the transform result in deadlock?
+         Is it normal to only have the transaction around saving? *)
+      state |> (transform >>> Db.with_transaction saving) >>= committing in
     let actor = SimpleActor.make ~mailbox ~with_transaction initial_state in
+    (*Logging.log "Getting activity, background for %s!" (Key.to_yojson_string key);*)
     let activity, background = behavior context key actor in
+    (*Logging.log "Launching background for %s!" (Key.to_yojson_string key);*)
     Lwt.async background;
     Hashtbl.replace table key activity;
     activity
   let make context key init =
+    (*Logging.log "MAKE prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
     match Db.get (db_key key) with
     | Some _ -> Lib.bork "object with key %s %s already created!" key_prefix (Key.to_yojson_string key)
     | None ->
@@ -180,6 +191,7 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
       save key state >>= fun () ->
       resume context key state |> return
   let get context key =
+    (*Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
     let db_key = db_key key in
     match Hashtbl.find_opt table key with
     | Some x -> x

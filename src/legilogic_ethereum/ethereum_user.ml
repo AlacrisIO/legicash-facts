@@ -199,6 +199,7 @@ module TransactionTracker = struct
       let invalidate transaction_status error =
         finalize (Failed (transaction_status, error)) in
       let step () (status : TransactionStatus.t) : (bool * TransactionStatus.t) Lwt.t =
+        (*Logging.log "Stepping into %s" (TransactionStatus.to_yojson_string status);*)
         match status with
         | Ongoing ongoing ->
           (match ongoing with
@@ -235,6 +236,7 @@ module TransactionTracker = struct
                | Error error -> invalidate ongoing error))
         | Final x -> finalize x in
       let rec loop () =
+        (*Logging.log "In the loop for %s!" (Key.to_yojson_string key);*)
         SimpleActor.action actor step ()
         >>= function
         | true -> loop ()
@@ -320,7 +322,7 @@ let add_ongoing_transaction : (OngoingTransactionStatus.t, TransactionTracker.t)
 
 let unlock_account ?(duration=5) address =
   let password = password_of_address address in
-  Logging.log "ensure_account_unlocked";
+  Logging.log "unlock_account %s" (Address.to_0x_string address);
   Ethereum_json_rpc.personal_unlock_account (address, password, Some duration)
   >>= function
   | true -> return ()
