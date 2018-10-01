@@ -397,11 +397,11 @@ let get_account_balance address (facilitator_state:FacilitatorState.t) =
 
 
 let get_account_balances (facilitator_state:FacilitatorState.t) =
-  let account_states_json =
-    List.map
-      (fun (_,account_state) -> AccountState.to_yojson account_state)
-      (AccountMap.bindings facilitator_state.current.accounts) in
-  `List account_states_json
+  let pair_to_yojson ((address, state): (Address.t * AccountState.t)) =
+    Address.to_0x_string address, AccountState.to_yojson state in
+  `Assoc (AccountMap.bindings facilitator_state.current.accounts
+          |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
+          |> List.map pair_to_yojson)
 
 let get_account_state address (facilitator_state:FacilitatorState.t) =
   try
@@ -437,7 +437,11 @@ let get_recent_transactions address maybe_limit facilitator_state =
     else
       match transaction.tx_request with
       | `UserTransaction rx ->
-        if rx.payload.rx_header.requester = address then
+        let requester = rx.payload.rx_header.requester in
+        let recipient : address option = match rx.payload.operation with
+          | Payment details -> Some details.payment_invoice.recipient
+          | _ -> None in
+        if ((requester = address) || (recipient = Some address)) then
           k (Revision.(add one count), transaction::transactions)
         else
           k accum
