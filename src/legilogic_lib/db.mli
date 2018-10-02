@@ -80,5 +80,11 @@ val commit_transaction : transaction -> unit Lwt.t
 
 val with_transaction : ('i, 'o) Lwter.arr -> ('i, 'o) Lwter.arr
 
+val committing : ('a, 'a) Lwter.arr
+(** Commit the transaction, pass data through *)
+
+val committing_async : ('a, 'a) Lwter.arr
+(** Schedule a transaction to be committed in parallel, pass data through *)
+
 val get_batch_id : unit -> int Lwt.t
 (** Get the id of the current batch, so you can test whether it has changed the proper amount *)

@@ -30,10 +30,12 @@ type batch = LevelDB.writebatch
 
 type transaction = int
 
-(* "transactions" will block the batch from being sent to disk for committing
+(* Our "transactions" will block the batch from being sent to disk for committing
    until all currently open transactions are closed, even though the batch may otherwise be ready to merge.
    On the other hand, while a batch is ready but waiting for transactions to be closed,
    attempts to open new transaction will themselves be blocked.
+   In other words, we have only roll-forward, not roll-back of transactions, and so
+   transactions better be short, or there may be deadlock and/or memory overflow.
 
    NB: We do not at this time implement *nested* transactions... you will deadlock if you try,
    and thus you must develop a strict discipline of transaction ownership to avoid the issue,
@@ -204,8 +206,12 @@ let start_server ~db_name ~db () =
           inner_loop ~ready:true ~triggered ~held
         | Open_transaction u ->
           (* TODO: assert that the transaction_counter never wraps around?
-             Or check and block further transactions? *)
-          if held then
+             Or check and block further transactions when it does, before resetting the counter? *)
+          (* TODO: commenting out the ready && triggered helps detect / enact deadlocks when running
+             tests, by having only one active transaction at a time; but then the hold can and
+             should be released as soon as "the" transaction is complete, unless we're already both
+             ready && triggered for the next batch commit. Have an option for that? *)
+          if ready && triggered && held then
             ((*Logging.log "HOLDING A TRANSACTION";*)
               blocked_transactions := u :: !blocked_transactions)
           else
@@ -296,6 +302,9 @@ let with_transaction f i =
   close_transaction tx >>= fun _ ->
   (*Logging.log "Committed transaction %d" tx;*)
   return o
+
+let committing = fun s -> commit () >>= const s
+let committing_async = fun s -> Lwt.async commit; return s
 
 let get_batch_id () =
   let (t,u) = Lwt.task () in

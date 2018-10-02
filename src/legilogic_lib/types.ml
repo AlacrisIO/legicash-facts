@@ -71,6 +71,8 @@ module DigestValueType = struct
   type +'a t = 'a dv
 end
 
+(* TODO: somehow replace the strong reference to the value by a weak reference once it's been persisted
+   (and not merely scheduled for persistence as part of a transaction), so it may be garbage-collected. *)
 module DigestValue (Value : PersistableS) = struct
   type value = Value.t
   type digest = Digest.t
