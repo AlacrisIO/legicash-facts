@@ -6,6 +6,7 @@
 (* A big endian patricia tree maps non-negative integers to values. *)
 open Lib
 open Yojsoning
+open Persisting
 open Types
 
 (** A signature for the computation of a synthesized attribute from a binary tree *)
@@ -307,17 +308,21 @@ module Trie
            and type trie = TrieType.trie
            and type t = TrieType.trie WrapType.t
 
-module type SimpleTrieS = sig
-  type key
-  type value
-  module Synth : TrieSynthS with type t = unit and type key = key and type value = value
-  module Type : TrieTypeS with type key = key and type value = value
-  include TrieS
-    with type key := key
-     and type value := value
-     and type 'a wrap = 'a
-  module Wrap : WrapS with type value = trie and type t = t
+module type TrieSetS = sig
+  type elt
+  module T : TrieS with type key = elt and type value = unit
+  include Set.S with type elt := elt and type t = T.t
+  val lens : elt -> (t, bool) Lens.t
+  include PersistableS with type t := t
 end
 
-module SimpleTrie (Key : UIntS) (Value : YojsonableS)
-  : SimpleTrieS with type key = Key.t and type value = Value.t
+module TrieSet (Elt : UIntS) (T : TrieS with type key = Elt.t and type value = unit) :
+  TrieSetS with type elt = Elt.t and module T = T
+
+module type SimpleTrieS = TrieS with type 'a wrap = 'a and type synth = unit
+
+module SimpleTrie (Key : UIntS) (Value : YojsonableS) : SimpleTrieS with type key = Key.t and type value = Value.t
+
+module SimpleTrieSet (Elt : UIntS) : TrieSetS with type elt = Elt.t
+
+module RevisionSet : TrieSetS with type elt = Revision.t
