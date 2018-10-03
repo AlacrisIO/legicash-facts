@@ -117,7 +117,6 @@ end
 let persistent_actor_no_default_state key_prefix to_yojson_string _context key =
   Lib.bork "Failed to load key %s %s: Not_found" key_prefix (to_yojson_string key)
 
-type synchronous_behavior = Synchronous | Asynchronous
 module type PersistentActivityBaseS = sig
   type context
   module Key : YojsonMarshalableS
@@ -125,71 +124,41 @@ module type PersistentActivityBaseS = sig
   module State : PersistableS
   val make_default_state : context -> Key.t -> State.t
   type t
-  val commit_behavior : synchronous_behavior
-  val behavior : context -> Key.t -> State.t SimpleActor.t -> t * (unit, unit) Lwter.arr
-  val on_commit : (context -> Key.t -> (State.t, State.t) Lwter.arr Lwt_mvar.t -> (unit, unit) Lwter.arr) option
+  val make_activity : context -> Key.t -> (State.t, State.t) Lwter.arr -> State.t -> t
 end
 module type PersistentActivityS = sig
-  type key
   type context
+  type key
   type state
   type t
-  val make : context -> key -> (unit, state) Lwter.arr -> t Lwt.t
+  val make : context -> key -> ((state, state) Lwter.arr -> state Lwt.t) -> t Lwt.t
   val get : context -> key -> t
 end
 module PersistentActivity (Base: PersistentActivityBaseS) = struct
   include Base
   type key = Key.t
   type state = State.t
+  type activity = t
   open Lwter
-  let table = Hashtbl.create 8
+  let table = Hashtbl.create 8 (* TODO: make it a weak reference table with Weak.create *)
   let db_key key = key_prefix ^ (Key.marshal_string key)
-  let save key state =
+  let saving (db_key : string) (state : state) : state Lwt.t =
     State.walk_dependencies State.dependency_walking saving_context state >>= fun () ->
-    State.marshal_string state |> Db.put (db_key key)
-  let committing = match commit_behavior with
-    | Synchronous -> (fun s -> Db.commit () >>= const s)
-    | Asynchronous -> (fun s -> Lwt.async Db.commit; return s)
-  let resume context key initial_state =
+    State.marshal_string state |> Db.put db_key >>= const state
+  let resume (context: context) (key : key) (current_state: state) : activity =
     (*Logging.log "RESUME prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string initial_state);*)
     (match Hashtbl.find_opt table key with
      | None -> ()
      | Some _ -> Lib.bork "object with key ~s ~s already resumed!" key_prefix (Key.to_yojson_string key));
-    let mailbox = Lwt_mvar.create_empty () in
-    let saving = match on_commit with
-      | None ->
-        fun state ->
-          save key state >>= fun () ->
-          (*Logging.log "DONE SAVING prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string state);*)
-          return state
-      | Some oc ->
-        let hook = oc context key mailbox in
-        let db_key = db_key key in
-        fun state ->
-          save key state >>= fun () ->
-          Db.commit_hook db_key hook >>= fun () ->
-          (*Logging.log "DONE SAVING prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string state);*)
-          return state in
-    let with_transaction transform state =
-      (*Logging.log "BEFORE TRANSACTION, prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string state);*)
-      (* TODO: why does putting the with_transaction around the transform result in deadlock?
-         Is it normal to only have the transaction around saving? *)
-      state |> (transform >>> Db.with_transaction saving) >>= committing in
-    let actor = SimpleActor.make ~mailbox ~with_transaction initial_state in
-    (*Logging.log "Getting activity, background for %s!" (Key.to_yojson_string key);*)
-    let activity, background = behavior context key actor in
-    (*Logging.log "Launching background for %s!" (Key.to_yojson_string key);*)
-    Lwt.async background;
+    let activity = make_activity context key (saving (db_key key)) current_state in
     Hashtbl.replace table key activity;
     activity
   let make context key init =
     (*Logging.log "MAKE prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
-    match Db.get (db_key key) with
+    let db_key = db_key key in
+    match Db.get db_key with
     | Some _ -> Lib.bork "object with key %s %s already created!" key_prefix (Key.to_yojson_string key)
-    | None ->
-      init () >>= fun state ->
-      save key state >>= fun () ->
-      resume context key state |> return
+    | None -> init (saving db_key) >>= fun state -> return (resume context key state)
   let get context key =
     (*Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
     let db_key = db_key key in

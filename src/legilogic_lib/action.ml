@@ -292,6 +292,7 @@ module type AsyncActionS = sig
   val run_lwt : state ref -> ('i, 'o) arr -> 'i -> 'o Lwt.t
   val of_action : ('i -> state -> 'o or_exn * state) -> ('i, 'o) arr
   val of_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr
+  val of_lwt_state : ('i -> state -> ('o * state) Lwt.t) -> ('i, 'o) arr
   val of_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
 end
 module AsyncAction (State : TypeS) = struct
@@ -320,6 +321,7 @@ module AsyncAction (State : TypeS) = struct
   let of_readonly p x s = return (p x s) s
   let of_action a x s = a x s |> Lwt.return
   let of_lwt_exn a x s = Lwt.bind (a x) (fun r -> Lwt.return (r, s))
+  let of_lwt_state a x s = Lwt.bind (a x s) (fun (r, s) -> return r s)
   let of_lwt a x s = Lwt.bind (a x) (fun r -> return r s)
   let of_exn a x s = a x |> function Ok r -> return r s | Error e -> fail e s
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
@@ -479,6 +481,9 @@ module type SimpleActorS = sig
   val peek_action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
 end
 
+(* TODO: "just" use a Lwt_mvar for the state itself rather than to post the functions?
+   TODO: have both peek and async_peek ?
+*)
 module SimpleActor = struct
   open Lwter
   type 'state t =

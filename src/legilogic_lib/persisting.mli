@@ -89,30 +89,33 @@ val persistent_actor_no_default_state : string -> ('key -> string) -> _ -> 'key 
 
 (** PersistentActivity
 
-    An elaboration of [Action.SimpleActor] whereby the state is persisted to the database.
+    This module describe one or a set of persistent activities that each persist
+    their running state into the database.
 
-    Note that the [action] function will return _before_ the transaction is committed.
-    That's OK if the caller (1) uses the result as part of a [Db.with_transaction], and
-    (2) waits for [Db.commit] before to communicate with any external system based on this result.
+    Each activity is parameterized by a [context] (ambient entry points, shared by all activities),
+    and a [key] that identifies the activity and that together with the module-wide [key_prefix]
+    specifies where in the database the state will be stored. You can [get] an existing activity
+    given the [context] and its [key], assuming it either already exists, has been saved in the
+    database, or a method to create a default key was provided. Or you can [make] a new activity
+    given the [context], the [key], and an action that provided a saving action will return the
+    initial state, saved and committed or not as required by your protocol.
 
-    TODO: Clojure agents have it right: they can register messages to be sent
-    (equivalent to arbitrary asynchronous actions being spawned, yet reified)
-    but only if and when the current transaction succeeds.
-    The messages to be sent can "simply" be part of the state,
-    and the sender part of the normal state processor,
-    with a state update happening to remove them once they have been safely received.
-    We want the same, in a persistent setting.
-    And of course all messages should be idempotent,
-    since they will be re-sent in case of crash.
-    In practice, it should be enough to call Db.commit () then wait for the result,
-    but only do that in the spawned thread --- and return immediately with the saved state.
-    Note that to implement ('i, 'o) actions with persistent actor state,
-    the receiver for the 'o message must themselves be persistent;
-    regular anomymous functions won't do, they must be named functions,
-    that only close over marshalable data that is part of the name.
-    There probably needs be a monadic type for such functions.
+    The user provides the [Key] module, the [key_prefix], the [State] module,
+    a [make_default_state] function to create a default state given the context and a key
+    (and may raise an exception if this module provides no default state),
+    and a [make_activity] function to recreate the activity given the context, the key,
+    a [saving] action that will save a given state to the database, and the current state.
+
+    The activity may be anything: a promise, a mailbox behind which sits a server, an actor,
+    a record containing one or many of the previous, or a function abstracting away the
+    use of the previous, etc. Getting an existing or making a new activity may or may not
+    start a new management thread in the background, and may or may not recursively activate
+    more sub-activities.
+
+    Saving, committing, using transactions, etc., is entirely up to the user, and not covered
+    by the PersistentActivity module. The PersistentActivity module provides a saving action
+    for the activity users to use.
 *)
-type synchronous_behavior = Synchronous | Asynchronous
 module type PersistentActivityBaseS = sig
   module Key : YojsonMarshalableS
   (** Key used to locate the actor state in the DB, by marshaling it with given prefix
@@ -142,48 +145,46 @@ module type PersistentActivityBaseS = sig
       May call [persistent_actor_no_default_state key_prefix Key.to_yojson_string]
       if there is no meaningful such default state. *)
 
-  val commit_behavior : synchronous_behavior
-  (** Should we commit synchronously or asynchronously with the event loop?
+  val make_activity : context -> Key.t -> (State.t, State.t) Lwter.arr -> State.t -> t
+  (** Make the activity.
 
-      If Synchronous, then the state will be committed to the database after each and every
-      state transition. Thus there can be only one state transition per database commit batch,
-      so about 60 per second on a typical 2018 PC.
-
-      If Asynchronous, then multiple state transitions may be batched, and the activity has
-      to keep track of what has or hasn't been committed yet.
+      Given context, Key.t, an action that saves state to the database (but doesn't commit), and
+      an initial or current state, return the activity, after launching any background thread,
+      activating any other activity, etc.
   *)
-
-  val behavior : context -> Key.t -> State.t SimpleActor.t -> t * (unit, unit) Lwter.arr
-  (** Behavior of the activity.
-
-      Given context, Key.t, and a SimpleActor.t that serializes the given state, specify:
-   * an [activity] to return (of type [t]), interface visible to the rest of the application;
-   * an arrow to run as a [background] thread, that will interpose itself between the
-      internal actor and the external activity;
-   * an option [on_commit] hook to call after each database commit that modifies
-      the state of the actor, based on which e.g. to trigger sending messages.
-
-      The hook that can communicate with the actor or the background activity to initiate the
-      processing of committed data. Beware: since this hook is asynchronous, by the time it's run,
-      things can have changed a lot and new uncommitted changes may be present, and/or things can
-      have changed not at all because a previously received signal already caused all the work to
-      be done.
-  *)
-  val on_commit : (context -> Key.t -> (State.t, State.t) Lwter.arr Lwt_mvar.t -> (unit, unit) Lwter.arr) option
 end
 
 (** See documentation above for [PersistentActivityBaseS] and for [Action.SimpleActor] *)
 module type PersistentActivityS = sig
-  type key
   type context
+  type key
   type state
   type t
-  val make : context -> key -> (unit, state) Lwter.arr -> t Lwt.t
+  val make : context -> key -> ((state, state) Lwter.arr -> state Lwt.t) -> t Lwt.t
   val get : context -> key -> t
 end
 module PersistentActivity (Base: PersistentActivityBaseS) :
   PersistentActivityS
-  with type key = Base.Key.t
-   and type context = Base.context
+  with type context = Base.context
+   and type key = Base.Key.t
    and type state = Base.State.t
    and type t = Base.t
+
+(*
+   TODO: Clojure agents have it right: they can register messages to be sent
+   (equivalent to arbitrary asynchronous actions being spawned, yet reified)
+   but only if and when the current transaction succeeds.
+   The messages to be sent can "simply" be part of the state,
+   and the sender part of the normal state processor,
+   with a state update happening to remove them once they have been safely received.
+   We want the same, in a persistent setting.
+   And of course all messages should be idempotent,
+   since they will be re-sent in case of crash.
+   In practice, it should be enough to call Db.commit () then wait for the result,
+   but only do that in the spawned thread --- and return immediately with the saved state.
+   Note that to implement ('i, 'o) actions with persistent actor state,
+   the receiver for the 'o message must themselves be persistent;
+   regular anomymous functions won't do, they must be named functions,
+   that only close over marshalable data that is part of the name.
+   There probably needs be a monadic type for such functions.
+*)

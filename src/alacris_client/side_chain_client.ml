@@ -6,7 +6,7 @@ open Yojsoning
 open Logging
 open Types
 open Action
-open Lwter
+open Lwter (* TODO: use Lwt_exn *)
 
 open Alacris_lib
 open Side_chain
@@ -21,6 +21,7 @@ module Request = Scgi.Request
 let _ = Config.set_application_name "alacris"
 let _ = set_log_file "logs/alacris-client.log"
 
+(* TODO: use DepositWanted, WithdrawalWanted, PaymentWanted from side_chain_user, directly *)
 type deposit_json =
   { address: Address.t
   ; amount: TokenAmount.t
@@ -150,7 +151,7 @@ let _ =
           (match maybe_deposit with
            | Ok deposit ->
              (try
-                let result_json = deposit_to_trent deposit.address deposit.amount in
+                let result_json = deposit_to ~facilitator:trent_address deposit.address deposit.amount in
                 ok_json id result_json
               with
               | Lib.Internal_error msg -> internal_error_response id msg
@@ -161,7 +162,8 @@ let _ =
           (match maybe_withdrawal with
            | Ok withdrawal ->
              (try
-                let result_json = withdrawal_from_trent trent_address withdrawal.address withdrawal.amount in
+                let result_json = withdrawal_from ~facilitator:trent_address
+                                    withdrawal.address withdrawal.amount in
                 ok_json id result_json
               with
               | Lib.Internal_error msg -> internal_error_response id msg
@@ -178,8 +180,9 @@ let _ =
           (match maybe_payment with
            | Ok payment ->
              (try
-                Lwt_exn.run_lwt (payment_on_trent payment.sender payment.recipient payment.amount) "memo"
-                >>= ok_json id
+                payment_on ~facilitator:trent_address
+                  payment.sender payment.recipient payment.amount "memo"
+                |> ok_json id
               with
               | Lib.Internal_error msg -> internal_error_response id msg
               | exn -> internal_error_response id (Printexc.to_string exn))
@@ -189,7 +192,7 @@ let _ =
           (match maybe_address with
            | Ok address_record ->
              (try
-                get_balance_on_trent address_record.address
+                get_balance_on ~facilitator:trent_address address_record.address
                 >>= return_result id
               with
               | Lib.Internal_error msg -> internal_error_response id msg

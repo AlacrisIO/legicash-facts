@@ -359,6 +359,8 @@ module type AsyncActionS = sig
   val of_action : ('i -> state -> 'o or_exn * state) -> ('i, 'o) arr
   (** From a [Lwt_exn] arrow to an AsyncAction arrow *)
   val of_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr
+  (** From a notional [Lwt_state] arrow to an AsyncAction arrow *)
+  val of_lwt_state : ('i -> state -> ('o * state) Lwt.t) -> ('i, 'o) arr
   (** From a [Lwt] arrow to an AsyncAction arrow *)
   val of_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
 

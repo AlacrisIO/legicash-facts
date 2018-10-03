@@ -12,6 +12,7 @@ open Lwt_exn
 open Yojsoning
 open Types
 open Signing
+open Json_rpc
 
 open Legilogic_ethereum
 
@@ -48,7 +49,7 @@ let error_json fmt =
   Printf.ksprintf (fun x -> `Assoc [("error",`String x)]) fmt
 
 (* table of id's to Lwt threads *)
-let (id_to_thread_tbl : (int,yojson Lwt.t) Hashtbl.t) = Hashtbl.create 1031
+let (id_to_thread_tbl : (int, yojson Lwt_exn.t) Hashtbl.t) = Hashtbl.create 1031
 
 (* add Lwt.t thread to table, return its id *)
 let add_main_chain_thread thread =
@@ -73,7 +74,9 @@ let apply_main_chain_thread id : yojson =
   try
     let thread = Hashtbl.find id_to_thread_tbl id in
     match Lwt.state thread with
-    | Return json -> json
+    (* TODO: make proper JSON RPC response *)
+    | Return (Ok json) -> json
+    | Return (Error e) -> `Assoc [("error", exn_to_yojson e)]
     | Fail exn ->
       error_json "Thread exception: %s\nStack: %s"
         (Printexc.to_string exn)
@@ -100,7 +103,8 @@ let get_proof tx_revision =
   UserQueryRequest.Get_proof { tx_revision }
   |> post_user_query_request_to_side_chain
 
-let get_balance_on_trent address =
+let get_balance_on ~facilitator address =
+  ignore facilitator; (* TODO: refactor so it makes sense WTF? *)
   UserQueryRequest.Get_account_balance { address }
   |> post_user_query_request_to_side_chain
 
@@ -135,49 +139,18 @@ let make_transaction_result address tx_revision main_chain_confirmation =
                          ; main_chain_confirmation } in
     return (transaction_result_to_yojson deposit_result)
 
-let deposit_to_trent address amount =
-  let user_state = ref (user_state_from_address address) in
-  let thread () =
-    UserAsyncAction.run_lwt_exn user_state deposit (trent_address, amount)
-    >>= fun signed_request ->
-    update_user_state address !user_state;
-    post_user_transaction_request_to_side_chain signed_request
-    >>= fun transaction_commitment ->
-    let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
-    (* get transaction hash for main chain *)
-    let operation = signed_request.payload.operation in
-    let main_chain_confirmation =
-      match operation with
-      | Deposit details -> details.main_chain_deposit_confirmation
-      | _ -> Lib.bork "Expected deposit request"
-    in
-    make_transaction_result address tx_revision main_chain_confirmation
-  in
-  add_main_chain_thread (run_lwt thread ())
+let schedule_transaction user transaction parameters =
+  add_main_chain_thread
+    (User.transaction user transaction parameters
+     >>= fun (transaction_commitment, main_chain_confirmation) ->
+     let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
+     make_transaction_result user tx_revision main_chain_confirmation)
 
-let withdrawal_from_trent facilitator_address user_address amount =
-  let user_state = ref (user_state_from_address user_address) in
-  let thread () =
-    UserAsyncAction.run_lwt_exn user_state withdrawal (facilitator_address, amount)
-    >>= fun signed_request ->
-    update_user_state user_address !user_state;
-    post_user_transaction_request_to_side_chain signed_request
-    >>= fun transaction_commitment ->
-    (* TODO: move the push to server side *)
-    let transaction = transaction_commitment.transaction in
-    let tx_revision = transaction.tx_header.tx_revision in
-    let open Lwt in
-    UserAsyncAction.run_lwt_exn user_state
-      (push_side_chain_withdrawal_to_main_chain facilitator_address) transaction
-    >>= fun maybe_main_chain_confirmation ->
-    update_user_state user_address !user_state;
-    let main_chain_confirmation =
-      match maybe_main_chain_confirmation with
-      | Error exn -> raise exn
-      | Ok (_, confirmation) -> confirmation in
-    make_transaction_result user_address tx_revision main_chain_confirmation
-  in
-  add_main_chain_thread (run_lwt thread ())
+let deposit_to ~facilitator user deposit_amount =
+  schedule_transaction user deposit DepositWanted.{facilitator; deposit_amount}
+
+let withdrawal_from ~facilitator user withdrawal_amount =
+  schedule_transaction user withdrawal WithdrawalWanted.{facilitator; withdrawal_amount}
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
@@ -194,47 +167,51 @@ let payment_timestamp () =
   if !payment_timestamps_cursor >= num_timestamps then
     payment_timestamps_cursor := 0
 
-let payment_on_trent sender recipient amount memo =
-  let sender_state = user_state_from_address sender in
-  let sender_state_ref = ref sender_state in
-  UserAsyncAction.run_lwt_exn sender_state_ref payment (trent_address, recipient, amount, memo)
-  >>= fun signed_request ->
-  update_user_state sender !sender_state_ref;
-  post_user_transaction_request_to_side_chain signed_request
-  >>= fun transaction_commitment ->
-  (* set timestamp, now that all processing on Trent is done *)
-  payment_timestamp ();
-  (* remaining code is preparing response *)
-  let transaction = transaction_commitment.transaction in
-  let tx_revision = transaction.tx_header.tx_revision in
-  UserQueryRequest.Get_account_state { address = sender }
-  |> post_user_query_request_to_side_chain
-  >>= fun sender_account_json ->
-  UserQueryRequest.Get_account_state { address = recipient }
-  |> post_user_query_request_to_side_chain
-  >>= fun recipient_account_json ->
-  let maybe_sender_account =
-    YoJson.member "account_state" sender_account_json |> AccountState.of_yojson in
-  let maybe_recipient_account =
-    YoJson.member "account_state" recipient_account_json |> AccountState.of_yojson in
-  match maybe_sender_account,maybe_recipient_account with
-  | Error _ ,_
-  | _, Error _ ->
-    return (error_json "Could not get account information for sender and recipient")
-  | Ok sender_account, Ok recipient_account ->
-    let side_chain_tx_revision = tx_revision in
-    let payment_result =
-      { sender_account
-      ; recipient_account
-      ; amount_transferred = amount
-      ; side_chain_tx_revision
-      }
-    in
-    return (payment_result_to_yojson payment_result)
+(*TODO: move instrumentation to a proper place and leave it at that:
+  let payment_on_trent sender recipient amount memo =
+  schedule_transaction sender payment
+  PaymentWanted.{facilitator; recipient; amount; memo; payment_expedited= false } *)
 
-(*
-   let payment_on_trent sender recipient amount memo =
-   post_user_event sender (Payment {facilitator = trent_address; recipient; amount; memo})
+(* TODO: simplify this all away *)
+let payment_on ~facilitator sender recipient amount memo =
+  add_main_chain_thread
+    (User.action sender payment
+       PaymentWanted.{facilitator; recipient; amount; memo; payment_expedited= false }
+     >>= fun (_key, tracker_promise) ->
+     (* set timestamp, now that initial processing on Trent is done *)
+     payment_timestamp ();
+     TransactionTracker.wait tracker_promise
+     >>= fun (transaction_commitment, main_chain_confirmation) ->
+     let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
+     make_transaction_result sender tx_revision main_chain_confirmation)
+
+(* OLD RESPONSE. TODO: find out what the demo-frontend *really needs*
+   (* remaining code is preparing response *)
+   let transaction = transaction_commitment.transaction in
+   let tx_revision = transaction.tx_header.tx_revision in
+   UserQueryRequest.Get_account_state { address = sender }
+   |> post_user_query_request_to_side_chain
+   >>= fun sender_account_json ->
+   UserQueryRequest.Get_account_state { address = recipient }
+   |> post_user_query_request_to_side_chain
+   >>= fun recipient_account_json ->
+   let maybe_sender_account =
+   YoJson.member "account_state" sender_account_json |> AccountState.of_yojson in
+   let maybe_recipient_account =
+   YoJson.member "account_state" recipient_account_json |> AccountState.of_yojson in
+   match maybe_sender_account,maybe_recipient_account with
+   | Error _ ,_
+   | _, Error _ ->
+   (* TODO: use JSON RPC blah *)
+   Lwt_exn.return (error_json "Could not get account information for sender and recipient")
+   | Ok sender_account, Ok recipient_account ->
+   let side_chain_tx_revision = tx_revision in
+   let payment_result =
+   { sender_account
+   ; recipient_account
+   ; amount_transferred = amount
+   ; side_chain_tx_revision } in
+   Lwt_exn.return (payment_result_to_yojson payment_result))
 *)
 
 (* other actions, not involving posting to server mailbox *)

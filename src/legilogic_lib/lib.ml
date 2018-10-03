@@ -253,7 +253,11 @@ let bindings_of_hashtbl h =
   Hashtbl.fold (fun k v l -> (k, v)::l) h []
 
 module Test = struct
-  let expect_string description expected computed =
+  let expect_equal description to_string expected computed =
     if not (computed = expected) then
-      bork "Expected %s to be %s but instead got %s instead" description expected computed
+      bork "Expected %s to be %s but instead got %s instead"
+        description (to_string expected) (to_string computed)
+
+  let expect_string description expected computed =
+    expect_equal description identity expected computed
 end
