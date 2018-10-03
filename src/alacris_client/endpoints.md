@@ -203,7 +203,38 @@ Recent transactions
   the given address; otherwise, the list is all the transactions by that user.
 
   The transactions are deposits, withdrawals, or payments, along with their details.
+  
+  Each element of the list is an object. Here is the typescript definition for
+  what's currently used from these objects, on the front end:
+  
+    type transaction_string = "Deposit" | "Withdrawal" | "Payment"
+    type hex_string = string
+    
+    interface IDeposit {
+        deposit_amount: number,
+        deposit_fee: number,
+        main_chain_deposit: { tx_header: { sender: hex_string } }
+    }
+    
+    /* tslint:disable:no-empty-interface */
+    interface IPayment { /* empty */ }
+    
+    interface IWithdrawal { /* empty */ }
+    
+    interface IResponse {
+        tx_header: {},
+        tx_request: ["UserTransaction", {
+            payload: {
+                operation: [transaction_string, IDeposit | IPayment | IWithdrawal]
+            }
+        }]
+    }
 
+  These are taken from `src/sagas/recent_transactions.tsx` in `legicash-demo-frontend`.
+  
+  However, the canonical definitions are in `src/alacris_lib/side_chain.mli`.
+  The actual objects being sent back are `TransactionRequest`s, of subtype `` `UserTransaction``
+  
 Deposit/withdrawal threads
 --------------------------
 
