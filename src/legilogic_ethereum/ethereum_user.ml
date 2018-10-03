@@ -8,6 +8,7 @@ open Signing
 open Action
 open Lwt_exn
 open Json_rpc
+open Trie
 
 open Ethereum_chain
 open Ethereum_json_rpc
@@ -29,7 +30,7 @@ module OngoingTransactionStatus = struct
 end
 
 module FinalTransactionStatus = struct
-  [@warning "-39"]
+  [@@@warning "-39"]
   type t =
     | Confirmed of Transaction.t * Confirmation.t
     | Failed of OngoingTransactionStatus.t * exn
@@ -169,6 +170,7 @@ let make_signed_transaction sender operation value gas_limit =
 module TransactionTracker = struct
   open Lwter
   module Base = struct
+    type context = unit (* TODO: Revision tracking actor *)
     module Key = struct
       [@@@warning "-39"]
       type t= { user : Address.t; revision : Revision.t } [@@deriving yojson]
@@ -181,24 +183,24 @@ module TransactionTracker = struct
                                     Address.marshaling Revision.marshaling
                end): YojsonMarshalableS with type t := t)
     end
+    type key = Key.t
     let key_prefix = "ETTT"
-    type context = unit (* TODO: Revision tracking actor *)
     module State = TransactionStatus
+    type state = State.t
     let make_default_state = persistent_actor_no_default_state key_prefix Key.to_yojson_string
     (* TODO: inspection? cancellation? *)
-    type t = FinalTransactionStatus.t Lwt.t
-    let commit_behavior = Synchronous
-    let on_commit = None
-    let behavior () key actor =
-      let (promise, notify) = Lwt.task () in
-      let continue (status : OngoingTransactionStatus.t) =
-        return (true, TransactionStatus.Ongoing status) in
-      let finalize (status : FinalTransactionStatus.t) =
-        Lwt.wakeup_later notify status;
-        return (false, TransactionStatus.Final status) in
-      let invalidate transaction_status error =
-        finalize (Failed (transaction_status, error)) in
-      let step () (status : TransactionStatus.t) : (bool * TransactionStatus.t) Lwt.t =
+    type t = Key.t * FinalTransactionStatus.t Lwt.t
+    let make_activity () key saving state =
+      let rec update (status : TransactionStatus.t) =
+        saving status >>= Db.committing >>= loop
+      and continue (status : OngoingTransactionStatus.t) =
+        TransactionStatus.Ongoing status |> update
+      and finalize (status : FinalTransactionStatus.t) =
+        (* TODO: remove the request from the ongoing_transactions set! *)
+        TransactionStatus.Final status |> update
+      and invalidate transaction_status error =
+        finalize (Failed (transaction_status, error))
+      and loop (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
         (*Logging.log "Stepping into %s" (TransactionStatus.to_yojson_string status);*)
         match status with
         | Ongoing ongoing ->
@@ -234,24 +236,11 @@ module TransactionTracker = struct
                | Error NonceTooLow ->
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
                | Error error -> invalidate ongoing error))
-        | Final x -> finalize x in
-      let rec loop () =
-        (*Logging.log "In the loop for %s!" (Key.to_yojson_string key);*)
-        SimpleActor.action actor step ()
-        >>= function
-        | true -> loop ()
-        | false -> Lwt.return_unit in
-      promise, loop
+        | Final x -> return x in
+      key, loop state
   end
   include PersistentActivity(Base)
   module Key = Base.Key
-end
-
-module OngoingTransactions = struct
-  (* TODO: implement and use SimpleTrieSet *)
-  include Trie.SimpleTrie (Revision) (Unit)
-  let keys = bindings >> List.map fst
-  let of_keys = List.map (fun key -> key, ()) >> of_bindings
 end
 
 module UserState = struct
@@ -259,15 +248,15 @@ module UserState = struct
   type t =
     { address: Address.t
     ; transaction_counter: Revision.t
-    ; ongoing_transactions: OngoingTransactions.t }
+    ; ongoing_transactions: RevisionSet.t }
   [@@deriving lens { prefix=true }, yojson]
   let marshaling =
     marshaling3
       (fun { address; transaction_counter; ongoing_transactions} ->
-         address, transaction_counter, OngoingTransactions.keys ongoing_transactions)
+         address, transaction_counter, RevisionSet.elements ongoing_transactions)
       (fun address transaction_counter ongoing_transactions_keys ->
          {address; transaction_counter;
-          ongoing_transactions= OngoingTransactions.of_keys ongoing_transactions_keys})
+          ongoing_transactions= RevisionSet.of_list ongoing_transactions_keys})
       Address.marshaling Revision.marshaling (list_marshaling Revision.marshaling)
   include (TrivialPersistable (struct
              type nonrec t = t
@@ -278,28 +267,30 @@ end
 
 module User = struct
   module Base = struct
-    module Key = Address
-    let key_prefix = "ETUS"
     type context = unit
+    module Key = Address
+    type key = Key.t
+    let key_prefix = "ETUS"
     module State = UserState
-    type t = State.t SimpleActor.t
+    type state = UserState.t
+    type t = state SimpleActor.t
     let make_default_state _context user =
       UserState.
         { address= user
         ; transaction_counter= Revision.zero
-        ; ongoing_transactions= OngoingTransactions.empty }
-    let resume_transactions context user actor () =
-      let State.{ongoing_transactions} = SimpleActor.peek actor in
-      OngoingTransactions.keys ongoing_transactions
-      |> List.iter (fun revision -> TransactionTracker.get context {user; revision} |> ignore);
-      Lwt.return_unit
-    let commit_behavior = Asynchronous
-    let on_commit = None
-    let behavior context user actor = actor, resume_transactions context user actor
+        ; ongoing_transactions= RevisionSet.empty }
+    let resume_transactions context user (state : State.t) =
+      RevisionSet.iter
+        (fun revision -> TransactionTracker.get context {user; revision} |> ignore)
+        state.ongoing_transactions
+    let make_activity context user saving state =
+      let with_transaction transform = Lwter.(transform >>> saving) in
+      let actor = SimpleActor.make ~with_transaction state in
+      (* TODO: maybe just use Lwt_mvar.create state and leave it to users to transact on it ? *)
+      resume_transactions context user state; (* TODO: pass the actor as context to that? *)
+      actor
   end
   include PersistentActivity(Base)
-  module Key = Base.Key
-  module State = Base.State
 end
 
 module UserAsyncAction = AsyncAction(UserState)
@@ -318,7 +309,7 @@ let add_ongoing_transaction : (OngoingTransactionStatus.t, TransactionTracker.t)
       (user_state
        |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
        |> Lens.modify UserState.lens_ongoing_transactions
-            (OngoingTransactions.add transaction_counter ()))
+            (RevisionSet.add transaction_counter))
 
 let unlock_account ?(duration=5) address =
   let password = password_of_address address in
@@ -333,7 +324,7 @@ let issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker
 
 let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) UserAsyncAction.arr =
   let open Lwt in
-  fun promise state -> promise >>= fun x -> UserAsyncAction.return x state
+  fun (_, promise) state -> promise >>= fun x -> UserAsyncAction.return x state
 
 let check_transaction_confirmed :
   (FinalTransactionStatus.t, Transaction.t * Confirmation.t) UserAsyncAction.arr

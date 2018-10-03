@@ -4,6 +4,7 @@ open Persisting
 open Signing
 open Types
 open Action
+open Trie
 
 open Ethereum_chain
 open Ethereum_json_rpc
@@ -42,16 +43,10 @@ module TransactionTracker : sig
     include YojsonMarshalableS with type t := t
   end
   include PersistentActivityS
-    with type key = Key.t
+    with type key := Key.t
      and type context = unit
      and type state = TransactionStatus.t
-     and type t = FinalTransactionStatus.t Lwt.t
-end
-
-module OngoingTransactions : sig
-  include Trie.SimpleTrieS with type key = Revision.t and type value = unit
-  val keys : t -> Revision.t list
-  val of_keys : Revision.t list -> t
+     and type t = Key.t * FinalTransactionStatus.t Lwt.t
 end
 
 (** State for the user client.
@@ -62,20 +57,16 @@ module UserState : sig
   type t =
     { address: Address.t
     ; transaction_counter: Revision.t
-    ; ongoing_transactions: OngoingTransactions.t }
+    ; ongoing_transactions: RevisionSet.t }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
 
-module User : sig
-  module Key = Address
-  module State = UserState
-  include PersistentActivityS
-    with type key = Key.t
-     and type context = unit
-     and type state = State.t
-     and type t = State.t SimpleActor.t
-end
+module User : PersistentActivityS
+  with type context = unit
+   and type key = Address.t
+   and type state = UserState.t
+   and type t = UserState.t SimpleActor.t
 
 module UserAsyncAction : AsyncActionS with type state = UserState.t
 
