@@ -14,43 +14,15 @@ open Side_chain
 open Side_chain_user
 open Side_chain_client
 
-(* users *)
-let user_names =
-  [ "Alice"
-  ; "Bob"
-  ; "Charlie"
-  ; "Delores"
-  ; "Edward"
-  ; "Frank"
-  ; "Geraldine"
-  ; "Henrietta"
-  ; "Igor"
-  ; "Jerry"
-  ; "Katherine"
-  ; "Laverne"
-  ; "Michael"
-  ; "Norman"
-  ; "Oscar"
-  ; "Pablo"
-  ; "Quentin"
-  ; "Roxanne"
-  ; "Suzanne"
-  ; "Theodore"
-  ; "Ursula"
-  ; "Vernon"
-  ; "Walter"
-  ; "Xavier"
-  ; "Yolanda"
-  ; "Zander" ]
-
-let account_names = user_names
+(* TODO: use some command line argument to override this ref *)
+(* For larger account, use "demo-keys-big.json" *)
+let key_file_ref = ref (Config.get_config_filename "demo-keys-small.json")
 
 (* register keypairs from disk *)
-(* TODO: use some command line argument instead *)
-let _register_keypairs =
-  "demo-keys-small.json" (* For larger account, use "demo-keys-big.json" *)
-  |> Config.get_config_filename
-  |> register_file_keypairs ~password:""
+let account_names =
+  register_file_keypairs ~password:"" !key_file_ref;
+  nicknames_with_registered_keypair ()
+  |> List.sort compare
 
 (* create local data structures reflecting registered keys *)
 let account_key_list =

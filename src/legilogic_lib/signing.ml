@@ -172,6 +172,8 @@ let unregister_address nickname =
   let address = Hashtbl.find address_by_nickname nickname in
   Hashtbl.remove address_by_nickname nickname;
   Hashtbl.remove nickname_by_address address
+let nickname_of_address_opt address =
+  Hashtbl.find_opt nickname_by_address address
 let nickname_of_address address =
   Hashtbl.find nickname_by_address address
 let address_of_nickname nickname =
@@ -213,6 +215,14 @@ let register_file_keypairs ~password file =
   |> List.iter (fun (name, keypair) ->
     register_keypair name keypair;
     register_password keypair.Keypair.address password)
+
+let addresses_with_registered_keypair () =
+  Hashtbl.fold (fun k _ l -> k :: l) keypair_by_address []
+
+let nicknames_with_registered_keypair () =
+  addresses_with_registered_keypair ()
+  |> List.map (nickname_of_address_opt >> Option.to_list)
+  |> List.flatten
 
 (* convert OCaml string of suitable length (32 only?) to Secp256k1 msg format
    for strings representing hashes, the msg format is suitable for signing.

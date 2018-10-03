@@ -91,11 +91,20 @@ val decode_keypairs : yojson -> (string * keypair) list
     [password]. *)
 val register_file_keypairs : password:string -> string -> unit
 
+(** Return a list of addresses for which we have signing power *)
+val addresses_with_registered_keypair : unit -> address list
+
+(** Return a list of nicknames for addresses for which we have signing power *)
+val nicknames_with_registered_keypair : unit -> string list
+
 (** given an address, find the corresponding keypair in suitable configuration files *)
 val keypair_of_address : address -> keypair
 
 (** given an address, find the corresponding nickname *)
 val nickname_of_address : address -> string
+
+(** given an address, find the corresponding nickname, or None *)
+val nickname_of_address_opt : address -> string option
 
 (** given a nickname, find the corresponding address *)
 val address_of_nickname : string -> address
