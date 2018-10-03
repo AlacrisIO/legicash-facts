@@ -85,19 +85,6 @@ let process_request client_address channels =
              return ()))
     channels
 
-let new_facilitator_state address =
-  let keypair = keypair_of_address address in
-  let fee_schedule = initial_fee_schedule in (* TODO: support different fee schedules *)
-  let current =
-    State.
-      { facilitator_revision= Revision.of_int 0
-      ; spending_limit= TokenAmount.of_int 100000000 (* TODO: start 0 and do facilitator deposit *)
-      ; accounts= AccountMap.empty
-      ; transactions= TransactionMap.empty
-      ; main_chain_transactions_posted= Merkle_trie.DigestSet.empty } in
-  let committed = SignedState.make keypair current in
-  FacilitatorState.{ keypair; committed; current; fee_schedule }
-
 let load_facilitator_state address =
   Logging.log "Loading the side_chain state...";
   Db.check_connection ();
@@ -106,7 +93,7 @@ let load_facilitator_state address =
         (function
           | Facilitator_not_found _ ->
             Logging.log "Side chain not found, generating a new demo side chain";
-            let initial_state = new_facilitator_state address in
+            let initial_state = initial_facilitator_state address in
             let open Lwt in
             FacilitatorState.save initial_state
             >>= Db.commit

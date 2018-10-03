@@ -22,6 +22,8 @@ module FacilitatorState : sig
   val load : Address.t -> t
 end
 
+val initial_facilitator_state : Address.t -> FacilitatorState.t
+
 module FacilitatorAction : ActionS with type state = FacilitatorState.t
 module FacilitatorAsyncAction : AsyncActionS with type state = FacilitatorState.t
 

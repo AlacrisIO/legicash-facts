@@ -560,6 +560,23 @@ let inner_transaction_request_loop =
                  request_batch new_facilitator_state size in
              request_batch facilitator_state 0)
 
+let initial_side_chain_state =
+  State.
+    { facilitator_revision= Revision.of_int 0
+    ; spending_limit= TokenAmount.of_int 0 (* TODO: have a way to ramp it up! *)
+    ; accounts= AccountMap.empty
+    ; transactions= TransactionMap.empty
+    ; main_chain_transactions_posted= DigestSet.empty }
+
+let initial_facilitator_state address =
+  let keypair = keypair_of_address address in
+  FacilitatorState.
+    { keypair
+    ; committed= SignedState.make keypair initial_side_chain_state
+    ; current= initial_side_chain_state
+    ; fee_schedule= initial_fee_schedule }
+
+(* TODO: make it a PersistentActivity ? *)
 let start_facilitator address =
   let open Lwt_exn in
   match !the_facilitator_service_ref with
@@ -576,27 +593,8 @@ let start_facilitator address =
       try
         FacilitatorState.load address
       with Not_found ->
-        (* TODO: move that somewhere else, and fail instead *)
-        let open Side_chain in
-        let confirmed_trent_state =
-          State.
-            { facilitator_revision= Revision.of_int 0
-            ; spending_limit= TokenAmount.of_int 1000000 (* TODO: fix that. *)
-            ; accounts= AccountMap.empty
-            ; transactions= TransactionMap.empty
-            ; main_chain_transactions_posted= Merkle_trie.DigestSet.empty } in
-        let trent_keys =
-          Signing.make_keypair_from_hex
-            "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
-            "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
-        in
-        let trent_genesis_state : FacilitatorState.t =
-          { keypair= trent_keys
-          ; committed= SignedState.make trent_keys confirmed_trent_state
-          ; current= confirmed_trent_state
-          ; fee_schedule= initial_fee_schedule }
-        in
-        trent_genesis_state
+        (* TODO: don't create a new facilitator unless explicitly requested? *)
+        initial_facilitator_state address
     in
     let state_ref = ref facilitator_state in
     the_facilitator_service_ref := Some { address; state_ref };
@@ -610,20 +608,6 @@ module Test = struct
 
   (* a sample facilitator state *)
 
-  let confirmed_trent_state =
-    State.{ facilitator_revision= Revision.of_int 0
-          ; spending_limit= TokenAmount.of_int 1000000 (* TODO: have a way to start at 0 and ramp up *)
-          ; accounts= AccountMap.empty
-          ; transactions= TransactionMap.empty
-          ; main_chain_transactions_posted= DigestSet.empty }
-
-  let trent_state =
-    let open FacilitatorState in
-    { keypair= trent_keys
-    ; committed= SignedState.make trent_keys confirmed_trent_state
-    ; current= confirmed_trent_state
-    ; fee_schedule= initial_fee_schedule }
-
   let%test "db-save-retrieve" =
     (* test whether retrieving a saved facilitator state yields the same state
        here, the account and confirmation maps are empty, so it doesn't really
@@ -635,6 +619,7 @@ module Test = struct
     let open Lwt in
     Db.run ~db_name:"alacris-server"
       (fun () ->
+         let trent_state = initial_facilitator_state trent_address in
          FacilitatorState.save trent_state
          >>= Db.commit
          >>= (fun () ->
