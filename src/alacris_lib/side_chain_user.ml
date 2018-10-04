@@ -115,6 +115,10 @@ module OngoingTransactionStatus = struct
   let request_opt : t -> UserTransactionRequest.t option =
     signed_request_opt >> Option.map (fun x -> x.payload)
   let request = request_opt >> Option.get
+  let status_facilitator = function
+    | DepositWanted (w, _) | DepositPosted (w, _, _) | DepositConfirmed (w, _, _, _) ->
+      w.DepositWanted.facilitator
+    | x -> (request x).rx_header.facilitator
 end
 
 module FinalTransactionStatus = struct
@@ -394,7 +398,7 @@ let add_ongoing_side_chain_transaction :
   (OngoingTransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr =
   fun transaction_status user_state ->
     let user = user_state.address in
-    let facilitator = (transaction_status |> OngoingTransactionStatus.request).rx_header.facilitator in
+    let facilitator = transaction_status |> OngoingTransactionStatus.status_facilitator in
     let revision_lens = (facilitator_lens facilitator |-- UserAccountState.lens_transaction_counter) in
     let revision = revision_lens.get user_state in
     let open Lwter in
@@ -453,24 +457,12 @@ let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
     (fun fee_schedule ->
        let withdrawal_fee = withdrawal_fee_for fee_schedule withdrawal_amount in
        UserOperation.Withdrawal {withdrawal_amount; withdrawal_fee})
-(*
-   let issue_account_transaction_request user facilitator operation =
-   let open Lwt_exn in
-   make_user_transaction_request user facilitator operation
-   >>= add_user_transaction_status
-   >>= add_pending_request
 
-   let remove_user_request facilitator revision user_state =
+(*
+   let remove_ongoing_transaction facilitator revision user_state =
    (facilitator_lens facilitator
    |-- UserAccountState.lens_ongoing_transactions
    |-- RevisionSet.lens revision).set false user_state
-
-   let transaction_status_of_request rx =
-   TransactionStatus.Ongoing (OngoingTransactionStatus.Requested rx)
-
-   let add_pending_request request state =
-   let transaction_status = transaction_status_of_request request in
-   UserAsyncAction.return request (add_user_transaction_status transaction_status state)
 
    let get_first_facilitator_state_option :
    (unit, (Address.t * UserAccountState.t) option) UserAsyncAction.readonly =
@@ -493,57 +485,46 @@ let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
    >>= add_pending_request
 
    (* TODO: is this used? should balances and revisions be updated in effect_request?
-   looks like balances already are
- *)
-   (* let update_account_state_with_trusted_operation
- *       trusted_operation ({balance} as account_state : AccountState.t) =
- *   let f =
- *     {account_state with account_revision= Revision.add account_state.account_revision Revision.one} in
- *   match trusted_operation with
- *   | Operation.Deposit {deposit_amount; deposit_fee=_deposit_fee} ->
- *     if true (\* check that everything is correct *\) then
- *       {f with balance= TokenAmount.add balance deposit_amount}
- *     else bork "I mistrusted your deposit operation"
- *   | Operation.Payment {payment_invoice; payment_fee} ->
- *     let decrement = TokenAmount.add payment_invoice.amount payment_fee in
- *     if TokenAmount.compare balance decrement >= 0 then
- *       {f with balance= TokenAmount.sub balance decrement}
- *     else bork "I mistrusted your payment operation"
- *   | Operation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
- *     if true (\* check that everything is correct *\) then
- *       {f with balance= TokenAmount.sub balance (TokenAmount.add withdrawal_amount withdrawal_fee)}
- *     else bork "I mistrusted your withdrawal operation"
- *
- * (\** We assume most recent operation is to the left of the changes list,
- * *\)
- * let update_account_state_with_trusted_operations trusted_operations account_state =
- *   List.fold_right update_account_state_with_trusted_operation trusted_operations account_state
- *
- * let [@warning "-32"] optimistic_facilitator_account_state facilitator user_state =
- *   match UserAccountStateMap.find_opt facilitator user_state.UserState.facilitators with
- *   | None -> AccountState.empty
- *   | Some {is_facilitator_valid; confirmed_state; pending_operations} ->
- *     match is_facilitator_valid with
- *     | Rejected -> confirmed_state
- *     | _ ->
- *       update_account_state_with_trusted_operations
- *         (List.map (fun x -> x.TransactionStatus.request.payload.operation) pending_operations)
- *         confirmed_state *)
+   looks like balances already are *)
+
+   let update_account_state_with_trusted_operation
+   trusted_operation ({balance} as account_state : AccountState.t) =
+   let f =
+   {account_state with account_revision= Revision.add account_state.account_revision Revision.one} in
+   match trusted_operation with
+   | Operation.Deposit {deposit_amount; deposit_fee=_deposit_fee} ->
+   if true (\* check that everything is correct *\) then
+   {f with balance= TokenAmount.add balance deposit_amount}
+   else bork "I mistrusted your deposit operation"
+   | Operation.Payment {payment_invoice; payment_fee} ->
+   let decrement = TokenAmount.add payment_invoice.amount payment_fee in
+   if TokenAmount.compare balance decrement >= 0 then
+   {f with balance= TokenAmount.sub balance decrement}
+   else bork "I mistrusted your payment operation"
+   | Operation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
+   if true (\* check that everything is correct *\) then
+   {f with balance= TokenAmount.sub balance (TokenAmount.add withdrawal_amount withdrawal_fee)}
+   else bork "I mistrusted your withdrawal operation"
+
+   (** We assume most recent operation is to the left of the changes list, *)
+   let update_account_state_with_trusted_operations trusted_operations account_state =
+   List.fold_right update_account_state_with_trusted_operation trusted_operations account_state
+
+   let [@warning "-32"] optimistic_facilitator_account_state facilitator user_state =
+   match UserAccountStateMap.find_opt facilitator user_state.UserState.facilitators with
+   | None -> AccountState.empty
+   | Some {is_facilitator_valid; confirmed_state; pending_operations} ->
+   match is_facilitator_valid with
+   | Rejected -> confirmed_state
+   | _ ->
+   update_account_state_with_trusted_operations
+   (List.map (fun x -> x.TransactionStatus.request.payload.operation) pending_operations)
+   confirmed_state
 
    let ethereum_action : ('i, 'o) Ethereum_user.UserAsyncAction.arr -> ('i, 'o) UserAsyncAction.arr =
    fun action input user_state ->
    UserAsyncAction.of_lwt_exn
    (Ethereum_user.user_action user_state.UserState.address action) input user_state
-
-   (* TODO: make this asynchronous rather than synchronous by
-   saving the signed transaction from make_deposit before we send it,
-   so we never send two different deposits due to a persistence race with a crash. *)
-   let deposit (facilitator, deposit_amount) =
-   let open UserAsyncAction in
-   of_lwt_exn get_facilitator_fee_schedule facilitator
-   >>= fun {deposit_fee} ->
-   DepositWanted { facilitator; deposit_amount; deposit_fee }
-   |> add_ongoing_side_chain_transaction user facilitator
 
    (* TODO: find the actual gas limit *)
    let withdrawal_gas_limit = TokenAmount.of_int 1000000
@@ -599,80 +580,4 @@ let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
    let add_error_notification = add_notification "error_notification" ErrorNotification.to_yojson
 
    let _notify_error status error = add_error_notification {status;error}
-
-   (** The user_loop is the server that handles the UserState.t, responds to queries about this state,
-   spawns threads for new transactions, and gets in-memory state updates from them. On the other hand,
-   said threads update the database directly with their own key. *)
-   (*
-   let user_loop mailbox address =
-   let open UserEvent in
-   let open Lwt in
-   let keypair = keypair_of_address address in
-   let user_state = UserState.load address in
-   let spawn_transaction_watcher (status : TransactionStatus.t) =
-   match status with
-   | Requested request ->
-   | SignedByFacilitator tc ->
-   bottom ()
-   push_side_chain_withdrawal_to_main_chain
-   xxx in
-   let spawn_transaction_watchers pending_operations =
-   xxx in
-   let spawn_request_watcher request =
-   spawn_transaction_watcher (transaction_status_of_request request)
-   >>= const request in
-   let user_step = function
-   (* TODO: either move get_facilitator_fee_schedule out of the loop by adding an argument to Payment,
-   or make it asynchronous by extending the UserState with the notion of requests that await
-   knowledge of fee_schedule *)
-   | Payment {facilitator: Address.t; recipient: Address.t; amount: TokenAmount.t; memo: string} ->
-   payment (facilitator, recipient, amount, memo)
-   >>= spawn_request_watcher
-   >>= arr TransactionRequest.to_yojson
-   |
-   >>= fun transaction ->
-   (* set timestamp, now that all processing on Trent is done *)
-   payment_timestamp ();
-   (* remaining code is preparing response *)
-   let tx_revision = transaction.tx_header.tx_revision in
-   let sender_name = get_user_name sender in
-   let recipient_name = get_user_name recipient in
-   let sender_account = get_user_account sender in
-   let recipient_account = get_user_account recipient in
-   let make_account_state address name (account : AccountState.t) =
-   { address
-   ; user_name = name
-   ; balance = account.balance
-   ; revision = account.account_revision
-   }
-   in
-   let sender_account = make_account_state sender sender_name sender_account in
-   let recipient_account = make_account_state recipient recipient_name recipient_account in
-   let side_chain_tx_revision = tx_revision in
-   let payment_result =
-   { sender_account
-   ; recipient_account
-   ; amount_transferred = amount
-   ; side_chain_tx_revision
-   }
-   in
-   return (payment_result_to_yojson payment_result)
-
-   | UserTransactionRequest req ->
-   add_pending_request req
-   >>= bork "Gotta return something to the user"
-   in
-   simple_server mailbox user_step user_state
- *)
-
-   let user_table = Hashtbl.create 4
-
-   (*
-   let start_user_loop address =
-   let mailbox = Lwt_mvar.create_empty () in
-   Lwt.async (fun () -> user_loop mailbox address);
-   Hashtbl.replace user_table address mailbox
- *)
-
-   let post_user_event address = simple_client (Hashtbl.find user_table address) identity
 *)
