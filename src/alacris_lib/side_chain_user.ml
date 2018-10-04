@@ -35,7 +35,7 @@ let stub_confirmed_side_chain_state_digest = ref (State.digest Side_chain.State.
 let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
-(* TODO: ACUTALLY IMPLEMENT IT, MAYBE MOVE IT to side_chain.ml ? *)
+(* TODO: ACTUALLY IMPLEMENT IT, MAYBE MOVE IT to side_chain.ml ? *)
 let wait_for_facilitator_state_update revision =
   (*bork "wait_for_facilitator_state_update not implemented yet"; bottom ()*)
   (* THIS IS FAKE NEWS! *)
@@ -483,15 +483,6 @@ let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
    | None -> fail No_facilitator_yet
    | Some (address, _) -> return address)
 
-   let issue_user_transaction_request operation =
-   let open Lwt_exn in
-   get_first_facilitator ()
-   >>= of_lwt_exn
-   >>= make_rx_header
-   >>= fun rx_header -> return UserTransactionRequest.{rx_header; operation}
-   >>= sign_request
-   >>= add_pending_request
-
    (* TODO: is this used? should balances and revisions be updated in effect_request?
    looks like balances already are *)
 
@@ -546,7 +537,8 @@ let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
    (Withdrawal { withdrawal_amount ; withdrawal_fee })
 
 
-   (** We should be signing the RLP, not the marshaling! *)
+   (** Given a withdrawal on the side chain, reflect that on the main chain
+   We should be signing the RLP, not the marshaling! *)
    let make_main_chain_withdrawal_transaction :
    address -> (UserOperation.withdrawal_details, Ethereum_chain.Transaction.t * Ethereum_json_rpc.SignedTransaction.t) Ethereum_user.UserAsyncAction.arr =
    fun facilitator UserOperation.{withdrawal_amount;withdrawal_fee} state ->

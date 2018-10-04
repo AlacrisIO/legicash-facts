@@ -192,14 +192,16 @@ end
 module AdminTransactionRequest = struct
   [@warning "-39"]
   type t =
-    | StateUpdate
+    | StateUpdate of Revision.t * Digest.t
   [@@deriving yojson]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
     let marshaling =
-      { marshal=(fun _buffer _ -> ())
-      ; unmarshal=(fun start _bytes -> StateUpdate, start) }
+      marshaling2
+        (function StateUpdate (r, d) -> r, d)
+        (fun r d -> StateUpdate (r, d))
+        Revision.marshaling Digest.marshaling
   end
   include (TrivialPersistable(P) : PersistableS with type t := t)
 end
