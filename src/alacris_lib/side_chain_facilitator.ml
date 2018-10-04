@@ -621,7 +621,7 @@ module Test = struct
     *)
     register_test_keypairs ();
     let open Lwt in
-    Db.run ~db_name:"alacris-server"
+    Db.run ~db_name:"unit_test_db"
       (fun () ->
          let trent_state = initial_facilitator_state trent_address in
          FacilitatorState.save trent_state

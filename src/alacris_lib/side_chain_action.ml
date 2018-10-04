@@ -84,6 +84,7 @@ module Test = struct
     try
       Lwt_exn.run
         (fun () ->
+           of_lwt Db.open_connection "unit_test_db" >>= fun () ->
            get_prefunded_address () >>= fun prefunded_address ->
            ensure_side_chain_contract_created prefunded_address >>= fun contract_address ->
            Logging.log "Contract address: %s" (Address.to_0x_string contract_address); return ()

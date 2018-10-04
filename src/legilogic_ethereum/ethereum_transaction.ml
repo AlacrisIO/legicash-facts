@@ -203,7 +203,7 @@ module Test = struct
   let%test "transfer-on-Ethereum-testnet" =
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
@@ -221,7 +221,7 @@ module Test = struct
   let%test "create-contract-on-Ethereum-testnet" =
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
@@ -239,7 +239,7 @@ module Test = struct
     let open Ethereum_chain in
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
@@ -278,7 +278,7 @@ module Test = struct
   let%test "compute-transaction-hash" =
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
          let keypair = keypair_of_0x
@@ -322,7 +322,7 @@ module Test = struct
     let open Ethereum_abi in
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          (* code is result of running "solc --bin hello.sol", and prepending "0x" *)
          let code =
@@ -386,7 +386,7 @@ module Test = struct
     let open Ethereum_abi in
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          (* code is result of running "solc --bin facilitator-fallback.sol", and prepending "0x" *)
          let code =
