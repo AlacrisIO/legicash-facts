@@ -35,9 +35,17 @@ let stub_confirmed_side_chain_state_digest = ref (State.digest Side_chain.State.
 let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
-(* TODO: move this to side_chain.ml ? *)
+(* TODO: ACUTALLY IMPLEMENT IT, MAYBE MOVE IT to side_chain.ml ? *)
 let wait_for_facilitator_state_update revision =
-  bottom ()
+  (*bork "wait_for_facilitator_state_update not implemented yet"; bottom ()*)
+  (* THIS IS FAKE NEWS! *)
+  Lwt_exn.return
+    Ethereum_chain.Confirmation.
+      { transaction_hash= Digest.zero
+      ; transaction_index= Revision.zero
+      ; block_number= Revision.zero
+      ; block_hash= Digest.zero }
+
 
 let make_rx_header user facilitator revision =
   Lwt.return RxHeader.
@@ -251,12 +259,12 @@ module TransactionTracker = struct
               | Error error -> invalidate ongoing error)
            | PostedToMainChain (tc, confirmation) ->
              (* Withdrawal that we're going to have to claim *)
-             ignore (tc, confirmation);
-             bottom ()
+             (*bottom ()*)
+             ConfirmedOnMainChain (tc, confirmation) |> continue
            | ConfirmedOnMainChain (tc, confirmation) ->
              (* Confirmed Withdrawal that we're going to have to execute *)
-             ignore (tc, confirmation);
-             bottom ())
+             (*bottom ()*)
+             FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |> finalize)
         | Final x -> return x in
       key, loop state
   end
