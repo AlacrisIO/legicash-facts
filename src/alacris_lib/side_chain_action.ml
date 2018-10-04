@@ -34,37 +34,34 @@ let check_side_chain_contract_created contract_address =
      raise Invalid_contract)
 
 let create_side_chain_contract installer_address =
-  Ethereum_transaction.ensure_private_key
-    (keypair_of_address installer_address, password_of_address installer_address)
-  >>= fun address ->
-  assert (address = installer_address);
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
   Ethereum_user.make_signed_transaction
-    address
+    installer_address
     (Operation.CreateContract Facilitator_contract_binary.contract_bytes)
     TokenAmount.zero
     (TokenAmount.of_int 1000000)
-  >>= Ethereum_user.(user_action address confirm_transaction)
+  >>= Ethereum_user.(user_action installer_address confirm_transaction)
   >>= fun (_tx, confirmation) ->
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
-  >>= arr Option.get
-  >>= fun receipt ->
-  let contract_address = receipt.contract_address |> Option.get in
-  Address.to_0x_string contract_address
-  |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
-  >>= const contract_address
+  >>= function
+  | None -> bork "No tx receipt for contract creation"
+  | Some receipt ->
+    let contract_address = receipt.contract_address |> Option.get in
+    Address.to_0x_string contract_address
+    |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
+    >>= const contract_address
 
 let ensure_side_chain_contract_created installer_address =
   Logging.log "Ensuring the contract is installed...";
   (match Db.get contract_address_key with
    | Some addr ->
-     addr |> Address.of_0x_string |> check_side_chain_contract_created
+     addr |> catching_arr Address.of_0x_string >>= check_side_chain_contract_created
    | None ->
      Logging.log "Not found, creating the contract...";
      create_side_chain_contract installer_address)
   >>= fun contract_address ->
   Facilitator_contract.set_contract_address contract_address;
-  return ()
+  return contract_address
 
 module Test = struct
   open Lib.Test
@@ -81,11 +78,13 @@ module Test = struct
 
   (* deposit, payment and withdrawal test *)
   let%test "deposit_and_payment_and_withdrawal" =
+    Signing.Test.register_test_keypairs ();
     try
       Lwt_exn.run
         (fun () ->
            get_prefunded_address () >>= fun prefunded_address ->
-           ensure_side_chain_contract_created prefunded_address
+           ensure_side_chain_contract_created prefunded_address >>= fun contract_address ->
+           Logging.log "Contract address: %s" (Address.to_0x_string contract_address); return ()
            >>= fund_accounts >>= fun () ->
            let facilitator = trent_address in
            start_facilitator facilitator >>= fun () ->

@@ -1,3 +1,7 @@
 { "host" : "127.0.0.1",
-  "port" : 8095
+  "port" : 8095,
+  "facilitator": {
+      "nickname": "Trent",
+      "address": "0xf47408143d327e4bc6a87ef4a70a4e0af09b9a1c"
+  }
 }

@@ -103,9 +103,9 @@ let get_transaction_hash transaction private_key =
   let encoded_signed_transaction = Ethereum_rlp.encoded_string signed_transaction_rlp in
   digest_of_string encoded_signed_transaction
 
-let ensure_private_key ?(timeout=rpc_timeout) ?(log= !rpc_log) (keypair, password) =
-  (keypair.Keypair.private_key, password)
-  |> trying (Ethereum_json_rpc.personal_import_raw_key ~timeout ~log)
+let ensure_private_key ?timeout ?log (keypair : Keypair.t) =
+  (keypair.private_key, keypair.password)
+  |> trying (Ethereum_json_rpc.personal_import_raw_key ?timeout ?log)
   >>= handling
         (function
           | Rpc_error x as e ->
@@ -113,6 +113,17 @@ let ensure_private_key ?(timeout=rpc_timeout) ?(log= !rpc_log) (keypair, passwor
             then return keypair.address
             else fail e
           | e -> fail e)
+
+let ensure_eth_signing_address ?timeout ?log (*!rpc_log*) address =
+  (try keypair_of_address address |> return
+   with Not_found -> bork "No registered keypair for address %s" (Address.to_0x_string address))
+  >>= ensure_private_key ?timeout ?log
+  >>= fun actual_address ->
+  if actual_address = address then
+    return ()
+  else
+    bork "keypair registered for address %s actually had address %s"
+      (Address.to_0x_string address) (Address.to_0x_string actual_address)
 
 let list_accounts () =
   Ethereum_json_rpc.personal_list_accounts ()
@@ -142,8 +153,11 @@ module Test = struct
          | None ->
            get_first_account ()
            >>= fun address ->
-           register_address "Croesus" address;
-           register_password address "";
+           register_keypair "Croesus"
+             {(keypair_of_0x (* Unrelated keypair, wherein we override the address *)
+                 "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
+                 "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
+                 "") with address};
            prefunded_address := Some address;
            return address)
 
@@ -172,18 +186,15 @@ module Test = struct
 
   (* create accounts, fund them *)
   let ensure_test_account
-        ?(min_balance=TokenAmount.of_int 1000000000) prefunded_address (nickname, keypair) =
-    let address = keypair.Keypair.address in
-    let password = "" in
+        ?(min_balance=TokenAmount.of_string "1000000000000000000") prefunded_address (nickname, keypair) =
     register_keypair nickname keypair;
-    register_password address password;
-    ensure_private_key (keypair, password)
+    ensure_private_key keypair
     >>= ensure_address_prefunded prefunded_address min_balance
 
-  let fund_accounts ?(min_balance=TokenAmount.of_int 1000000000) () =
+  let fund_accounts ?min_balance () =
     get_prefunded_address ()
     >>= fun prefunded_address ->
-    list_iter_s (ensure_test_account ~min_balance prefunded_address)
+    list_iter_s (ensure_test_account ?min_balance prefunded_address)
       [("Alice", alice_keys); ("Bob", bob_keys); ("Trent", trent_keys)]
 
   let%test "poll-for-testnet" =
@@ -272,7 +283,7 @@ module Test = struct
          (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
          let keypair = keypair_of_0x
                          "0xc0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0de"
-                         "0x044643bb6b393ac20a6175c713175734a72517c63d6f73a3ca90a15356f2e967da03d16431441c61ac69aeabb7937d333829d9da50431ff6af38536aa262497b27" in
+                         "0x044643bb6b393ac20a6175c713175734a72517c63d6f73a3ca90a15356f2e967da03d16431441c61ac69aeabb7937d333829d9da50431ff6af38536aa262497b27" "" in
          expect_string "c0de address"
            "0x53ae893e4b22d707943299a8d0c844df0e3d5557"
            (Address.to_0x_string keypair.address);

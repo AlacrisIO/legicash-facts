@@ -16,7 +16,6 @@ open Side_chain
 open Side_chain_facilitator
 
 open Side_chain_client_lib
-open Accounts
 
 let _ = Config.set_application_name "alacris"
 let _ = Logging.set_log_file "logs/alacris-client.log"
@@ -154,13 +153,29 @@ let make_payment_test sender_name sender recipient_name recipient amount=
 (* must be odd to prevent self-payment below; also less-than-or-equal than total number of demo users *)
 let num_users_to_test = 9
 
+let list_take n l =
+  let rec f a = function
+    | (0, _) -> List.rev a
+    | (_, []) -> Lib.bork "list has fewer than %d items" n
+    | (n, h::t) -> f (h::a) (n-1, t) in
+  f [] (n, l)
+
+let accounts =
+  nicknames_with_registered_keypair ()
+  |> List.sort compare
+  |> list_take num_users_to_test
+  |> List.map (fun name -> name, address_of_nickname name)
+  |> Array.of_list
+
+let get_user : int -> string * Address.t = fun ndx -> accounts.(ndx)
+
 let test_deposits () =
   let rec loop ndx =
     if ndx < num_users_to_test then
-      let name,keys = get_user_keys ndx in
-      let amount = 100 + Random.int 5000 in (* nonzero *)
-      Printf.printf "DEPOSIT:  Name: %s; Address: %s; Tokens: %d\n%!" name (Address.to_0x_string keys.address) amount;
-      make_deposit_test name keys.address (TokenAmount.of_int amount)
+      let name, address = get_user ndx in
+      let amount = 200000000000000000 + Random.int 300000000000000000 in (* nonzero *)
+      Printf.printf "DEPOSIT:  Name: %s; Address: %s; Tokens: %d\n%!" name (Address.to_0x_string address) amount;
+      make_deposit_test name address (TokenAmount.of_int amount)
       >>= fun () ->
       loop (ndx + 1)
     else
@@ -171,10 +186,10 @@ let test_deposits () =
 let test_withdrawals () =
   let rec loop ndx =
     if ndx < num_users_to_test then
-      let name,keys = get_user_keys ndx in
-      let amount = 10 + Random.int 90 in (* users have at least this much after deposit *)
-      Printf.printf "WITHDRAWAL:  Name: %s; Address: %s; Tokens: %d\n%!" name (Address.to_0x_string keys.address) amount;
-      make_withdrawal_test name keys.address (TokenAmount.of_int amount)
+      let name, address = get_user ndx in
+      let amount = 1 + Random.int 100000000000000000 in (* users have at least this much after deposit *)
+      Printf.printf "WITHDRAWAL:  Name: %s; Address: %s; Tokens: %d\n%!" name (Address.to_0x_string address) amount;
+      make_withdrawal_test name address (TokenAmount.of_int amount)
       >>= fun () ->
       loop (ndx + 1)
     else
@@ -185,14 +200,14 @@ let test_withdrawals () =
 let test_payments () =
   let rec loop ndx =
     if ndx < num_users_to_test then
-      let sender_name,sender_keys = get_user_keys ndx in
-      let recipient_name,recipient_keys = get_user_keys (num_users_to_test - ndx) in
-      let amount = 1 + Random.int 10 in
+      let sender_name,sender_address = get_user ndx in
+      let recipient_name,recipient_address = get_user (num_users_to_test - ndx) in
+      let amount = 1 + Random.int 100000000000000000 in
       Printf.printf "PAYMENT:  Sender Name: %s; Sender Address: %s; Recipient Name: %s; Recipient Address: %s; Tokens: %d\n%!"
-        sender_name (Address.to_0x_string sender_keys.address)
-        recipient_name (Address.to_0x_string recipient_keys.address)
+        sender_name (Address.to_0x_string sender_address)
+        recipient_name (Address.to_0x_string recipient_address)
         amount;
-      make_payment_test sender_name sender_keys.address recipient_name recipient_keys.address (TokenAmount.of_int amount)
+      make_payment_test sender_name sender_address recipient_name recipient_address (TokenAmount.of_int amount)
       >>= fun () ->
       loop (ndx + 1)
     else
@@ -203,9 +218,9 @@ let test_payments () =
 let test_balances () =
   let rec loop ndx =
     if ndx < num_users_to_test then
-      let name,keys = get_user_keys ndx in
-      Printf.printf "BALANCE:  Name: %s; Address: %s\n%!" name (Address.to_0x_string keys.address);
-      make_balance_test name keys.address
+      let name,address = get_user ndx in
+      Printf.printf "BALANCE:  Name: %s; Address: %s\n%!" name (Address.to_0x_string address);
+      make_balance_test name address
       >>= fun () -> loop (ndx + 1)
     else
       return_unit
@@ -219,9 +234,9 @@ let test_all_balances () =
 let test_statuses () =
   let rec loop ndx =
     if ndx < num_users_to_test then
-      let name,keys = get_user_keys ndx in
-      Printf.printf "STATUS:  Name: %s; Address: %s\n%!" name (Address.to_0x_string keys.address);
-      make_status_test name keys.address
+      let name,address = get_user ndx in
+      Printf.printf "STATUS:  Name: %s; Address: %s\n%!" name (Address.to_0x_string address);
+      make_status_test name address
       >>= fun () -> loop (ndx + 1)
     else
       return_unit
@@ -231,14 +246,14 @@ let test_statuses () =
 let test_recent_transactions ?(limit=None) () =
   let rec loop ndx =
     if ndx < num_users_to_test then
-      let name,keys = get_user_keys ndx in
+      let name,address = get_user ndx in
       (match limit with
        | None ->
-         Printf.printf "RECENT TRANSACTIONS:  Name: %s; Address: %s\n%!" name (Address.to_0x_string keys.address);
-         make_recent_transactions_test name keys.address
+         Printf.printf "RECENT TRANSACTIONS:  Name: %s; Address: %s\n%!" name (Address.to_0x_string address);
+         make_recent_transactions_test name address
        | Some n ->
-         Printf.printf "RECENT TRANSACTIONS WITH LIMIT = %d:  Name: %s; Address: %s\n%!" n name (Address.to_0x_string keys.address);
-         make_recent_transactions_with_limit_test n name keys.address)
+         Printf.printf "RECENT TRANSACTIONS WITH LIMIT = %d:  Name: %s; Address: %s\n%!" n name (Address.to_0x_string address);
+         make_recent_transactions_with_limit_test n name address)
       >>= fun () -> loop (ndx + 1)
     else
       return_unit

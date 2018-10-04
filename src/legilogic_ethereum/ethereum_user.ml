@@ -153,9 +153,9 @@ exception Bad_password
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
     let address = transaction.tx_header.sender in
-    (try return (password_of_address address) with
+    (try return (keypair_of_address address).password with
      | Not_found ->
-       Logging.log "Couldn't find password for %s" (nicknamed_string_of_address address);
+       Logging.log "Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
        fail Missing_password)
     >>= fun password -> personal_sign_transaction (transaction_to_parameters transaction, password)
     >>= fun signed -> return (transaction, signed)
@@ -312,9 +312,9 @@ let add_ongoing_transaction : (OngoingTransactionStatus.t, TransactionTracker.t)
             (RevisionSet.add transaction_counter))
 
 let unlock_account ?(duration=5) address =
-  let password = password_of_address address in
+  catching_arr keypair_of_address address >>= fun keypair ->
   Logging.log "unlock_account %s" (Address.to_0x_string address);
-  Ethereum_json_rpc.personal_unlock_account (address, password, Some duration)
+  Ethereum_json_rpc.personal_unlock_account (address, keypair.password, Some duration)
   >>= function
   | true -> return ()
   | false -> fail Bad_password

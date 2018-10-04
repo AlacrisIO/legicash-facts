@@ -4,7 +4,7 @@
 
 (library
  (name side_chain_client_lib)
- (modules accounts actions)
+ (modules actions)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson lwt_ppx))
  (libraries alacris_lib integers lwt lwt.unix ppx_deriving_yojson.runtime secp256k1 yojson))
 

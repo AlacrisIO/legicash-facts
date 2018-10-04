@@ -21,8 +21,6 @@ open Side_chain
 open Side_chain_client
 open Side_chain_user
 
-open Accounts
-
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
   { side_chain_account_state : AccountState.t
@@ -84,16 +82,6 @@ let apply_main_chain_thread id : yojson =
     | Sleep -> thread_pending_json
   with Not_found ->
     error_json "Thread %d not found" id
-
-let user_state_from_address address_t =
-  try
-    Hashtbl.find address_to_user_state_tbl address_t
-  with Not_found ->
-    Lib.bork "Could not find user state for address: %s" (Address.to_0x_string address_t)
-
-let update_user_state address_t user_state =
-  Hashtbl.replace address_to_user_state_tbl address_t user_state
-
 
 (* operations posted to facilitator *)
 

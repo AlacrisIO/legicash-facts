@@ -9,10 +9,16 @@ open Action
 open Lwt_exn
 open Signing
 
+type facilitator_config =
+  { nickname : string
+  ; address : Address.t
+  } [@@deriving of_yojson]
+
 type side_chain_client_config =
   { host : string
-  ; port : int }
-[@@deriving of_yojson]
+  ; port : int
+  ; facilitator : facilitator_config
+  } [@@deriving of_yojson]
 
 let config =
   lazy
@@ -29,6 +35,9 @@ let sockaddr =
 
 let decode_response unmarshaler =
   unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwter.arr
+
+let facilitator_address =
+  lazy (match config with lazy {facilitator={address}} -> address)
 
 (* queries return JSON *)
 let post_query_request_to_side_chain_ (request : ExternalRequest.t) =

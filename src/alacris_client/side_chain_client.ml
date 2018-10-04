@@ -12,7 +12,6 @@ open Alacris_lib
 open Side_chain
 
 open Side_chain_client_lib
-open Accounts
 open Actions
 
 (* Side_chain also has a Request module *)
@@ -21,7 +20,20 @@ module Request = Scgi.Request
 let _ = Config.set_application_name "alacris"
 let _ = set_log_file "logs/alacris-client.log"
 
-(* TODO: use DepositWanted, WithdrawalWanted, PaymentWanted from side_chain_user, directly *)
+(* TODO: before we got to production, make sure keys at rest are suitably encrypted *)
+let _ =
+  let keys_file_ref = ref ("demo-keys-small.json" |> Config.get_config_filename) in
+  let args = ref [] in
+  Arg.parse_argv Sys.argv
+    [("--keys", Set_string keys_file_ref, "file containing keys to the managed accounts")]
+    (fun x -> args := x :: !args)
+    "side_chain_client.exe";
+  register_file_keypairs !keys_file_ref
+
+(* let account_names = nicknames_with_registered_keypair () |> List.sort compare *)
+
+
+(* TODO: use DepositWanted, WithdrawalWanted, PaymentWanted from side_chain_user, directly ? *)
 type deposit_json =
   { address: Address.t
   ; amount: TokenAmount.t
@@ -237,4 +249,4 @@ let _ =
   let _ = Server.handler_inet address port handle_request in
   (* run forever in Lwt monad *)
   Db.run ~db_name:"alacris-client"
-    Lwt.(prepare_server >>> fun _ -> fst (wait ()))
+    (fun () -> fst (Lwt.wait ()))

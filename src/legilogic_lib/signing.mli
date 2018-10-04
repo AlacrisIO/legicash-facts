@@ -5,6 +5,7 @@ open Marshaling
 open Digesting
 open Persisting
 open Types
+open Action
 
 (** Address identifying a party (user, facilitator).
     Per Ethereum, use the low 160-bits of the Keccak256 digest of the party's public key *)
@@ -28,7 +29,10 @@ type private_key = PrivateKey.t
 (** Pair of public and private keys for Secp256k1 public key cryptography,
     with matching Ethereum address *)
 module Keypair : sig
-  type t = { address: Address.t; public_key: PublicKey.t; private_key: PrivateKey.t }
+  type t = { address: Address.t
+           ; public_key: PublicKey.t
+           ; private_key: PrivateKey.t
+           ; password: string } (* password to use for signing JSON RPC, until we get rid of it. *)
   [@@deriving lens {prefix=true}]
   include YojsonMarshalableS with type t := t
 end
@@ -44,14 +48,11 @@ type 'a signed = {payload: 'a; signature: signature}
 val signed_of_digest : ('a -> digest) -> keypair -> 'a -> 'a signed
 (** Make an ['a signed] record out of the 'a [digest] function, a [keypair] and the 'a payload *)
 
-(** given 0x-string public, private keys, generate Secp256k1 key pair *)
-val keypair_of_0x : string -> string -> keypair
+(** given 0x-string public, private keys, and geth password, generate Secp256k1 key pair *)
+val keypair_of_0x : string -> string -> string -> keypair
 
-(** given hex-string public, private keys, generate Secp256k1 key pair *)
-val make_keypair_from_hex : string -> string -> keypair
-
-(** given hex-string public, private keys, generate Secp256k1 key pair *)
-val make_keypair : string -> string -> keypair
+(** given binary strings for public and private keys, and password, generate Secp256k1 key pair *)
+val make_keypair : string -> string -> string -> keypair
 
 (** given hex-string public key, generate Secp256k1 public key *)
 val make_public_key : string -> public_key
@@ -68,15 +69,6 @@ val register_address : string -> address -> unit
 (** Unregister an address *)
 val unregister_address : string -> unit
 
-val register_password : address -> string -> unit
-(** Register a password to use to unlock that address with Ethereum JSON RPC *)
-
-val unregister_password : address -> unit
-(** Unregister the password used to unlock that address with Ethereum JSON RPC *)
-
-val password_of_address :  address -> string
-(** Get the password registered for use to unlock that address with Ethereum JSON RPC *)
-
 (** Register a keypair under a nickname -- typical usage would be to do that from reading
     a configuration file, or with the notional equivalent of ssh-add. *)
 val register_keypair : string -> keypair -> unit
@@ -86,10 +78,9 @@ val unregister_keypair : string -> unit
 
 val decode_keypairs : yojson -> (string * keypair) list
 
-(** [register_file_keypairs ~password file] registers all the keypairs in
-    [file], stored as a json table mapping name to Keypair.t, with the provided
-    [password]. *)
-val register_file_keypairs : password:string -> string -> unit
+(** [register_file_keypairs file] registers all the keypairs in [file],
+    stored as a json table mapping name to Keypair.t *)
+val register_file_keypairs : string -> unit
 
 (** Return a list of addresses for which we have signing power *)
 val addresses_with_registered_keypair : unit -> address list
@@ -98,13 +89,19 @@ val addresses_with_registered_keypair : unit -> address list
 val nicknames_with_registered_keypair : unit -> string list
 
 (** given an address, find the corresponding keypair in suitable configuration files *)
+val get_keypair_of_address : address -> keypair OrExn.t
+
+(** given an address, find the corresponding keypair in suitable configuration files *)
 val keypair_of_address : address -> keypair
+
+(** given an address, find the corresponding nickname, or Error *)
+val get_nickname_of_address : address -> string OrExn.t
 
 (** given an address, find the corresponding nickname *)
 val nickname_of_address : address -> string
 
-(** given an address, find the corresponding nickname, or None *)
-val nickname_of_address_opt : address -> string option
+(** given a nickname, find the corresponding address *)
+val get_address_of_nickname : string -> address OrExn.t
 
 (** given a nickname, find the corresponding address *)
 val address_of_nickname : string -> address

@@ -26,8 +26,7 @@ let _init_random =
 (** TODO: encrypt the damn file! *)
 type facilitator_keys_config =
   { nickname : string
-  ; keypair : Keypair.t
-  ; password : string }
+  ; keypair : Keypair.t }
 [@@deriving of_yojson]
 
 let facilitator_address =
@@ -36,11 +35,10 @@ let facilitator_address =
   |> Yojsoning.yojson_of_file
   |> facilitator_keys_config_of_yojson
   |> OrString.get
-  |> fun { nickname; keypair; password } ->
+  |> fun { nickname; keypair } ->
   let address = keypair.address in
   Logging.log "Using facilitator keypair %S %s" nickname (Address.to_0x_string address);
   register_keypair nickname keypair;
-  register_password address password;
   address
 
 let config =
@@ -111,9 +109,10 @@ let _ =
        of_lwt Db.open_connection "alacris-server"
        >>= fun () ->
        Side_chain_action.ensure_side_chain_contract_created facilitator_address
-       >>= fun () ->
+       >>= fun contract_address ->
+       assert (contract_address = Facilitator_contract.get_contract_address ());
        Logging.log "Using contract %s"
-         (Address.to_0x_string @@ Facilitator_contract.get_contract_address ());
+         (Address.to_0x_string contract_address);
        load_facilitator_state facilitator_address
        >>= fun _facilitator_state ->
        let%lwt _server = establish_server_with_client_address sockaddr process_request in

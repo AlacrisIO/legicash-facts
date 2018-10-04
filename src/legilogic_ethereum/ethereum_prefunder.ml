@@ -39,7 +39,8 @@ let ensure_prefunded prefunded_address amount string =
     (match nickname with
      | Some name -> register_address name address
      | None -> ());
-    ensure_address_prefunded prefunded_address amount address)
+    ensure_address_prefunded prefunded_address amount address
+    >>= fun () -> Ethereum_transaction.ensure_eth_signing_address address)
 
 let _ =
   parse_argv Sys.argv
@@ -51,6 +52,5 @@ let _ =
   Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/alacris-server")
     (get_prefunded_address
      >>> fun prefunded_address ->
-     register_password prefunded_address "";
      (* TODO: Fix race condition #7 and make sure it works with list_iter_p here and above. *)
      list_iter_p (ensure_prefunded prefunded_address amount) (List.rev !args))
