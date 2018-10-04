@@ -232,7 +232,7 @@ module TransactionTracker = struct
            | Requested request ->
              (* TODO: handle retries *)
              (request
-              |> Side_chain_client.post_user_transaction_request_to_side_chain
+              |> Side_chain_client.post_user_transaction_request
               >>= function
               | Ok tc -> SignedByFacilitator tc |> continue
               | Error error -> invalidate ongoing error)

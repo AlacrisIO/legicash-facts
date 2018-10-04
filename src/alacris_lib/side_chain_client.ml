@@ -33,34 +33,35 @@ let config =
 let sockaddr =
   lazy (match config with lazy {host;port} -> Unix.(ADDR_INET (inet_addr_of_string host, port)))
 
-let decode_response unmarshaler =
-  unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwter.arr
-
 let facilitator_address =
   lazy (match config with lazy {facilitator={address}} -> address)
 
-(* queries return JSON *)
-let post_query_request_to_side_chain_ (request : ExternalRequest.t) =
+let decode_response unmarshaler =
+  unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwter.arr
+
+(* Queries return JSON *)
+let post_query_to_server (request : Query.t) =
   match request with
   | `AdminQuery _
   | `UserQuery _ ->
     with_connection (Lazy.force sockaddr)
       (fun (in_channel,out_channel) ->
-         ExternalRequest.marshal_string request
+         Query.marshal_string request
          |> write_string_to_lwt_io_channel out_channel
          >>= fun () ->
          read_string_from_lwt_io_channel in_channel
          >>= decode_response yojson_marshaling.unmarshal)
-  | _ -> bork "post_query_to_side_chain, not a query"
 
-let post_user_query_request_to_side_chain (request : UserQueryRequest.t) =
-  `UserQuery request |> post_query_request_to_side_chain_
+let post_query_hook = ref post_query_to_server
 
-let post_admin_query_request_to_side_chain (request : AdminQueryRequest.t) =
-  `AdminQuery request |> post_query_request_to_side_chain_
+let post_user_query_request (request : UserQueryRequest.t) =
+  `UserQuery request |> !post_query_hook
 
-(* transactions return Transactions *)
-let post_user_transaction_request_to_side_chain (request : UserTransactionRequest.t signed) =
+let post_admin_query_request (request : AdminQueryRequest.t) =
+  `AdminQuery request |> !post_query_hook
+
+(* Transaction's return TransactionCommitment's *)
+let post_user_transaction_request_to_server (request : UserTransactionRequest.t signed) =
   let (external_request : ExternalRequest.t) = `UserTransaction request in
   with_connection (Lazy.force sockaddr)
     (fun (in_channel, out_channel) ->
@@ -68,3 +69,13 @@ let post_user_transaction_request_to_side_chain (request : UserTransactionReques
        |> write_string_to_lwt_io_channel out_channel
        >>= fun () -> read_string_from_lwt_io_channel in_channel
        >>= decode_response TransactionCommitment.unmarshal)
+
+let post_user_transaction_request_hook = ref post_user_transaction_request_to_server
+
+let post_user_transaction_request request =
+  request |> !post_user_transaction_request_hook
+
+module Test = struct
+  let post_query_hook = post_query_hook
+  let post_user_transaction_request_hook = post_user_transaction_request_hook
+end

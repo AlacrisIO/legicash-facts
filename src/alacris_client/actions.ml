@@ -11,7 +11,6 @@ open Action
 open Lwt_exn
 open Yojsoning
 open Types
-open Signing
 open Json_rpc
 
 open Legilogic_ethereum
@@ -89,31 +88,31 @@ let apply_main_chain_thread id : yojson =
 
 let get_proof tx_revision =
   UserQueryRequest.Get_proof { tx_revision }
-  |> post_user_query_request_to_side_chain
+  |> post_user_query_request
 
 let get_balance_on ~facilitator address =
   ignore facilitator; (* TODO: refactor so it makes sense WTF? *)
   UserQueryRequest.Get_account_balance { address }
-  |> post_user_query_request_to_side_chain
+  |> post_user_query_request
 
 let get_status_on_trent_and_main_chain address =
   UserQueryRequest.Get_account_state { address }
-  |> post_user_query_request_to_side_chain
+  |> post_user_query_request
 
 let get_all_balances_on_trent () =
   UserQueryRequest.Get_account_balances
-  |> post_user_query_request_to_side_chain
+  |> post_user_query_request
 
 let get_recent_user_transactions_on_trent address maybe_limit =
   UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
-  |> post_user_query_request_to_side_chain
+  |> post_user_query_request
 
 (* side-effecting operations *)
 
 (* format deposit and withdrawal result *)
 let make_transaction_result address tx_revision main_chain_confirmation =
   UserQueryRequest.Get_account_state { address }
-  |> post_user_query_request_to_side_chain
+  |> post_user_query_request
   >>= fun account_state_json ->
   (* TODO: JSON to AccountState to JSON, is there a better way *)
   match AccountState.of_yojson (YoJson.member "account_state" account_state_json) with
@@ -178,10 +177,10 @@ let payment_on ~facilitator sender recipient amount memo =
    let transaction = transaction_commitment.transaction in
    let tx_revision = transaction.tx_header.tx_revision in
    UserQueryRequest.Get_account_state { address = sender }
-   |> post_user_query_request_to_side_chain
+   |> post_user_query_request
    >>= fun sender_account_json ->
    UserQueryRequest.Get_account_state { address = recipient }
-   |> post_user_query_request_to_side_chain
+   |> post_user_query_request
    >>= fun recipient_account_json ->
    let maybe_sender_account =
    YoJson.member "account_state" sender_account_json |> AccountState.of_yojson in

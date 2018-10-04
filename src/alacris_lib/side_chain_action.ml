@@ -79,6 +79,8 @@ module Test = struct
   (* deposit, payment and withdrawal test *)
   let%test "deposit_and_payment_and_withdrawal" =
     Signing.Test.register_test_keypairs ();
+    Side_chain_client.Test.post_user_transaction_request_hook :=
+      Side_chain_facilitator.post_user_transaction_request;
     try
       Lwt_exn.run
         (fun () ->
