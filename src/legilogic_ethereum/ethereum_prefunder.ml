@@ -26,7 +26,7 @@ let try_first_match a l =
 
 let ensure_prefunded prefunded_address amount string =
   try_first_match string
-    [ Address.of_0x_string >> pair None >> singleton
+    [ Address.of_0x >> pair None >> singleton
     ; yojson_of_file
       >> (fun x ->
         let nickname = x |> YoJson.member "nickname" |> YoJson.to_string in

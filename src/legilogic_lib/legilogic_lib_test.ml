@@ -11,7 +11,7 @@ let rec range a b =
 let test_base = 1000 * Random.int 1000
 
 let test_commit i =
-  let key = Nat.(add (of_0x_string "0xdeadbeef00000000") (of_int i) |> to_big_endian_bits) in
+  let key = Nat.(add (of_0x "0xdeadbeef00000000") (of_int i) |> to_big_endian_bits) in
   let data = string_of_int (test_base + i) in
   (*Logging.log "Test %d: Putting %s in %s" i (Hex.unparse_0x_data key) (Hex.unparse_0x_data data);*)
   Db.put key data

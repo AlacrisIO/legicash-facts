@@ -53,8 +53,8 @@ module type UIntMoreS = sig
   val to_bits : t -> string
   val of_hex_string : string -> t
   val to_hex_string : t -> string
-  val of_0x_string : string -> t
-  val to_0x_string : t -> string
+  val of_0x : string -> t
+  val to_0x : t -> string
   val of_big_endian_bits : string -> t
   val to_big_endian_bits : t -> string
   val is_add_valid : t -> t -> bool
@@ -177,8 +177,8 @@ module Int = struct
   let max_int = Z.of_int (-1)
   let of_hex_string = nat_of_hex_string
   let to_hex_string = hex_string_of_nat
-  let of_0x_string = parse_0x_quantity
-  let to_0x_string = unparse_0x_quantity
+  let of_0x = parse_0x_quantity
+  let to_0x = unparse_0x_quantity
   let of_big_endian_bits bs = nat_of_big_endian_bits (Pervasives.( * ) 8 (String.length bs)) bs
   let to_big_endian_bits nat = big_endian_bits_of_nat (Z.numbits nat) nat
   (* TODO: Use ethereum-style json everywhere *)
@@ -265,8 +265,8 @@ module UIntZ (P : PreUIntZS) = struct
       (module_name, "of_string", identity)
   let of_hex_string =
     unary_post_op_check of_hex_string check_overflow (module_name, "of_hex_string", identity)
-  let of_0x_string =
-    unary_post_op_check of_0x_string check_overflow (module_name, "of_hex_string", identity)
+  let of_0x =
+    unary_post_op_check of_0x check_overflow (module_name, "of_hex_string", identity)
   let of_int =
     unary_post_op_check of_int check_invariant
       (module_name, "of_int", string_of_int)
@@ -274,7 +274,7 @@ module UIntZ (P : PreUIntZS) = struct
     unary_post_op_check of_int64 check_invariant
       (module_name, "of_int64", Signed.Int64.to_string)
 
-  let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
+  let yojsoning = yojsoning_map to_0x of_0x string_yojsoning
 
   (* Beware: unmarshaling here assumes that assumes size_in_bits is exactly size_in_bytes*8;
      if that's not the case, you must override this value. *)
@@ -292,7 +292,7 @@ end
 (* TODO: check bounds, after every operation, etc. *)
 module UInt256_z = struct
   include UIntZ (struct let size_in_bits = 256 end)
-  let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
+  let yojsoning = yojsoning_map to_0x of_0x string_yojsoning
 end
 
 module UInt256 = UInt256_z
@@ -301,23 +301,23 @@ module Data256 = struct
   include UInt256_z
   let of_hex_string = sized_nat_of_hex_string 256
   let to_hex_string = hex_string_of_sized_nat 256
-  let of_0x_string = parse_0x_prefix of_hex_string
-  let to_0x_string = unparse_0x_prefix to_hex_string
-  let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
+  let of_0x = parse_0x_prefix of_hex_string
+  let to_0x = unparse_0x_prefix to_hex_string
+  let yojsoning = yojsoning_map to_0x of_0x string_yojsoning
 end
 
 module Data160 = struct
   include UIntZ(struct let size_in_bits = 160 end)
   let of_hex_string = sized_nat_of_hex_string 160
   let to_hex_string = hex_string_of_sized_nat 160
-  let of_0x_string = parse_0x_prefix of_hex_string
-  let to_0x_string = unparse_0x_prefix to_hex_string
-  let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
+  let of_0x = parse_0x_prefix of_hex_string
+  let to_0x = unparse_0x_prefix to_hex_string
+  let yojsoning = yojsoning_map to_0x of_0x string_yojsoning
 end
 
 module UInt128 = struct
   include UIntZ (struct let size_in_bits = 128 end)
-  let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
+  let yojsoning = yojsoning_map to_0x of_0x string_yojsoning
 end
 
 module type PreUIntZableS = sig
@@ -348,11 +348,11 @@ module UIntZable (P: PreUIntZableS) = struct
   let to_hex_string = z_of >> Nat.to_hex_string
   let of_big_endian_bits = nat_of_big_endian_bits size_in_bits >> of_z
   let to_big_endian_bits = z_of >> big_endian_bits_of_nat size_in_bits
-  let of_0x_string = Nat.of_0x_string >> of_z
-  let to_0x_string = z_of >> Nat.to_0x_string
+  let of_0x = Nat.of_0x >> of_z
+  let to_0x = z_of >> Nat.to_0x
   let pp formatter x = Format.fprintf formatter "%s" (to_string x)
   let show x = Format.asprintf "%a" pp x
-  let yojsoning = yojsoning_map to_0x_string of_0x_string string_yojsoning
+  let yojsoning = yojsoning_map to_0x of_0x string_yojsoning
   let marshaling = marshaling_sized_string size_in_bytes to_big_endian_bits of_big_endian_bits
   let is_add_carry x y = compare x (lognot y) > 0
   let is_add_valid x y = not (is_add_carry x y)
@@ -490,13 +490,13 @@ module Test = struct
   let%test "0x_string <-> UInt256" =
     List.for_all
       (fun (n, hex) -> let num = UInt256.of_int n in
-        UInt256.to_0x_string num = hex
-        && UInt256.equal num (UInt256.of_0x_string hex))
+        UInt256.to_0x num = hex
+        && UInt256.equal num (UInt256.of_0x hex))
       [(0,"0x0");(1,"0x1");(10,"0xa");(291,"0x123");(61453,"0xf00d");(0xabcde,"0xabcde")]
 
   let%test "UInt256 <> 0x_string errors" =
     List.for_all
-      (fun (hex, err) -> try ignore (UInt256.of_0x_string hex) ; false with
+      (fun (hex, err) -> try ignore (UInt256.of_0x hex) ; false with
            Internal_error x -> x = err)
       [("0x", "Hex quantity has no digits");
        ("0x0400","Hex quantity has leading zero");
@@ -508,7 +508,7 @@ module Test = struct
         QCheck.assume (i >= Int64.zero);
         let our_int = UInt64.of_int64 i in
         let as_hex = "0x" ^ (UInt64.to_hex_string our_int) in
-        UInt64.of_0x_string as_hex = our_int)
+        UInt64.of_0x as_hex = our_int)
 
   let%test "hex parse/unparse is identity" =
     QCheck.Test.check_exn test_inverse_property; true

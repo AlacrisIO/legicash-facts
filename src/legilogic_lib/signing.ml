@@ -169,7 +169,7 @@ let register_address nickname address =
 let get_nickname_of_address address =
   match Hashtbl.find_opt nickname_by_address address with
   | Some x -> Ok x
-  | None -> OrExn.bork "No registered nickname for address %s" (Address.to_0x_string address)
+  | None -> OrExn.bork "No registered nickname for address %s" (Address.to_0x address)
 let nickname_of_address = get_nickname_of_address >> OrExn.get
 let get_address_of_nickname nickname =
   match Hashtbl.find_opt address_by_nickname nickname with
@@ -177,7 +177,7 @@ let get_address_of_nickname nickname =
   | None -> OrExn.bork "No registered nickname %S" nickname
 let address_of_nickname = get_address_of_nickname >> OrExn.get
 let nicknamed_string_of_address address =
-  let s = address |> Address.to_0x_string in
+  let s = address |> Address.to_0x in
   match (get_nickname_of_address address) with
   | Ok nickname -> Printf.sprintf "%s (%s)" s nickname
   | Error _ -> s
@@ -198,7 +198,7 @@ let unregister_keypair nickname =
 let get_keypair_of_address address =
   match Hashtbl.find_opt keypair_by_address address with
   | Some x -> Ok x
-  | None -> OrExn.bork "No registered keypair for address %s" (Address.to_0x_string address)
+  | None -> OrExn.bork "No registered keypair for address %s" (Address.to_0x address)
 let keypair_of_address = get_keypair_of_address >> OrExn.get
 
 let decode_keypairs =
@@ -382,18 +382,18 @@ module Test = struct
 
   (* test that addresses are really last 20 bytes of Keccak256 hash of public keys *)
   let%test "alice_address_from_public_key" =
-    Address.to_0x_string alice_keys.address = "0xc54e86dffb87b9736e2e35dd85c775358f1c31ce"
+    Address.to_0x alice_keys.address = "0xc54e86dffb87b9736e2e35dd85c775358f1c31ce"
 
   let%test "bob_address_from_public_key" =
     expect_string "bob address"
       "0x9ccaed210ce8c0cb49c5ad1c4f583406c264ba69"
-      (Address.to_0x_string bob_address);
+      (Address.to_0x bob_address);
     true
 
   let%test "trent_address_from_public_key" =
     expect_string "trent address"
       "0xf47408143d327e4bc6a87ef4a70a4e0af09b9a1c"
-      (Address.to_0x_string trent_address);
+      (Address.to_0x trent_address);
     true
 
   let%test "trent_of_address" =

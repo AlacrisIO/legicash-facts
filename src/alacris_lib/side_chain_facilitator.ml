@@ -61,7 +61,7 @@ module FacilitatorState = struct
       | Some x -> x
       | None -> raise (Facilitator_not_found
                          (Printf.sprintf "Facilitator %s not found in the database"
-                            (Address.to_0x_string facilitator_address))))
+                            (Address.to_0x facilitator_address))))
     |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
 end
 
@@ -289,7 +289,7 @@ let debit_balance amount account_address =
     (fun state ->
        Insufficient_balance
          (Printf.sprintf "Account %s has insufficient balance %s to debit transaction value %s"
-            (Address.to_0x_string account_address) (TokenAmount.to_string (lens.get state))
+            (Address.to_0x account_address) (TokenAmount.to_string (lens.get state))
             (TokenAmount.to_string amount)))
 
 let accept_fee fee : ('a, 'a) FacilitatorAction.arr =
@@ -349,7 +349,7 @@ let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
       TransactionCommitment.
         { transaction; tx_proof; facilitator_revision; spending_limit;
           accounts; main_chain_transactions_posted; signature }
-    | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x_string revision)
+    | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x revision)
 
 (* Process a user request, with a flag to specify whether it's a forced request
    (published on the main chain), in which case there are no fee amount minima.
@@ -393,12 +393,12 @@ let get_account_balance address (facilitator_state:FacilitatorState.t) =
     `Assoc [("address",Address.to_yojson address)
            ;("account_balance",TokenAmount.to_yojson account_state.balance)]
   with Not_found ->
-    error_json "Could not find balance for address %s" (Address.to_0x_string address)
+    error_json "Could not find balance for address %s" (Address.to_0x address)
 
 
 let get_account_balances (facilitator_state:FacilitatorState.t) =
   let pair_to_yojson ((address, state): (Address.t * AccountState.t)) =
-    Address.to_0x_string address, AccountState.to_yojson state in
+    Address.to_0x address, AccountState.to_yojson state in
   `Assoc (AccountMap.bindings facilitator_state.current.accounts
           |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
           |> List.map pair_to_yojson)
@@ -411,7 +411,7 @@ let get_account_state address (facilitator_state:FacilitatorState.t) =
            ;("account_state",AccountState.to_yojson acct_state)
            ]
   with Not_found ->
-    error_json "Could not find account state for account: %s" (Address.to_0x_string address)
+    error_json "Could not find account state for account: %s" (Address.to_0x address)
 
 let get_account_status address facilitator_state =
   let open Lwt_exn in
@@ -587,11 +587,11 @@ let start_facilitator address =
   | Some x ->
     if Address.equal x.address address then
       (Logging.log "Facilitator service already running for address %s, not starting another one"
-         (Address.to_0x_string address);
+         (Address.to_0x address);
        return ())
     else
       bork "Cannot start a facilitator service for address %s because there's already one for %s"
-        (Address.to_0x_string address) (Address.to_0x_string x.address)
+        (Address.to_0x address) (Address.to_0x x.address)
   | None ->
     let facilitator_state =
       try
@@ -626,8 +626,8 @@ module Test = struct
          let trent_state = initial_facilitator_state trent_address in
          FacilitatorState.save trent_state
          >>= Db.commit
-         >>= (fun () ->
-           let retrieved_state = FacilitatorState.load trent_address in
-           Lwt.return (FacilitatorState.to_yojson_string retrieved_state
-                       = FacilitatorState.to_yojson_string trent_state)))
+         >>= fun () ->
+         let retrieved_state = FacilitatorState.load trent_address in
+         Lwt.return (FacilitatorState.to_yojson_string retrieved_state
+                     = FacilitatorState.to_yojson_string trent_state))
 end

@@ -61,7 +61,7 @@ module BlockParameter = struct
     if s = "latest" then Latest
     else if s = "earliest" then Earliest
     else if s = "pending" then Pending
-    else Block_number (Revision.of_0x_string s)
+    else Block_number (Revision.of_0x s)
   let of_yojson = of_yojson_of_of_yojson_exn of_yojson_exn
   include (YojsonPersistable (struct
              type nonrec t = t

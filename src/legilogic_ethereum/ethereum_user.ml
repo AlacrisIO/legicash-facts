@@ -313,7 +313,7 @@ let add_ongoing_transaction : (OngoingTransactionStatus.t, TransactionTracker.t)
 
 let unlock_account ?(duration=5) address =
   catching_arr keypair_of_address address >>= fun keypair ->
-  Logging.log "unlock_account %s" (Address.to_0x_string address);
+  Logging.log "unlock_account %s" (Address.to_0x address);
   Ethereum_json_rpc.personal_unlock_account (address, keypair.password, Some duration)
   >>= function
   | true -> return ()
