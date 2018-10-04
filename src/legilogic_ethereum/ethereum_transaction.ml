@@ -103,9 +103,9 @@ let get_transaction_hash transaction private_key =
   let encoded_signed_transaction = Ethereum_rlp.encoded_string signed_transaction_rlp in
   digest_of_string encoded_signed_transaction
 
-let ensure_private_key ?(timeout=rpc_timeout) ?(log= !rpc_log) (keypair, password) =
-  (keypair.Keypair.private_key, password)
-  |> trying (Ethereum_json_rpc.personal_import_raw_key ~timeout ~log)
+let ensure_private_key ?timeout ?log (keypair : Keypair.t) =
+  (keypair.private_key, keypair.password)
+  |> trying (Ethereum_json_rpc.personal_import_raw_key ?timeout ?log)
   >>= handling
         (function
           | Rpc_error x as e ->
@@ -113,6 +113,17 @@ let ensure_private_key ?(timeout=rpc_timeout) ?(log= !rpc_log) (keypair, passwor
             then return keypair.address
             else fail e
           | e -> fail e)
+
+let ensure_eth_signing_address ?timeout ?log (*!rpc_log*) address =
+  (try keypair_of_address address |> return
+   with Not_found -> bork "No registered keypair for address %s" (Address.to_0x_string address))
+  >>= ensure_private_key ?timeout ?log
+  >>= fun actual_address ->
+  if actual_address = address then
+    return ()
+  else
+    bork "keypair registered for address %s actually had address %s"
+      (Address.to_0x_string address) (Address.to_0x_string actual_address)
 
 let list_accounts () =
   Ethereum_json_rpc.personal_list_accounts ()
@@ -127,32 +138,32 @@ module Test = struct
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
-  let is_ethereum_net_up () =
-    let max_tries = 10 in
-    let rec poll_net n =
-      if n > max_tries then
-        false
-      else
-        try
-          let _ = get_first_account () in
-          true
-        with Unix.Unix_error(Unix.ECONNREFUSED, "connect", "") -> (
-            Unix.sleep 1;
-            poll_net (n + 1))
-    in
-    poll_net 0
+  let is_ethereum_net_up =
+    retry ~retry_window:0.05 ~max_window:1.0 ~max_retries:(Some 10) eth_block_number
+    >>> const true
 
-  let get_prefunded_address =
-    get_first_account
-    >>> (fun address ->
-      register_address "Croesus" address;
-      register_password address "";
-      return address)
+  let prefunded_address_mutex = Lwt_mutex.create ()
+  let prefunded_address = ref None
+
+  let get_prefunded_address () =
+    Lwt_mutex.with_lock prefunded_address_mutex
+      (fun () ->
+         match !prefunded_address with
+         | Some x -> return x
+         | None ->
+           get_first_account ()
+           >>= fun address ->
+           register_keypair "Croesus"
+             {(keypair_of_0x (* Unrelated keypair, wherein we override the address *)
+                 "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
+                 "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
+                 "") with address};
+           prefunded_address := Some address;
+           return address)
 
   let display_balance display address balance =
     display
-      (Address.to_0x_string address)
-      (try address |> nickname_of_address |> Printf.sprintf " (%s)" with Not_found -> "")
+      (nicknamed_string_of_address address)
       (TokenAmount.to_0x_string balance)
 
   let ensure_address_prefunded prefunded_address amount address =
@@ -161,43 +172,38 @@ module Test = struct
     eth_get_balance (address, BlockParameter.Pending)
     >>= fun balance ->
     if compare balance amount >= 0 then
-      display_balance (printf "Account %s%s contains %s wei.\n") address balance
+      display_balance (printf "Account %s contains %s wei.\n") address balance
     else
       begin
-        display_balance (printf "Account %s%s only contains %s wei. Funding.\n") address balance
+        display_balance (printf "Account %s only contains %s wei. Funding.\n") address balance
         >>= fun () ->
-        Ethereum_user.(user_action prefunded_address
-                         UserAsyncAction.(transfer_tokens >>> confirm_transaction))
-          (address, sub amount balance)
-        >>= fun _ ->
-        eth_get_balance (address, BlockParameter.Pending)
-        >>= fun balance ->
-        display_balance (printf "Account %s%s now contains %s wei.\n") address balance
+        (prefunded_address, address, sub amount balance)
+        |> Ethereum_user.transfer_tokens
+        >>= Ethereum_user.(user_action prefunded_address confirm_transaction)
+        >>= fun _ -> eth_get_balance (address, BlockParameter.Pending)
+        >>= fun balance -> display_balance (printf "Account %s now contains %s wei.\n") address balance
       end
 
   (* create accounts, fund them *)
   let ensure_test_account
-        ?(min_balance=TokenAmount.of_int 1000000000) prefunded_address (nickname, keypair) =
-    let address = keypair.Keypair.address in
-    let password = "" in
+        ?(min_balance=TokenAmount.of_string "1000000000000000000") prefunded_address (nickname, keypair) =
     register_keypair nickname keypair;
-    register_password address password;
-    ensure_private_key (keypair, password)
+    ensure_private_key keypair
     >>= ensure_address_prefunded prefunded_address min_balance
 
-  let fund_accounts ?(min_balance=TokenAmount.of_int 1000000000) () =
+  let fund_accounts ?min_balance () =
     get_prefunded_address ()
     >>= fun prefunded_address ->
-    list_iter_s (ensure_test_account ~min_balance prefunded_address)
+    list_iter_s (ensure_test_account ?min_balance prefunded_address)
       [("Alice", alice_keys); ("Bob", bob_keys); ("Trent", trent_keys)]
 
   let%test "poll-for-testnet" =
-    is_ethereum_net_up () || Lib.bork "Could not connect to Ethereum network"
+    run is_ethereum_net_up () || Lib.bork "Could not connect to Ethereum network"
 
   let%test "transfer-on-Ethereum-testnet" =
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
@@ -205,8 +211,8 @@ module Test = struct
          >>= fun recipient_address ->
          (* we don't check opening balance, which may be too large to parse *)
          let transfer_amount = 22 in
-         Ethereum_user.(user_action sender_address transfer_tokens)
-           (recipient_address, TokenAmount.of_int transfer_amount)
+         (sender_address, recipient_address, TokenAmount.of_int transfer_amount)
+         |> Ethereum_user.transfer_tokens
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash transaction)
@@ -215,14 +221,14 @@ module Test = struct
   let%test "create-contract-on-Ethereum-testnet" =
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CreateContract (Bytes.create 128))
-                             TokenAmount.zero))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CreateContract (Bytes.create 128))
+           TokenAmount.zero
            (TokenAmount.of_int 100000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (tx, {transaction_hash}) ->
@@ -233,7 +239,7 @@ module Test = struct
     let open Ethereum_chain in
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          get_prefunded_address ()
          >>= fun sender_address ->
@@ -256,10 +262,10 @@ module Test = struct
            Operation.CallFunction
              ( Address.of_0x_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
              , Bytes.of_string (Digest.to_big_endian_bits hashed) ) in
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             operation
-                             (TokenAmount.zero)))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           operation
+           TokenAmount.zero
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
@@ -272,12 +278,12 @@ module Test = struct
   let%test "compute-transaction-hash" =
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          (* example from https://medium.com/@codetractio/inside-an-ethereum-transaction-fa94ffca912f *)
          let keypair = keypair_of_0x
                          "0xc0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0de"
-                         "0x044643bb6b393ac20a6175c713175734a72517c63d6f73a3ca90a15356f2e967da03d16431441c61ac69aeabb7937d333829d9da50431ff6af38536aa262497b27" in
+                         "0x044643bb6b393ac20a6175c713175734a72517c63d6f73a3ca90a15356f2e967da03d16431441c61ac69aeabb7937d333829d9da50431ff6af38536aa262497b27" "" in
          expect_string "c0de address"
            "0x53ae893e4b22d707943299a8d0c844df0e3d5557"
            (Address.to_0x_string keypair.address);
@@ -316,7 +322,7 @@ module Test = struct
     let open Ethereum_abi in
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          (* code is result of running "solc --bin hello.sol", and prepending "0x" *)
          let code =
@@ -329,10 +335,10 @@ module Test = struct
          (* a valid contract contains compiled EVM code
             for testing, we just use a buffer with arbitrary contents
          *)
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CreateContract code_bytes)
-                             (TokenAmount.zero)))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CreateContract code_bytes)
+           TokenAmount.zero
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
@@ -345,10 +351,10 @@ module Test = struct
          >>= fun receipt ->
          let contract_address = Option.get receipt.TransactionReceipt.contract_address in
          let call_bytes = encode_function_call {function_name= "printHelloWorld"; parameters= []} in
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CallFunction (contract_address, call_bytes))
-                             TokenAmount.zero))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CallFunction (contract_address, call_bytes))
+           TokenAmount.zero
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->
@@ -380,7 +386,7 @@ module Test = struct
     let open Ethereum_abi in
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "testdb"
+         of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
          (* code is result of running "solc --bin facilitator-fallback.sol", and prepending "0x" *)
          let code =
@@ -390,10 +396,10 @@ module Test = struct
          (* create the contract *)
          get_prefunded_address ()
          >>= fun sender_address ->
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CreateContract code_bytes)
-                             (TokenAmount.zero)))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CreateContract code_bytes)
+           TokenAmount.zero
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
@@ -413,10 +419,10 @@ module Test = struct
          let amount_to_transfer = TokenAmount.of_int 93490 in
          let facilitator_address = Address.of_0x_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
          let call_bytes = Ethereum_util.bytes_of_address facilitator_address in
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CallFunction (contract_address, call_bytes))
-                             amount_to_transfer))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CallFunction (contract_address, call_bytes))
+           amount_to_transfer
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->
@@ -451,10 +457,10 @@ module Test = struct
          assert (ending_balance = amount_to_transfer) ;
          (* now try invalid address, make sure it's not logged *)
          let bogus_address_bytes = parse_0x_bytes "0xFF" in
-         Ethereum_user.(user_action sender_address
-                          (make_signed_transaction
-                             (Operation.CallFunction (contract_address, bogus_address_bytes))
-                             amount_to_transfer))
+         Ethereum_user.make_signed_transaction
+           sender_address
+           (Operation.CallFunction (contract_address, bogus_address_bytes))
+           amount_to_transfer
            (TokenAmount.of_int 1000000)
          >>= Ethereum_user.(user_action sender_address confirm_transaction)
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->

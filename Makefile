@@ -27,7 +27,16 @@ BUILD_DIR:=_build/default
 
 all: build_all
 
-.PHONY: all build_all force legilogic_lib legilogic_ethereum alacris_lib side_chain_server side_chain_client side_chain_client_test run test_side_chain_client ethereum_net install uninstall test toplevel clean reset contract nginx stop_nginx wc
+.PHONY: all build_all force \
+	legilogic_lib legilogic_lib_test test_legilogic_lib \
+	legilogic_ethereum ethereum_prefunder legilogic_ethereum_test test_legilogic_ethereum \
+	contract alacris_lib side_chain_client_lib \
+	side_chain_server side_chain_client side_chain_client_test \
+	install uninstall \
+	toplevel repl test_hello test \
+	run_ethereum_net fund_accounts run_side_chain_server run_side_chain_client nginx \
+	test_side_chain_client \
+	stop_nginx clean reset wc
 
 ML_SOURCES:=$(wildcard src/*.ml src/*.mli src/*/*.ml src/*/*.mli src/dune src/*/dune)
 
@@ -160,12 +169,12 @@ fund_accounts : $(BUILD_DIR)/$(ETHEREUM_PREFUNDER)
 # 3- Run our server
 run_side_chain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
 	$(SHOW) "Running side chain server"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_SERVER)
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
 
 # 4- Run our client
 run_side_chain_client: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT)
 	$(SHOW) "Running side chain client (SCGI server)"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_CLIENT)
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(BUILD_DIR)/$(SIDE_CHAIN_CLIENT)
 
 # 5- Run nginx as a front-end to our client
 nginx:
@@ -174,7 +183,7 @@ nginx:
 # 6- Now you can run our integration tests
 test_side_chain_client : $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
 	$(SHOW) "Testing side_chain_client"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(SIDE_CHAIN_CLIENT_TEST)
+	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
 
 # You don't usually need to stop nginx, but in case you want to:
 stop_nginx:

@@ -2,9 +2,11 @@
 open Legilogic_lib
 open Action
 open Yojsoning
+open Marshaling
 open Signing
 open Persisting
 open Types
+open Trie
 open Merkle_trie
 
 open Legilogic_ethereum
@@ -13,34 +15,84 @@ open Side_chain
 
 module DepositWanted : sig
   type t =
-    { facilitator_address: Address.t
-    ; deposit_amount: TokenAmount.t
-    ; deposit_fee: TokenAmount.t }
+    { facilitator: Address.t
+    ; deposit_amount: TokenAmount.t }
   [@@deriving yojson]
 end
 
+module PaymentWanted : sig
+  type t =
+    { facilitator: Address.t
+    ; recipient: Address.t
+    ; amount: TokenAmount.t
+    ; memo: string
+    ; payment_expedited: bool }
+  [@@deriving yojson]
+end
+
+module WithdrawalWanted : sig
+  type t =
+    { facilitator: Address.t
+    ; withdrawal_amount: TokenAmount.t }
+  [@@deriving yojson]
+end
+
+module OngoingTransactionStatus : sig
+  (* TODO: include a strong reference to the TransactionTracker, so it won't get garbage collected
+     at just the wrong moment; make sure it can properly be persisted. Sigh. *)
+  [@@@warning "-39"]
+  type t =
+    | DepositWanted of DepositWanted.t * TokenAmount.t
+    | DepositPosted of DepositWanted.t * TokenAmount.t * Ethereum_user.TransactionTracker.Key.t
+    | DepositConfirmed of DepositWanted.t * TokenAmount.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
+    | Requested of UserTransactionRequest.t signed
+    | SignedByFacilitator of TransactionCommitment.t
+    | PostedToRegistry of TransactionCommitment.t
+    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+  include PersistableS with type t := t
+  val signed_request_opt : t -> UserTransactionRequest.t signed option
+  val signed_request : t -> UserTransactionRequest.t signed
+  val request_opt : t -> UserTransactionRequest.t option
+  val request : t -> UserTransactionRequest.t
+end
+
+module FinalTransactionStatus : sig
+  type t =
+    | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | Failed of OngoingTransactionStatus.t * exn
+  include PersistableS with type t := t
+  val signed_request_opt : t -> UserTransactionRequest.t signed option
+end
 
 (** side chain operation + knowledge about the operation *)
 module TransactionStatus : sig
   type t =
-    | DepositWanted of DepositWanted.t
-    | DepositPosted of DepositWanted.t * Ethereum_chain.Transaction.t
-    | DepositConfirmed of DepositWanted.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
-    | Requested of UserTransactionRequest.t signed
-    | SignedByFacilitator of TransactionCommitment.t
-    | PostedToRegistry of TransactionCommitment.t
-    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* TODO: define Confirmation.t *)
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | Failed of UserTransactionRequest.t signed * yojson
-
-  val signed_request : t -> UserTransactionRequest.t signed
-  val request : t -> UserTransactionRequest.t
-
-  (* TODO: soft/hard timeouts for next event *)
-
-  [@@deriving lens { prefix=true }]
+    | Ongoing of OngoingTransactionStatus.t
+    | Final of FinalTransactionStatus.t
   include PersistableS with type t := t
+  val signed_request_opt : t -> UserTransactionRequest.t signed option
+  val signed_request : t -> UserTransactionRequest.t signed
+  val request_opt : t -> UserTransactionRequest.t option
+  val request : t -> UserTransactionRequest.t
+end
+
+exception TransactionFailed of OngoingTransactionStatus.t * exn
+
+type revision_generator = (unit, Revision.t) Lwter.arr
+
+module TransactionTracker : sig
+  module Key : sig
+    type t= { user : Address.t; facilitator : Address.t; revision : Revision.t }
+    include YojsonMarshalableS with type t := t
+  end
+  module State = TransactionStatus
+  include PersistentActivityS
+    with type context = revision_generator
+     and type key = Key.t
+     and type state = State.t
+     and type t = Key.t * FinalTransactionStatus.t Lwt.t
+  val wait : FinalTransactionStatus.t Lwt.t -> (TransactionCommitment.t * Ethereum_chain.Confirmation.t) Lwt_exn.t
 end
 
 (** private state a user keeps for his account with a facilitator *)
@@ -52,7 +104,12 @@ module UserAccountState : sig
     (* TODO: replace pending_operations with
        ; transaction_counter : Revision.t
        ; ongoing_transactions : (Revision.t, TransactionStatus.t) Hasbtbl *)
-    ; pending_operations: TransactionStatus.t list }
+    ; side_chain_revision: Revision.t
+    (* The revision for the next on-side-chain operation *)
+    ; transaction_counter: Revision.t
+    (* The revision for the next in-client transaction *)
+    ; ongoing_transactions: RevisionSet.t
+    (* The set of revisions of ongoing in-client transactions *) }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
   (** User's view of the default (empty) state for a new facilitator *)
@@ -113,61 +170,43 @@ module UserState : sig
     ; notifications: (Revision.t * yojson) list }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
-  val load : Address.t -> t
 end
 
-module ErrorNotification : sig
-  type t =
-    { status: TransactionStatus.t
-    ; error: Exception.t }
-  [@@deriving yojson]
-end
-
-module UserEvent : sig
-  [@warning "-39"]
-  type t =
-    | GetState of {from: Revision.t option}
-    | Payment of {facilitator: Address.t; recipient: Address.t; amount: TokenAmount.t; memo: string}
-    | Deposit of {facilitator: Address.t; amount: TokenAmount.t}
-    | Withdrawal of {facilitator: Address.t; amount: TokenAmount.t}
-    | Fail of ErrorNotification.t
-    | Update of TransactionStatus.t
-  [@@deriving yojson]
-end
-
-module UserAction : ActionS with type state = UserState.t
 module UserAsyncAction : AsyncActionS with type state = UserState.t
 
-val issue_user_transaction_request : (UserOperation.t, UserTransactionRequest.t signed) UserAction.arr
+module User : sig
+  val user_actor : Address.t -> UserState.t SimpleActor.t
+  val make_tracker_context : Address.t -> Address.t -> TransactionTracker.context
+  val action : Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr
+  val transaction : Address.t -> ('a, TransactionTracker.t) UserAsyncAction.arr
+    -> ('a, TransactionCommitment.t * Ethereum_chain.Confirmation.t) Lwt_exn.arr
+end
 
-(** Actually do the deposit on the Ethereum_chain *)
-val deposit : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserAsyncAction.arr
+val get_facilitator_fee_schedule : (Address.t, FacilitatorFeeSchedule.t) Lwt_exn.arr
+
+val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
+(** Compute the suitable fee for a payment of given amount *)
+
+val deposit : (DepositWanted.t, TransactionTracker.t) UserAsyncAction.arr
+(** Do the deposit on the Ethereum_chain then on the side-chain;
+    return the revision *)
+
+val withdrawal : (WithdrawalWanted.t, TransactionTracker.t) UserAsyncAction.arr
+(** Build a signed withdrawal request from specification *)
+
+val payment : (PaymentWanted.t, TransactionTracker.t) UserAsyncAction.arr
+(** Build a signed payment request from specification *)
 
 (*
-   (** Notify the facilitator that the deposit was confirmed on the Ethereum_chain and should be acknowledged
-   on the Side_chain. *)
-   val request_deposit : (TokenAmount.t * Ethereum_chain.Confirmation.t, UserRequest.t signed) UserAction.arr
-*)
-
-(* An withdrawal made on the side chain need a corresponding action on the main chain.
+   val push_side_chain_withdrawal_to_main_chain :
+   Address.t -> (Transaction.t, Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t) UserAsyncAction.arr
+   (** An withdrawal made on the side chain need a corresponding action on the main chain.
    Specifically, while deposit and payment side-chain transactions require no follow up
    (deposit does have pre-requisites, though), a withdrawal transaction requires
    action on the main chain after the withdrawal was registered on the side-chain.
    TODO: handle persistence and asynchronous action gracefully.
-*)
-val push_side_chain_withdrawal_to_main_chain :
-  Address.t -> (Transaction.t, Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t) UserAsyncAction.arr
+ *)
 
-(** Build a signed withdrawal request from specification *)
-val withdrawal : (Address.t * TokenAmount.t, UserTransactionRequest.t signed) UserAsyncAction.arr
-
-(** Compute the suitable fee for a payment of given amount *)
-val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
-
-(** Build a signed payment request from specification *)
-val payment : (Address.t * Address.t * TokenAmount.t * string, UserTransactionRequest.t signed) UserAsyncAction.arr
-
-(*
    (** post an account_activity_status request for closing the account on the *main chain*. TBD *)
    val initiate_individual_exit : (unit, Ethereum_chain.Transaction.t) UserAsyncAction.arr
 
@@ -181,9 +220,3 @@ val payment : (Address.t * Address.t * TokenAmount.t * string, UserTransactionRe
 
    val collect_account_liquidation_funds : (unit, Ethereum_chain.Transaction.t) UserAsyncAction.arr
 *)
-
-val get_facilitator_fee_schedule : (unit, FacilitatorFeeSchedule.t) UserAsyncAction.arr
-
-val mark_request_rejected : (UserTransactionRequest.t signed, unit) UserAction.arr
-
-val post_user_event : Address.t -> (UserEvent.t, yojson) Lwt_exn.arr

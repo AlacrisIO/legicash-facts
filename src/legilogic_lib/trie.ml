@@ -7,8 +7,10 @@
 *)
 open Lib
 open Yojsoning
+open Marshaling
+open Persisting
 open Action
-open Integer
+open Types
 
 
 module type TreeSynthS = sig
@@ -906,17 +908,90 @@ module Trie
            end) : YojsonableS with type t := t)
 end
 
-module type SimpleTrieS = sig
-  type key
-  type value
-  module Synth : TrieSynthS with type t = unit and type key = key and type value = value
-  module Type : TrieTypeS with type key = key and type value = value
-  include TrieS
-    with type key := key
-     and type value := value
-     and type 'a wrap = 'a
-  module Wrap : WrapS with type value = trie and type t = t
+module type TrieSetS = sig
+  type elt
+  module T : TrieS with type key = elt and type value = unit
+  include Set.S with type elt := elt and type t = T.t
+  val lens : elt -> (t, bool) Lens.t
+  include PersistableS with type t := t
 end
+
+module TrieSet (Elt : UIntS) (T : TrieS with type key = Elt.t and type value = unit) = struct
+  module T = T
+  type elt = Elt.t
+  type t = T.t
+  let wrap f elt _ = f elt
+  let empty = T.empty
+  let is_empty = T.is_empty
+  let mem elt t = Option.is_some (T.find_opt elt t)
+  let add elt t = T.add elt () t
+  let singleton elt = T.singleton elt ()
+  let remove = T.remove
+  let iter f = T.iter (wrap f)
+  let fold f = T.fold (wrap f)
+  let map _f t = fold add t empty
+  let for_all f = T.for_all (wrap f)
+  let exists f = T.exists (wrap f)
+  let filter f = T.filter (wrap f)
+  let partition f = T.partition (wrap f)
+  let cardinal = T.cardinal
+  let elements t = List.map fst (T.bindings t)
+  let min_elt t = fst (T.min_binding t)
+  let min_elt_opt t = Option.map fst (T.min_binding_opt t)
+  let max_elt t = fst (T.max_binding t)
+  let max_elt_opt t = Option.map fst (T.max_binding_opt t)
+  let choose = min_elt
+  let choose_opt = min_elt_opt
+  let split elt t = match T.split elt t with (a, v, b) -> (a, Option.is_some v, b)
+  let find_opt elt t = if (mem elt t) then Some elt else None
+  let find elt t = Option.get (find_opt elt t)
+  let find_first_opt f t = Option.map fst (T.find_first_opt f t)
+  let find_first f t = Option.get (find_first_opt f t)
+  let find_last_opt f t = Option.map fst (T.find_last_opt f t)
+  let find_last f t = Option.get (find_last_opt f t)
+  let of_list l = List.fold_right add l empty
+
+  (*
+     let to_seq t = Seq.map fst (T.to_seq t)
+     let to_seq_from k t = Seq.map fst (T.to_seq_from k t)
+     let add_seq s t = T.add_seq (Seq.map (fun x -> (x, ())) s) t
+     let of_seq s = add_seq s empty
+  *)
+
+  (* TODO: for union, inter, diff, compare, equal, subset, optimize for full subtries, by keeping cardinality as well as digest as synthetic data ? *)
+  let union a b = T.merge (fun _ _ _ -> Some ()) a b
+  let inter a b = T.merge (fun _ a b -> match (a, b) with Some _, Some _ -> Some () | _ -> None) a b
+  let diff a b = T.merge (fun _ a b -> match (a, b) with Some _, None -> Some () | _ -> None) a b
+
+  let compare_unit_options () () = 0
+
+  let compare a b = T.compare compare_unit_options a b
+  let equal a b = T.equal (fun () () -> true) a b
+
+  let subset a b =
+    let (a, b) = T.ensure_same_height a b in
+    let rec m ~i ~treea ~treeb ~k =
+      if treea == treeb then k () else
+        T.iterate_over_tree_pair
+          ~recursek:m
+          ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~k -> k ())
+          ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~k -> k ())
+          ~leafk:(fun ~i:_ ~valuea:_ ~valueb:_ ~k -> k ())
+          ~onlyak:(fun ~i:_ ~anode:_ ~k:_ -> k ())
+          ~onlybk:(fun ~i:_ ~bnode:_ ~k:_ -> false)
+          ~i ~treea:a ~treeb:b ~k in
+    m ~i:Elt.zero ~treea:a ~treeb:b ~k:(konstant true)
+
+  let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
+
+  include (TrivialPersistable(struct
+             type nonrec t = t
+             let yojsoning = yojsoning_map elements of_list (list_yojsoning Elt.yojsoning)
+             let marshaling = marshaling_map elements of_list (list_marshaling Elt.marshaling)
+           end) : PersistableS with type t := t)
+end
+
+module type SimpleTrieS = TrieS with type 'a wrap = 'a and type synth = unit
 
 module SimpleTrie (Key : UIntS) (Value : YojsonableS) = struct
   module Synth = TrieSynthUnit (Key) (Value)
@@ -924,3 +999,11 @@ module SimpleTrie (Key : UIntS) (Value : YojsonableS) = struct
   module Wrap = IdWrap (Type)
   include Trie (Key) (Value) (Identity) (Synth) (Type) (Wrap)
 end
+
+module SimpleTrieSet (Elt : UIntS) = struct
+  module S = SimpleTrie (Elt) (Unit)
+  include TrieSet (Elt) (S)
+end
+
+module RevisionSet = SimpleTrieSet (Revision)
+

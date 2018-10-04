@@ -108,7 +108,11 @@ end
 (** Merkle tries where the only concern is membership, not tree location. *)
 module type MerkleTrieSetS = sig
   type elt
-  module T : MerkleTrieS with type key = elt and type value = unit
+  module M : MerkleTrieS with type key = elt and type value = unit
+  module T : TrieS
+    with type key = elt and type value = unit
+                        and type synth = M.synth and type 'a wrap = 'a M.wrap
+                                                 and type trie = M.trie and type t = M.t
   include PersistableS with type t = T.t
   include Set.S with type elt := elt and type t := t
   module Proof : MerkleTrieSetProofS

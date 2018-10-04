@@ -1,5 +1,11 @@
 open Lib
 
+(* TODO: a variant Action2, ActionX or Interaction,
+   where all types have an extra parameter: ('a, 'x) t, ('i, 'o, 'x) arr
+   TODO: either become compatible with
+   https://github.com/rgrinberg/ocaml-mtl/blob/master/lib/mtl.mli
+*)
+
 (** 'output or exception *)
 type +'output or_exn = ('output, exn) result
 
@@ -99,6 +105,12 @@ module type MonadS = sig
   include ApplicativeS with type 'a t := 'a t
   include ArrowS with type ('i, 'o) arr = 'i -> 'o t (* Kleisli arrows, a.k.a. monadic function *)
 
+  (** the join operator:
+      join x = x >>= identity
+      x >>= f = join (map f x)
+  *)
+  val join : 'a t t -> 'a t
+
   (** Synonym for [bind]. Composes an ['i t] monad with an ['i -> 'o t] arrow *)
   val (>>=) : 'i t -> ('i -> 'o t) -> 'o t
 
@@ -130,6 +142,9 @@ module type ErrorMonadS = sig
   (** Handling errors from a computation the result of which was previously reified with [trying]
       It is the monadic equivalent of the "with" part of OCaml's "try/with" construct *)
   val handling : (error,'a) arr -> (('a, error) result, 'a) arr
+
+  val (>>=|) : 'a t -> (unit -> 'a t) -> 'a t
+  (** Try the second alternative if the first one fails *)
 end
 
 (** See docstring for ErrorMonadS. Note that here the base type for the monad is
@@ -142,7 +157,7 @@ module ErrorMonad (Error: TypeS) : ErrorMonadS
 (** Signature for an [ErrorMonadS] which catches exceptions and returns them as
     monadic errors, i.e., as values of type [error], which can be recognized as
     such by subsequent [ErrorMonadS]. *)
-module type ExnMonadS = sig
+module type OrExnS = sig
   include ErrorMonadS with type error = exn
 
   val bork : ('a, unit, string, 'b t) format4 -> 'a
@@ -156,10 +171,35 @@ module type ExnMonadS = sig
       presented as monadic errors. Same as arr >> catching *)
 end
 
-(** See docstring for ExnMonadS.  *)
-module ExnMonad : ExnMonadS
-  with type 'a t = 'a or_exn
-   and type ('i, 'o) arr = 'i -> 'o or_exn
+(** See docstring for OrExnS.  *)
+module OrExn : sig
+  include OrExnS
+    with type 'a t = 'a or_exn
+     and type ('i, 'o) arr = 'i -> 'o or_exn
+  val get : 'a t -> 'a (* should it instead be called [run]? *)
+  val of_option : ('i -> 'o option) -> ('i, 'o) arr
+  val of_or_string : ('i -> ('o, string) result) -> ('i, 'o) arr
+end
+
+module OrString : sig
+  include ErrorMonadS
+    with type 'a t = ('a, string) result
+     and type ('i, 'o) arr = 'i -> ('o, string) result
+     and type error = string
+  val get : 'a t -> 'a
+
+  val bork : ('a, unit, string, 'b t) format4 -> 'a
+  (** Internal error *)
+
+  val catching : ('i, 'o) arr -> ('i, 'o) arr
+  (** Run an arrow that may raise exceptions, catch any exception and reify them monadically *)
+
+  val catching_arr : ('i -> 'o) -> ('i, 'o) arr
+  (** Run an OCaml function that may raise exceptions, which are caught and
+      presented as monadic errors. Same as arr >> catching *)
+
+  val of_or_exn : ('i, 'o) OrExn.arr -> ('i, 'o) arr
+end
 
 (** Signature for expression of composable computational effects which have a
     tracked state threaded through them (the [state] variable inherited from
@@ -195,26 +235,34 @@ module StateMonad (State: TypeS) : StateMonadS
    and type 'a t = State.t -> ('a * State.t)
    and type ('i, 'o) readonly = 'i -> State.t -> 'o
 
-(** Translation of Lwt monadic notation to ours, for consistency. *)
-module Lwt : sig
+(** Translation of Lwt monadic notation to ours, for consistency.
+    The name "Lwter" is a a bad pun on "Lwt" and "Later"; it sounds like a kluge,
+    which is exactly what it is:
+    This is not an alternative to Lwt, just a thin layer above,
+    slightly "better" suited for our purposes,
+    yet slightly incompatible (see `Lwt.join` vs `Lwter.join`).
+    It is not meant as an alternative to Lwt, or a rewrite, or anything:
+    it is "an extension of a subset of Lwt", with which it shares a common core,
+    but developed differently.
+*)
+module Lwter : sig
   include MonadS
     with type 'a t = 'a Lwt.t
      and type ('i, 'o) arr = 'i -> 'o Lwt.t
-  type 'a u = 'a Lwt.u
-  include module type of Lwt with type 'a t := 'a t and type 'a u := 'a u
+  val const_unit : (_, unit) arr
 end
 
 module type LwtExnS = sig
-  include ExnMonadS
+  include OrExnS
 
-  val of_exn : ('i, 'o) ExnMonad.arr -> ('i, 'o) arr
-  (** [of_exn a] given a ExnMonad arrow [a] that has no asynchronous effects, returns an arrow *)
+  val of_exn : ('i, 'o) OrExn.arr -> ('i, 'o) arr
+  (** [of_exn a] given a OrExn arrow [a] that has no asynchronous effects, returns an arrow *)
 
-  val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val of_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
   (** [of_lwt a] given a Lwt arrow [a] that doesn't fail returns a Lwt_exn arrow that
       returns its successful result. *)
 
-  val catching_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val catching_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
   (** Catch exceptions in an Lwt arrow. Same as of_lwt >> catching *)
 
   val retry : retry_window:float -> max_window:float -> max_retries:int option
@@ -229,7 +277,7 @@ end
 module Lwt_exn : sig
   include LwtExnS
     with type 'a t = 'a or_exn Lwt.t
-     and type ('i, 'o) arr = ('i, 'o or_exn) Lwt.arr
+     and type ('i, 'o) arr = ('i, 'o or_exn) Lwter.arr
 
   val run_lwt : ('i, 'o) arr -> 'i -> 'o Lwt.t
   (** [run_lwt a x] runs an Lwt_exn arrow [a] on an initial value [x] in an existing Lwt context,
@@ -255,7 +303,7 @@ end
 
 module type StatefulErrableActionS = sig
   include StateMonadS
-  include ExnMonadS
+  include OrExnS
     with type 'a t := 'a t
      and type ('i, 'o) arr := ('i, 'o) arr
 
@@ -269,7 +317,7 @@ module type StatefulErrableActionS = sig
 
   (** run a Lwt_exn computation on a global state ref; at the end, update the state ref
    *then* either return the value (if successful) or raise an exception (if one was caught
-      via the [ExnMonad] machinery.) *)
+      via the [OrExn] machinery.) *)
   val run : state ref -> ('i, 'o) arr -> 'i -> 'o
 end
 
@@ -311,8 +359,10 @@ module type AsyncActionS = sig
   val of_action : ('i -> state -> 'o or_exn * state) -> ('i, 'o) arr
   (** From a [Lwt_exn] arrow to an AsyncAction arrow *)
   val of_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr
+  (** From a notional [Lwt_state] arrow to an AsyncAction arrow *)
+  val of_lwt_state : ('i -> state -> ('o * state) Lwt.t) -> ('i, 'o) arr
   (** From a [Lwt] arrow to an AsyncAction arrow *)
-  val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val of_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
 
   (* val catching_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr *)
 end
@@ -325,7 +375,7 @@ module AsyncAction (State : TypeS) : AsyncActionS
 
 (** Given a mailbox and a way to make messages from a pair of input and output-co-promise, return
     an Lwt Kleisli arrow that goes from input to output *)
-val simple_client : 'msg Lwt_mvar.t -> ('i * 'o Lwt.u -> 'msg) -> ('i, 'o) Lwt.arr
+val simple_client : 'msg Lwt_mvar.t -> ('i * 'o Lwt.u -> 'msg) -> ('i, 'o) Lwter.arr
 
 (** Given a mailbox for messages being a pair of input and output-co-promise,
     and given an AsyncAction arrow for some type of state, and an initial state of that type,
@@ -336,19 +386,19 @@ val simple_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o, 'state) async_action 
     call the asynchronous action in a sequentialized way, and an action that given an initial state
     for the server will create a background server thread to actually process the client requests. *)
 val simple_client_make_server : ('i, 'o, 'state) async_action ->
-  ('i, 'o) Lwt.arr * ('state -> _ Lwt.t)
+  ('i, 'o) Lwter.arr * ('state -> _ Lwt.t)
 
 (** Given a mailbox for messages being a pair of input and output-co-promise,
     and given an Lwt arrow return a background thread that sequentially processes those messages. *)
-val stateless_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt.arr -> _ Lwt.t
+val stateless_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwter.arr -> _ Lwt.t
 
 (** Given an AsyncAction arrow and an initial state,
     return a client Lwt arrow that provides sequentialized access to the action arrow *)
-val sequentialize : ('i, 'o, 'state) async_action -> 'state -> ('i, 'o) Lwt.arr
+val sequentialize : ('i, 'o, 'state) async_action -> 'state -> ('i, 'o) Lwter.arr
 
 (** Given an AsyncAction arrow and an initial state,
     return a client Lwt arrow that provides sequentialized access to the action arrow *)
-val stateless_sequentialize : ('i, 'o) Lwt.arr -> ('i, 'o) Lwt.arr
+val stateless_sequentialize : ('i, 'o) Lwter.arr -> ('i, 'o) Lwter.arr
 
 (*
    (** Given a mailbox for messages being a pair of input and output-co-promise,
@@ -356,12 +406,12 @@ val stateless_sequentialize : ('i, 'o) Lwt.arr -> ('i, 'o) Lwt.arr
    In a given process, you might as well do without a mailbox, but if you have to have a mailbox anyway...
  *)
 
-   val stateless_parallel_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwt.arr -> _ Lwt.t
+   val stateless_parallel_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwter.arr -> _ Lwt.t
 
    (** Given a Lwt arrow, return a client Lwt arrow that does the same thing,
    but going through the bottleneck of a mailbox.
    In a given process, you might as well do without the entire mailbox thing! *)
-   val stateless_parallelize : ('i, 'o) Lwt.arr -> ('i, 'o) Lwt.arr
+   val stateless_parallelize : ('i, 'o) Lwter.arr -> ('i, 'o) Lwter.arr
 
 *)
 
@@ -401,25 +451,56 @@ val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_cha
     Return an Error Unix.Unix_error if the socket failed to be opened. *)
 
 (** Simple actor
-    You [make] an actor by providing an update action (that will, e.g. persist the state
-    as part of some suitable transaction), and an initial state of type 'a.
-    Then you can [modify] the actor by passing a Lwt arrow from 'a to 'a,
-    or run a stateful [action] from 'i to 'o operating on state 'a.
-    You can also [peek] at the last known state of the actor, or run a [peek_action]
-    that operates on the last known state and discards any modifications to it
-    (usually you would want to only run read-only actions).
-    Because peeking is asynchronous, you should only make decisions based on
-    monotonic aspects of the state, or on accumulated statistics about that state over time;
+    You [make] an actor by providing, beside an initial state of type ['state] (at the end),
+    a [with_transaction] wrapper that will persist the state as part of some suitable transaction,
+    either synchronously or asynchronously.
+
+    Note how we follow the Clojure model where the internal actor state is dumb data
+    (so it can be persisted), and the messages are functions, rather than the opposite
+    where the actor contains stateful code and messages are dumb data.
+    Maybe we should further separate things in three: the state as dumb data,
+    the code that processes messages while operating on the state,
+    and the messages as dumb data.
+
+    Then, you can call the [poke] function to modify the actor
+    by passing a [('state, 'state) Lwter.arr] arrow.
+    Or you can call [action] and pass it an [('i, 'o, 'state) async_action] arrow
+    as well as an ['i] input, and it will return an ['o] output after side-effecting
+    but before saving the state.
+
+    You can also [peek] at the last known saved state of the actor, or run a [peek_action]
+    that operates on the last known saved state and discards any modifications to it
+    (usually you would want to only run read-only actions; TODO: implement async_reader).
+    Because the actions are asynchronous, it is possible (though unlikely) that
+    the peeking will see a slightly earlier or later version of the state than is current;
+    therefore, you should only make decisions based on constant or monotonic aspects of the state,
+    or on accumulated statistics that do not have to be overly precise;
     if you want synchronous access to the state, use a regular action.
+
+    See [Persisting.SynchronousPersistentAction] and [Persisting.AsynchronousPersistentAction]
+    for more specific uses of this pattern.
+
+    If you use [SimpleActor] directly instead of through these persistent elaborations,
+    note that the actor won't call the [save] function on the initial state.
+    If you need the initial state you use to create the actor to persist because it's not
+    an empty default state given the context, you need to do that by yourself before you create
+    the actor, or at least before it's first used.
+
     TODO: define and use a Reader, Lwt, Exn monad instead of a State, Lwt, Exn monad for the peek_action.
     TODO: learn monad transformers and the proper order of stacking of those monad transformers.
     TODO: use an existing OCaml monad/monad transformer library.
 *)
+module type SimpleActorS = sig
+  type 'state t
+  val poke : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
+  val action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+  val peek : 'state t -> 'state
+  val peek_action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+end
+
 module SimpleActor : sig
-  type 'a t
-  val make : commit:('a, unit) Lwt.arr -> 'a -> 'a t
-  val modify : 'a t -> ('a, 'a) Lwt.arr -> unit Lwt.t
-  val action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwt.arr
-  val peek : 'a t -> 'a
-  val peek_action : 'a t -> ('i, 'o, 'a) async_action -> ('i, 'o) Lwt.arr
+  include SimpleActorS
+  val make : ?mailbox:(('state, 'state) Lwter.arr Lwt_mvar.t)
+    -> ?with_transaction:(('state, 'state) Lwter.arr -> ('state, 'state) Lwter.arr)
+    -> 'state -> 'state t
 end

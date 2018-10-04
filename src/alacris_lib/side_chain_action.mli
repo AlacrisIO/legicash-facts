@@ -59,7 +59,7 @@ val create_side_chain_contract : Address.t -> Address.t Lwt_exn.t
 (** Given an address for whoever will pay to install it (its keys and password already registered),
     installs the facilitator contract on main chain, enabling the side chain *)
 
-val ensure_side_chain_contract_created : Address.t -> unit Lwt_exn.t
+val ensure_side_chain_contract_created : Address.t -> Address.t Lwt_exn.t
 (** Given an address for whoever will pay to install it (its keys and password already registered),
     ensures that a suitable contract is installed on the main chain,
     enabling corresponding actions on side chain *)

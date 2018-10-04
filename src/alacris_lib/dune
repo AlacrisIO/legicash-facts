@@ -1,11 +1,14 @@
 ;; dune file for Alacris sources
+;; TODO: rename side_chain_* to alacris_*
+;; TODO: make alacris_lib the code common to client and server only (mostly type definitions),
+;; and move client and server code to their respective directories.
 
 (env (dev (flags (:standard -w -39))))  ;; Unused rec flag
 
 (library
  (name alacris_lib)
  (modules
-  facilitator_contract facilitator_contract_binary ethereum_action
+  facilitator_contract facilitator_contract_binary
   side_chain_tag side_chain side_chain_client side_chain_facilitator side_chain_user side_chain_action
 ;  court_registry
   )

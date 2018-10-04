@@ -6,6 +6,9 @@ open Lens.Infix
 open Legilogic_lib
 open Lib
 open Action
+open Yojsoning
+open Marshaling
+open Persisting
 open Signing
 open Types
 open Merkle_trie
@@ -13,6 +16,54 @@ open Merkle_trie
 open Legilogic_ethereum
 
 open Side_chain
+
+exception Facilitator_not_found of string
+
+module FacilitatorState = struct
+  [@warning "-39"]
+  type t = { keypair: Keypair.t
+           ; committed: State.t signed
+           ; current: State.t
+           ; fee_schedule: FacilitatorFeeSchedule.t }
+  [@@deriving lens { prefix=true}, yojson]
+
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling4
+        (fun { keypair; committed; current ; fee_schedule } ->
+           keypair.address, committed, current, fee_schedule)
+        (fun address committed current fee_schedule ->
+           { keypair= keypair_of_address address; committed; current ; fee_schedule })
+        Address.marshaling (signed_marshaling State.marshaling)
+        State.marshaling FacilitatorFeeSchedule.marshaling
+    let walk_dependencies _methods context {committed; current} =
+      let open Lwt in
+      walk_dependency SignedState.dependency_walking context committed
+      >>= fun () -> walk_dependency State.dependency_walking context current
+    let make_persistent = normal_persistent
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (Persistable (PrePersistable) : PersistableS with type t := t)
+  (** TODO: somehow only save the current/committed state and the fee schedule *)
+  let facilitator_state_key facilitator_address =
+    "LCFS0001" ^ (Address.to_big_endian_bits facilitator_address)
+  let save facilitator_state =
+    let open Lwt in
+    save facilitator_state (* <-- use inherited binding *)
+    >>= fun () ->
+    let address = facilitator_state.keypair.address in
+    let key = facilitator_state_key address in
+    Db.put key (Digest.to_big_endian_bits (digest facilitator_state))
+  let load facilitator_address =
+    facilitator_address |> facilitator_state_key |> Db.get
+    |> (function
+      | Some x -> x
+      | None -> raise (Facilitator_not_found
+                         (Printf.sprintf "Facilitator %s not found in the database"
+                            (Address.to_0x_string facilitator_address))))
+    |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
+end
 
 (* TODO:
    divide requests in multiple kinds:
@@ -346,11 +397,11 @@ let get_account_balance address (facilitator_state:FacilitatorState.t) =
 
 
 let get_account_balances (facilitator_state:FacilitatorState.t) =
-  let account_states_json =
-    List.map
-      (fun (_,account_state) -> AccountState.to_yojson account_state)
-      (AccountMap.bindings facilitator_state.current.accounts) in
-  `List account_states_json
+  let pair_to_yojson ((address, state): (Address.t * AccountState.t)) =
+    Address.to_0x_string address, AccountState.to_yojson state in
+  `Assoc (AccountMap.bindings facilitator_state.current.accounts
+          |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
+          |> List.map pair_to_yojson)
 
 let get_account_state address (facilitator_state:FacilitatorState.t) =
   try
@@ -386,7 +437,11 @@ let get_recent_transactions address maybe_limit facilitator_state =
     else
       match transaction.tx_request with
       | `UserTransaction rx ->
-        if rx.payload.rx_header.requester = address then
+        let requester = rx.payload.rx_header.requester in
+        let recipient : address option = match rx.payload.operation with
+          | Payment details -> Some details.payment_invoice.recipient
+          | _ -> None in
+        if ((requester = address) || (recipient = Some address)) then
           k (Revision.(add one count), transaction::transactions)
         else
           k accum
@@ -442,9 +497,9 @@ let batch_timeout_trigger_in_seconds = 0.01
 let batch_size_trigger_in_requests = 1000
 
 let inner_transaction_request_loop =
-  let open Lwt in
+  let open Lwter in
   fun facilitator_state_ref ->
-    return (!facilitator_state_ref, 0, return_unit)
+    return (!facilitator_state_ref, 0, Lwt.return_unit)
     >>= forever
           (fun (facilitator_state, batch_id, previous) ->
              (* The promise sent back to requesters, that they have to wait on
@@ -480,7 +535,7 @@ let inner_transaction_request_loop =
                       (* Start a timeout to trigger flushing, but only after some entry is written *)
                       Lwt.async (fun () -> Lwt_unix.sleep batch_timeout_trigger_in_seconds
                                   >>= fun () -> Lwt.wakeup_later time_trigger ();
-                                  return_unit);
+                                  Lwt.return_unit);
                     request_batch new_facilitator_state new_size)
                | `Flush id ->
                  assert (id = batch_id);
@@ -495,7 +550,7 @@ let inner_transaction_request_loop =
                       >>= fun () ->
                       Lwt_mvar.put inner_transaction_request_mailbox
                         (`Committed (signed_state, notify_batch_committed)));
-                    Side_chain.FacilitatorState.save facilitator_state_to_save
+                    FacilitatorState.save facilitator_state_to_save
                     >>= fun () -> Db.async_commit notify_ready
                     >>= fun () -> Lwt.return (facilitator_state, (batch_id + 1), batch_committed))
                  else
@@ -509,6 +564,23 @@ let inner_transaction_request_loop =
                  request_batch new_facilitator_state size in
              request_batch facilitator_state 0)
 
+let initial_side_chain_state =
+  State.
+    { facilitator_revision= Revision.of_int 0
+    ; spending_limit= TokenAmount.of_int 0 (* TODO: have a way to ramp it up! *)
+    ; accounts= AccountMap.empty
+    ; transactions= TransactionMap.empty
+    ; main_chain_transactions_posted= DigestSet.empty }
+
+let initial_facilitator_state address =
+  let keypair = keypair_of_address address in
+  FacilitatorState.
+    { keypair
+    ; committed= SignedState.make keypair initial_side_chain_state
+    ; current= initial_side_chain_state
+    ; fee_schedule= initial_fee_schedule }
+
+(* TODO: make it a PersistentActivity ? *)
 let start_facilitator address =
   let open Lwt_exn in
   match !the_facilitator_service_ref with
@@ -525,33 +597,8 @@ let start_facilitator address =
       try
         FacilitatorState.load address
       with Not_found ->
-        (* TODO: move that somewhere else, and fail instead *)
-        let open Side_chain in
-        let trent_fee_schedule : FacilitatorFeeSchedule.t =
-          { deposit_fee= TokenAmount.of_int 5
-          ; withdrawal_fee= TokenAmount.of_int 5
-          ; per_account_limit= TokenAmount.of_int 20000
-          ; fee_per_billion= TokenAmount.of_int 42 }
-        in
-        let (confirmed_trent_state : Side_chain.State.t) =
-          { facilitator_revision= Revision.of_int 0
-          ; spending_limit= TokenAmount.of_int 1000000
-          ; accounts= AccountMap.empty
-          ; transactions= TransactionMap.empty
-          ; main_chain_transactions_posted= Merkle_trie.DigestSet.empty }
-        in
-        let trent_keys =
-          Signing.make_keypair_from_hex
-            "b6:fb:0b:7e:61:36:3e:e2:f7:48:16:13:38:f5:69:53:e8:aa:42:64:2e:99:90:ef:f1:7e:7d:e9:aa:89:57:86"
-            "04:26:bd:98:85:f2:c9:e2:3d:18:c3:02:5d:a7:0e:71:a4:f7:ce:23:71:24:35:28:82:ea:fb:d1:cb:b1:e9:74:2c:4f:e3:84:7c:e1:a5:6a:0d:19:df:7a:7d:38:5a:21:34:be:05:20:8b:5d:1c:cc:5d:01:5f:5e:9a:3b:a0:d7:df"
-        in
-        let trent_genesis_state : FacilitatorState.t =
-          { keypair= trent_keys
-          ; committed= SignedState.make trent_keys confirmed_trent_state
-          ; current= confirmed_trent_state
-          ; fee_schedule= trent_fee_schedule }
-        in
-        trent_genesis_state
+        (* TODO: don't create a new facilitator unless explicitly requested? *)
+        initial_facilitator_state address
     in
     let state_ref = ref facilitator_state in
     the_facilitator_service_ref := Some { address; state_ref };
@@ -559,5 +606,28 @@ let start_facilitator address =
     Lwt_exn.return ()
 
 module Test = struct
+  open Signing.Test
+
   let get_facilitator_state = get_facilitator_state
+
+  (* a sample facilitator state *)
+
+  let%test "db-save-retrieve" =
+    (* test whether retrieving a saved facilitator state yields the same state
+       here, the account and confirmation maps are empty, so it doesn't really
+       exercise the node-by-node persistence machinery
+       in Side_chain_action.Test, the "deposit_and_payment_valid" test does
+       a save and retrieval with nonempty such maps
+    *)
+    register_test_keypairs ();
+    let open Lwt in
+    Db.run ~db_name:"unit_test_db"
+      (fun () ->
+         let trent_state = initial_facilitator_state trent_address in
+         FacilitatorState.save trent_state
+         >>= Db.commit
+         >>= (fun () ->
+           let retrieved_state = FacilitatorState.load trent_address in
+           Lwt.return (FacilitatorState.to_yojson_string retrieved_state
+                       = FacilitatorState.to_yojson_string trent_state)))
 end

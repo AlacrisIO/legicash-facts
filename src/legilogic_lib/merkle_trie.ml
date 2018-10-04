@@ -184,8 +184,14 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
   module Trie = Trie (Key) (Value) (DigestValueType) (Synth) (Type) (Wrap)
   include Trie
   include (Type.T : PersistableS with type t := t)
+
+  (* Override the bottom yojsoning from Type *)
+  let yojsoning = Trie.yojsoning
   let to_yojson = Trie.to_yojson
   let of_yojson = Trie.of_yojson
+  let of_yojson_exn = Trie.of_yojson_exn
+  let to_yojson_string = Trie.to_yojson_string
+  let of_yojson_string_exn = Trie.of_yojson_string_exn
 
   let check_invariant t =
     check_invariant t &&
@@ -353,7 +359,11 @@ end
 
 module type MerkleTrieSetS = sig
   type elt
-  module T : MerkleTrieS with type key = elt and type value = unit
+  module M : MerkleTrieS with type key = elt and type value = unit
+  module T : TrieS
+    with type key = elt and type value = unit
+                        and type synth = M.synth and type 'a wrap = 'a M.wrap
+                                                 and type trie = M.trie and type t = M.t
   include PersistableS with type t = T.t
   include Set.S with type elt := elt and type t := t
   module Proof : MerkleTrieSetProofS
@@ -363,64 +373,18 @@ module type MerkleTrieSetS = sig
 end
 
 module MerkleTrieSet (Elt : UIntS) = struct
-  type elt = Elt.t
-  module T = MerkleTrie (Elt) (Unit)
-  include (T : PersistableS with type t = T.t)
+  module M = MerkleTrie (Elt) (Unit)
+  include TrieSet (Elt) (M)
+  include (M : PersistableS with type t := t)
 
-  let wrap f elt _ = f elt
+  let trie_digest = M.trie_digest
 
-  let trie_digest = T.trie_digest
-
-  let empty = T.empty
-  let is_empty = T.is_empty
-  let mem elt t = Option.is_some (T.find_opt elt t)
-  let add elt t = T.add elt () t
-  let singleton elt = T.singleton elt ()
-  let remove = T.remove
-  let iter f = T.iter (wrap f)
-  let fold f = T.fold (wrap f)
-  let map _f t = fold add t empty
-  let for_all f = T.for_all (wrap f)
-  let exists f = T.exists (wrap f)
-  let filter f = T.filter (wrap f)
-  let partition f = T.partition (wrap f)
-  let cardinal = T.cardinal
-  let elements t = List.map fst (T.bindings t)
-  let min_elt t = fst (T.min_binding t)
-  let min_elt_opt t = Option.map fst (T.min_binding_opt t)
-  let max_elt t = fst (T.max_binding t)
-  let max_elt_opt t = Option.map fst (T.max_binding_opt t)
-  let choose = min_elt
-  let choose_opt = min_elt_opt
-  let split elt t = match T.split elt t with (a, v, b) -> (a, Option.is_some v, b)
-  let find_opt elt t = if (mem elt t) then Some elt else None
-  let find elt t = Option.get (find_opt elt t)
-  let find_first_opt f t = Option.map fst (T.find_first_opt f t)
-  let find_first f t = Option.get (find_first_opt f t)
-  let find_last_opt f t = Option.map fst (T.find_last_opt f t)
-  let find_last f t = Option.get (find_last_opt f t)
-  let of_list l = List.fold_right add l empty
-  (*
-     let to_seq t = Seq.map fst (T.to_seq t)
-     let to_seq_from k t = Seq.map fst (T.to_seq_from k t)
-     let add_seq s t = T.add_seq (Seq.map (fun x -> (x, ())) s) t
-     let of_seq s = add_seq s empty
-  *)
-
-  (* TODO: for union, inter, diff, compare, equal, subset, optimize for full subtries, by keeping cardinality as well as digest as synthetic data ? *)
-  let union a b = T.merge (fun _ _ _ -> Some ()) a b
-  let inter a b = T.merge (fun _ a b -> match (a, b) with Some _, Some _ -> Some () | _ -> None) a b
-  let diff a b = T.merge (fun _ a b -> match (a, b) with Some _, None -> Some () | _ -> None) a b
-
-  let compare_unit_options () () = 0
-
-  let compare a b = T.compare compare_unit_options a b
-  let equal a b = (trie_digest a) = (trie_digest b)
+  let equal a b = a == b || (trie_digest a) = (trie_digest b)
 
   let subset a b =
     let (a, b) = T.ensure_same_height a b in
-    let rec m ~i ~treea ~treeb:_ ~k =
-      if (trie_digest treea) = (trie_digest treea) then k () else
+    let rec m ~i ~treea ~treeb ~k =
+      if (equal treea treeb) then k () else
         T.iterate_over_tree_pair
           ~recursek:m
           ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~k -> k ())
@@ -431,8 +395,6 @@ module MerkleTrieSet (Elt : UIntS) = struct
           ~i ~treea:a ~treeb:b ~k in
     m ~i:Elt.zero ~treea:a ~treeb:b ~k:(konstant true)
 
-  let lens k = Lens.{get= mem k; set= (fun b -> if b then add k else remove k)}
-
   module Proof = struct
     type nonrec elt = elt
     type mts = t
@@ -441,21 +403,21 @@ module MerkleTrieSet (Elt : UIntS) = struct
              ; trie : Digest.t
              ; steps : (Digest.t step) list }
     let get elt t =
-      Option.map (fun T.Proof.{key; trie; steps} -> {elt=key; trie; steps}) (T.Proof.get elt t)
+      Option.map (fun M.Proof.{key; trie; steps} -> {elt=key; trie; steps}) (M.Proof.get elt t)
     let check {elt; trie; steps} t l =
-      T.Proof.check {key=elt; trie; leaf=T.SynthMerkle.leaf (); steps} t l ()
+      M.Proof.check {key=elt; trie; leaf=M.SynthMerkle.leaf (); steps} t l ()
     include (Yojsonable(struct
                type nonrec t = t
                let to_yojson {elt; trie; steps} =
                  `Assoc
                    [ ("elt", Elt.to_yojson elt)
                    ; ("trie", Digest.to_yojson trie)
-                   ; ("steps", `List (List.map (T.step_to_yojson Digest.to_yojson) steps)) ]
+                   ; ("steps", `List (List.map (M.step_to_yojson Digest.to_yojson) steps)) ]
                let of_yojson_exn yojson =
                  { elt = yojson |> YoJson.member "elt" |> Elt.of_yojson_exn
                  ; trie = yojson |> YoJson.member "trie" |> Digest.of_yojson_exn
                  ; steps = yojson |> YoJson.member "steps" |> YoJson.to_list |>
-                           List.map (T.step_of_yojson_exn Digest.of_yojson_exn) }
+                           List.map (M.step_of_yojson_exn Digest.of_yojson_exn) }
                let of_yojson = of_yojson_of_of_yojson_exn of_yojson_exn
                let yojsoning = {to_yojson;of_yojson}
              end) : YojsonableS with type t := t)

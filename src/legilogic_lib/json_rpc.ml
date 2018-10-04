@@ -52,10 +52,22 @@ let rpc_timeout = 10.0
 
 let rpc_log = ref true
 
+let exn_to_yojson = function
+  | Rpc_error e -> error_to_yojson e
+  | e -> `String (Printexc.to_string e)
+
+let exn_of_yojson yo =
+  let open OrString in
+  (error_of_yojson yo >>| fun e -> Rpc_error e)
+  >>=| fun () ->
+  match yo with
+  | `String s -> Ok (Internal_error s)
+  | _ -> Error (Printf.sprintf "bad exn json: %s" (string_of_yojson yo))
+
 let parse_error e =
   Rpc_error {code= -32700;
              message="An error occurred on the server while parsing the JSON text.";
-             data=`String (Printexc.to_string e)}
+             data=exn_to_yojson e}
 let invalid_request request =
   Rpc_error {code= -32600;
              message="The JSON sent is not a valid Request object.";
@@ -99,10 +111,10 @@ let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
     >>= handling malformed_response
     >>= fun response_json ->
     response_json
-    |> trying (catching_arr (result_response_of_yojson >> ResultOrString.get))
+    |> trying (catching_arr (result_response_of_yojson >> OrString.get))
     >>= handling (fun _ ->
       response_json
-      |> trying (catching_arr (error_response_of_yojson >> ResultOrString.get))
+      |> trying (catching_arr (error_response_of_yojson >> OrString.get))
       >>= handling malformed_response
       >>= fun {jsonrpc;error;id} -> checking jsonrpc error id
       >>= fun e -> fail (Rpc_error e))
@@ -154,7 +166,7 @@ module Test = struct
   let%test "decode result" =
     Lwt_main.run
       (decode_response YoJson.to_int (`Int 42) "{\"jsonrpc\":\"2.0\",\"result\":1776,\"id\":42}")
-    |> ResultOrExn.get |> (=) 1776
+    |> OrExn.get |> (=) 1776
 
   let%test "decode error 1" =
     Lwt_main.run

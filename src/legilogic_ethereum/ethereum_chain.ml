@@ -127,6 +127,16 @@ module Operation = struct
            end) : (PersistableS with type t := t))
 end
 
+module PreTransaction = struct
+  [@warning "-39"]
+  type t = {operation: Operation.t; value: TokenAmount.t; gas_limit: TokenAmount.t}
+  [@@deriving yojson]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : PersistableS with type t := t)
+end
+
 (* TODO: use whichever way is used to compute on-chain hashes for marshaling.
    Is that RLP? Find out! *)
 (** Transaction (to be) posted to the main chain (i.e. Ethereum) *)
@@ -138,6 +148,8 @@ module Transaction = struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : PersistableS with type t := t)
+  let pre_transaction {tx_header={value;gas_limit}; operation} =
+    PreTransaction.{operation;value;gas_limit}
 end
 
 module TransactionDigestSet = DigestSet

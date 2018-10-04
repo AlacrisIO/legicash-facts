@@ -1,7 +1,7 @@
 (** Persisting Data *)
-open Lwt.Infix
-
 open Lib
+open Action
+open Lwter
 open Yojsoning
 open Marshaling
 open Digesting
@@ -46,6 +46,7 @@ let db_value_of_digest unmarshal_string digest =
   digest |> db_string_of_digest |> unmarshal_string
 
 (** TODO: have a version that computes the digest from the marshal_string *)
+(** Have both content- and intent- addressed storage in the same framework *)
 let saving_walker methods context x =
   methods.make_persistent
     (fun x ->
@@ -113,3 +114,62 @@ module YojsonPersistable (J: PreYojsonableS) = struct
   let marshal_string = MJ.marshal_string
 end
 
+let persistent_actor_no_default_state key_prefix to_yojson_string _context key =
+  Lib.bork "Failed to load key %s %s: Not_found" key_prefix (to_yojson_string key)
+
+module type PersistentActivityBaseS = sig
+  type context
+  module Key : YojsonMarshalableS
+  val key_prefix : string
+  module State : PersistableS
+  val make_default_state : context -> Key.t -> State.t
+  type t
+  val make_activity : context -> Key.t -> (State.t, State.t) Lwter.arr -> State.t -> t
+end
+module type PersistentActivityS = sig
+  type context
+  type key
+  type state
+  type t
+  val make : context -> key -> ((state, state) Lwter.arr -> state Lwt.t) -> t Lwt.t
+  val get : context -> key -> t
+end
+module PersistentActivity (Base: PersistentActivityBaseS) = struct
+  include Base
+  type key = Key.t
+  type state = State.t
+  type activity = t
+  open Lwter
+  let table = Hashtbl.create 8 (* TODO: make it a weak reference table with Weak.create *)
+  let db_key key = key_prefix ^ (Key.marshal_string key)
+  let saving (db_key : string) (state : state) : state Lwt.t =
+    State.walk_dependencies State.dependency_walking saving_context state >>= fun () ->
+    State.marshal_string state |> Db.put db_key >>= const state
+  let resume (context: context) (key : key) (current_state: state) : activity =
+    (*Logging.log "RESUME prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string initial_state);*)
+    (match Hashtbl.find_opt table key with
+     | None -> ()
+     | Some _ -> Lib.bork "object with key ~s ~s already resumed!" key_prefix (Key.to_yojson_string key));
+    let activity = make_activity context key (saving (db_key key)) current_state in
+    Hashtbl.replace table key activity;
+    activity
+  let make context key init =
+    (*Logging.log "MAKE prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
+    let db_key = db_key key in
+    match Db.get db_key with
+    | Some _ -> Lib.bork "object with key %s %s already created!" key_prefix (Key.to_yojson_string key)
+    | None -> init (saving db_key) >>= fun state -> return (resume context key state)
+  let get context key =
+    (*Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
+    let db_key = db_key key in
+    match Hashtbl.find_opt table key with
+    | Some x -> x
+    | None ->
+      let state =
+        match Db.get db_key with
+        | Some s -> (try State.unmarshal_string s with
+            e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"
+                   key_prefix (Key.to_yojson_string key) (Hex.unparse_0x_data s) (Printexc.to_string e))
+        | None -> make_default_state context key in
+      resume context key state
+end

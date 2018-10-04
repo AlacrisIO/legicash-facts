@@ -1,4 +1,5 @@
 open Lib
+open Action
 open Hex
 open Yojsoning
 open Marshaling
@@ -461,7 +462,7 @@ module Test = struct
       && t "of_string >> to_int " "42" (U.of_string >> U.to_int >> string_of_int) "42"
       && t "of_int >> to_yojson >> of_yojson >> to_int"
            42 (U.of_int >> U.yojsoning.to_yojson >> U.yojsoning.of_yojson
-               >> ResultOrString.get >> U.to_string) "42"
+               >> OrString.get >> U.to_string) "42"
   end
   module MoreUIntTests (U : UIntS) = struct
     include SimpleUIntTests (U)
@@ -504,10 +505,10 @@ module Test = struct
   let test_inverse_property =
     QCheck.Test.make ~count:10000 ~name:"hex_parse_unparse_is_identity"
       QCheck.int64 (fun i ->
-          QCheck.assume (i >= Int64.zero);
-          let our_int = UInt64.of_int64 i in
-          let as_hex = "0x" ^ (UInt64.to_hex_string our_int) in
-          UInt64.of_0x_string as_hex = our_int)
+        QCheck.assume (i >= Int64.zero);
+        let our_int = UInt64.of_int64 i in
+        let as_hex = "0x" ^ (UInt64.to_hex_string our_int) in
+        UInt64.of_0x_string as_hex = our_int)
 
   let%test "hex parse/unparse is identity" =
     QCheck.Test.check_exn test_inverse_property; true

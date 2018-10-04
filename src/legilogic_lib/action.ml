@@ -40,11 +40,13 @@ module type MonadS = sig
   include MonadBaseS
   include ApplicativeS with type 'a t := 'a t
   include ArrowS with type ('i, 'o) arr = 'i -> 'o t
+  val join : 'a t t -> 'a t
   val (>>=) : 'a t -> ('a, 'b) arr -> 'b t
   val (>>|) : 'a t -> ('a -> 'b) -> 'b t
 end
 module Monad (M : MonadBaseS) = struct
   include M
+  let join x = bind x identity
   let (>>=) = bind
   let map f m = bind m (f >> return)
   let (<$>) = map
@@ -74,6 +76,7 @@ module type ErrorMonadS = sig
   val fail : error -> _ t
   val trying : ('i,'o) arr -> ('i, ('o, error) result) arr
   val handling : (error,'a) arr -> (('a, error) result, 'a) arr
+  val (>>=|) : 'a t -> (unit -> 'a t) -> 'a t
 end
 
 module ErrorMonad (Error: TypeS) = struct
@@ -94,20 +97,48 @@ module ErrorMonad (Error: TypeS) = struct
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let (>>=|) x f = match x with Ok v -> return v | Error _ -> f ()
 end
 
-module type ExnMonadS = sig
+module type OrExnS = sig
   include ErrorMonadS with type error = exn
   val bork : ('a, unit, string, 'b t) format4 -> 'a
   val catching : ('i, 'o) arr -> ('i, 'o) arr
   val catching_arr : ('i -> 'o) -> ('i, 'o) arr
 end
 
-module ExnMonad = struct
+module OrExn = struct
   include ErrorMonad(struct type t = exn end)
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let catching a i = try a i with e -> Error e
   let catching_arr a i = try Ok (a i) with e -> Error e
+  let (>>=|) x f = match x with Ok _ -> x | Error _ -> f ()
+  let get = function
+    | Ok x -> x
+    | Error e -> raise e
+  let of_option f x =
+    match (f x) with
+    | Some r -> Ok r
+    | None -> Error Not_found
+  let of_or_string f x =
+    match f x with
+    | Ok x -> Ok x
+    | Error e -> Error (Internal_error e)
+end
+
+module OrString = struct
+  include ErrorMonad(struct type t = string end)
+  let bork fmt = Printf.ksprintf fail fmt
+  let catching a i = try a i with e -> Error (Printexc.to_string e)
+  let catching_arr a = catching (arr a)
+  let (>>=|) x f = match x with Ok _ -> x | Error _ -> f ()
+  let get = function
+    | Ok x -> x
+    | Error e -> raise (Internal_error e)
+  let of_or_exn f x =
+    match f x with
+    | Ok x -> Ok x
+    | Error e -> Error (Printexc.to_string e)
 end
 
 module type StateMonadS = sig
@@ -134,21 +165,20 @@ module StateMonad (State: TypeS) = struct
   let map_state f x s = (x, f s)
 end
 
-module Lwt = struct
-  include Lwt
+module Lwter = struct
   include (Monad(struct
              type +'a t = 'a Lwt.t
              let return = Lwt.return
              let bind = Lwt.bind
-           end) : MonadS with type 'a t := 'a t)
-  let map = Lwt.map
+           end))
+  let const_unit _ = Lwt.return_unit
 end
 
 module type LwtExnS = sig
-  include ExnMonadS
-  val of_exn : ('a, 'b) ExnMonad.arr -> ('a, 'b) arr
+  include OrExnS
+  val of_exn : ('a, 'b) OrExn.arr -> ('a, 'b) arr
   val of_lwt : ('a -> 'b Lwt.t) -> ('a, 'b) arr
-  val catching_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val catching_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
   val retry : retry_window:float -> max_window:float -> max_retries:int option
     -> ('i, 'o) arr -> ('i, 'o) arr
 end
@@ -162,7 +192,7 @@ module Lwt_exn = struct
       let bind m a = Lwt.bind m (function Ok x -> a x | Error e -> fail e)
     end)
   let run_lwt mf x =
-    Lwt.bind (mf x) (ResultOrExn.get >> Lwt.return)
+    Lwt.bind (mf x) (OrExn.get >> Lwt.return)
   let run mf x = run_lwt mf x |> Lwt_main.run
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let catching f x = try f x with e -> fail e
@@ -172,6 +202,7 @@ module Lwt_exn = struct
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let (>>=|) x f = Lwt.bind x (function Ok v -> return v | Error _ -> f ())
   let of_exn a x = a x |> Lwt.return
   let of_lwt a x = Lwt.bind (a x) return
   let list_iter_s f = of_lwt (Lwt_list.iter_s (run_lwt f))
@@ -201,7 +232,7 @@ end
 
 module type StatefulErrableActionS = sig
   include StateMonadS
-  include ExnMonadS
+  include OrExnS
     with type 'a t := 'a t
      and type ('i, 'o) arr := ('i, 'o) arr
   val assert_: (unit -> string) -> ('i, bool) readonly -> ('i, 'i) arr
@@ -234,7 +265,7 @@ module Action (State : TypeS) = struct
   let of_readonly p x s = return (p x s) s
   let assert_ where test value state =
     (if test value state then Ok value else Error (Assertion_failed (where ()))), state
-  let run r mf x = match (mf x !r) with (roe, s) -> r := s ; ResultOrExn.get roe
+  let run r mf x = match (mf x !r) with (roe, s) -> r := s ; OrExn.get roe
   let to_async a x s = a x s |> Lwt.return
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let catching f x s = try f x s with e -> fail e s
@@ -243,6 +274,7 @@ module Action (State : TypeS) = struct
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let (>>=|) x f s = match x s with (Ok _, _) as x' -> x' | (Error _, s') -> f () s'
 end
 
 module type AsyncActionS = sig
@@ -260,7 +292,8 @@ module type AsyncActionS = sig
   val run_lwt : state ref -> ('i, 'o) arr -> 'i -> 'o Lwt.t
   val of_action : ('i -> state -> 'o or_exn * state) -> ('i, 'o) arr
   val of_lwt_exn : ('i, 'o) Lwt_exn.arr -> ('i, 'o) arr
-  val of_lwt : ('i, 'o) Lwt.arr -> ('i, 'o) arr
+  val of_lwt_state : ('i -> state -> ('o * state) Lwt.t) -> ('i, 'o) arr
+  val of_lwt : ('i, 'o) Lwter.arr -> ('i, 'o) arr
 end
 module AsyncAction (State : TypeS) = struct
   type state = State.t
@@ -282,12 +315,13 @@ module AsyncAction (State : TypeS) = struct
   let run_lwt_exn r mf x = (* TODO: switch run_lwt and run_lwt_exn ? *)
     Lwt.bind (mf x !r) (fun (roe, s) -> r := s ; Lwt.return roe)
   let run_lwt r mf x =
-    Lwt.bind (mf x !r) (fun (roe, s) -> r := s ; ResultOrExn.get roe |> Lwt.return)
+    Lwt.bind (mf x !r) (fun (roe, s) -> r := s ; OrExn.get roe |> Lwt.return)
   let run r mf x = run_lwt r mf x |> Lwt_main.run
   type ('i, 'o) readonly = 'i -> state -> 'o
   let of_readonly p x s = return (p x s) s
   let of_action a x s = a x s |> Lwt.return
   let of_lwt_exn a x s = Lwt.bind (a x) (fun r -> Lwt.return (r, s))
+  let of_lwt_state a x s = Lwt.bind (a x s) (fun (r, s) -> return r s)
   let of_lwt a x s = Lwt.bind (a x) (fun r -> return r s)
   let of_exn a x s = a x |> function Ok r -> return r s | Error e -> fail e s
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
@@ -298,6 +332,7 @@ module AsyncAction (State : TypeS) = struct
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
+  let (>>=|) x f s = Lwt.bind (x s) (function (Ok v, s') -> return v s' | (Error _, s') -> f () s')
   let rec retry ~retry_window ~max_window ~max_retries action input s =
     let open Lwt in
     action input s
@@ -325,7 +360,7 @@ let simple_client mailbox make_message =
     >>= fun () -> promise
 
 let simple_server mailbox processor =
-  let open Lwt in
+  let open Lwter in
   forever
     (fun state ->
        Lwt_mvar.take mailbox
@@ -346,7 +381,7 @@ let sequentialize processor state =
   client
 
 let stateless_server mailbox processor =
-  let open Lwt in
+  let open Lwter in
   () |>
   forever
     (fun () ->
@@ -407,6 +442,7 @@ let write_string_to_lwt_io_channel out_channel s =
   >>= fun () -> Lwt_stream.of_string s |> catching_lwt (write_chars out_channel)
   >>= fun () -> catching_lwt flush out_channel (* flushing is critical *)
 
+(* TODO: some kind of try ... finally to always close the channels *)
 let with_connection sockaddr f =
   let open Lwt_exn in
   catching_lwt Lwt_io.open_connection sockaddr
@@ -437,40 +473,45 @@ module AsyncStream = struct
   let cons hd tl = Lwt.return @@ Cons {hd ; tl}
 end
 
+module type SimpleActorS = sig
+  type 'state t
+  val poke : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
+  val action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+  val peek : 'state t -> 'state
+  val peek_action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+end
+
+(* TODO: "just" use a Lwt_mvar for the state itself rather than to post the functions?
+   TODO: have both peek and async_peek ?
+*)
 module SimpleActor = struct
-  open Lwt
-  type 'a t =
-    { get : unit -> 'a
-    ; update : ('a, 'a) Lwt.arr
-    ; mailbox : ('a, 'a) Lwt.arr Lwt_mvar.t }
-  let make ~commit initial_state =
+  open Lwter
+  type 'state t =
+    { state_ref : 'state ref
+    ; mailbox : ('state, 'state) Lwter.arr Lwt_mvar.t }
+  let make ?(mailbox=Lwt_mvar.create_empty ()) ?(with_transaction=identity) initial_state =
     let state_ref = ref initial_state in
-    let mailbox = Lwt_mvar.create_empty () in
-    let get () = !state_ref in
     Lwt.async (fun () ->
-      Lwt.forever
-        (fun state ->
-           Lwt_mvar.take mailbox
-           >>= (|>) state)
-        initial_state);
-    let update state = commit state >>= (fun () -> state_ref := state; return state) in
-    { get ; update ; mailbox }
-  let peek actor = actor.get ()
-  let modify actor f = Lwt_mvar.put actor.mailbox (f >>> actor.update)
+      initial_state
+      |> forever
+           (fun state ->
+              Lwt_mvar.take mailbox >>= fun transform ->
+              with_transaction transform state
+              >>= fun new_state ->
+              state_ref := new_state;
+              return new_state));
+    { state_ref ; mailbox }
+  let peek actor = !(actor.state_ref)
+  let poke actor transform = Lwt_mvar.put actor.mailbox transform
   let action actor f i =
-    let (promise, copromise) = Lwt.task () in
-    Lwt_mvar.put actor.mailbox
-      (fun state ->
-         f i state
-         >>= fun (output, new_state) ->
-         actor.update new_state
-         >>= fun _ ->
-         Lwt.wakeup_later copromise output;
-         return new_state)
+    let (promise, notify) = Lwt.task () in
+    poke actor
+      (f i >>> fun (o, s) ->
+       Lwt.wakeup_later notify o;
+       return s)
     >>= fun () -> promise
   let peek_action actor f i =
-    let state = actor.get () in
-    f i state >>= (fst >> return)
+    peek actor |> f i >>= (fst >> return) (* TODO: use async_reader then remove fst *)
 end
 
 module Test = struct

@@ -76,43 +76,27 @@ let rec list_foldlk f a l k = match l with
   | h::t -> f a h (fun r -> list_foldlk f r t k)
 
 module Result = struct
+  type ('ok, 'error) t = ('ok, 'error) result
   let return x = Ok x
-
+  let fail e = Error e
   let bind mx fm = match mx with
     | Ok x -> fm x
     | Error e -> Error e
-
   let map f = function
     | Ok x -> Ok (f x)
     | Error e -> Error e
-
   let map_error f = function
     | Ok x -> Ok x
     | Error e -> Error (f e)
-
   let rec list_map f = function
     | [] -> Ok []
     | x::t -> match f x with
       | Ok y -> map (fun r -> y :: r) (list_map f t)
       | Error e -> Error e
-
   let get = function
     | Ok x -> x
     | Error _ -> raise Not_found
 end
-
-module ResultOrExn = struct
-  let get = function
-    | Ok x -> x
-    | Error e -> raise e
-end
-
-module ResultOrString = struct
-  let get = function
-    | Ok x -> x
-    | Error e -> bork "%s" e
-end
-
 
 module type TypeS = sig
   type t
@@ -259,8 +243,21 @@ let read_file path =
 let ignoring_errors default f x =
   try f x with _ -> default
 
+let memoize ?(table=Hashtbl.create 8) f =
+  fun i ->
+    match Hashtbl.find_opt table i with
+    | Some o -> o
+    | None -> f i |> fun o -> Hashtbl.replace table i o; o
+
+let bindings_of_hashtbl h =
+  Hashtbl.fold (fun k v l -> (k, v)::l) h []
+
 module Test = struct
-  let expect_string description expected computed =
+  let expect_equal description to_string expected computed =
     if not (computed = expected) then
-      bork "Expected %s to be %s but instead got %s instead" description expected computed
+      bork "Expected %s to be %s but instead got %s instead"
+        description (to_string expected) (to_string computed)
+
+  let expect_string description expected computed =
+    expect_equal description identity expected computed
 end

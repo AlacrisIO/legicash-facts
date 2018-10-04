@@ -440,52 +440,6 @@ module FacilitatorFeeSchedule = struct
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
-exception Facilitator_not_found of string
-
-module FacilitatorState = struct
-  [@warning "-39"]
-  type t = { keypair: Keypair.t
-           ; committed: State.t signed
-           ; current: State.t
-           ; fee_schedule: FacilitatorFeeSchedule.t }
-  [@@deriving lens { prefix=true}, yojson]
-
-  module PrePersistable = struct
-    type nonrec t = t
-    let marshaling =
-      marshaling4
-        (fun { keypair; committed; current ; fee_schedule } ->
-           keypair.address, committed, current, fee_schedule)
-        (fun address committed current fee_schedule ->
-           { keypair= keypair_of_address address; committed; current ; fee_schedule })
-        Address.marshaling (signed_marshaling State.marshaling)
-        State.marshaling FacilitatorFeeSchedule.marshaling
-    let walk_dependencies _methods context {committed; current} =
-      walk_dependency SignedState.dependency_walking context committed
-      >>= fun () -> walk_dependency State.dependency_walking context current
-    let make_persistent = normal_persistent
-    let yojsoning = {to_yojson;of_yojson}
-  end
-  include (Persistable (PrePersistable) : PersistableS with type t := t)
-  (** TODO: somehow only save the current/committed state and the fee schedule *)
-  let facilitator_state_key facilitator_address =
-    "LCFS0001" ^ (Address.to_big_endian_bits facilitator_address)
-  let save facilitator_state =
-    save facilitator_state (* <-- use inherited binding *)
-    >>= fun () ->
-    let address = facilitator_state.keypair.address in
-    let key = facilitator_state_key address in
-    Db.put key (Digest.to_big_endian_bits (digest facilitator_state))
-  let load facilitator_address =
-    facilitator_address |> facilitator_state_key |> Db.get
-    |> (function
-      | Some x -> x
-      | None -> raise (Facilitator_not_found
-                         (Printf.sprintf "Facilitator %s not found in the database"
-                            (Address.to_0x_string facilitator_address))))
-    |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
-end
-
 module TransactionCommitment = struct
   [@warning "-39"]
   type t =
@@ -554,47 +508,12 @@ module SignaturePrefix = struct
   let state_update = Address.of_hex_string "7E91CA540000000057A7E009DA7E000000000001"
 end
 
-module Test = struct
+(* 1 ether = 1e18 wei = 242 USD (as of 2018-09-23), with gas price of ~4.1 gwei *)
+let initial_fee_schedule =
+  FacilitatorFeeSchedule.
+    { deposit_fee= TokenAmount.of_string "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
+    ; withdrawal_fee= TokenAmount.of_string "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
+    ; per_account_limit= TokenAmount.of_string "10000000000000000000" (* 1e19 wei = 10 ether ~= 2420 USD *)
+    ; fee_per_billion= TokenAmount.of_string "1000000" } (* 1e6/1e9 = 1e-3 = .1% *)
 
-  open Signing.Test
 
-  (* a sample facilitator state *)
-
-  let trent_fee_schedule =
-    FacilitatorFeeSchedule.
-      { deposit_fee= TokenAmount.of_int 5
-      ; withdrawal_fee= TokenAmount.of_int 5
-      ; per_account_limit= TokenAmount.of_int 20000
-      ; fee_per_billion= TokenAmount.of_int 42 }
-
-  let confirmed_trent_state =
-    State.{ facilitator_revision= Revision.of_int 0
-          ; spending_limit= TokenAmount.of_int 1000000
-          ; accounts= AccountMap.empty
-          ; transactions= TransactionMap.empty
-          ; main_chain_transactions_posted= DigestSet.empty }
-
-  let trent_state =
-    let open FacilitatorState in
-    { keypair= trent_keys
-    ; committed= SignedState.make trent_keys confirmed_trent_state
-    ; current= confirmed_trent_state
-    ; fee_schedule= trent_fee_schedule }
-
-  let%test "db-save-retrieve" =
-    (* test whether retrieving a saved facilitator state yields the same state
-       here, the account and confirmation maps are empty, so it doesn't really
-       exercise the node-by-node persistence machinery
-       in Side_chain_action.Test, the "deposit_and_payment_valid" test does
-       a save and retrieval with nonempty such maps
-    *)
-    register_test_keypairs ();
-    Db.run ~db_name:"alacris-server"
-      (fun () ->
-         FacilitatorState.save trent_state
-         >>= Db.commit
-         >>= (fun () ->
-           let retrieved_state = FacilitatorState.load trent_address in
-           Lwt.return (FacilitatorState.to_yojson_string retrieved_state
-                       = FacilitatorState.to_yojson_string trent_state)))
-end

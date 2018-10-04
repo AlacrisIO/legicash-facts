@@ -6,6 +6,7 @@ open Tag
 open Digesting
 open Persisting
 open Types
+open Action
 
 module Address = struct
   include Data160
@@ -111,18 +112,18 @@ module Keypair = struct
   type t =
     { address: Address.t
     ; public_key: PublicKey.t
-    ; private_key: PrivateKey.t }
+    ; private_key: PrivateKey.t
+    ; password: string }
   [@@deriving lens {prefix=true}, yojson]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
     let marshaling =
       marshaling_tagged Tag.keypair
-        (marshaling2
-           (fun {public_key; private_key} -> public_key, private_key)
-           (fun public_key private_key ->
-              {address=address_of_public_key public_key; public_key; private_key})
-           PublicKey.marshaling PrivateKey.marshaling)
+        (marshaling4
+           (fun {address; public_key; private_key; password} -> address, public_key, private_key, password)
+           (fun address public_key private_key password -> {address; public_key; private_key; password})
+           Address.marshaling PublicKey.marshaling PrivateKey.marshaling String1G.marshaling)
   end
   include (YojsonMarshalable(P) : YojsonMarshalableS with type t := t)
 end
@@ -150,17 +151,14 @@ let make_private_key private_key_string =
 type 'a signed = {payload: 'a; signature: signature}
 
 
-let make_keypair private_key_string public_key_string =
+let make_keypair private_key_string public_key_string password =
   let public_key = make_public_key public_key_string in
   let private_key = make_private_key private_key_string in
   let address = address_of_public_key public_key in
-  Keypair.{address; public_key; private_key}
+  Keypair.{address; public_key; private_key; password}
 
-let keypair_of_0x private_key_0x public_key_0x =
-  make_keypair (parse_0x_data private_key_0x) (parse_0x_data public_key_0x)
-
-let make_keypair_from_hex private_key_hex public_key_hex =
-  make_keypair (parse_coloned_hex_string private_key_hex) (parse_coloned_hex_string public_key_hex)
+let keypair_of_0x private_key_0x public_key_0x password =
+  make_keypair (parse_0x_data private_key_0x) (parse_0x_data public_key_0x) password
 
 (* TODO: handle collisions, exceptions *)
 let address_by_nickname = Hashtbl.create 8
@@ -168,22 +166,25 @@ let nickname_by_address = Hashtbl.create 8
 let register_address nickname address =
   Hashtbl.replace nickname_by_address address nickname;
   Hashtbl.replace address_by_nickname nickname address
+let get_nickname_of_address address =
+  match Hashtbl.find_opt nickname_by_address address with
+  | Some x -> Ok x
+  | None -> OrExn.bork "No registered nickname for address %s" (Address.to_0x_string address)
+let nickname_of_address = get_nickname_of_address >> OrExn.get
+let get_address_of_nickname nickname =
+  match Hashtbl.find_opt address_by_nickname nickname with
+  | Some x -> Ok x
+  | None -> OrExn.bork "No registered nickname %S" nickname
+let address_of_nickname = get_address_of_nickname >> OrExn.get
+let nicknamed_string_of_address address =
+  let s = address |> Address.to_0x_string in
+  match (get_nickname_of_address address) with
+  | Ok nickname -> Printf.sprintf "%s (%s)" s nickname
+  | Error _ -> s
 let unregister_address nickname =
-  let address = Hashtbl.find address_by_nickname nickname in
+  let address = address_of_nickname nickname in
   Hashtbl.remove address_by_nickname nickname;
   Hashtbl.remove nickname_by_address address
-let nickname_of_address address =
-  Hashtbl.find nickname_by_address address
-let address_of_nickname nickname =
-  Hashtbl.find address_by_nickname nickname
-
-let password_for_address = Hashtbl.create 8
-let register_password address password =
-  Hashtbl.replace password_for_address address password
-let unregister_password address =
-  Hashtbl.remove password_for_address address
-let password_of_address address =
-  Hashtbl.find password_for_address address
 
 let keypair_by_address = Hashtbl.create 8
 let register_keypair nickname keypair =
@@ -191,23 +192,32 @@ let register_keypair nickname keypair =
   Hashtbl.replace keypair_by_address address keypair;
   register_address nickname address
 let unregister_keypair nickname =
-  let address = Hashtbl.find address_by_nickname nickname in
+  let address = address_of_nickname nickname in
   Hashtbl.remove keypair_by_address address;
   unregister_address nickname
-let keypair_of_address address =
-  Hashtbl.find keypair_by_address address
+let get_keypair_of_address address =
+  match Hashtbl.find_opt keypair_by_address address with
+  | Some x -> Ok x
+  | None -> OrExn.bork "No registered keypair for address %s" (Address.to_0x_string address)
+let keypair_of_address = get_keypair_of_address >> OrExn.get
 
 let decode_keypairs =
   YoJson.to_assoc
   >> List.map (fun (name, kpjson) -> (name, (Keypair.of_yojson_exn kpjson)))
 
 (** TODO: Add a layer of encryption for these files. *)
-let register_file_keypairs file password =
+let register_file_keypairs file =
   Yojsoning.yojson_of_file file
   |> decode_keypairs
-  |> List.iter (fun (name, keypair) ->
-    register_keypair name keypair;
-    register_password keypair.Keypair.address password)
+  |> List.iter (uncurry register_keypair)
+
+let addresses_with_registered_keypair () =
+  Hashtbl.fold (fun k _ l -> k :: l) keypair_by_address []
+
+let nicknames_with_registered_keypair () =
+  addresses_with_registered_keypair ()
+  |> List.map (get_nickname_of_address >> function Ok x -> [x] | Error _ -> [])
+  |> List.flatten
 
 (* convert OCaml string of suitable length (32 only?) to Secp256k1 msg format
    for strings representing hashes, the msg format is suitable for signing.
@@ -328,24 +338,26 @@ module Test = struct
     keypair_of_0x
       "0xb6fb0b7e61363ee2f748161338f56953e8aa42642e9990eff17e7de9aa895786"
       "0x0426bd9885f2c9e23d18c3025da70e71a4f7ce237124352882eafbd1cbb1e9742c4fe3847ce1a56a0d19df7a7d385a2134be05208b5d1ccc5d015f5e9a3ba0d7df"
+      ""
   let trent_address = trent_keys.address
 
   let alice_keys =
     keypair_of_0x
-      "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
-      "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
+      "0xfdc8f15b2dd9229b0b9246094393afc23b3b705c07e674f6cb614120d1627818"
+      "0x045562695c85f88f6cbaec121d2a3da6666c5dc8540d86358bd569a1882bbe6ddcf45b76f5643133939c8e7a339947ca1b115290d577343023d79c256dbc54bc97"
+      ""
   let alice_address = alice_keys.address
 
   let bob_keys =
-    make_keypair_from_hex
-      "f1:d3:cd:20:22:e1:d6:64:98:32:76:04:83:4d:f0:73:06:64:f7:1a:8d:d1:1e:46:a3:3b:4a:0e:bb:40:ca:8e"
-      "04:7d:52:54:04:9f:02:3e:e7:aa:ea:1e:fa:4f:17:ae:70:0f:af:67:23:24:02:5a:a9:b5:32:5a:92:1f:d0:f1:51:0e:68:31:f1:bf:90:b4:a1:df:e1:cd:49:e5:03:ec:7d:b5:9f:6e:78:73:d0:3a:3a:09:6c:46:5c:87:22:22:69"
+    keypair_of_0x
+      "0x9b21b9b06ba77824b8ba6a815f5a075229a708ae88ba7fd935c968fe2c3df172"
+      "0x049e0a7e3c05e3328c603b0c27fbfdfc5030c95d9ad179a431c14f81e30a64ce95f625447e182a8be718d45f9ab9723f9b8571dd5c5752daa66feb84938b095805"
+      ""
+
   let bob_address = bob_keys.address
 
   let register_test_keypairs () =
-    List.iter (fun (name, keypair) ->
-      register_keypair name keypair;
-      register_password keypair.address "")
+    List.iter (uncurry register_keypair)
       ["Alice", alice_keys; "Trent", trent_keys; "Bob", bob_keys]
 
   (* test validity of digital signatures *)
@@ -370,11 +382,11 @@ module Test = struct
 
   (* test that addresses are really last 20 bytes of Keccak256 hash of public keys *)
   let%test "alice_address_from_public_key" =
-    Address.to_0x_string alice_keys.address = "0xbbd17be6f683f72023873afeaa57c88d24b58884"
+    Address.to_0x_string alice_keys.address = "0xc54e86dffb87b9736e2e35dd85c775358f1c31ce"
 
   let%test "bob_address_from_public_key" =
     expect_string "bob address"
-      "0x8a6b383df4797f28672b77179ebe3db903ccad34"
+      "0x9ccaed210ce8c0cb49c5ad1c4f583406c264ba69"
       (Address.to_0x_string bob_address);
     true
 
