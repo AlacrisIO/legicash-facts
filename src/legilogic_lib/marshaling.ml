@@ -75,45 +75,45 @@ let marshal_not_implemented _buffer _x = bottom ()
 let unmarshal_not_implemented _start _bytes = bottom ()
 let marshaling_not_implemented = {marshal=marshal_not_implemented;unmarshal=unmarshal_not_implemented}
 
-let marshal2 f m1 m2 buffer x =
-  match f x with (x1, x2) -> m1 buffer x1 ; m2 buffer x2
-let unmarshal2 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) : 'x unmarshaler =
+let marshal2 to_tuple m1 m2 buffer x =
+  match to_tuple x with (x1, x2) -> m1 buffer x1 ; m2 buffer x2
+let unmarshal2 of_params (u1: 'a unmarshaler) (u2: 'b unmarshaler) : 'x unmarshaler =
   fun start bytes ->
     let (x1, p) = u1 start bytes in
     let (x2, p) = u2 p bytes in
-    (f x1 x2, p)
-let marshaling2 f g a b =
-  {marshal=marshal2 f a.marshal b.marshal
-  ;unmarshal=unmarshal2 g a.unmarshal b.unmarshal}
+    (of_params x1 x2, p)
+let marshaling2 to_tuple of_params a b =
+  {marshal=marshal2 to_tuple a.marshal b.marshal
+  ;unmarshal=unmarshal2 of_params a.unmarshal b.unmarshal}
 
-let marshal3 f m1 m2 m3 buffer x =
-  match f x with (x1, x2, x3) -> m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3
-let unmarshal3 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler) start bytes =
+let marshal3 to_tuple m1 m2 m3 buffer x =
+  match to_tuple x with (x1, x2, x3) -> m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3
+let unmarshal3 of_params (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler) start bytes =
   let (x1, p) = u1 start bytes in
   let (x2, p) = u2 p bytes in
   let (x3, p) = u3 p bytes in
-  (f x1 x2 x3, p)
-let marshaling3 f g a b c =
-  {marshal=marshal3 f a.marshal b.marshal c.marshal
-  ;unmarshal=unmarshal3 g a.unmarshal b.unmarshal c.unmarshal}
+  (of_params x1 x2 x3, p)
+let marshaling3 to_tuple of_params a b c =
+  {marshal=marshal3 to_tuple a.marshal b.marshal c.marshal
+  ;unmarshal=unmarshal3 of_params a.unmarshal b.unmarshal c.unmarshal}
 
-let marshal4 f m1 m2 m3 m4 buffer x =
-  match f x with (x1, x2, x3, x4) -> m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4
-let unmarshal4 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler) (u4: 'd unmarshaler)
+let marshal4 to_tuple m1 m2 m3 m4 buffer x =
+  match to_tuple x with (x1, x2, x3, x4) -> m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4
+let unmarshal4 of_params (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler) (u4: 'd unmarshaler)
       start bytes =
   let (x1, p) = u1 start bytes in
   let (x2, p) = u2 p bytes in
   let (x3, p) = u3 p bytes in
   let (x4, p) = u4 p bytes in
-  (f x1 x2 x3 x4, p)
-let marshaling4 f g a b c d =
-  {marshal=marshal4 f a.marshal b.marshal c.marshal d.marshal
-  ;unmarshal=unmarshal4 g a.unmarshal b.unmarshal c.unmarshal d.unmarshal}
+  (of_params x1 x2 x3 x4, p)
+let marshaling4 to_tuple of_params a b c d =
+  {marshal=marshal4 to_tuple a.marshal b.marshal c.marshal d.marshal
+  ;unmarshal=unmarshal4 of_params a.unmarshal b.unmarshal c.unmarshal d.unmarshal}
 
-let marshal5 f m1 m2 m3 m4 m5 buffer x =
-  match f x with (x1, x2, x3, x4, x5) ->
+let marshal5 to_tuple m1 m2 m3 m4 m5 buffer x =
+  match to_tuple x with (x1, x2, x3, x4, x5) ->
     m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4 ; m5 buffer x5
-let unmarshal5 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
+let unmarshal5 of_params (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler)
       start bytes =
   let (x1, p) = u1 start bytes in
@@ -121,15 +121,15 @@ let unmarshal5 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
   let (x3, p) = u3 p bytes in
   let (x4, p) = u4 p bytes in
   let (x5, p) = u5 p bytes in
-  (f x1 x2 x3 x4 x5, p)
-let marshaling5 f g a b c d e =
-  {marshal=marshal5 f a.marshal b.marshal c.marshal d.marshal e.marshal
-  ;unmarshal=unmarshal5 g a.unmarshal b.unmarshal c.unmarshal d.unmarshal e.unmarshal}
+  (of_params x1 x2 x3 x4 x5, p)
+let marshaling5 to_tuple of_params a b c d e =
+  {marshal=marshal5 to_tuple a.marshal b.marshal c.marshal d.marshal e.marshal
+  ;unmarshal=unmarshal5 of_params a.unmarshal b.unmarshal c.unmarshal d.unmarshal e.unmarshal}
 
-let marshal6 f m1 m2 m3 m4 m5 m6 buffer x =
-  match f x with (x1, x2, x3, x4, x5, x6) ->
+let marshal6 to_tuple m1 m2 m3 m4 m5 m6 buffer x =
+  match to_tuple x with (x1, x2, x3, x4, x5, x6) ->
     m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4 ; m5 buffer x5 ; m6 buffer x6
-let unmarshal6 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
+let unmarshal6 of_params (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler) (u6: 'f unmarshaler)
       start bytes =
   let (x1, p) = u1 start bytes in
@@ -138,16 +138,16 @@ let unmarshal6 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
   let (x4, p) = u4 p bytes in
   let (x5, p) = u5 p bytes in
   let (x6, p) = u6 p bytes in
-  (f x1 x2 x3 x4 x5 x6, p)
-let marshaling6 xt tx a b c d e f =
-  {marshal=marshal6 xt a.marshal b.marshal c.marshal d.marshal e.marshal f.marshal
-  ;unmarshal=unmarshal6 tx a.unmarshal b.unmarshal c.unmarshal d.unmarshal e.unmarshal f.unmarshal}
+  (of_params x1 x2 x3 x4 x5 x6, p)
+let marshaling6 to_tuple of_params a b c d e f =
+  {marshal=marshal6 to_tuple a.marshal b.marshal c.marshal d.marshal e.marshal f.marshal
+  ;unmarshal=unmarshal6 of_params a.unmarshal b.unmarshal c.unmarshal d.unmarshal e.unmarshal f.unmarshal}
 
-let marshal7 f m1 m2 m3 m4 m5 m6 m7 buffer x =
-  match f x with (x1, x2, x3, x4, x5, x6, x7) ->
+let marshal7 to_tuple m1 m2 m3 m4 m5 m6 m7 buffer x =
+  match to_tuple x with (x1, x2, x3, x4, x5, x6, x7) ->
     m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4 ; m5 buffer x5 ;
     m6 buffer x6 ; m7 buffer x7
-let unmarshal7 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
+let unmarshal7 of_params (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler) (u6: 'f unmarshaler) (u7: 'g unmarshaler)
       start bytes =
   let (x1, p) = u1 start bytes in
@@ -157,17 +157,17 @@ let unmarshal7 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
   let (x5, p) = u5 p bytes in
   let (x6, p) = u6 p bytes in
   let (x7, p) = u7 p bytes in
-  (f x1 x2 x3 x4 x5 x6 x7, p)
-let marshaling7 xt tx a b c d e f g =
-  {marshal=marshal7 xt a.marshal b.marshal c.marshal d.marshal e.marshal f.marshal g.marshal
-  ;unmarshal=unmarshal7 tx a.unmarshal b.unmarshal c.unmarshal d.unmarshal
+  (of_params x1 x2 x3 x4 x5 x6 x7, p)
+let marshaling7 to_tuple of_params a b c d e f g =
+  {marshal=marshal7 to_tuple a.marshal b.marshal c.marshal d.marshal e.marshal f.marshal g.marshal
+  ;unmarshal=unmarshal7 of_params a.unmarshal b.unmarshal c.unmarshal d.unmarshal
                e.unmarshal f.unmarshal g.unmarshal}
 
-let marshal8 f m1 m2 m3 m4 m5 m6 m7 m8 buffer x =
-  match f x with (x1, x2, x3, x4, x5, x6, x7, x8) ->
+let marshal8 to_tuple m1 m2 m3 m4 m5 m6 m7 m8 buffer x =
+  match to_tuple x with (x1, x2, x3, x4, x5, x6, x7, x8) ->
     m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4 ; m5 buffer x5 ;
     m6 buffer x6 ; m7 buffer x7 ; m8 buffer x8
-let unmarshal8 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
+let unmarshal8 of_params (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler) (u6: 'f unmarshaler)
       (u7: 'g unmarshaler) (u8: 'h unmarshaler)
       start bytes =
@@ -179,18 +179,18 @@ let unmarshal8 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
   let (x6, p) = u6 p bytes in
   let (x7, p) = u7 p bytes in
   let (x8, p) = u8 p bytes in
-  (f x1 x2 x3 x4 x5 x6 x7 x8, p)
-let marshaling8 xt tx a b c d e f g h =
-  {marshal=marshal8 xt a.marshal b.marshal c.marshal d.marshal e.marshal
+  (of_params x1 x2 x3 x4 x5 x6 x7 x8, p)
+let marshaling8 to_tuple of_params a b c d e f g h =
+  {marshal=marshal8 to_tuple a.marshal b.marshal c.marshal d.marshal e.marshal
              f.marshal g.marshal h.marshal
-  ;unmarshal=unmarshal8 tx a.unmarshal b.unmarshal c.unmarshal d.unmarshal
+  ;unmarshal=unmarshal8 of_params a.unmarshal b.unmarshal c.unmarshal d.unmarshal
                e.unmarshal f.unmarshal g.unmarshal h.unmarshal}
 
-let marshal9 f m1 m2 m3 m4 m5 m6 m7 m8 m9 buffer x =
-  match f x with (x1, x2, x3, x4, x5, x6, x7, x8, x9) ->
+let marshal9 to_tuple m1 m2 m3 m4 m5 m6 m7 m8 m9 buffer x =
+  match to_tuple x with (x1, x2, x3, x4, x5, x6, x7, x8, x9) ->
     m1 buffer x1 ; m2 buffer x2 ; m3 buffer x3 ; m4 buffer x4 ; m5 buffer x5 ;
     m6 buffer x6 ; m7 buffer x7 ; m8 buffer x8 ; m9 buffer x9
-let unmarshal9 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
+let unmarshal9 of_params (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
       (u4: 'd unmarshaler) (u5: 'e unmarshaler) (u6: 'f unmarshaler)
       (u7: 'g unmarshaler) (u8: 'h unmarshaler) (u9: 'i unmarshaler)
       start bytes =
@@ -203,11 +203,11 @@ let unmarshal9 f (u1: 'a unmarshaler) (u2: 'b unmarshaler) (u3: 'c unmarshaler)
   let (x7, p) = u7 p bytes in
   let (x8, p) = u8 p bytes in
   let (x9, p) = u9 p bytes in
-  (f x1 x2 x3 x4 x5 x6 x7 x8 x9, p)
-let marshaling9 xt tx a b c d e f g h i =
-  {marshal=marshal9 xt a.marshal b.marshal c.marshal d.marshal e.marshal
+  (of_params x1 x2 x3 x4 x5 x6 x7 x8 x9, p)
+let marshaling9 to_tuple of_params a b c d e f g h i =
+  {marshal=marshal9 to_tuple a.marshal b.marshal c.marshal d.marshal e.marshal
              f.marshal g.marshal h.marshal i.marshal
-  ;unmarshal=unmarshal9 tx a.unmarshal b.unmarshal c.unmarshal d.unmarshal
+  ;unmarshal=unmarshal9 of_params a.unmarshal b.unmarshal c.unmarshal d.unmarshal
                e.unmarshal f.unmarshal g.unmarshal h.unmarshal i.unmarshal}
 
 (*

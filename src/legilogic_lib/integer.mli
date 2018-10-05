@@ -81,10 +81,10 @@ module type UIntMoreS = sig
   val to_hex_string : t -> string
 
   (** Convert from Ethereum-style 0x syntax *)
-  val of_0x_string : string -> t
+  val of_0x : string -> t
 
   (** Convert to Ethereum-style 0x syntax *)
-  val to_0x_string : t -> string
+  val to_0x : t -> string
 
   val of_big_endian_bits : string -> t
   val to_big_endian_bits : t -> string

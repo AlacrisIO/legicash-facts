@@ -23,7 +23,7 @@ let check_side_chain_contract_created contract_address =
   if code = Facilitator_contract_binary.contract_bytes then
     return contract_address
   else
-    (let addr = Address.to_0x_string contract_address in
+    (let addr = Address.to_0x contract_address in
      Logging.log "Saved contract address %s invalid" addr;
      Printf.eprintf
        "Found contract address %s, but it doesn't contain the contract we expect.
@@ -47,7 +47,7 @@ let create_side_chain_contract installer_address =
   | None -> bork "No tx receipt for contract creation"
   | Some receipt ->
     let contract_address = receipt.contract_address |> Option.get in
-    Address.to_0x_string contract_address
+    Address.to_0x contract_address
     |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
     >>= const contract_address
 
@@ -55,7 +55,7 @@ let ensure_side_chain_contract_created installer_address =
   Logging.log "Ensuring the contract is installed...";
   (match Db.get contract_address_key with
    | Some addr ->
-     addr |> catching_arr Address.of_0x_string >>= check_side_chain_contract_created
+     addr |> catching_arr Address.of_0x >>= check_side_chain_contract_created
    | None ->
      Logging.log "Not found, creating the contract...";
      create_side_chain_contract installer_address)
@@ -87,7 +87,7 @@ module Test = struct
            of_lwt Db.open_connection "unit_test_db" >>= fun () ->
            get_prefunded_address () >>= fun prefunded_address ->
            ensure_side_chain_contract_created prefunded_address >>= fun contract_address ->
-           Logging.log "Contract address: %s" (Address.to_0x_string contract_address); return ()
+           Logging.log "Contract address: %s" (Address.to_0x contract_address); return ()
            >>= fund_accounts >>= fun () ->
            let facilitator = trent_address in
            start_facilitator facilitator >>= fun () ->

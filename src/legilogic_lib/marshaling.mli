@@ -12,13 +12,19 @@ type 'a marshaler = Buffer.t -> 'a -> unit
 (** Unmarshaler: purely read bytes from a Bytes.t from a start position, return object and next position. *)
 type 'a unmarshaler = int -> Bytes.t -> 'a*int
 
+(** A record of a marshaler and unmarshaler methods, from which to achieve simultaneous composition
+    of marshaling for various data structures *)
 type 'a marshaling =
   { marshal: 'a marshaler; unmarshal: 'a unmarshaler }
 
+(** A module containing the bare minimum methods from which to deduce all utility functions
+    about marshaling. *)
 module type PreMarshalableS = sig
   type t
   val marshaling : t marshaling
 end
+(* TODO: instead of [marshaling], maybe have two methods to_yojson and of_yojson here,
+   then use first-class modules for PreMarshalableS instead of marshaling? *)
 
 (** Object which can be converted to and from binary representation *)
 module type MarshalableS = sig
@@ -61,6 +67,9 @@ val unmarshal_map : ('a -> 'x) -> 'a unmarshaler -> 'x unmarshaler
 (** [marshaling_map f g marshaling] is a marshaler which marshals ['x]s as
     ['a]s. Assumes [g] is the inverse of [f] on [f]'s image, and vice versa.) *)
 val marshaling_map : ('x -> 'a) -> ('a -> 'x) -> 'a marshaling -> 'x marshaling
+
+(** The following are like marshal_map with multiple arguments,
+    for product data structures, records, etc. *)
 
 val marshal2 : ('x -> 'a*'b) -> 'a marshaler -> 'b marshaler
   -> 'x marshaler
@@ -204,6 +213,15 @@ module type LengthS = sig
   val max_length : int
 end
 
+(* Should the names reflect number of bits, rather than (approximate) maxima?
+   e.g. Length6bit, Length30bit, StringL6b, StringL30b ?
+   There is no way that isn't confusing without having very long names like
+   Length_that_fit_in_30_bit
+   String_whose_length_fit_in_30_bit
+   And why 30 bits? Because that's what fits as a non-negative value in an unboxed int
+   on a 32-bit OCaml platform.
+*)
+
 (** 6-bit representation of string length *)
 module Length63 : LengthS
 
@@ -213,10 +231,14 @@ module Length1G : LengthS
 (** Marshalable as length-prefixed string of constrained length [L] *)
 module StringL (L: LengthS) : YojsonMarshalableS with type t = string
 
-(** Marshalable as length-prefixed string of length expressible in 6 bits *)
+(** Marshalable as length-prefixed string of length expressible in 6 bits
+    Why? Because we want a memo to be variable length, not too long,
+    yet able to hold at least a digest, for use in relevant protocols.
+*)
 module String63 : YojsonMarshalableS with type t = string
 
-(** Marshalable as length-prefixed string of length expressible in 30 bits *)
+(** Marshalable as length-prefixed string of length expressible in 30 bits
+*)
 module String1G : YojsonMarshalableS with type t = string
 
 module Data : sig

@@ -45,7 +45,7 @@ let validate_address_checksum hs =
 
 let address_of_hex_string_with_checksum hs =
   validate_address_checksum hs ;
-  Address.of_0x_string hs
+  Address.of_0x hs
 
 let bytes_of_address address = Bytes.of_string (Address.to_big_endian_bits address)
 
@@ -54,9 +54,9 @@ module Test = struct
     List.for_all
       (fun (hex, ethhex) -> let address = Address.of_hex_string hex in
         hex_string_of_address_with_checksum address = ethhex
-        && Address.to_0x_string address = String.lowercase_ascii ethhex
+        && Address.to_0x address = String.lowercase_ascii ethhex
         && Address.equal address (address_of_hex_string_with_checksum ethhex)
-        && Address.equal address (Address.of_0x_string ethhex))
+        && Address.equal address (Address.of_0x ethhex))
       [("9797809415e4b8efea0963e362ff68b9d98f9e00","0x9797809415E4B8efEa0963E362ff68B9d98F9e00");
        ("507877c2e26f1387432d067d2daafa7d0420d90a","0x507877C2E26f1387432D067D2DaAfa7d0420d90a")]
 

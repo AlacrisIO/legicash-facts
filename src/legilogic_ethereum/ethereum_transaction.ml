@@ -116,14 +116,14 @@ let ensure_private_key ?timeout ?log (keypair : Keypair.t) =
 
 let ensure_eth_signing_address ?timeout ?log (*!rpc_log*) address =
   (try keypair_of_address address |> return
-   with Not_found -> bork "No registered keypair for address %s" (Address.to_0x_string address))
+   with Not_found -> bork "ensure_eth_signing_address: No registered keypair for address %s" (Address.to_0x address))
   >>= ensure_private_key ?timeout ?log
   >>= fun actual_address ->
   if actual_address = address then
     return ()
   else
     bork "keypair registered for address %s actually had address %s"
-      (Address.to_0x_string address) (Address.to_0x_string actual_address)
+      (Address.to_0x address) (Address.to_0x actual_address)
 
 let list_accounts () =
   Ethereum_json_rpc.personal_list_accounts ()
@@ -154,7 +154,7 @@ module Test = struct
            get_first_account ()
            >>= fun address ->
            register_keypair "Croesus"
-             {(keypair_of_0x (* Unrelated keypair, wherein we override the address *)
+             {(keypair_of_0x (* KLUGE: Unrelated keypair, wherein we override the address *)
                  "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
                  "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
                  "") with address};
@@ -164,7 +164,7 @@ module Test = struct
   let display_balance display address balance =
     display
       (nicknamed_string_of_address address)
-      (TokenAmount.to_0x_string balance)
+      (TokenAmount.to_0x balance)
 
   let ensure_address_prefunded prefunded_address amount address =
     let open Lwt_exn in
@@ -260,7 +260,7 @@ module Test = struct
          let hashed = digest_of_string "some arbitrary string" in
          let operation =
            Operation.CallFunction
-             ( Address.of_0x_string "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
+             ( Address.of_0x "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
              , Bytes.of_string (Digest.to_big_endian_bits hashed) ) in
          Ethereum_user.make_signed_transaction
            sender_address
@@ -286,7 +286,7 @@ module Test = struct
                          "0x044643bb6b393ac20a6175c713175734a72517c63d6f73a3ca90a15356f2e967da03d16431441c61ac69aeabb7937d333829d9da50431ff6af38536aa262497b27" "" in
          expect_string "c0de address"
            "0x53ae893e4b22d707943299a8d0c844df0e3d5557"
-           (Address.to_0x_string keypair.address);
+           (Address.to_0x keypair.address);
          get_prefunded_address ()
          >>= fun sender_address ->
          let tx_header =
@@ -297,7 +297,7 @@ module Test = struct
                     ; value= TokenAmount.of_int 1000 } in
          let operation =
            Operation.CallFunction
-             ( Address.of_0x_string "0x687422eea2cb73b5d3e242ba5456b782919afc85"
+             ( Address.of_0x "0x687422eea2cb73b5d3e242ba5456b782919afc85"
              , parse_0x_bytes "0xc0de") in
          let transaction = {Transaction.tx_header; Transaction.operation} in
          let unsigned_transaction_hash =
@@ -305,14 +305,14 @@ module Test = struct
          (* TODO: FIX THE CODE, THEN RESTORE THE TEST!
             expect_string "unsigned transaction hash"
             "0x6a74f15f29c3227c5d1d2e27894da58d417a484ef53bc7aa57ee323b42ded656"
-            (Digest.to_0x_string unsigned_transaction_hash);
+            (Digest.to_0x unsigned_transaction_hash);
          *)
          ignore unsigned_transaction_hash;
          let transaction_hash = get_transaction_hash transaction keypair.private_key in
 (*
             expect_string "transaction hash"
             "0x8b69a0ca303305a92d8d028704d65e4942b7ccc9a99917c8c9e940c9d57a9662"
-            (Digest.to_0x_string transaction_hash);
+            (Digest.to_0x transaction_hash);
          *)
          ignore transaction_hash;
          return true)
@@ -417,7 +417,7 @@ module Test = struct
          (* Call the fallback in the contract we've created.
             It bypasses the regular ABI to access this address directly. *)
          let amount_to_transfer = TokenAmount.of_int 93490 in
-         let facilitator_address = Address.of_0x_string "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
+         let facilitator_address = Address.of_0x "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
          let call_bytes = Ethereum_util.bytes_of_address facilitator_address in
          Ethereum_user.make_signed_transaction
            sender_address

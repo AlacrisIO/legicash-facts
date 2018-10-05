@@ -200,10 +200,10 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
         ~recursek:(fun ~i ~tree:t ~k ->
           if not (dv_digest t = digest t) then
             bork "Bad digest at key %s height %d digest=%s dv_digest=%s"
-              (Key.to_0x_string i)
+              (Key.to_0x i)
               (trie_height t)
-              (Digest.to_0x_string (digest t))
-              (Digest.to_0x_string (dv_digest t))
+              (Digest.to_0x (digest t))
+              (Digest.to_0x (dv_digest t))
           else k())
         ~branchk:(fun ~i:_ ~height:_ ~leftr:_ ~rightr:_ ~synth:_ ~k -> k())
         ~skipk:(fun ~i:_ ~height:_ ~length:_ ~bits:_ ~childr:_ ~synth:_ ~k -> k())

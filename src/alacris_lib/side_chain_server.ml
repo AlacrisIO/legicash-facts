@@ -37,7 +37,7 @@ let facilitator_address =
   |> OrString.get
   |> fun { nickname; keypair } ->
   let address = keypair.address in
-  Logging.log "Using facilitator keypair %S %s" nickname (Address.to_0x_string address);
+  Logging.log "Using facilitator keypair %S %s" nickname (Address.to_0x address);
   register_keypair nickname keypair;
   address
 
@@ -112,7 +112,7 @@ let _ =
        >>= fun contract_address ->
        assert (contract_address = Facilitator_contract.get_contract_address ());
        Logging.log "Using contract %s"
-         (Address.to_0x_string contract_address);
+         (Address.to_0x contract_address);
        load_facilitator_state facilitator_address
        >>= fun _facilitator_state ->
        let%lwt _server = establish_server_with_client_address sockaddr process_request in
