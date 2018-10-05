@@ -20,7 +20,7 @@ module PublicKey : sig
   include YojsonMarshalableS (* with type t = Secp256k1.Key.public Secp256k1.Key.t *)
   include ShowableS with type t := t
 end
-type public_key = PublicKey.t
+type public_key = PublicKey.t (* Do we really need this "short" name as an alias? *)
 
 (** Private key in Secp256k1 public-key cryptography *)
 module PrivateKey : YojsonMarshalableS (* with type t = Secp256k1.Key.secret Secp256k1.Key.t *)

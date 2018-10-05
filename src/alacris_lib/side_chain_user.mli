@@ -1,4 +1,13 @@
-(* Types for user side of Alacris side-chains *)
+(** User side of Alacris side-chains
+
+    What makes this module notably more complex than Ethereum_user is that we want to safely do
+    distributed transactions between two blockchains (Ethereum and Alacris)
+    while we're authoritative in neither. We must persist every message before we send it,
+    or else we may lose our transaction state and end up paying twice for a deposit,
+    losing a withdrawal. In the near future, we will also have to closely watch the consensus
+    for "smart lawsuits" that we have to partake in and win.
+*)
+
 open Legilogic_lib
 open Action
 open Yojsoning
@@ -188,14 +197,25 @@ val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
 (** Compute the suitable fee for a payment of given amount *)
 
 val deposit : (DepositWanted.t, TransactionTracker.t) UserAsyncAction.arr
-(** Do the deposit on the Ethereum_chain then on the side-chain;
-    return the revision *)
+(** Schedule a deposit on the Ethereum_chain, then a matching claim on the Alacris side-chain,
+    then wait for confirmation on the main chain.
+    Return a TransactionTracker.
+*)
 
 val withdrawal : (WithdrawalWanted.t, TransactionTracker.t) UserAsyncAction.arr
-(** Build a signed withdrawal request from specification *)
+(** Schedule a withdrawal from the Alacris side-chain,
+    then wait for confirmation on the Ethereum main chain,
+    then make a matching claim on the Ethereum chain,
+    then partake in any smart lawsuit,
+    then execute the claim when confirmed.
+    Return a TransactionTracker.
+*)
 
 val payment : (PaymentWanted.t, TransactionTracker.t) UserAsyncAction.arr
-(** Build a signed payment request from specification *)
+(** Schedule a payment on the Alacris side-chain,
+    then wait for confirmation on the Ethereum main chain.
+    Return a TransactionTracker.
+*)
 
 (*
    val push_side_chain_withdrawal_to_main_chain :
