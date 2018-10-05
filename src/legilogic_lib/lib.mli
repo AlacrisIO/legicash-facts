@@ -119,6 +119,10 @@ end
     [List.fold_left].) *)
 val list_foldlk : ('a -> 'b -> ('a -> 'r) -> 'r) -> 'a -> 'b list -> ('a -> 'r) -> 'r
 
+(** [list_take n l] returns a list made of the [n] first elements of [l],
+    or raises an exception if [l] is too short. *)
+val list_take : int -> 'a list -> 'a list
+
 (** Base interface for a type
     NB: same as JaneStreet's Core_kernel.T.T *)
 module type TypeS = sig

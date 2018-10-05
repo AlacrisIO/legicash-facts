@@ -7,6 +7,7 @@ open Cohttp
 open Cohttp_lwt_unix
 
 open Legilogic_lib
+open Lib
 open Signing
 open Yojsoning
 open Action
@@ -153,21 +154,15 @@ let make_payment_test sender_name sender recipient_name recipient amount=
 (* must be odd to prevent self-payment below; also less-than-or-equal than total number of demo users *)
 let num_users_to_test = 9
 
-let list_take n l =
-  let rec f a = function
-    | (0, _) -> List.rev a
-    | (_, []) -> Lib.bork "list has fewer than %d items" n
-    | (n, h::t) -> f (h::a) (n-1, t) in
-  f [] (n, l)
-
 let accounts =
-  nicknames_with_registered_keypair ()
-  |> List.sort compare
-  |> list_take num_users_to_test
-  |> List.map (fun name -> name, address_of_nickname name)
-  |> Array.of_list
+  lazy
+    (nicknames_with_registered_keypair ()
+     |> List.sort compare
+     |> list_take num_users_to_test
+     |> List.map (fun name -> name, address_of_nickname name)
+     |> Array.of_list)
 
-let get_user : int -> string * Address.t = fun ndx -> accounts.(ndx)
+let get_user : int -> string * Address.t = fun ndx -> (Lazy.force accounts).(ndx)
 
 let test_deposits () =
   let rec loop ndx =

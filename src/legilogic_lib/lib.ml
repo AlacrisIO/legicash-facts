@@ -75,6 +75,13 @@ let rec list_foldlk f a l k = match l with
   | [] -> k a
   | h::t -> f a h (fun r -> list_foldlk f r t k)
 
+let list_take n l =
+  let rec f a = function
+    | (0, _) -> List.rev a
+    | (_, []) -> bork "list has fewer than %d items" n
+    | (n, h::t) -> f (h::a) (n-1, t) in
+  f [] (n, l)
+
 module Result = struct
   type ('ok, 'error) t = ('ok, 'error) result
   let return x = Ok x
