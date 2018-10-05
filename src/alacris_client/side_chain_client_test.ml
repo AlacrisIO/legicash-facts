@@ -21,6 +21,16 @@ open Side_chain_client_lib
 let _ = Config.set_application_name "alacris"
 let _ = Logging.set_log_file "logs/alacris-client.log"
 
+let _ =
+  let keys_file_ref = ref ("demo-keys-small.json" |> Config.get_config_filename) in
+  let args = ref [] in
+  Arg.parse_argv Sys.argv
+    [("--keys", Set_string keys_file_ref, "file containing keys to the managed accounts")]
+    (fun x -> args := x :: !args)
+    "side_chain_client.exe";
+  register_file_keypairs !keys_file_ref
+
+
 (* types to use as JSON in POST bodies *)
 
 type deposit_withdrawal_json =
@@ -162,15 +172,27 @@ let accounts =
      |> List.map (fun name -> name, address_of_nickname name)
      |> Array.of_list)
 
-let get_user : int -> string * Address.t = fun ndx -> (Lazy.force accounts).(ndx)
+let get_user : int -> string * Address.t =
+  fun ndx ->
+    Logging.log "get_user %d" ndx;
+    (Lazy.force accounts).(ndx)
+    |> fun (name, address) -> Logging.log "%s %s" name (Address.to_0x address); (name, address)
+
+let szabo = TokenAmount.of_string "1000000000000" (* a.k.a. microether *)
+let random_int : ?min:int -> max:int -> int =
+  fun ?(min=0) ~max -> min + Random.int (max - min + 1)
+let random_szabo : ?min:int -> max:int -> TokenAmount.t =
+  fun ?min ~max -> let rand = random_int ?min ~max in TokenAmount.(mul (of_int rand) szabo)
 
 let test_deposits () =
+  Logging.log "test_deposits";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name, address = get_user ndx in
-      let amount = 200000000000000000 + Random.int 300000000000000000 in (* nonzero *)
-      Printf.printf "DEPOSIT:  Name: %s; Address: %s; Tokens: %d\n%!" name (Address.to_0x address) amount;
-      make_deposit_test name address (TokenAmount.of_int amount)
+      let amount = random_szabo ~min:2000000 ~max:3000000 in
+      Printf.printf "DEPOSIT:  Name: %s; Address: %s; Tokens: %s\n%!"
+        name (Address.to_0x address) (TokenAmount.to_string amount);
+      make_deposit_test name address amount
       >>= fun () ->
       loop (ndx + 1)
     else
@@ -179,12 +201,14 @@ let test_deposits () =
   loop 0
 
 let test_withdrawals () =
+  Logging.log "test_withdrawals";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name, address = get_user ndx in
-      let amount = 1 + Random.int 100000000000000000 in (* users have at least this much after deposit *)
-      Printf.printf "WITHDRAWAL:  Name: %s; Address: %s; Tokens: %d\n%!" name (Address.to_0x address) amount;
-      make_withdrawal_test name address (TokenAmount.of_int amount)
+      let amount = random_szabo ~min:1 ~max:1000000 in (* users have at least this much after deposit *)
+      Printf.printf "WITHDRAWAL:  Name: %s; Address: %s; Tokens: %s\n%!"
+        name (Address.to_0x address) (TokenAmount.to_string amount);
+      make_withdrawal_test name address amount
       >>= fun () ->
       loop (ndx + 1)
     else
@@ -193,16 +217,17 @@ let test_withdrawals () =
   loop 0
 
 let test_payments () =
+  Logging.log "test_payments";
   let rec loop ndx =
     if ndx < num_users_to_test then
-      let sender_name,sender_address = get_user ndx in
-      let recipient_name,recipient_address = get_user (num_users_to_test - ndx) in
-      let amount = 1 + Random.int 100000000000000000 in
-      Printf.printf "PAYMENT:  Sender Name: %s; Sender Address: %s; Recipient Name: %s; Recipient Address: %s; Tokens: %d\n%!"
+      let sender_name, sender_address = get_user ndx in
+      let recipient_name, recipient_address = get_user ((ndx + 2) mod num_users_to_test) in
+      let amount = random_szabo ~min:1 ~max:1000000 in
+      Printf.printf "PAYMENT:  Sender Name: %s; Sender Address: %s; Recipient Name: %s; Recipient Address: %s; Tokens: %s\n%!"
         sender_name (Address.to_0x sender_address)
         recipient_name (Address.to_0x recipient_address)
-        amount;
-      make_payment_test sender_name sender_address recipient_name recipient_address (TokenAmount.of_int amount)
+        (TokenAmount.to_string amount);
+      make_payment_test sender_name sender_address recipient_name recipient_address amount
       >>= fun () ->
       loop (ndx + 1)
     else
@@ -211,6 +236,7 @@ let test_payments () =
   loop 0
 
 let test_balances () =
+  Logging.log "test_balances";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name,address = get_user ndx in
@@ -223,10 +249,12 @@ let test_balances () =
   loop 0
 
 let test_all_balances () =
+  Logging.log "test_all_balances";
   Printf.printf "ALL BALANCES\n%!";
   make_all_balances_test ()
 
 let test_statuses () =
+  Logging.log "test_statuses";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name,address = get_user ndx in
@@ -239,6 +267,7 @@ let test_statuses () =
   loop 0
 
 let test_recent_transactions ?(limit=None) () =
+  Logging.log "test_recent_transactions";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name,address = get_user ndx in
