@@ -116,7 +116,7 @@ let ensure_private_key ?timeout ?log (keypair : Keypair.t) =
 
 let ensure_eth_signing_address ?timeout ?log (*!rpc_log*) address =
   (try keypair_of_address address |> return
-   with Not_found -> bork "No registered keypair for address %s" (Address.to_0x address))
+   with Not_found -> bork "ensure_eth_signing_address: No registered keypair for address %s" (Address.to_0x address))
   >>= ensure_private_key ?timeout ?log
   >>= fun actual_address ->
   if actual_address = address then
@@ -154,7 +154,7 @@ module Test = struct
            get_first_account ()
            >>= fun address ->
            register_keypair "Croesus"
-             {(keypair_of_0x (* Unrelated keypair, wherein we override the address *)
+             {(keypair_of_0x (* KLUGE: Unrelated keypair, wherein we override the address *)
                  "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
                  "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
                  "") with address};

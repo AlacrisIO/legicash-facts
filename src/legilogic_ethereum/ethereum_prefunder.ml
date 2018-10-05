@@ -31,10 +31,13 @@ let ensure_prefunded prefunded_address amount string =
       >> (fun x ->
         let nickname = x |> YoJson.member "nickname" |> YoJson.to_string in
         let keypair = x |> YoJson.member "keypair" |> Keypair.of_yojson_exn in
+        Signing.register_keypair nickname keypair;
         [(Some nickname, keypair.address)])
     ; yojson_of_file
       >> decode_keypairs
-      >> List.map (fun (nickname, keypair) -> Some nickname, keypair.Keypair.address)]
+      >> List.map (fun (nickname, keypair) ->
+        Signing.register_keypair nickname keypair;
+        Some nickname, keypair.Keypair.address)]
   |> list_iter_p (fun (nickname, address) ->
     (match nickname with
      | Some name -> register_address name address
