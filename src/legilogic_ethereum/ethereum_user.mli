@@ -60,7 +60,7 @@ module TransactionTracker : sig
     with type key := Key.t
      and type context = unit
      and type state = TransactionStatus.t
-     and type t = Key.t * FinalTransactionStatus.t Lwt.t
+     and type t = Key.t * FinalTransactionStatus.t Lwt.t * unit Lwt.u
 end
 
 (** State for the user client.
@@ -77,16 +77,12 @@ module UserState : sig
 end
 
 module User : PersistentActivityS
-  with type context = unit
+  with type context = Address.t -> UserState.t SimpleActor.t
    and type key = Address.t
    and type state = UserState.t
    and type t = UserState.t SimpleActor.t
 
-module UserAsyncAction : AsyncActionS with type state = UserState.t
-
-val user_action: Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr
-
-val add_ongoing_transaction : (OngoingTransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr
+val add_ongoing_transaction : Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr
 
 val confirmation_of_transaction_receipt : TransactionReceipt.t -> Confirmation.t
 
@@ -97,36 +93,23 @@ val block_depth_for_confirmation : Revision.t
 exception Still_pending
 (** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
 
-val unlock_account : ?duration:int -> address -> unit Lwt_exn.t
-(** unlocks account for given duration (in seconds) on net *)
-
 val make_signed_transaction : Address.t -> Operation.t -> TokenAmount.t -> TokenAmount.t ->
   (Transaction.t * SignedTransaction.t) Lwt_exn.t
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
     from given address, with given operation, value and gas_limit *)
 
-val issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) UserAsyncAction.arr
+val issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) Lwt_exn.arr
 (** Issue a signed transaction on the Ethereum network, return a tracker *)
 
-val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) UserAsyncAction.arr
+val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr
 (** Track a transaction until it is either confirmed or invalidated *)
 
-val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
+val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * Confirmation.t) Lwt_exn.arr
 (** Check that the final transaction status is indeed confirmed, or fail *)
 
-val confirm_transaction : (Transaction.t * SignedTransaction.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
+val confirm_transaction : (Transaction.t * SignedTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr
 (** Issue a transaction on the Ethereum network, wait for it to be confirmed *)
 
 val transfer_tokens : (Address.t * Address.t * TokenAmount.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr
 (** Transfer tokens from one address to another on the main chain; asynchronous *)
-
-val main_chain_block_notification_stream :
-  ?delay:float             (* Wait this long between polls of geth *)
-  -> ?start_block:Revision.t (* Don't report until this block number has passed. *)
-  -> ?get_block: (?timeout:float -> ?log:bool -> (unit, Revision.t) Lwt_exn.arr) (* Testing affordance. Don't use *)
-  -> unit
-  -> Revision.t AsyncStream.t Lwt.t (* Stream of block numbers *)
-(** [main_chain_block_notification_stream () start delay] is an asynchronous
-    stream of notifications that a new block has been observed, based on polling
-    geth every [delay] seconds, and starting with block [start]*)
 

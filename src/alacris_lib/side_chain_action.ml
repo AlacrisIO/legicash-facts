@@ -44,7 +44,7 @@ let create_side_chain_contract installer_address =
     (Operation.CreateContract Facilitator_contract_binary.contract_bytes)
     TokenAmount.zero
     (TokenAmount.of_int 1000000)
-  >>= Ethereum_user.(user_action installer_address confirm_transaction)
+  >>= Ethereum_user.confirm_transaction
   >>= fun (_tx, confirmation) ->
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
   >>= function

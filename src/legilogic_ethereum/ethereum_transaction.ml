@@ -131,6 +131,16 @@ let list_accounts () =
 let get_first_account =
   list_accounts >>> catching_arr List.hd
 
+exception Bad_password
+
+let unlock_account ?(duration=5) address =
+  catching_arr keypair_of_address address >>= fun keypair ->
+  Logging.log "unlock_account %s" (Address.to_0x address);
+  Ethereum_json_rpc.personal_unlock_account (address, keypair.password, Some duration)
+  >>= function
+  | true -> return ()
+  | false -> fail Bad_password
+
 module Test = struct
   open Ethereum_json_rpc
   open Lib.Test
@@ -179,7 +189,7 @@ module Test = struct
         >>= fun () ->
         (prefunded_address, address, sub amount balance)
         |> Ethereum_user.transfer_tokens
-        >>= Ethereum_user.(user_action prefunded_address confirm_transaction)
+        >>= Ethereum_user.confirm_transaction
         >>= fun _ -> eth_get_balance (address, BlockParameter.Pending)
         >>= fun balance -> display_balance (printf "Account %s now contains %s wei.\n") address balance
       end
@@ -213,7 +223,7 @@ module Test = struct
          let transfer_amount = 22 in
          (sender_address, recipient_address, TokenAmount.of_int transfer_amount)
          |> Ethereum_user.transfer_tokens
-         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= Ethereum_user.confirm_transaction
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash transaction)
       ()
@@ -230,7 +240,7 @@ module Test = struct
            (Operation.CreateContract (Bytes.create 128))
            TokenAmount.zero
            (TokenAmount.of_int 100000)
-         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= Ethereum_user.confirm_transaction
          >>= fun (tx, {transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash tx)
       ()
@@ -267,7 +277,7 @@ module Test = struct
            operation
            TokenAmount.zero
            (TokenAmount.of_int 1000000)
-         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= Ethereum_user.confirm_transaction
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash transaction)
       ()
@@ -340,7 +350,7 @@ module Test = struct
            (Operation.CreateContract code_bytes)
            TokenAmount.zero
            (TokenAmount.of_int 1000000)
-         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= Ethereum_user.confirm_transaction
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
          transaction_execution_matches_transaction transaction_hash transaction
          >>= fun matches ->
@@ -356,7 +366,7 @@ module Test = struct
            (Operation.CallFunction (contract_address, call_bytes))
            TokenAmount.zero
            (TokenAmount.of_int 1000000)
-         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= Ethereum_user.confirm_transaction
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->
          eth_get_transaction_receipt transaction_hash
          >>= arr Option.get
@@ -401,7 +411,7 @@ module Test = struct
            (Operation.CreateContract code_bytes)
            TokenAmount.zero
            (TokenAmount.of_int 1000000)
-         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= Ethereum_user.confirm_transaction
          >>= fun (transaction, Confirmation.{transaction_hash}) ->
          eth_get_transaction_receipt transaction_hash
          >>= arr Option.get
@@ -424,7 +434,7 @@ module Test = struct
            (Operation.CallFunction (contract_address, call_bytes))
            amount_to_transfer
            (TokenAmount.of_int 1000000)
-         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= Ethereum_user.confirm_transaction
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->
          eth_get_transaction_receipt transaction_hash
          >>= arr Option.get
@@ -462,7 +472,7 @@ module Test = struct
            (Operation.CallFunction (contract_address, bogus_address_bytes))
            amount_to_transfer
            (TokenAmount.of_int 1000000)
-         >>= Ethereum_user.(user_action sender_address confirm_transaction)
+         >>= Ethereum_user.confirm_transaction
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->
          eth_get_transaction_receipt transaction_hash
          >>= arr Option.get

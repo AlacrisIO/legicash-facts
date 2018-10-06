@@ -28,6 +28,11 @@ val list_accounts : unit -> Address.t list Lwt_exn.t
 val get_first_account : unit -> Address.t Lwt_exn.t
 (** get first account listed on net; for dev network, this is the prefunded account *)
 
+exception Bad_password
+
+val unlock_account : ?duration:int -> address -> unit Lwt_exn.t
+(** unlocks account for given duration (in seconds) on net *)
+
 module Test : sig
   val get_prefunded_address : unit -> Address.t Lwt_exn.t
   (** get the prefunded address on the test network *)

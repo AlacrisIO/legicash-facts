@@ -293,7 +293,7 @@ let test_recent_transactions ?(limit=None) () =
 
 let _ =
   (*Db.run ~db_name:"alacris_client_test_db" ???*)
-  Lwt.run
+  Lwt_main.run
     (() |>
      Lwter.(test_deposits
             >>> test_withdrawals

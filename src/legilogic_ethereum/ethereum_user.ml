@@ -14,39 +14,109 @@ open Trie
 open Ethereum_chain
 open Ethereum_json_rpc
 
-let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
-  'value AsyncStream.t Lwt.t =
-  let open Lwter in
-  fun ~delay poller state ->
-    let nap () = Lwt_unix.sleep delay in
-    let rec continue state () =
-      poller () state
-      >>= function
-      | Ok value, new_state ->
-        Lwt.return @@ AsyncStream.cons value
-                        (nap () >>= continue new_state |> join)
-      | Error _, new_state ->
-        nap () >>= continue new_state
-    in
-    continue state ()
 
-let main_chain_block_notification_stream
-      ?(delay=30.0) ?(start_block=Revision.zero)
-      ?(get_block=(Ethereum_json_rpc.eth_block_number)) () =
-  let rec poller () next_block =
-    let open Lwt in
-    get_block ()
-    >>= function
-    | Ok block_number ->
-      (* Is this block at least as big as next_block? *)
-      if Revision.compare block_number next_block >= 0 then
-        (* This is a previously unobserved block at or past the next_block,
-           so send a notification about it. The happy path. *)
-        Lwt.return (Ok block_number, Revision.(add one block_number))
-      else
-        Lwt.return (Error (Internal_error "Start block not reached yet"), next_block)
-    | Error e -> Lwt.return (Error e, next_block) in
-  stream_of_poller ~delay poller start_block
+(* TODO: A much better state machine to get wanted transactions confirmed.
+
+   It is a very bad idea to have more than one ongoing transaction in the mempool:
+   you might hope everything goes right and they are added in the correct order,
+   but in practice so many things can go wrong and then the mitigations become hell,
+   and attackers can get you to fail to transact, to deadlock, to replay your spending,
+   to fail to meet a deadline, or more generally fail to meet your contractual obligations.
+
+   Obvious strategies don't work:
+   - If you never re-send a transaction, but for some reason one transaction doesn't go through
+   because it was received out-of-order by the winning PoW nodes and dropped on the ground,
+   or otherwise was lost in the shuffle of network packet drops, then you deadlock
+   - If you always re-send a transaction, but never update the nonce, and some other client
+   using the same private key (WHY? That should be a red alert anyway, unless it's actually
+   another copy of yourself sending another variant of the same transaction due to netsplit,
+   and you re-synch after netmerge), or some other transaction on the same client races me
+   (if you fail to sequentialize transactions one at a time through a single thread),
+   then you deadlock.
+   - If you always re-send a transaction, and you update the nonce if you see yours is out-of-date,
+   then you can race yourself and/or other transactions into sending multiple copies of a same
+   transaction and end up spending many times over what you wanted to spend (very bad).
+   - Whatever decisions you make based on what the ethereum node tells you, it can give you _hints_
+   about things that are going on, but nothing it says is authoritative until it is, which is only
+   30 minutes later (or say 10 minutes, if you accept the risk of lower security).
+   Until confirmation, whatever it says is subject to revision.
+   - The safest would be to nurse each and every transaction to either completion or definite failure
+   before even attempting the next one, but then that's only one transaction per account every 30
+   minutes minimum, and maybe much worse depending on how "definite failure" is defined.
+   This suggests that having multiple accounts could be a requirement for playing safe
+   with smart contracts: each "system" (itself distributed with redundant workers for reliability)
+   has its own private key that won't race with other systems.
+
+   One problem is that your local ethereum node (and/or, in a real network, whichever remote node
+   will eventually issue the blocks), sometimes will just drop your signed transactions,
+   for whatever reasons: not enough ether, not enough gas, gas price too low, nonce out of synch,
+   network error, network split, denial-of-service attack, selective censorship, block-buying
+   attack, etc. You have to resend, sometimes with updated gas price, sometimes with updated nonce,
+   sometimes even with updated contract parameters, etc.
+   Yet, you should be wary of changing anything substantive (to your application)
+   about a transaction being sent, or you can race yourselves, and end up paying twice
+   (or many more times) to receive a counterpart only once (or not at all).
+   A good strategy might take into account what did or didn't happen in not-fully-confirmed blocks,
+   yet (obviously) would not consider anything confirmed until it's confirmed.
+   It is unclear how best to deal with multiple queued transactions —
+   the happy case of sending consecutive nonces automatically is great,
+   but when things break down (including due to the aforementioned re-send issues)
+   it's a hell that's hard to recover from, since new transactions will race the old ones,
+   and any sequential dependency between them becomes quite tricky to enforce.
+
+   One solution: a *batching contract*.
+   Multiple transactions are sent atomically via a single call to some generic contract
+   that plays them in sequence. Caveat: you better get you gas computation damn right!
+   Also mind the size limits to your overall transaction, the possibly more complex gas
+   price computation to convince miners to get it through in a timely fashion, etc.
+   If you do it right, though, you only have to deal with a single network event,
+   which makes the limit of one nursed transaction per 30 minute much more bearable.
+   This strategy implies or at least suggests developing a better-than-trivial batching strategy
+   to group transactions, similar to what we use in db.ml for batching database writes,
+   possibly with its own notion of atomic "transaction sets" that group "transactions" together.
+
+   Additional feature: a *replay barrier*.
+   The same generic contract can also help, onerously, with avoiding to replay a transaction multiple
+   time in the context where you do want to be able to race yourself.
+   Good reasons to race yourself is when you have strong obligations to fulfill in a short deadline,
+   but the current chain is wobbly due to some attack, particularly network splits:
+   multiple of your workers might be victims of the network split (maybe targetted!),
+   and would trigger racing variants of the queued transactions.
+   In this case, the contract may associate a semaphore to each application-defined
+   atomic set of transactions (for a shared multi-user contract, salted with sender ID);
+   it would check that the semaphore wasn't set before to actually play the transaction set,
+   and set the semaphore afterwards. Once again, miscompute worst-case gas and you're dead.
+   You need to pay extra gas to read and write a semaphore, and will lose gas in case that
+   multiple copies make it to the blockchain; but at least you won't lose the principal.
+
+   In some case, the right thing to do might be to consult back with the user,
+   and ask them to add more ether, to update their gas price strategy, to deal with potentially
+   or actually broken contracts, to watch the missing nodes of their personal database, etc.
+   By default, we probably want to queue transactions one by one to avoid nonce-overlap issues;
+   we may be more or less aggressive in terms of using nonces without partial or total confirmation
+   from previous transactions, depending on the nature of the transactions.
+
+   In any case, to definitely want a single system (even if possibly split into partitions)
+   to issue transactions from a given address to minimize races.
+
+   There is potentially a LOT of complexity, and if possible we want to partner with other people
+   to define sound strategies... just that is a topic for itself, and there are sometimes games
+   that people can play with lock out strategy via paying extra in gas to buy enough blocks to
+   lock rivals out of a contract, etc. A generic strategy, DSL for strategies, etc., could be
+   a research topic in itself. Sigh.
+
+   Most people don't hit this issue, because they don't abide by a contract binding them to partake
+   in distributed transactions across multiple blockchains with a priori untrustworthy other parties
+   within tight deadlines. And most of the few who do possibly haven't thought deep enough
+   about the ins and outs of these issues. Scary.
+
+   Here, for now, we follow a very dumb strategy, of having only one active transaction per address.
+   Furthermore, we only sign once, and resending blindly afterwards,
+   trusting the gas computation, and trusting the nonce until it's found to be too low.
+
+   TODO: implement an asynchronous way for the UI to peek at the status of a transaction
+   while it's going along its slow progress.
+*)
 
 module OngoingTransactionStatus = struct
   [@warning "-39"]
@@ -129,8 +199,8 @@ module NonceTracker = struct
     type key = Key.t
     let key_prefix = "ETNT"
     module State = TrivialPersistable(struct
-        type t = Nonce.t option
-        let yojsoning = option_yojsoning Nonce.yojsoning
+        type t = Nonce.t option [@@deriving yojson]
+        let yojsoning = {to_yojson;of_yojson}
         let marshaling = option_marshaling Nonce.marshaling
       end)
     type state = State.t
@@ -175,7 +245,6 @@ let make_tx_header (sender, value, gas_limit) =
   return TxHeader.{sender; nonce; gas_price; gas_limit; value}
 
 exception Missing_password
-exception Bad_password
 
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
@@ -225,72 +294,10 @@ let send_and_confirm_transaction :
         |> confirmation_of_transaction_receipt
         |> check_confirmation_deep_enough
 
-(* TODO: A better, non-linear state machine to get wanted transactions through.
-
-   Obvious strategies don't work:
-   - If I never re-send a transaction, but for some reason one transaction doesn't go through,
-   then I deadlock.
-   - If I always re-send a transaction, but never update the nonce, and some other client
-   or some other transaction on the same client races me, then I deadlock.
-   - If I always re-send a transaction, and I update the nonce if I see mine is out-of-date,
-   then I can race myself and/or other transactions into sending multiple copies of a same
-   transaction and end up spending many times over what I wanted to spend (very bad).
-   - Whatever decisions I make based on what geth tells me, it can give me hints about things that are
-   going on, but nothing it says is authoritative until it is, 30 minutes later (or 10 minutes, if I
-   take the risk of lower security), and even what it does say doesn't have much consistency.
-   - The safest would be to nurse each and every transaction to either completion or definite failure
-   before even attempting the next one, but then that's only one transaction per account every 30
-   minutes minimum, and maybe much worse depending on how "definite failure" is defined.
-   This suggests that having multiple accounts could be a requirement for playing safe
-   with smart contracts.
-
-   One problem is that local geth (and/or, in a real network, whichever remote geth will eventually
-   issue the blocks, sometimes just drop our signed transactions, for whatever reasons:
-   not enough eth, not enough gas, gas price too low, nonce out of synch, network error,
-   block-buying attack, etc.
-   We have to resend, sometimes with updated gas price, sometimes with updated nonce,
-   sometimes with updated contract parameters, etc.
-   Yet, we should be wary of changing any thing about a transaction being sent,
-   or we can race ourselves, and end up spending twice.
-   A good strategy might take into account what did or didn't happen in not-fully-confirmed blocks,
-   yet (obviously) would not consider anything confirmed until it's confirmed.
-   It is unclear how best to deal with multiple queued transactions —
-   the happy case of sending consecutive nonces automatically is great,
-   but when things break down (including due to the aforementioned re-send issues)
-   it's a hell that's hard to recover from, since new transactions will race the old ones,
-   and any sequential dependency between them becomes quite tricky to enforce.
-
-   It might be good to send multiple transactions atomically via a generic contract
-   that makes a bunch of calls at once, so you only have to deal with a single network event,
-   which makes one nursed transaction per 30 minute limit much more bearable,
-   but also implies a better-than-trivial queueing strategy.
-   Contracts could also help, onerously, with avoiding to spending twice in the context where
-   you do want to be able to race yourself in case your have multiple strong obligations
-   to fulfill in a short deadline, but the current chain is wobbly due to some attack.
-   In some case, the right thing to do might be to consult back with the user,
-   and ask them to add more ether, to update their gas price strategy, to deal with potentially
-   or actually broken contracts, to watch the missing nodes of their personal database, etc.
-   By default, we probably want to queue transactions one by one to avoid nonce-overlap issues;
-   we may be more or less aggressive in terms of using nonces without partial or total confirmation
-   from previous transactions, depending on the nature of the transactions.
-
-   There is potentially a LOT of complexity, and if possible we want to partner with other people
-   to define sound strategies... just that is a topic for itself, and there are sometimes games
-   that people can play with lock out strategy via paying extra in gas to buy enough blocks to
-   lock rivals out of a contract, etc. A generic strategy, DSL for strategies, etc., could be
-   a research topic in itself. Sigh.
-
-   Here, for now, we follow a very dumb strategy, of having only one active transaction per address.
-   Furthermore, we only sign once, and resending blindly afterwards,
-   trusting the gas computation, and trusting the nonce until it's found to be too low.
-
-   TODO: implement an asynchronous way for the UI to peek at the status of a transaction
-   while it's going along its slow progress.
-*)
 module TransactionTracker = struct
   open Lwter
   module Base = struct
-    type context = unit (* TODO: Revision tracking actor *)
+    type context = unit
     module Key = struct
       [@@@warning "-39"]
       type t= { user : Address.t; revision : Revision.t } [@@deriving yojson]
@@ -309,14 +316,14 @@ module TransactionTracker = struct
     type state = State.t
     let make_default_state = persistent_actor_no_default_state key_prefix Key.to_yojson_string
     (* TODO: inspection? cancellation? *)
-    type t = Key.t * FinalTransactionStatus.t Lwt.t
+    type t = Key.t * FinalTransactionStatus.t Lwt.t * unit Lwt.u
     let make_activity () key saving state =
+      let (ready, notify_ready) = Lwt.task () in
       let rec update (status : TransactionStatus.t) =
         saving status >>= Db.committing >>= loop
       and continue (status : OngoingTransactionStatus.t) =
         TransactionStatus.Ongoing status |> update
       and finalize (status : FinalTransactionStatus.t) =
-        (* TODO: remove the request from the ongoing_transactions set! *)
         TransactionStatus.Final status |> update
       and invalidate transaction_status error =
         finalize (Failed (transaction_status, error))
@@ -348,7 +355,7 @@ module TransactionTracker = struct
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
                | Error error -> invalidate ongoing error))
         | Final x -> return x in
-      key, loop state
+      key, (ready >>= fun () -> loop state), notify_ready
   end
   include PersistentActivity(Base)
   module Key = Base.Key
@@ -376,77 +383,103 @@ module UserState = struct
            end) : PersistableS with type t := t)
 end
 
+module UserAsyncAction = AsyncAction(UserState)
+
 module User = struct
+  open Lwter
   module Base = struct
-    type context = unit
     module Key = Address
     type key = Key.t
     let key_prefix = "ETUS"
     module State = UserState
     type state = UserState.t
     type t = state SimpleActor.t
-    let make_default_state _context user =
+    type context = Address.t -> t
+    let make_default_state _get_user user =
       UserState.
         { address= user
         ; transaction_counter= Revision.zero
         ; ongoing_transactions= RevisionSet.empty }
-    let resume_transactions context user (state : State.t) =
-      RevisionSet.iter
-        (fun revision -> TransactionTracker.get context {user; revision} |> ignore)
-        state.ongoing_transactions
-    let make_activity context user saving state =
-      let with_transaction transform = Lwter.(transform >>> saving) in
-      let actor = SimpleActor.make ~with_transaction state in
+    let rec resume_transaction get_user user revision =
+      Logging.log "resume_transaction %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});
+      let (_, promise, notify_ready) = TransactionTracker.get () {user; revision} in
+      Lwt.wakeup_later notify_ready ();
+      Lwt.async (fun () ->
+        promise >>= fun final_status ->
+        Logging.log "SCHEDULING a remove_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) FinalTransactionStatus.(to_yojson_string final_status);
+        SimpleActor.action (get_user user)
+          (remove_transaction get_user user) revision)
+    and resume_transactions get_user user (state : State.t) =
+      RevisionSet.min_elt_opt state.ongoing_transactions
+      |> Option.iter (resume_transaction get_user user)
+    and remove_transaction : context -> Address.t -> (Revision.t, unit) UserAsyncAction.arr =
+      fun get_user user revision user_state ->
+        Logging.log "REMOVE_TRANSACTION %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});
+        let new_state =
+          user_state
+          |> Lens.modify UserState.lens_ongoing_transactions (RevisionSet.remove revision) in
+        resume_transactions get_user user new_state;
+        UserAsyncAction.return () new_state
+    let make_activity get_user user saving state =
+      (* TODO: use Db.with_transaction here, or have all callers use it appropriately *)
+      let wrapper transform =
+        (*Lwter.(transform >>> saving)*)
+        Lwter.(
+          fun state ->
+            Logging.log "Actor for %s called, state %s" (Address.to_0x user) (State.to_yojson_string state);
+            state |> transform >>= fun state ->
+            Logging.log "Actor for %s returned, state %s; saving..." (Address.to_0x user) (State.to_yojson_string state);
+            saving state >>= fun state ->
+            Logging.log "Actor for %s saved %s" (Address.to_0x user) (State.to_yojson_string state);
+            return state)
+      in
+      let actor = SimpleActor.make ~wrapper state in
       (* TODO: maybe just use Lwt_mvar.create state and leave it to users to transact on it ? *)
-      resume_transactions context user state; (* TODO: pass the actor as context to that? *)
+      resume_transactions get_user user state; (* TODO: pass the actor as context to that? *)
       actor
   end
   include PersistentActivity(Base)
+  let rec get_user user = get get_user user
+  let add_transaction : (OngoingTransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr =
+    fun transaction_status user_state ->
+      let open Lwt in
+      let user = user_state.UserState.address in
+      let revision = user_state.transaction_counter in
+      Logging.log "add_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status);
+      TransactionTracker.(make () Key.{user; revision}
+                            (Lwter.const (TransactionStatus.Ongoing transaction_status)))
+      >>= fun tracker ->
+      if RevisionSet.is_empty (UserState.lens_ongoing_transactions.get user_state) then
+        Base.resume_transaction get_user user revision;
+      Logging.log "ADD_TRANSACTION %s %s => %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status) (TransactionTracker.Key.to_yojson_string (match tracker with (key, _, _) -> key));
+      UserAsyncAction.return tracker
+        (user_state
+         |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
+         |> Lens.modify UserState.lens_ongoing_transactions (RevisionSet.add revision))
 end
 
-module UserAsyncAction = AsyncAction(UserState)
+let user_action : Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr =
+  fun address action input ->
+    SimpleActor.action (User.get_user address) action input
 
-let user_action address action input =
-  SimpleActor.action (User.get () address) action input
+let add_ongoing_transaction user status =
+  user_action user User.add_transaction status
 
-let add_ongoing_transaction : (OngoingTransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr =
-  fun transaction_status user_state ->
-    let open Lwt in
-    let transaction_counter = user_state.transaction_counter in
-    TransactionTracker.(make () Key.{user= user_state.address; revision= transaction_counter}
-                          (Lwter.const (TransactionStatus.Ongoing transaction_status)))
-    >>= fun tracker ->
-    UserAsyncAction.return tracker
-      (user_state
-       |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
-       |> Lens.modify UserState.lens_ongoing_transactions
-            (RevisionSet.add transaction_counter))
+let issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) Lwt_exn.arr =
+  fun (t, s) -> OngoingTransactionStatus.Signed (t, s) |> add_ongoing_transaction t.tx_header.sender
 
-let unlock_account ?(duration=5) address =
-  catching_arr keypair_of_address address >>= fun keypair ->
-  Logging.log "unlock_account %s" (Address.to_0x address);
-  Ethereum_json_rpc.personal_unlock_account (address, keypair.password, Some duration)
-  >>= function
-  | true -> return ()
-  | false -> fail Bad_password
-
-let issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) UserAsyncAction.arr =
-  fun (t, s) -> OngoingTransactionStatus.Signed (t, s) |> add_ongoing_transaction
-
-let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) UserAsyncAction.arr =
-  let open Lwt in
-  fun (_, promise) state -> promise >>= fun x -> UserAsyncAction.return x state
+let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr =
+  fun (_, promise, _) -> promise
 
 let check_transaction_confirmed :
-  (FinalTransactionStatus.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
+  (FinalTransactionStatus.t, Transaction.t * Confirmation.t) Lwt_exn.arr
   = function
-    | FinalTransactionStatus.Confirmed (t, c) -> UserAsyncAction.return (t, c)
-    | FinalTransactionStatus.Failed (t, e) -> UserAsyncAction.fail (TransactionFailed (t, e))
+    | FinalTransactionStatus.Confirmed (t, c) -> return (t, c)
+    | FinalTransactionStatus.Failed (t, e) -> fail (TransactionFailed (t, e))
 
 let confirm_transaction =
-  let open UserAsyncAction in
   issue_transaction
-  >>> track_transaction
+  >>> of_lwt track_transaction
   >>> check_transaction_confirmed
 
 let transfer_gas_limit = TokenAmount.of_int 21000

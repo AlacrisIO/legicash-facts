@@ -489,14 +489,14 @@ module SimpleActor = struct
   type 'state t =
     { state_ref : 'state ref
     ; mailbox : ('state, 'state) Lwter.arr Lwt_mvar.t }
-  let make ?(mailbox=Lwt_mvar.create_empty ()) ?(with_transaction=identity) initial_state =
+  let make ?(mailbox=Lwt_mvar.create_empty ()) ?(wrapper=identity) initial_state =
     let state_ref = ref initial_state in
     Lwt.async (fun () ->
       initial_state
       |> forever
            (fun state ->
               Lwt_mvar.take mailbox >>= fun transform ->
-              with_transaction transform state
+              wrapper transform state
               >>= fun new_state ->
               state_ref := new_state;
               return new_state));

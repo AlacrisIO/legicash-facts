@@ -214,13 +214,13 @@ module TransactionTracker = struct
                TokenAmount.(add deposit_amount deposit_fee)
                |> Facilitator_contract.pre_deposit ~facilitator in
              (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
-             (Ethereum_user.(user_action user add_ongoing_transaction (Wanted pre_transaction))
+             (Ethereum_user.add_ongoing_transaction user (Wanted pre_transaction)
               >>= function
               | Error error -> invalidate ongoing error
-              | Ok (tracker_key, _) ->
+              | Ok (tracker_key, _, _) ->
                 DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
-             let (_, promise) = Ethereum_user.TransactionTracker.get () tracker_key in
+             let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
              (promise >>= function
               | Failed (_, error) -> invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
               | Confirmed (transaction, confirmation) ->
@@ -384,8 +384,8 @@ module User = struct
              (fun revision ->
                 TransactionTracker.get revision_generator {user; facilitator; revision} |> ignore))
     let make_activity user_actor user saving state =
-      let with_transaction transform = Lwter.(transform >>> saving) in
-      let actor = SimpleActor.make ~with_transaction state in
+      let wrapper transform = Lwter.(transform >>> saving) in
+      let actor = SimpleActor.make ~wrapper state in
       (* TODO: maybe just use Lwt_mvar.create state and leave it to users to transact on it ? *)
       resume_transactions user_actor user state; (* TODO: pass the actor as context to that? *)
       actor
@@ -519,11 +519,6 @@ let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
    update_account_state_with_trusted_operations
    (List.map (fun x -> x.TransactionStatus.request.payload.operation) pending_operations)
    confirmed_state
-
-   let ethereum_action : ('i, 'o) Ethereum_user.UserAsyncAction.arr -> ('i, 'o) UserAsyncAction.arr =
-   fun action input user_state ->
-   UserAsyncAction.of_lwt_exn
-   (Ethereum_user.user_action user_state.UserState.address action) input user_state
 
    (* TODO: find the actual gas limit *)
    let withdrawal_gas_limit = TokenAmount.of_int 1000000
