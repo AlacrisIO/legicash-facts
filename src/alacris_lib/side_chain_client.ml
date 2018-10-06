@@ -30,8 +30,19 @@ let config =
      | Ok config -> config
      | Error msg -> Lib.bork "Error loading side chain client configuration: %s" msg)
 
+(** True if [s] is an ip address quartet, false otherwise *)
+let is_ip_address (s : string) : bool =
+  Str.string_match (Str.regexp "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$") s 0;;
+
+assert (is_ip_address "127.0.0.1");
+assert (not @@ is_ip_address "harry! 127.0.0.1")
+
 let sockaddr =
-  lazy (match config with lazy {host;port} -> Unix.(ADDR_INET (inet_addr_of_string host, port)))
+  lazy (match config with lazy {host;port} ->
+      Unix.(let addr = if is_ip_address host then
+                inet_addr_of_string host  else 
+                (gethostbyname host).h_addr_list.(0) in
+            ADDR_INET (addr, port)))
 
 let facilitator_address =
   lazy (match config with lazy {facilitator={address}} -> address)
