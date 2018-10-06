@@ -248,5 +248,5 @@ let _ =
   in
   let _ = Server.handler_inet address port handle_request in
   (* run forever in Lwt monad *)
-  Db.run ~db_name:"alacris-client"
+  Db.run ~db_name:"alacris_client_db"
     (fun () -> fst (Lwt.wait ()))

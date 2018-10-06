@@ -84,13 +84,13 @@ To experiment with our software, you need four components:
 
   2. A server for the side-chain.
      You can launch it as follows,
-     with state kept in `_run/alacris-server` and logs in `_run/logs/alacris-server.log`:
+     with state kept in `_run/alacris_server_db` and logs in `_run/logs/alacris-server.log`:
 
         make run_side_chain_server
 
   3. A client for the side-chain.
      You can launch it as follows,
-     with state kept in `_run/alacris-client` and logs in `_run/logs/alacris-client.log`:
+     with state kept in `_run/alacris_client_db` and logs in `_run/logs/alacris-client.log`:
 
         make run_side_chain_client
 
