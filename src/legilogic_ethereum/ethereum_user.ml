@@ -2,6 +2,7 @@ open Legilogic_lib
 open Lib
 open Yojsoning
 open Marshaling
+open Tag
 open Persisting
 open Types
 open Signing
@@ -13,12 +14,45 @@ open Trie
 open Ethereum_chain
 open Ethereum_json_rpc
 
+let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
+  'value AsyncStream.t Lwt.t =
+  let open Lwter in
+  fun ~delay poller state ->
+    let nap () = Lwt_unix.sleep delay in
+    let rec continue state () =
+      poller () state
+      >>= function
+      | Ok value, new_state ->
+        Lwt.return @@ AsyncStream.cons value
+                        (nap () >>= continue new_state |> join)
+      | Error _, new_state ->
+        nap () >>= continue new_state
+    in
+    continue state ()
+
+let main_chain_block_notification_stream
+      ?(delay=30.0) ?(start_block=Revision.zero)
+      ?(get_block=(Ethereum_json_rpc.eth_block_number)) () =
+  let rec poller () next_block =
+    let open Lwt in
+    get_block ()
+    >>= function
+    | Ok block_number ->
+      (* Is this block at least as big as next_block? *)
+      if Revision.compare block_number next_block >= 0 then
+        (* This is a previously unobserved block at or past the next_block,
+           so send a notification about it. The happy path. *)
+        Lwt.return (Ok block_number, Revision.(add one block_number))
+      else
+        Lwt.return (Error (Internal_error "Start block not reached yet"), next_block)
+    | Error e -> Lwt.return (Error e, next_block) in
+  stream_of_poller ~delay poller start_block
+
 module OngoingTransactionStatus = struct
   [@warning "-39"]
   type t =
     | Wanted of PreTransaction.t
     | Signed of Transaction.t * SignedTransaction.t
-    | Sent of Transaction.t * SignedTransaction.t * Digest.t
   [@@deriving yojson]
   include (YojsonPersistable (struct
              type nonrec t = t
@@ -26,7 +60,7 @@ module OngoingTransactionStatus = struct
            end) : (PersistableS with type t := t))
   let pre_transaction : t -> PreTransaction.t = function
     | Wanted p -> p
-    | Signed (tx, _) | Sent (tx, _, _) -> Transaction.pre_transaction tx
+    | Signed (tx, _) -> Transaction.pre_transaction tx
 end
 
 module FinalTransactionStatus = struct
@@ -85,66 +119,59 @@ let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmatio
   else
     fail Still_pending
 
-(** Wait until a transaction has been confirmed by the main chain. *)
-let wait_for_confirmation : (Transaction.t * Digest.t, Confirmation.t OrExn.t) Lwt_exn.arr =
-  Lwt_exn.retry ~retry_window:0.01 ~max_window:60.0 ~max_retries:None
-    (fun (transaction, transaction_hash) ->
-       Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
-       >>= (function
-         | None ->
-           let TxHeader.{sender;nonce} = transaction.Transaction.tx_header in
-           Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Pending)
-           >>= fun sender_nonce ->
-           if Nonce.(compare sender_nonce nonce > 0) then
-             return (Error NonceTooLow)
-           else
-             fail Still_pending
-         | Some x -> x |> confirmation_of_transaction_receipt |> check_confirmation_deep_enough
-           >>= arr Result.return))
+type nonce_operation = Peek | Next | Reset [@@deriving yojson]
 
-let send_transaction =
-  transaction_to_parameters >> Ethereum_json_rpc.eth_send_transaction
-
-let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
-  'value AsyncStream.t Lwt.t =
-  let open Lwter in
-  fun ~delay poller state ->
-    let nap () = Lwt_unix.sleep delay in
-    let rec continue state () =
-      poller () state
-      >>= function
-      | Ok value, new_state ->
-        Lwt.return @@ AsyncStream.cons value
-                        (nap () >>= continue new_state |> join)
-      | Error _, new_state ->
-        nap () >>= continue new_state
-    in
-    continue state ()
-
-let main_chain_block_notification_stream
-      ?(delay=30.0) ?(start_block=Revision.zero)
-      ?(get_block=(Ethereum_json_rpc.eth_block_number)) () =
-  let rec poller () next_block =
-    let open Lwt in
-    get_block ()
-    >>= function
-    | Ok block_number ->
-      (* Is this block at least as big as next_block? *)
-      if Revision.compare block_number next_block >= 0 then
-        (* This is a previously unobserved block at or past the next_block,
-           so send a notification about it. The happy path. *)
-        Lwt.return (Ok block_number, Revision.(add one block_number))
-      else
-        Lwt.return (Error (Internal_error "Start block not reached yet"), next_block)
-    | Error e -> Lwt.return (Error e, next_block) in
-  stream_of_poller ~delay poller start_block
+module NonceTracker = struct
+  open Lwter
+  module Base = struct
+    type context = unit
+    module Key = Address
+    type key = Key.t
+    let key_prefix = "ETNT"
+    module State = TrivialPersistable(struct
+        type t = Nonce.t option
+        let yojsoning = option_yojsoning Nonce.yojsoning
+        let marshaling = option_marshaling Nonce.marshaling
+      end)
+    type state = State.t
+    (* zero is often wrong, but just let it fail and resynchronize *)
+    let make_default_state _ _ = None
+    type t = (nonce_operation, Nonce.t) Lwter.arr
+    let make_activity () address saving =
+      sequentialize
+        (fun op state ->
+           let reset () =
+             Lwt_exn.run_lwt
+               (retry ~retry_window:0.01 ~max_window:5.0 ~max_retries:None
+                  Ethereum_json_rpc.eth_get_transaction_count)
+               (address, BlockParameter.Latest) in
+           let continue result state =
+             saving state >>= const (result, state) in
+           let next nonce = continue nonce (Some Nonce.(add one nonce)) in
+           (match (op, state) with
+            | (Reset, _) ->
+              continue Nonce.zero None
+            | (Peek, None) ->
+              reset () >>= fun nonce -> continue nonce (Some nonce)
+            | (Peek, Some nonce) ->
+              return (nonce, Some nonce)
+            | (Next, None) ->
+              reset () >>= next
+            | (Next, Some nonce) -> next nonce)
+           >>= fun (result, new_state) -> Logging.log "NonceTracker %s %s %s => %s %s" (Address.to_0x address) (op |> nonce_operation_to_yojson |> string_of_yojson) (State.to_yojson_string state) (Revision.to_0x result) (State.to_yojson_string new_state) ; return (result, new_state))
+  end
+  include PersistentActivity(Base)
+  module State = Base.State
+  let reset address = get () address Reset >>= const ()
+  let peek address = get () address Peek
+  let next address = get () address Next
+end
 
 let make_tx_header (sender, value, gas_limit) =
   (* TODO: get gas price and nonce from geth *)
-  eth_gas_price ()
-  >>= fun gas_price ->
-  eth_get_transaction_count (sender, BlockParameter.Pending)
-  >>= fun nonce ->
+  eth_gas_price () >>= fun gas_price ->
+  of_lwt NonceTracker.next sender >>= fun nonce ->
+  Logging.log "make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
   return TxHeader.{sender; nonce; gas_price; gas_limit; value}
 
 exception Missing_password
@@ -165,8 +192,101 @@ let make_signed_transaction sender operation value gas_limit =
   >>= fun tx_header ->
   sign_transaction Transaction.{tx_header; operation}
 
-(* TODO: take as parameter a nonce-tracking actor passed around by the caller
-   (ultimately, the user state for the given address *)
+let nonce_too_low address =
+  Logging.log "nonce too low for %s" (nicknamed_string_of_address address);
+  (* TODO: Send Notification to end-user via UI! *)
+  Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
+
+(** Wait until a transaction has been confirmed by the main chain. *)
+let send_and_confirm_transaction :
+  (Transaction.t * SignedTransaction.t, Confirmation.t) Lwt_exn.arr =
+  fun (transaction, SignedTransaction.{raw}) ->
+    let open Lwter in
+    let sender = transaction.tx_header.sender in
+    eth_send_raw_transaction raw
+    >>= function
+    | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
+      nonce_too_low sender
+    | Error e -> return (Error e)
+    | Ok transaction_hash ->
+      let open Lwt_exn in
+      Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
+      >>= function
+      | None ->
+        let nonce = transaction.tx_header.nonce in
+        Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
+        >>= fun sender_nonce ->
+        if Nonce.(compare sender_nonce nonce > 0) then
+          nonce_too_low sender
+        else
+          fail Still_pending
+      | Some receipt ->
+        receipt
+        |> confirmation_of_transaction_receipt
+        |> check_confirmation_deep_enough
+
+(* TODO: A better, non-linear state machine to get wanted transactions through.
+
+   Obvious strategies don't work:
+   - If I never re-send a transaction, but for some reason one transaction doesn't go through,
+   then I deadlock.
+   - If I always re-send a transaction, but never update the nonce, and some other client
+   or some other transaction on the same client races me, then I deadlock.
+   - If I always re-send a transaction, and I update the nonce if I see mine is out-of-date,
+   then I can race myself and/or other transactions into sending multiple copies of a same
+   transaction and end up spending many times over what I wanted to spend (very bad).
+   - Whatever decisions I make based on what geth tells me, it can give me hints about things that are
+   going on, but nothing it says is authoritative until it is, 30 minutes later (or 10 minutes, if I
+   take the risk of lower security), and even what it does say doesn't have much consistency.
+   - The safest would be to nurse each and every transaction to either completion or definite failure
+   before even attempting the next one, but then that's only one transaction per account every 30
+   minutes minimum, and maybe much worse depending on how "definite failure" is defined.
+   This suggests that having multiple accounts could be a requirement for playing safe
+   with smart contracts.
+
+   One problem is that local geth (and/or, in a real network, whichever remote geth will eventually
+   issue the blocks, sometimes just drop our signed transactions, for whatever reasons:
+   not enough eth, not enough gas, gas price too low, nonce out of synch, network error,
+   block-buying attack, etc.
+   We have to resend, sometimes with updated gas price, sometimes with updated nonce,
+   sometimes with updated contract parameters, etc.
+   Yet, we should be wary of changing any thing about a transaction being sent,
+   or we can race ourselves, and end up spending twice.
+   A good strategy might take into account what did or didn't happen in not-fully-confirmed blocks,
+   yet (obviously) would not consider anything confirmed until it's confirmed.
+   It is unclear how best to deal with multiple queued transactions —
+   the happy case of sending consecutive nonces automatically is great,
+   but when things break down (including due to the aforementioned re-send issues)
+   it's a hell that's hard to recover from, since new transactions will race the old ones,
+   and any sequential dependency between them becomes quite tricky to enforce.
+
+   It might be good to send multiple transactions atomically via a generic contract
+   that makes a bunch of calls at once, so you only have to deal with a single network event,
+   which makes one nursed transaction per 30 minute limit much more bearable,
+   but also implies a better-than-trivial queueing strategy.
+   Contracts could also help, onerously, with avoiding to spending twice in the context where
+   you do want to be able to race yourself in case your have multiple strong obligations
+   to fulfill in a short deadline, but the current chain is wobbly due to some attack.
+   In some case, the right thing to do might be to consult back with the user,
+   and ask them to add more ether, to update their gas price strategy, to deal with potentially
+   or actually broken contracts, to watch the missing nodes of their personal database, etc.
+   By default, we probably want to queue transactions one by one to avoid nonce-overlap issues;
+   we may be more or less aggressive in terms of using nonces without partial or total confirmation
+   from previous transactions, depending on the nature of the transactions.
+
+   There is potentially a LOT of complexity, and if possible we want to partner with other people
+   to define sound strategies... just that is a topic for itself, and there are sometimes games
+   that people can play with lock out strategy via paying extra in gas to buy enough blocks to
+   lock rivals out of a contract, etc. A generic strategy, DSL for strategies, etc., could be
+   a research topic in itself. Sigh.
+
+   Here, for now, we follow a very dumb strategy, of having only one active transaction per address.
+   Furthermore, we only sign once, and resending blindly afterwards,
+   trusting the gas computation, and trusting the nonce until it's found to be too low.
+
+   TODO: implement an asynchronous way for the UI to peek at the status of a transaction
+   while it's going along its slow progress.
+*)
 module TransactionTracker = struct
   open Lwter
   module Base = struct
@@ -210,29 +330,20 @@ module TransactionTracker = struct
              >>= (function
                | Ok (t,c) -> OngoingTransactionStatus.Signed (t,c) |> continue
                | Error error -> invalidate ongoing error)
-           | Signed ((transaction: Transaction.t), (SignedTransaction.{raw} as signed)) ->
-             Lwt_exn.(run_lwt (retry ~retry_window:5.0 ~max_window:60.0 ~max_retries:None
-                                 (trying eth_send_raw_transaction
-                                  >>> function
-                                  | Ok _ as r -> return r
-                                  | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
-                                    return (Error NonceTooLow)
-                                  | Error e -> fail e))
-                        raw)
+           | Signed (transaction, signed) ->
+             (transaction, signed)
+             |> Lwt_exn.(run_lwt
+                           (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
+                              (trying send_and_confirm_transaction
+                               >>> (function
+                                 | Ok confirmation ->
+                                   return (Ok confirmation)
+                                 | Error NonceTooLow ->
+                                   return (Error NonceTooLow)
+                                 | Error e -> fail e))))
              >>= (function
-               | Ok transaction_hash ->
-                 OngoingTransactionStatus.Sent (transaction, signed, transaction_hash) |> continue
-               | Error NonceTooLow ->
-                 OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
-               | Error error -> invalidate ongoing error)
-           | Sent (transaction, _signed, transaction_hash) ->
-             (* TODO: Also add the possibility of invalidating the transaction,
-                by e.g. querying the blockchain for the sending address's current nonce,
-                and marking the transaction invalidated if a more recent nonce was found.
-                TODO: retry sending after timeout if still not sent. *)
-             Lwt_exn.run_lwt wait_for_confirmation (transaction, transaction_hash)
-             >>= (function
-               | Ok confirmation -> FinalTransactionStatus.Confirmed (transaction, confirmation) |> finalize
+               | Ok confirmation ->
+                 FinalTransactionStatus.Confirmed (transaction, confirmation) |> finalize
                | Error NonceTooLow ->
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
                | Error error -> invalidate ongoing error))

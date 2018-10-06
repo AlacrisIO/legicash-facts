@@ -489,6 +489,9 @@ let get_account_state address (facilitator_state:FacilitatorState.t) =
   with Not_found ->
     error_json "Could not find account state for account: %s" (Address.to_0x address)
 
+(* TODO: only provide side-chain status.
+   Clients must separately query their own ethereum node for their main chain status,
+   then reconcile the results. Otherwise, easy DoS attack. *)
 let get_account_status address facilitator_state =
   let open Lwt_exn in
   let exception Failure_to_get_main_chain_balance of exn in
@@ -497,7 +500,7 @@ let get_account_status address facilitator_state =
   trying Ethereum_json_rpc.eth_get_balance (address, Latest)
   >>= handling (fun e -> fail (Failure_to_get_main_chain_balance e))
   >>= fun balance ->
-  trying Ethereum_json_rpc.eth_get_transaction_count (address, Latest)
+  trying Ethereum_json_rpc.eth_get_transaction_count (address, Pending)
   >>= handling (fun e -> fail (Failure_to_get_main_chain_transaction_count e))
   >>= fun revision ->
   let main_chain_account = { address; balance; revision } in

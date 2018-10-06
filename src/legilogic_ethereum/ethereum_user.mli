@@ -12,8 +12,8 @@ open Ethereum_json_rpc
 module OngoingTransactionStatus : sig
   type t =
     | Wanted of PreTransaction.t
+    (* TODO: add an intermediate state for when the nonce is known, but the gas price may vary ? *)
     | Signed of Transaction.t * SignedTransaction.t
-    | Sent of Transaction.t * SignedTransaction.t * Digest.t
   include PersistableS with type t := t
   val pre_transaction : t -> PreTransaction.t
 end
@@ -35,6 +35,20 @@ module TransactionStatus : sig
   val of_final : FinalTransactionStatus.t -> t
   val pre_transaction : t -> PreTransaction.t
   val operation : t -> Operation.t
+end
+
+type nonce_operation = Peek | Next | Reset [@@deriving yojson]
+
+module NonceTracker : sig
+  module State : PersistableS with type t = Nonce.t option
+  include PersistentActivityS
+    with type key = Address.t
+     and type context = unit
+     and type state = State.t
+     and type t = (nonce_operation, Revision.t) Lwter.arr
+  val peek : (address, Revision.t) Lwter.arr
+  val next : (address, Revision.t) Lwter.arr
+  val reset : (address, unit) Lwter.arr
 end
 
 module TransactionTracker : sig
@@ -105,9 +119,6 @@ val confirm_transaction : (Transaction.t * SignedTransaction.t, Transaction.t * 
 
 val transfer_tokens : (Address.t * Address.t * TokenAmount.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr
 (** Transfer tokens from one address to another on the main chain; asynchronous *)
-
-val send_transaction : (Transaction.t, Digest.t) Lwt_exn.arr
-(** Send a transaction, return its hash *)
 
 val main_chain_block_notification_stream :
   ?delay:float             (* Wait this long between polls of geth *)
