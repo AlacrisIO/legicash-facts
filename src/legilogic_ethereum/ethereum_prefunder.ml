@@ -52,7 +52,7 @@ let _ =
     "ethereum_prefunder.exe";
   let amount = TokenAmount.of_string !amount_ref in
   let open Lwt_exn in
-  Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/alacris-server")
+  Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/ethereum_prefunder_db")
     (get_prefunded_address
      >>> fun prefunded_address ->
      (* TODO: Fix race condition #7 and make sure it works with list_iter_p here and above. *)
