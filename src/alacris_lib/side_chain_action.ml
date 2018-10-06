@@ -26,12 +26,16 @@ let check_side_chain_contract_created contract_address =
     (let addr = Address.to_0x contract_address in
      Logging.log "Saved contract address %s invalid" addr;
      Printf.eprintf
-       "Found contract address %s, but it doesn't contain the contract we expect.
+       "Found contract address %s, but it doesn't contain the contract we expect:
+        It contains code %s
+        but we expected: %s
         Did you reset the state of the test ethereum network without resetting the
         state of the test side-chain? If so, kill the side_chain_server and the
         side_chain_client, and try again after resetting their state with `make clean`.\n"
-       addr;
-     raise Invalid_contract)
+       addr
+       (Hex.unparse_0x_bytes code)
+       (Hex.unparse_0x_bytes Facilitator_contract_binary.contract_bytes);
+     fail Invalid_contract)
 
 let create_side_chain_contract installer_address =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)

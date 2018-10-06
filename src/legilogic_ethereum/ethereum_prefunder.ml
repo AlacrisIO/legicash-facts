@@ -42,6 +42,7 @@ let ensure_prefunded prefunded_address amount string =
     (match nickname with
      | Some name -> register_address name address
      | None -> ());
+    Logging.log "ensure_address_prefunded %s %s %s" (Address.to_0x prefunded_address) (TokenAmount.to_string amount) (Address.to_0x address);
     ensure_address_prefunded prefunded_address amount address
     >>= fun () -> Ethereum_transaction.ensure_eth_signing_address address)
 
