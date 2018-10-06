@@ -209,8 +209,10 @@ reset:
 	$(HIDE) killall -q side_chain_server.exe 2> /dev/null || true
 	$(SHOW) " Stopping alacris client"
 	$(HIDE) killall -q side_chain_client.exe 2> /dev/null || true
+	$(SHOW) " Stopping nginx"
+	$(HIDE) ./src/alacris_client/nginx/stop.sh
 	$(SHOW) " Removing Alacris databases"
-	$(HIDE) rm -rf _run/alacris_server _run/alacris_client
+	$(HIDE) rm -rf _run/alacris-server _run/alacris-client
 
 # Source code stats
 wc: force
