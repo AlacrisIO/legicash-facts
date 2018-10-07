@@ -70,7 +70,7 @@ let ensure_side_chain_contract_created installer_address =
 module Test = struct
   open Lib.Test
   open Signing.Test
-  open Ethereum_transaction.Test
+  open Ethereum_user.Test
   open Side_chain_facilitator.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true

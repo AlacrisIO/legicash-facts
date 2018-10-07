@@ -159,17 +159,17 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
     | Some _ -> Lib.bork "object with key %s %s already created!" key_prefix (Key.to_yojson_string key)
     | None -> init (saving db_key) >>= fun state -> return (resume context key state)
   let get context key =
-    Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);
+    (*Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
     let db_key = db_key key in
-    (    match Hashtbl.find_opt table key with
-         | Some x -> x
-         | None ->
-           let state =
-             match Db.get db_key with
-             | Some s -> (try State.unmarshal_string s with
-                 e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"
-                        key_prefix (Key.to_yojson_string key) (Hex.unparse_0x_data s) (Printexc.to_string e))
-             | None -> make_default_state context key in
-           resume context key state
-    ) |> fun obj -> Logging.log "GOT prefix %s key %s obj %d" key_prefix (Key.to_yojson_string key) (0 + Obj.magic obj); obj
+    (match Hashtbl.find_opt table key with
+     | Some x -> x
+     | None ->
+       let state =
+         match Db.get db_key with
+         | Some s -> (try State.unmarshal_string s with
+             e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"
+                    key_prefix (Key.to_yojson_string key) (Hex.unparse_0x_data s) (Printexc.to_string e))
+         | None -> make_default_state context key in
+       resume context key state)
+    (*|> fun obj -> Logging.log "GOT prefix %s key %s obj %d" key_prefix (Key.to_yojson_string key) (0 + Obj.magic obj); obj*)
 end

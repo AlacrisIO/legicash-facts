@@ -6,7 +6,7 @@
  (name legilogic_ethereum)
  (modules
   ethereum_chain ethereum_util ethereum_json_rpc ethereum_rlp ethereum_abi
-  ethereum_watch ethereum_user ethereum_transaction
+  ethereum_transaction ethereum_watch ethereum_user
   ethereum_patricia_merkle)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  (libraries legilogic_lib cryptokit cstruct integers lens leveldb lwt ppx_deriving_yojson.runtime secp256k1 threads yojson)

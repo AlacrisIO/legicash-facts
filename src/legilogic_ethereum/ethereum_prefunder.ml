@@ -9,7 +9,7 @@ open Lwt_exn
 
 open Legilogic_ethereum
 open Ethereum_chain
-open Ethereum_transaction.Test
+open Ethereum_user.Test
 
 let _ = Config.set_application_name "alacris"
 let _ = Logging.set_log_file (Config.get_application_home_dir () ^ "/_run/logs/ethereum_prefunder.log")

@@ -113,3 +113,23 @@ val confirm_transaction : (Transaction.t * SignedTransaction.t, Transaction.t * 
 val transfer_tokens : (Address.t * Address.t * TokenAmount.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr
 (** Transfer tokens from one address to another on the main chain; asynchronous *)
 
+module Test : sig
+  val get_prefunded_address : unit -> Address.t Lwt_exn.t
+  (** get the prefunded address on the test network *)
+
+  val display_balance : (string -> string -> 'a) -> Address.t -> TokenAmount.t -> 'a
+  (** display an account having the given balance given a way to print address, optional name and balance *)
+
+  val ensure_address_prefunded : Address.t -> TokenAmount.t -> Address.t -> unit Lwt_exn.t
+  (** Given a prefunded address and a minimum amount of tokens, ensure that the second given address
+      is prefunded to the tune of at least the given amount *)
+
+  val ensure_test_account : ?min_balance:TokenAmount.t -> Address.t
+    -> (string * keypair, unit) Lwt_exn.arr
+  (** Given a minimum amount of tokens and a prefunded address with lots of them,
+      ensure that our private Ethereum network has an account with given nickname and address,
+      an empty geth password, and at least a billion tokens in it. *)
+
+  val fund_accounts : ?min_balance:TokenAmount.t -> (unit, unit) Lwt_exn.arr
+  (** transfers funds from funding account to account with given address, if balance less than min_balance *)
+end

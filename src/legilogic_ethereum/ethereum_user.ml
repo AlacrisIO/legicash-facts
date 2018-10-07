@@ -228,7 +228,7 @@ module NonceTracker = struct
             | (Next, None) ->
               reset () >>= next
             | (Next, Some nonce) -> next nonce)
-           >>= fun (result, new_state) -> Logging.log "NonceTracker %s %s %s => %s %s" (Address.to_0x address) (op |> nonce_operation_to_yojson |> string_of_yojson) (State.to_yojson_string state) (Revision.to_0x result) (State.to_yojson_string new_state) ; return (result, new_state))
+           (*>>= fun (result, new_state) -> Logging.log "NonceTracker %s %s %s => %s %s" (Address.to_0x address) (op |> nonce_operation_to_yojson |> string_of_yojson) (State.to_yojson_string state) (Revision.to_0x result) (State.to_yojson_string new_state) ; return (result, new_state)*))
   end
   include PersistentActivity(Base)
   module State = Base.State
@@ -241,7 +241,7 @@ let make_tx_header (sender, value, gas_limit) =
   (* TODO: get gas price and nonce from geth *)
   eth_gas_price () >>= fun gas_price ->
   of_lwt NonceTracker.next sender >>= fun nonce ->
-  Logging.log "make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
+  (*Logging.log "make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);*)
   return TxHeader.{sender; nonce; gas_price; gas_limit; value}
 
 exception Missing_password
@@ -260,6 +260,8 @@ let make_signed_transaction sender operation value gas_limit =
   make_tx_header (sender, value, gas_limit)
   >>= fun tx_header ->
   sign_transaction Transaction.{tx_header; operation}
+
+(* TODO: move as many functions as possible ethereum_transaction ? *)
 
 let nonce_too_low address =
   Logging.log "nonce too low for %s" (nicknamed_string_of_address address);
@@ -401,12 +403,12 @@ module User = struct
         ; transaction_counter= Revision.zero
         ; ongoing_transactions= RevisionSet.empty }
     let rec resume_transaction get_user user revision =
-      Logging.log "resume_transaction %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});
+      (*Logging.log "resume_transaction %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});*)
       let (_, promise, notify_ready) = TransactionTracker.get () {user; revision} in
       Lwt.wakeup_later notify_ready ();
       Lwt.async (fun () ->
-        promise >>= fun final_status ->
-        Logging.log "SCHEDULING a remove_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) FinalTransactionStatus.(to_yojson_string final_status);
+        promise >>= fun _final_status ->
+        (*Logging.log "SCHEDULING a remove_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) FinalTransactionStatus.(to_yojson_string final_status);*)
         SimpleActor.action (get_user user)
           (remove_transaction get_user user) revision)
     and resume_transactions get_user user (state : State.t) =
@@ -414,7 +416,7 @@ module User = struct
       |> Option.iter (resume_transaction get_user user)
     and remove_transaction : context -> Address.t -> (Revision.t, unit) UserAsyncAction.arr =
       fun get_user user revision user_state ->
-        Logging.log "REMOVE_TRANSACTION %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});
+        (*Logging.log "REMOVE_TRANSACTION %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});*)
         let new_state =
           user_state
           |> Lens.modify UserState.lens_ongoing_transactions (RevisionSet.remove revision) in
@@ -445,13 +447,13 @@ module User = struct
       let open Lwt in
       let user = user_state.UserState.address in
       let revision = user_state.transaction_counter in
-      Logging.log "add_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status);
+      (*Logging.log "add_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status);*)
       TransactionTracker.(make () Key.{user; revision}
                             (Lwter.const (TransactionStatus.Ongoing transaction_status)))
       >>= fun tracker ->
       if RevisionSet.is_empty (UserState.lens_ongoing_transactions.get user_state) then
         Base.resume_transaction get_user user revision;
-      Logging.log "ADD_TRANSACTION %s %s => %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status) (TransactionTracker.Key.to_yojson_string (match tracker with (key, _, _) -> key));
+      (*Logging.log "ADD_TRANSACTION %s %s => %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status) (TransactionTracker.Key.to_yojson_string (match tracker with (key, _, _) -> key));*)
       UserAsyncAction.return tracker
         (user_state
          |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
@@ -488,35 +490,287 @@ let transfer_tokens (sender, recipient, amount) =
   make_signed_transaction sender (Operation.TransferTokens recipient) amount transfer_gas_limit
 
 module Test = struct
-(*
-     let%test "exercise main_chain_block_notification_stream" =
-     let open Revision in
-     let open Lwt_exn in
-     let current_block = ref zero in (* Mock for current mainchain block num *)
-     let throw_error = ref None in (* Whether to throw when getting block *)
-     let get_block ?timeout ?log () =
-     ignore timeout ; ignore log ;
-     match !throw_error with
-     | None -> let cb = !current_block in current_block := succ cb; return cb
-     | Some e -> throw_error := None; fail e in
-     let start_block = of_int 10 in
-     Lwt_exn.run
-     (of_lwt (main_chain_block_notification_stream ~start_block ~get_block)
-     >>> catching_lwt (AsyncStream.split 2)
-     >>> (fun (l, s) ->
-     assert(l = [start_block; add one start_block]);
-     catching_lwt (AsyncStream.split 1) s)
-     >>> (fun (l, _s) ->
-     assert(l = [add start_block (of_int 2)]);
-     return true
-     (* Deals gracefully with errors? *)
-     (*         throw_error := Some (Internal_error "You FAIL!!!"); *)
-     (*         trying (catching_lwt (AsyncStream.split 1)) s)
-     >>> (function
-     | Error (Internal_error "You FAIL!!!") -> return true
-     | Error e -> raise e
-     | Ok (l, _) -> raise (Internal_error "blah %s, _" (string_of_yojson (`List (List.map Revision.to_string l))))) *)
-     ))
-     ()
-  *)
+  open Hex
+  open Digesting
+  open Signing.Test
+
+  let prefunded_address_mutex = Lwt_mutex.create ()
+  let prefunded_address = ref None
+
+  let get_prefunded_address () =
+    Lwt_mutex.with_lock prefunded_address_mutex
+      (fun () ->
+         match !prefunded_address with
+         | Some x -> return x
+         | None ->
+           Ethereum_transaction.get_first_account ()
+           >>= fun address ->
+           register_keypair "Croesus"
+             {(keypair_of_0x (* KLUGE: Unrelated keypair, wherein we override the address *)
+                 "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
+                 "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
+                 "") with address};
+           prefunded_address := Some address;
+           return address)
+
+  let display_balance display address balance =
+    display
+      (nicknamed_string_of_address address)
+      (TokenAmount.to_0x balance)
+
+  let ensure_address_prefunded prefunded_address amount address =
+    let open Lwt_exn in
+    let open TokenAmount in
+    eth_get_balance (address, BlockParameter.Pending)
+    >>= fun balance ->
+    if compare balance amount >= 0 then
+      display_balance (printf "Account %s contains %s wei.\n") address balance
+    else
+      begin
+        display_balance (printf "Account %s only contains %s wei. Funding.\n") address balance
+        >>= fun () ->
+        (prefunded_address, address, sub amount balance)
+        |> transfer_tokens
+        >>= confirm_transaction
+        >>= fun _ -> eth_get_balance (address, BlockParameter.Pending)
+        >>= fun balance -> display_balance (printf "Account %s now contains %s wei.\n") address balance
+      end
+
+  (* create accounts, fund them *)
+  let ensure_test_account
+        ?(min_balance=TokenAmount.of_string "1000000000000000000") prefunded_address (nickname, keypair) =
+    register_keypair nickname keypair;
+    Ethereum_transaction.ensure_private_key keypair
+    >>= ensure_address_prefunded prefunded_address min_balance
+
+  let fund_accounts ?min_balance () =
+    get_prefunded_address ()
+    >>= fun prefunded_address ->
+    list_iter_s (ensure_test_account ?min_balance prefunded_address)
+      [("Alice", alice_keys); ("Bob", bob_keys); ("Trent", trent_keys)]
+
+  let%test "transfer-on-Ethereum-testnet" =
+    Lwt_exn.run
+      (fun () ->
+         of_lwt Db.open_connection "unit_test_db"
+         >>= fun () ->
+         get_prefunded_address ()
+         >>= fun sender_address ->
+         Ethereum_json_rpc.personal_new_account ""
+         >>= fun recipient_address ->
+         (* we don't check opening balance, which may be too large to parse *)
+         let transfer_amount = 22 in
+         (sender_address, recipient_address, TokenAmount.of_int transfer_amount)
+         |> transfer_tokens
+         >>= confirm_transaction
+         >>= fun (transaction, Confirmation.{transaction_hash}) ->
+         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction)
+      ()
+
+  let%test "create-contract-on-Ethereum-testnet" =
+    Lwt_exn.run
+      (fun () ->
+         of_lwt Db.open_connection "unit_test_db"
+         >>= fun () ->
+         get_prefunded_address ()
+         >>= fun sender_address ->
+         make_signed_transaction
+           sender_address
+           (Operation.CreateContract (Bytes.create 128))
+           TokenAmount.zero
+           (TokenAmount.of_int 100000)
+         >>= confirm_transaction
+         >>= fun (tx, {transaction_hash}) ->
+         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash tx)
+      ()
+
+  let%test "call-contract-on-Ethereum-testnet" =
+    let open Ethereum_chain in
+    Lwt_exn.run
+      (fun () ->
+         of_lwt Db.open_connection "unit_test_db"
+         >>= fun () ->
+         get_prefunded_address ()
+         >>= fun sender_address ->
+         (* for CallFunction:
+
+            address should be a valid contract address
+            for testing, it's a dummy address
+
+            the bytes are a 4-byte prefix of the Keccak256 hash of the encoding of a method
+            signature, followed by the encoding of the method parameters, as described at:
+
+            https://solidity.readthedocs.io/en/develop/abi-spec.html
+
+            This data tells the EVM which method to call, with what arguments, in the contract
+
+            in this test, we just use a dummy hash to represent all of that
+         *)
+         let hashed = digest_of_string "some arbitrary string" in
+         let operation =
+           Operation.CallFunction
+             ( Address.of_0x "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8"
+             , Bytes.of_string (Digest.to_big_endian_bits hashed) ) in
+         make_signed_transaction
+           sender_address
+           operation
+           TokenAmount.zero
+           (TokenAmount.of_int 1000000)
+         >>= confirm_transaction
+         >>= fun (transaction, Confirmation.{transaction_hash}) ->
+         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction)
+      ()
+
+  let%test "hello-solidity" =
+    let open Ethereum_abi in
+    Lwt_exn.run
+      (fun () ->
+         of_lwt Db.open_connection "unit_test_db"
+         >>= fun () ->
+         (* code is result of running "solc --bin hello.sol", and prepending "0x" *)
+         let code =
+           "0x608060405234801561001057600080fd5b506101a7806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806339a7aa4814610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60607fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd912260405180806020018281038252600d8152602001807f48656c6c6f2c20776f726c64210000000000000000000000000000000000000081525060200191505060405180910390a16040805190810160405280600881526020017f476f6f64627965210000000000000000000000000000000000000000000000008152509050905600a165627a7a7230582024923934849b0e74a5091ac4b5c65d9b3b93d74726aff49fd5763bc136dac5c60029"
+         in
+         let code_bytes = parse_0x_bytes code in
+         (* create a contract using "hello, world" EVM code *)
+         get_prefunded_address ()
+         >>= fun sender_address ->
+         (* a valid contract contains compiled EVM code
+            for testing, we just use a buffer with arbitrary contents
+         *)
+         make_signed_transaction
+           sender_address
+           (Operation.CreateContract code_bytes)
+           TokenAmount.zero
+           (TokenAmount.of_int 1000000)
+         >>= confirm_transaction
+         >>= fun (transaction, Confirmation.{transaction_hash}) ->
+         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction
+         >>= fun matches ->
+         assert matches ;
+         (* call the contract we've created *)
+         eth_get_transaction_receipt transaction_hash
+         >>= arr Option.get
+         >>= fun receipt ->
+         let contract_address = Option.get receipt.TransactionReceipt.contract_address in
+         let call_bytes = encode_function_call {function_name= "printHelloWorld"; parameters= []} in
+         make_signed_transaction
+           sender_address
+           (Operation.CallFunction (contract_address, call_bytes))
+           TokenAmount.zero
+           (TokenAmount.of_int 1000000)
+         >>= confirm_transaction
+         >>= fun (_transaction, Confirmation.{transaction_hash}) ->
+         eth_get_transaction_receipt transaction_hash
+         >>= arr Option.get
+         >>= fun receipt1 ->
+         (* verify that we called "printHelloWorld" *)
+         let receipt_log = match receipt1.TransactionReceipt.logs with [x] -> x | _ -> Lib.bork "blah" in
+         (* we called the right contract *)
+         let log_contract_address = receipt_log.LogObject.address in
+         assert (log_contract_address = contract_address) ;
+         (* we called the right function within the contract *)
+         let topic_event = match receipt_log.LogObject.topics with [x] -> x | _ -> Lib.bork "bloh" in
+         let hello_world = (String_value "Hello, world!", String) in
+         let function_signature = {function_name= "showResult"; parameters= [hello_world]} in
+         let function_signature_digest = function_signature |> function_signature_digest in
+         assert (Digest.equal topic_event function_signature_digest) ;
+         (* the log data is the encoding of the parameter passed to the event *)
+         let data = receipt_log.data in
+         let hello_encoding =
+           let tuple_value, tuple_ty = abi_tuple_of_abi_values [hello_world] in
+           unparse_0x_bytes (encode_abi_value tuple_value tuple_ty)
+         in
+         return (unparse_0x_bytes data = hello_encoding))
+      ()
+
+  let%test "fallback-with-facilitator-address" =
+    (* we call the fallback function in a contract by using the facilitator address as "code" *)
+    let open Ethereum_abi in
+    Lwt_exn.run
+      (fun () ->
+         of_lwt Db.open_connection "unit_test_db"
+         >>= fun () ->
+         (* code is result of running "solc --bin facilitator-fallback.sol", and prepending "0x" *)
+         let code =
+           "0x608060405234801561001057600080fd5b50610108806100206000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000602082015190506c01000000000000000000000000810490509190505600a165627a7a7230582098fc57c39988f3dcf9f7168b876b9f491273775ea6b44db8cb9483966fa1adc10029"
+         in
+         let code_bytes = parse_0x_bytes code in
+         (* create the contract *)
+         get_prefunded_address ()
+         >>= fun sender_address ->
+         make_signed_transaction
+           sender_address
+           (Operation.CreateContract code_bytes)
+           TokenAmount.zero
+           (TokenAmount.of_int 1000000)
+         >>= confirm_transaction
+         >>= fun (transaction, Confirmation.{transaction_hash}) ->
+         eth_get_transaction_receipt transaction_hash
+         >>= arr Option.get
+         >>= fun receipt ->
+         let contract_address = Option.get receipt.contract_address in
+         (* check balance of new contract *)
+         eth_get_balance (contract_address, Latest)
+         >>= fun starting_balance ->
+         assert (TokenAmount.sign starting_balance = 0) ;
+         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction
+         >>= fun matches ->
+         assert matches;
+         (* Call the fallback in the contract we've created.
+            It bypasses the regular ABI to access this address directly. *)
+         let amount_to_transfer = TokenAmount.of_int 93490 in
+         let facilitator_address = Address.of_0x "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
+         let call_bytes = Ethereum_util.bytes_of_address facilitator_address in
+         make_signed_transaction
+           sender_address
+           (Operation.CallFunction (contract_address, call_bytes))
+           amount_to_transfer
+           (TokenAmount.of_int 1000000)
+         >>= confirm_transaction
+         >>= fun (_transaction, Confirmation.{transaction_hash}) ->
+         eth_get_transaction_receipt transaction_hash
+         >>= arr Option.get
+         >>= fun receipt1 ->
+         (* verify that we called the fallback *)
+         let log = match receipt1.logs with [x] -> x | _ -> Lib.bork "bloh" in
+         (* the log is for this contract *)
+         let receipt_address = log.address in
+         assert (receipt_address = contract_address) ;
+         (* we saw the expected event *)
+         let logged_event = match log.LogObject.topics with [x] -> x | _ -> Lib.bork "bluh" in
+         let event_parameters =
+           [(Address_value facilitator_address, Address); abi_token_amount amount_to_transfer]
+         in
+         let event_signature =
+           {function_name= "logTransfer"; parameters= event_parameters}
+           |> function_signature_digest
+         in
+         assert (logged_event = event_signature) ;
+         (* the facilitator address is visible as data *)
+         let data = unparse_0x_bytes log.data in
+         let logged_encoding =
+           let tuple_value, tuple_ty = abi_tuple_of_abi_values event_parameters in
+           unparse_0x_bytes (encode_abi_value tuple_value tuple_ty)
+         in
+         assert (logged_encoding = data) ;
+         (* confirm contract has received amount transferred *)
+         eth_get_balance (contract_address, Latest)
+         >>= fun ending_balance ->
+         assert (ending_balance = amount_to_transfer) ;
+         (* now try invalid address, make sure it's not logged *)
+         let bogus_address_bytes = parse_0x_bytes "0xFF" in
+         make_signed_transaction
+           sender_address
+           (Operation.CallFunction (contract_address, bogus_address_bytes))
+           amount_to_transfer
+           (TokenAmount.of_int 1000000)
+         >>= confirm_transaction
+         >>= fun (_transaction, Confirmation.{transaction_hash}) ->
+         eth_get_transaction_receipt transaction_hash
+         >>= arr Option.get
+         >>= fun receipt2 ->
+         let logs2 = receipt2.logs in
+         return (List.length logs2 = 0))
+      ()
 end
