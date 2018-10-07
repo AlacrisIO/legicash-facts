@@ -214,7 +214,7 @@ reset:
 	$(SHOW) " Stopping alacris client"
 	$(HIDE) killall -q side_chain_client.exe 2> /dev/null || true
 	$(SHOW) " Stopping nginx"
-	$(HIDE) ./src/alacris_client/nginx/stop.sh
+	$(HIDE) ./src/alacris_client/nginx/stop.sh 2> /dev/null || true
 	$(SHOW) " Removing all databases, preserving old logs if any"
 	$(HIDE) rm -rf _old_logs ; \
 	if [ -d _run/logs ] ; then mv _run/logs _old_logs ; fi ; \
