@@ -42,7 +42,8 @@ open Ethereum_json_rpc
    Until confirmation, whatever it says is subject to revision.
    - The safest would be to nurse each and every transaction to either completion or definite failure
    before even attempting the next one, but then that's only one transaction per account every 30
-   minutes minimum, and maybe much worse depending on how "definite failure" is defined.
+   minutes minimum (NB: binance is OK with 36 confirmations ~10 minutes),
+   and maybe much worse depending on how "definite failure" is defined.
    This suggests that having multiple accounts could be a requirement for playing safe
    with smart contracts: each "system" (itself distributed with redundant workers for reliability)
    has its own private key that won't race with other systems.
@@ -51,11 +52,13 @@ open Ethereum_json_rpc
    will eventually issue the blocks), sometimes will just drop your signed transactions,
    for whatever reasons: not enough ether, not enough gas, gas price too low, nonce out of synch,
    network error, network split, denial-of-service attack, selective censorship, block-buying
-   attack, etc. You have to resend, sometimes with updated gas price, sometimes with updated nonce,
+   attack, local reverts due to PoW attacks even less than 33%, etc.
+   You have to resend, sometimes with updated gas price, sometimes with updated nonce,
    sometimes even with updated contract parameters, etc.
    Yet, you should be wary of changing anything substantive (to your application)
    about a transaction being sent, or you can race yourselves, and end up paying twice
    (or many more times) to receive a counterpart only once (or not at all).
+
    A good strategy might take into account what did or didn't happen in not-fully-confirmed blocks,
    yet (obviously) would not consider anything confirmed until it's confirmed.
    It is unclear how best to deal with multiple queued transactions —
@@ -88,6 +91,17 @@ open Ethereum_json_rpc
    and set the semaphore afterwards. Once again, miscompute worst-case gas and you're dead.
    You need to pay extra gas to read and write a semaphore, and will lose gas in case that
    multiple copies make it to the blockchain; but at least you won't lose the principal.
+   To avoid the need for a replay barrier, you must always wait for *some* transaction
+   with the given nonce to be fully confirmed before you start using the next nonce.
+
+   When you have a tight deadline for some transactions and not others,
+   you may have to up the gas price for the transactions you really want to get through,
+   with an understanding of the algorithm used by the miners and of the strategy used
+   by whoever is trying to bribe the miners out of including your transaction.
+   Maybe you have to fill the block gas limit. Or maybe you have to split your transaction
+   batch into smaller ones. An experimental study may be necessary, as well as regular
+   updates to the software agents --- quite unlike the contracts that are immutable by design,
+   transaction posting strategies may have to be mutable and evolving by design
 
    In some case, the right thing to do might be to consult back with the user,
    and ask them to add more ether, to update their gas price strategy, to deal with potentially
@@ -116,6 +130,9 @@ open Ethereum_json_rpc
 
    TODO: implement an asynchronous way for the UI to peek at the status of a transaction
    while it's going along its slow progress.
+
+   TODO: look at how OMiseGo does it, Andrew Redden tells me they have something public
+   (and he has something private).
 *)
 
 module OngoingTransactionStatus = struct
@@ -180,6 +197,7 @@ exception TransactionFailed of OngoingTransactionStatus.t * exn
 exception NonceTooLow
 
 let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmation.t t =
+  (*Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);*)
   eth_block_number ()
   >>= fun block_number ->
   if Revision.(is_add_valid confirmation.block_number block_depth_for_confirmation
@@ -268,33 +286,60 @@ let nonce_too_low address =
   (* TODO: Send Notification to end-user via UI! *)
   Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
 
-(** Wait until a transaction has been confirmed by the main chain. *)
+let confirmed_or_nonce_too_low : Address.t -> (Digest.t, Confirmation.t) Lwt_exn.arr =
+  fun sender hash ->
+    let open Lwter in
+    Ethereum_json_rpc.eth_get_transaction_receipt hash
+    >>= function
+    | Ok None -> nonce_too_low sender
+    | Ok (Some receipt) -> confirmation_of_transaction_receipt receipt |> Lwt_exn.return
+    | Error e -> Lwt_exn.fail e
+
+let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
+  fun sender signed ->
+    (*Logging.log "send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);*)
+    let open Lwter in
+    match signed with
+    | SignedTransaction.{raw;tx={hash}} ->
+      (eth_send_raw_transaction raw
+       >>= function
+       | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
+         Lwt_exn.(confirmed_or_nonce_too_low sender hash >>= const hash)
+       | Error (Rpc_error {code= -32000; message})
+         when message = "known transaction: " ^ Digest.to_hex_string hash ->
+         Lwt_exn.return hash
+       | Error e -> Lwt_exn.fail e
+       | Ok transaction_hash ->
+         if transaction_hash = hash then
+           Lwt_exn.return hash
+         else
+           Lwt_exn.bork "eth_send_raw_transaction: invalid hash %s instead of %s" (Digest.to_0x transaction_hash) (Digest.to_0x hash))
+
+(** Wait until a transaction has been confirmed by the main chain.
+    TODO: understand why an error in a previous version of this code got eaten silently,
+    instead of logged and reported, causing a deadlock. *)
 let send_and_confirm_transaction :
   (Transaction.t * SignedTransaction.t, Confirmation.t) Lwt_exn.arr =
-  fun (transaction, SignedTransaction.{raw}) ->
-    let open Lwter in
+  fun (transaction, signed) ->
+    (*Logging.log "Sending and confirming %s %s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);*)
     let sender = transaction.tx_header.sender in
-    eth_send_raw_transaction raw
-    >>= function
-    | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
-      nonce_too_low sender
-    | Error e -> return (Error e)
-    | Ok transaction_hash ->
-      let open Lwt_exn in
-      Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
-      >>= function
+    let hash = signed.SignedTransaction.tx.hash in
+    let open Lwt_exn in
+    send_raw_transaction sender signed
+    (*>>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)*)
+    >>= Ethereum_json_rpc.eth_get_transaction_receipt
+    (*>>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)*)
+    >>= (function
       | None ->
         let nonce = transaction.tx_header.nonce in
         Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
         >>= fun sender_nonce ->
         if Nonce.(compare sender_nonce nonce > 0) then
-          nonce_too_low sender
+          confirmed_or_nonce_too_low sender hash
         else
           fail Still_pending
-      | Some receipt ->
-        receipt
-        |> confirmation_of_transaction_receipt
-        |> check_confirmation_deep_enough
+      | Some receipt -> confirmation_of_transaction_receipt receipt |> return)
+    >>= check_confirmation_deep_enough
 
 module TransactionTracker = struct
   open Lwter
@@ -425,15 +470,15 @@ module User = struct
     let make_activity get_user user saving state =
       (* TODO: use Db.with_transaction here, or have all callers use it appropriately *)
       let wrapper transform =
-        (*Lwter.(transform >>> saving)*)
-        Lwter.(
+        Lwter.(transform >>> saving)
+        (*Lwter.(
           fun state ->
-            Logging.log "Actor for %s called, state %s" (Address.to_0x user) (State.to_yojson_string state);
-            state |> transform >>= fun state ->
-            Logging.log "Actor for %s returned, state %s; saving..." (Address.to_0x user) (State.to_yojson_string state);
-            saving state >>= fun state ->
-            Logging.log "Actor for %s saved %s" (Address.to_0x user) (State.to_yojson_string state);
-            return state)
+          Logging.log "Actor for %s called, state %s" (Address.to_0x user) (State.to_yojson_string state);
+          state |> transform >>= fun state ->
+          Logging.log "Actor for %s returned, state %s; saving..." (Address.to_0x user) (State.to_yojson_string state);
+          saving state >>= fun state ->
+          Logging.log "Actor for %s saved %s" (Address.to_0x user) (State.to_yojson_string state);
+          return state)*)
       in
       let actor = SimpleActor.make ~wrapper state in
       (* TODO: maybe just use Lwt_mvar.create state and leave it to users to transact on it ? *)
