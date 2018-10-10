@@ -19,7 +19,7 @@ MAKE reset
 
 MAKE run_ethereum_net
 
-sleep 5
+# NB: ethereum_prefunder will do the retrying so we don't have to sleep
 MAKE fund_accounts
 
 sleep 5
