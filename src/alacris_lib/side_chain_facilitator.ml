@@ -212,26 +212,102 @@ let validate_user_transaction_request :
               (fun () -> Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
                            (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
 
-let make_user_transaction :
-  (UserTransactionRequest.t signed, Transaction.t) FacilitatorAction.arr =
+(** Add a transaction to the side_chain, given the [updated_limit] and the [tx_request].
+    Don't do that until you've properly processed the transaction! *)
+let add_transaction : TokenAmount.t -> (TransactionRequest.t, Transaction.t) FacilitatorAction.arr =
+  fun updated_limit tx_request facilitator_state ->
+    let tx_revision = Revision.(add facilitator_state.current.facilitator_revision one) in
+    let transaction = Transaction.{tx_header=TxHeader.{tx_revision; updated_limit};tx_request} in
+    FacilitatorAction.return transaction
+      (facilitator_state
+       |> (FacilitatorState.lens_current |-- State.lens_facilitator_revision).set tx_revision
+       |> Lens.modify (FacilitatorState.lens_current |-- State.lens_transactions)
+            (TransactionMap.add tx_revision transaction))
+
+let make_user_transaction : (UserTransactionRequest.t signed, Transaction.t) FacilitatorAction.arr =
   fun signed_request facilitator_state ->
-    let current_state = facilitator_state.current in
-    let new_revision = Revision.(add current_state.facilitator_revision one) in
-    let transaction =
-      Transaction.
-        { tx_header=TxHeader.{ tx_revision= new_revision
-                             ; updated_limit= facilitator_state.current.spending_limit }
-        ; tx_request=`UserTransaction signed_request } in
+    let tx_request=`UserTransaction signed_request in
+    let updated_limit= facilitator_state.current.spending_limit in
     let requester = signed_request_requester signed_request in
     let account_lens = facilitator_account_lens requester in
     let new_requester_revision = signed_request.payload.rx_header.requester_revision in
-    let new_facilitator_state =
-      facilitator_state
-      |> (account_lens |-- AccountState.lens_account_revision).set new_requester_revision
-      |> (FacilitatorState.lens_current |-- State.lens_facilitator_revision).set new_revision
-      |> Lens.modify (FacilitatorState.lens_current |-- State.lens_transactions)
-           (TransactionMap.add new_revision transaction) in
-    FacilitatorAction.return transaction new_facilitator_state
+    add_transaction updated_limit tx_request
+      (facilitator_state
+       |> (account_lens |-- AccountState.lens_account_revision).set new_requester_revision)
+
+(** Get balance for given account at given revision in given side chain state *)
+let _balance_at_revision : Address.t -> Revision.t -> State.t -> TokenAmount.t =
+  fun address revision state ->
+    ignore (address, revision, state);
+    bottom ()
+
+let compute_updated_limit :
+  facilitator:Address.t -> previous_confirmed:State.t -> new_confirmed:Revision.t -> current:State.t
+  -> TokenAmount.t =
+  fun ~facilitator ~previous_confirmed ~new_confirmed ~current ->
+    ignore (facilitator, previous_confirmed, new_confirmed, current);
+    TokenAmount.zero
+(*
+   XXXXX
+   We may need to keep track of more quantities that initially imagined. Figure out which.
+
+   How is the total limit defined?
+ * consider the last *committed* bond B (balance for facilitator address? Or something ad hoc?)
+ * multiply it by a fraction F (say 1/5) for the limit.
+
+   What diminishes the limit?
+ * taking money out of the bond / facilitator address
+ * taking money out of (other) addresses in an expedited way.
+
+   When you post an update, what happens?
+ * Some newly *committed* state was confirmed on the main chain.
+ * The *committed* state is in the future to the *previous committed* state.
+ * The *committed* state is in the past of the *current* state.
+ * The bond has changed: it is now based on the account balance at the new committed state,
+ * The set of expedited transactions that encroach on the limit has changed, too:
+   it is now smaller, and we should be able to computed how that has changed by
+   a difference between the spent since previous_committed and committed.
+   [So, maybe separately both a "bond-based limit" and a "tokens spent expeditedly" amount,
+   rather than just the synthetic difference? Or can we do with a single synthetic number?]
+
+   Restrictions:
+ * Transfers to/from the bond account are special, because of the fraction F.
+ * Hypothetical rule: any payment from the facilitator balance / bond MUST be expedited,
+   so it is properly accounted??
+   (THEN, to get all your money: do it in N steps until there's not enough money left to care;
+   or close the entire chain).
+   OR, it must be done as the last thing before the state update, or as part of the state update?
+ * you cannot withdraw directly from the facilitator balance, or we must specially make all such
+   withdrawals expedited somehow.
+
+   let facilitator_address = facilitator_state.keypair.address in
+   let previous_committed_state = facilitator_state.committed.payload in
+   let previous_committed_revision = previous_committed_state.facilitator_revision in
+   let current_state = facilitator_state.current in
+   let current_revision = current_state.facilitator_revision in
+   let previous_limit = previous_committed_state.spending_limit in
+   let previous_balance =
+   balance_at_revision facilitator_address previous_committed_revision facilitator_state.current in
+   let current_balance =
+   balance_at_revision facilitator_address current_revision facilitator_state.current in
+   let delta_in_facilitator_balance = TokenAmount.sub current_balance previous_balance in
+   (* TODO: have a variant of add that also checks the upper limit and has monadic errors *)
+   TokenAmount.add previous_limit delta_in_facilitator_balance in
+   TokenAmount.zero
+*)
+
+let process_admin_transaction_request :
+  (AdminTransactionRequest.t, Transaction.t) FacilitatorAction.arr =
+  fun request facilitator_state ->
+    let tx_request=`AdminTransaction request in
+    let updated_limit = match request with
+      | StateUpdate (side_chain_revision, _digest) ->
+        compute_updated_limit
+          ~facilitator:facilitator_state.keypair.address
+          ~previous_confirmed:facilitator_state.committed.payload (* TODO: rename committed to confirmed *)
+          ~new_confirmed:side_chain_revision
+          ~current:facilitator_state.current in
+    add_transaction updated_limit tx_request facilitator_state
 
 let modify_guarded_state guard modification lens failure success state =
   if guard (lens.Lens.get state) then
@@ -329,8 +405,8 @@ let process_validated_transaction_request : (TransactionRequest.t, Transaction.t
   function
   | `UserTransaction request ->
     request |> FacilitatorAction.(effect_validated_user_transaction_request >>> make_user_transaction)
-  | `AdminTransaction _ ->
-    bottom () (* TODO: do it *)
+  | `AdminTransaction request ->
+    process_admin_transaction_request request
 
 let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
   fun transaction ->
@@ -413,6 +489,9 @@ let get_account_state address (facilitator_state:FacilitatorState.t) =
   with Not_found ->
     error_json "Could not find account state for account: %s" (Address.to_0x address)
 
+(* TODO: only provide side-chain status.
+   Clients must separately query their own ethereum node for their main chain status,
+   then reconcile the results. Otherwise, easy DoS attack. *)
 let get_account_status address facilitator_state =
   let open Lwt_exn in
   let exception Failure_to_get_main_chain_balance of exn in
@@ -421,7 +500,7 @@ let get_account_status address facilitator_state =
   trying Ethereum_json_rpc.eth_get_balance (address, Latest)
   >>= handling (fun e -> fail (Failure_to_get_main_chain_balance e))
   >>= fun balance ->
-  trying Ethereum_json_rpc.eth_get_transaction_count (address, Latest)
+  trying Ethereum_json_rpc.eth_get_transaction_count (address, Pending)
   >>= handling (fun e -> fail (Failure_to_get_main_chain_transaction_count e))
   >>= fun revision ->
   let main_chain_account = { address; balance; revision } in
@@ -506,15 +585,19 @@ let inner_transaction_request_loop =
                 for their confirmation's batch to have been committed,
                 and our private resolver for this batch. *)
              let (batch_committed, notify_batch_committed) = Lwt.task () in
-             (* An internal promise to detect if and when we trigger the batch based on a timeout *)
+             (* An internal promise to detect if and when we trigger the batch based on
+                a timeout having been passed since the earliest unprocessed commit request. *)
              let (time_triggered, time_trigger) = Lwt.task () in
-             (* An internal promise to detect if and when we trigger the batch based on time *)
+             (* An internal promise to detect if and when we trigger the batch based on
+                the size of the batch becoming too long. *)
              let (size_triggered, size_trigger) = Lwt.task () in
              (* When we are ready and either trigger criterion is met,
                 send ourselves a Flush message for this batch_id *)
              Lwt.async (fun () -> Lwt.join [previous;Lwt.pick [time_triggered; size_triggered]]
                          >>= (fun () -> Lwt_mvar.put inner_transaction_request_mailbox (`Flush batch_id)));
              let rec request_batch facilitator_state size =
+               (** The below mailbox is filled by post_validated_request, except for
+                   the async line just preceding, whereby a `Flush message is sent. *)
                Lwt_mvar.take inner_transaction_request_mailbox
                >>= function
                | `Confirm (request_signed, continuation) ->
@@ -580,7 +663,7 @@ let initial_facilitator_state address =
     ; current= initial_side_chain_state
     ; fee_schedule= initial_fee_schedule }
 
-(* TODO: make it a PersistentActivity ? *)
+(* TODO: make it a PersistentActivity. *)
 let start_facilitator address =
   let open Lwt_exn in
   match !the_facilitator_service_ref with

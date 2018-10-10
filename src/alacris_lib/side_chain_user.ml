@@ -35,7 +35,7 @@ let stub_confirmed_side_chain_state_digest = ref (State.digest Side_chain.State.
 let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
-(* TODO: ACUTALLY IMPLEMENT IT, MAYBE MOVE IT to side_chain.ml ? *)
+(* TODO: ACTUALLY IMPLEMENT IT, MAYBE MOVE IT to side_chain.ml ? *)
 let wait_for_facilitator_state_update revision =
   (*bork "wait_for_facilitator_state_update not implemented yet"; bottom ()*)
   (* THIS IS FAKE NEWS! *)
@@ -214,13 +214,13 @@ module TransactionTracker = struct
                TokenAmount.(add deposit_amount deposit_fee)
                |> Facilitator_contract.pre_deposit ~facilitator in
              (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
-             (Ethereum_user.(user_action user add_ongoing_transaction (Wanted pre_transaction))
+             (Ethereum_user.add_ongoing_transaction user (Wanted pre_transaction)
               >>= function
               | Error error -> invalidate ongoing error
-              | Ok (tracker_key, _) ->
+              | Ok (tracker_key, _, _) ->
                 DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
-             let (_, promise) = Ethereum_user.TransactionTracker.get () tracker_key in
+             let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
              (promise >>= function
               | Failed (_, error) -> invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
               | Confirmed (transaction, confirmation) ->
@@ -384,8 +384,8 @@ module User = struct
              (fun revision ->
                 TransactionTracker.get revision_generator {user; facilitator; revision} |> ignore))
     let make_activity user_actor user saving state =
-      let with_transaction transform = Lwter.(transform >>> saving) in
-      let actor = SimpleActor.make ~with_transaction state in
+      let wrapper transform = Lwter.(transform >>> saving) in
+      let actor = SimpleActor.make ~wrapper state in
       (* TODO: maybe just use Lwt_mvar.create state and leave it to users to transact on it ? *)
       resume_transactions user_actor user state; (* TODO: pass the actor as context to that? *)
       actor
@@ -483,15 +483,6 @@ let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
    | None -> fail No_facilitator_yet
    | Some (address, _) -> return address)
 
-   let issue_user_transaction_request operation =
-   let open Lwt_exn in
-   get_first_facilitator ()
-   >>= of_lwt_exn
-   >>= make_rx_header
-   >>= fun rx_header -> return UserTransactionRequest.{rx_header; operation}
-   >>= sign_request
-   >>= add_pending_request
-
    (* TODO: is this used? should balances and revisions be updated in effect_request?
    looks like balances already are *)
 
@@ -529,11 +520,6 @@ let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
    (List.map (fun x -> x.TransactionStatus.request.payload.operation) pending_operations)
    confirmed_state
 
-   let ethereum_action : ('i, 'o) Ethereum_user.UserAsyncAction.arr -> ('i, 'o) UserAsyncAction.arr =
-   fun action input user_state ->
-   UserAsyncAction.of_lwt_exn
-   (Ethereum_user.user_action user_state.UserState.address action) input user_state
-
    (* TODO: find the actual gas limit *)
    let withdrawal_gas_limit = TokenAmount.of_int 1000000
 
@@ -546,7 +532,8 @@ let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
    (Withdrawal { withdrawal_amount ; withdrawal_fee })
 
 
-   (** We should be signing the RLP, not the marshaling! *)
+   (** Given a withdrawal on the side chain, reflect that on the main chain
+   We should be signing the RLP, not the marshaling! *)
    let make_main_chain_withdrawal_transaction :
    address -> (UserOperation.withdrawal_details, Ethereum_chain.Transaction.t * Ethereum_json_rpc.SignedTransaction.t) Ethereum_user.UserAsyncAction.arr =
    fun facilitator UserOperation.{withdrawal_amount;withdrawal_fee} state ->

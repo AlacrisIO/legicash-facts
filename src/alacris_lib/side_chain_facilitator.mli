@@ -27,11 +27,13 @@ val initial_facilitator_state : Address.t -> FacilitatorState.t
 module FacilitatorAction : ActionS with type state = FacilitatorState.t
 module FacilitatorAsyncAction : AsyncActionS with type state = FacilitatorState.t
 
+(** Type of a lens to access some individual account inside some facilitator's state *)
 type account_lens = (FacilitatorState.t, AccountState.t) Lens.t
 
+(* TODO: rename to make_account_lens or just account_lens ? *)
 val facilitator_account_lens : Address.t -> account_lens
 
-(** start the background facilitator processes for given address *)
+(** start the background facilitator processes for given facilitator address *)
 val start_facilitator : (Address.t, unit) Lwt_exn.arr
 
 (** [post_user_transaction_request request] asynchronously processes [request] (not forced)

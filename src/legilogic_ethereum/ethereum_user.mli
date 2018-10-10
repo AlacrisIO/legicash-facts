@@ -12,8 +12,8 @@ open Ethereum_json_rpc
 module OngoingTransactionStatus : sig
   type t =
     | Wanted of PreTransaction.t
+    (* TODO: add an intermediate state for when the nonce is known, but the gas price may vary ? *)
     | Signed of Transaction.t * SignedTransaction.t
-    | Sent of Transaction.t * SignedTransaction.t * Digest.t
   include PersistableS with type t := t
   val pre_transaction : t -> PreTransaction.t
 end
@@ -37,6 +37,20 @@ module TransactionStatus : sig
   val operation : t -> Operation.t
 end
 
+type nonce_operation = Peek | Next | Reset [@@deriving yojson]
+
+module NonceTracker : sig
+  module State : PersistableS with type t = Nonce.t option
+  include PersistentActivityS
+    with type key = Address.t
+     and type context = unit
+     and type state = State.t
+     and type t = (nonce_operation, Revision.t) Lwter.arr
+  val peek : (address, Revision.t) Lwter.arr
+  val next : (address, Revision.t) Lwter.arr
+  val reset : (address, unit) Lwter.arr
+end
+
 module TransactionTracker : sig
   module Key : sig
     type t= { user : Address.t; revision : Revision.t }
@@ -46,7 +60,7 @@ module TransactionTracker : sig
     with type key := Key.t
      and type context = unit
      and type state = TransactionStatus.t
-     and type t = Key.t * FinalTransactionStatus.t Lwt.t
+     and type t = Key.t * FinalTransactionStatus.t Lwt.t * unit Lwt.u
 end
 
 (** State for the user client.
@@ -63,16 +77,12 @@ module UserState : sig
 end
 
 module User : PersistentActivityS
-  with type context = unit
+  with type context = Address.t -> UserState.t SimpleActor.t
    and type key = Address.t
    and type state = UserState.t
    and type t = UserState.t SimpleActor.t
 
-module UserAsyncAction : AsyncActionS with type state = UserState.t
-
-val user_action: Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr
-
-val add_ongoing_transaction : (OngoingTransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr
+val add_ongoing_transaction : Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr
 
 val confirmation_of_transaction_receipt : TransactionReceipt.t -> Confirmation.t
 
@@ -83,39 +93,48 @@ val block_depth_for_confirmation : Revision.t
 exception Still_pending
 (** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
 
-val unlock_account : ?duration:int -> address -> unit Lwt_exn.t
-(** unlocks account for given duration (in seconds) on net *)
+val issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr
+(** Issue a pre-transaction as transaction on the Ethereum network, return a tracker *)
 
-val make_signed_transaction : Address.t -> Operation.t -> TokenAmount.t -> TokenAmount.t ->
-  (Transaction.t * SignedTransaction.t) Lwt_exn.t
-(** Prepare a signed transaction, that you may later issue onto Ethereum network,
-    from given address, with given operation, value and gas_limit *)
-
-val issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) UserAsyncAction.arr
-(** Issue a signed transaction on the Ethereum network, return a tracker *)
-
-val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) UserAsyncAction.arr
+val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr
 (** Track a transaction until it is either confirmed or invalidated *)
 
-val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
+val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * Confirmation.t) Lwt_exn.arr
 (** Check that the final transaction status is indeed confirmed, or fail *)
 
-val confirm_transaction : (Transaction.t * SignedTransaction.t, Transaction.t * Confirmation.t) UserAsyncAction.arr
+val confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr
 (** Issue a transaction on the Ethereum network, wait for it to be confirmed *)
 
-val transfer_tokens : (Address.t * Address.t * TokenAmount.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr
-(** Transfer tokens from one address to another on the main chain; asynchronous *)
+val transfer_tokens : recipient:Address.t -> TokenAmount.t -> PreTransaction.t
+(** PreTransaction to transfer tokens from one address to another *)
 
-val send_transaction : (Transaction.t, Digest.t) Lwt_exn.arr
-(** Send a transaction, return its hash *)
+val create_contract : sender:Address.t -> code:Bytes.t
+                      -> ?gas_limit:TokenAmount.t -> TokenAmount.t
+                      -> PreTransaction.t Lwt_exn.t
+(** PreTransaction to create a contract *)
 
-val main_chain_block_notification_stream :
-  ?delay:float             (* Wait this long between polls of geth *)
-  -> ?start_block:Revision.t (* Don't report until this block number has passed. *)
-  -> ?get_block: (?timeout:float -> ?log:bool -> (unit, Revision.t) Lwt_exn.arr) (* Testing affordance. Don't use *)
-  -> unit
-  -> Revision.t AsyncStream.t Lwt.t (* Stream of block numbers *)
-(** [main_chain_block_notification_stream () start delay] is an asynchronous
-    stream of notifications that a new block has been observed, based on polling
-    geth every [delay] seconds, and starting with block [start]*)
+val call_function : sender:Address.t -> contract:Address.t -> call:Bytes.t
+                    -> ?gas_limit:TokenAmount.t -> TokenAmount.t
+                    -> PreTransaction.t Lwt_exn.t
+(** Return a PreTransaction to call a function; asynchronous *)
 
+module Test : sig
+  val get_prefunded_address : unit -> Address.t Lwt_exn.t
+  (** get the prefunded address on the test network *)
+
+  val display_balance : (string -> string -> 'a) -> Address.t -> TokenAmount.t -> 'a
+  (** display an account having the given balance given a way to print address, optional name and balance *)
+
+  val ensure_address_prefunded : Address.t -> TokenAmount.t -> Address.t -> unit Lwt_exn.t
+  (** Given a prefunded address and a minimum amount of tokens, ensure that the second given address
+      is prefunded to the tune of at least the given amount *)
+
+  val ensure_test_account : ?min_balance:TokenAmount.t -> Address.t
+    -> (string * keypair, unit) Lwt_exn.arr
+  (** Given a minimum amount of tokens and a prefunded address with lots of them,
+      ensure that our private Ethereum network has an account with given nickname and address,
+      an empty geth password, and at least a billion tokens in it. *)
+
+  val fund_accounts : ?min_balance:TokenAmount.t -> (unit, unit) Lwt_exn.arr
+  (** transfers funds from funding account to account with given address, if balance less than min_balance *)
+end

@@ -163,7 +163,7 @@ run_ethereum_net :
 
 # 2- Fund test accounts on the private Ethereum network,
 # importantly including the facilitator's account
-fund_accounts : $(BUILD_DIR)/$(ETHEREUM_PREFUNDER)
+fund_accounts : $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) force
 	$(HIDE) $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) ./config/facilitator_keys.json ./config/demo-keys-small.json
 
 # 3- Run our server
@@ -184,6 +184,10 @@ nginx:
 test_side_chain_client : $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
 	$(SHOW) "Testing side_chain_client"
 	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
+
+# Putting it together: mini integration test
+test_mini_integration : all
+	$(HIDE) ./scripts/mini_integration_test.sh
 
 # You don't usually need to stop nginx, but in case you want to:
 stop_nginx:
@@ -210,7 +214,7 @@ reset:
 	$(SHOW) " Stopping alacris client"
 	$(HIDE) killall -q side_chain_client.exe 2> /dev/null || true
 	$(SHOW) " Stopping nginx"
-	$(HIDE) ./src/alacris_client/nginx/stop.sh
+	$(HIDE) ./src/alacris_client/nginx/stop.sh 2> /dev/null || true
 	$(SHOW) " Removing all databases, preserving old logs if any"
 	$(HIDE) rm -rf _old_logs ; \
 	if [ -d _run/logs ] ; then mv _run/logs _old_logs ; fi ; \

@@ -7,3 +7,5 @@ build-alacris:
     - make toplevel
     # Run unit tests
     - make test_hello test
+    # Run mini integration test
+    - make test_mini_integration

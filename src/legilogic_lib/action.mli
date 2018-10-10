@@ -452,7 +452,7 @@ val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_cha
 
 (** Simple actor
     You [make] an actor by providing, beside an initial state of type ['state] (at the end),
-    a [with_transaction] wrapper that will persist the state as part of some suitable transaction,
+    a [wrapper] that will persist the state as part of some suitable transaction,
     either synchronously or asynchronously.
 
     Note how we follow the Clojure model where the internal actor state is dumb data
@@ -501,6 +501,6 @@ end
 module SimpleActor : sig
   include SimpleActorS
   val make : ?mailbox:(('state, 'state) Lwter.arr Lwt_mvar.t)
-    -> ?with_transaction:(('state, 'state) Lwter.arr -> ('state, 'state) Lwter.arr)
+    -> ?wrapper:(('state, 'state) Lwter.arr -> ('state, 'state) Lwter.arr)
     -> 'state -> 'state t
 end

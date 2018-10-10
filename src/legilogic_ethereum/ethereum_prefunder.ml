@@ -9,7 +9,7 @@ open Lwt_exn
 
 open Legilogic_ethereum
 open Ethereum_chain
-open Ethereum_transaction.Test
+open Ethereum_user.Test
 
 let _ = Config.set_application_name "alacris"
 let _ = Logging.set_log_file (Config.get_application_home_dir () ^ "/_run/logs/ethereum_prefunder.log")
@@ -42,6 +42,7 @@ let ensure_prefunded prefunded_address amount string =
     (match nickname with
      | Some name -> register_address name address
      | None -> ());
+    Logging.log "ensure_address_prefunded %s %s %s" (Address.to_0x prefunded_address) (TokenAmount.to_string amount) (Address.to_0x address);
     ensure_address_prefunded prefunded_address amount address
     >>= fun () -> Ethereum_transaction.ensure_eth_signing_address address)
 
@@ -53,7 +54,7 @@ let _ =
   let amount = TokenAmount.of_string !amount_ref in
   let open Lwt_exn in
   Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/ethereum_prefunder_db")
-    (get_prefunded_address
+    (retry ~retry_window:1.0 ~max_window:1.0 ~max_retries:(Some 60) get_prefunded_address
      >>> fun prefunded_address ->
      (* TODO: Fix race condition #7 and make sure it works with list_iter_p here and above. *)
      list_iter_p (ensure_prefunded prefunded_address amount) (List.rev !args))
