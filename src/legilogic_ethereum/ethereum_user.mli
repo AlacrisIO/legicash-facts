@@ -93,13 +93,8 @@ val block_depth_for_confirmation : Revision.t
 exception Still_pending
 (** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
 
-val make_signed_transaction : Address.t -> Operation.t -> TokenAmount.t -> TokenAmount.t ->
-  (Transaction.t * SignedTransaction.t) Lwt_exn.t
-(** Prepare a signed transaction, that you may later issue onto Ethereum network,
-    from given address, with given operation, value and gas_limit *)
-
-val issue_transaction : (Transaction.t * SignedTransaction.t, TransactionTracker.t) Lwt_exn.arr
-(** Issue a signed transaction on the Ethereum network, return a tracker *)
+val issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr
+(** Issue a pre-transaction as transaction on the Ethereum network, return a tracker *)
 
 val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr
 (** Track a transaction until it is either confirmed or invalidated *)
@@ -107,11 +102,21 @@ val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.a
 val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * Confirmation.t) Lwt_exn.arr
 (** Check that the final transaction status is indeed confirmed, or fail *)
 
-val confirm_transaction : (Transaction.t * SignedTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr
+val confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr
 (** Issue a transaction on the Ethereum network, wait for it to be confirmed *)
 
-val transfer_tokens : (Address.t * Address.t * TokenAmount.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr
-(** Transfer tokens from one address to another on the main chain; asynchronous *)
+val transfer_tokens : recipient:Address.t -> TokenAmount.t -> PreTransaction.t
+(** PreTransaction to transfer tokens from one address to another *)
+
+val create_contract : sender:Address.t -> code:Bytes.t
+                      -> ?gas_limit:TokenAmount.t -> TokenAmount.t
+                      -> PreTransaction.t Lwt_exn.t
+(** PreTransaction to create a contract *)
+
+val call_function : sender:Address.t -> contract:Address.t -> call:Bytes.t
+                    -> ?gas_limit:TokenAmount.t -> TokenAmount.t
+                    -> PreTransaction.t Lwt_exn.t
+(** Return a PreTransaction to call a function; asynchronous *)
 
 module Test : sig
   val get_prefunded_address : unit -> Address.t Lwt_exn.t

@@ -6,7 +6,6 @@ open Lwt_exn
 open Json_rpc
 
 open Legilogic_ethereum
-open Ethereum_chain
 
 open Side_chain
 open Side_chain_facilitator
@@ -39,12 +38,9 @@ let check_side_chain_contract_created contract_address =
 
 let create_side_chain_contract installer_address =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
-  Ethereum_user.make_signed_transaction
-    installer_address
-    (Operation.CreateContract Facilitator_contract_binary.contract_bytes)
-    TokenAmount.zero
-    (TokenAmount.of_int 1000000)
-  >>= Ethereum_user.confirm_transaction
+  Ethereum_user.create_contract ~sender:installer_address
+    ~code:Facilitator_contract_binary.contract_bytes TokenAmount.zero
+  >>= Ethereum_user.confirm_pre_transaction installer_address
   >>= fun (_tx, confirmation) ->
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
   >>= function
