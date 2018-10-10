@@ -37,4 +37,8 @@ result=$?
 
 MAKE reset
 
-exit $result
+if [ $result = 0 ] ; then
+   echo "mini_integration_test: SUCCESS!" ; exit 0
+else
+   echo "mini_integration_test: FAILURE!" ; exit $result
+fi
