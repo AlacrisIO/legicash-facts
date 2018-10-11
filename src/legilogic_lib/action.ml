@@ -194,16 +194,16 @@ module Lwt_exn = struct
   let run_lwt mf x = Lwt.bind (mf x) (OrExn.get >> Lwt.return)
   let run mf x = run_lwt mf x |> Lwt_main.run
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
-  let catching f x = try f x with e -> fail e
-  let catching_arr f = arr f |> catching
-  let catching_lwt f x = try Lwt.bind (f x) return with e -> fail e
+  let of_exn a x = a x |> Lwt.return
+  let of_lwt a x = Lwt.bind (a x) return
+  let catching f x = Lwt.catch (fun () -> try f x with e -> fail e) (fun e -> fail e)
+  let catching_arr f = f |> arr |> catching
+  let catching_lwt f = f |> of_lwt |> catching
   let trying a x = Lwt.bind (a x) return
   let handling a = function
     | Ok x -> return x
     | Error e -> a e
   let (>>=|) x f = Lwt.bind x (function Ok v -> return v | Error _ -> f ())
-  let of_exn a x = a x |> Lwt.return
-  let of_lwt a x = Lwt.bind (a x) return
   let list_iter_s f = of_lwt (Lwt_list.iter_s (run_lwt f))
   let list_iter_p f = of_lwt (Lwt_list.iter_p (run_lwt f))
   let printf fmt =
@@ -340,10 +340,12 @@ module AsyncAction (State : TypeS) = struct
     | (Error e, new_state) ->
       if (match max_retries with None -> true | Some n -> n > 1) then
         let retry_window = min retry_window max_window in
-        Lwt_unix.sleep (Random.float retry_window)
+        let sleep_duration = Random.float retry_window in
+        Logging.log "Sleeping %f seconds before retry" sleep_duration;
+        Lwt_unix.sleep sleep_duration
         >>= fun () ->
         retry ~retry_window:(retry_window *. 2.0) ~max_window
-          ~max_retries:(Option.map ((+) 1) max_retries)
+          ~max_retries:(Option.map pred max_retries)
           action input new_state
       else
         Lwt.return (Error e, new_state)

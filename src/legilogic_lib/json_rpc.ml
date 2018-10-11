@@ -125,7 +125,6 @@ let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
 
 let json_rpc server method_name result_decoder param_encoder
       ?(timeout=rpc_timeout) ?(log= !rpc_log) params =
-  let (>>==) = Lwt.bind in
   make_request method_name param_encoder params
   >>= fun request ->
   let request_id = request.id in
@@ -133,20 +132,18 @@ let json_rpc server method_name result_decoder param_encoder
   if log then
     Logging.log "Sending rpc request to %s: %s" (Uri.to_string server) request_str;
   let timeout_thread =
-    Lwt_unix.sleep timeout >>== fun () -> fail Timeout in
+    catching_lwt Lwt_unix.sleep timeout >>= fun () -> fail Timeout in
   let post_thread =
-    Client.post
-      ~body:(Cohttp_lwt__.Body.of_string request_str)
-      ~headers:(Cohttp.Header.add (Cohttp.Header.init ()) "Content-Type" "application/json")
-      server
-    >>== fun (resp, body) ->
+    let body = Cohttp_lwt__.Body.of_string request_str in
+    let headers = Cohttp.Header.add (Cohttp.Header.init ()) "Content-Type" "application/json" in
+    catching_lwt (Client.post ~body ~headers) server
+    >>= fun (resp, body) ->
     let status = Response.status resp in
-    (try ignore (Code.code_of_status status); Ok ()
-     with _ -> Error (Bad_status status))
-    |> Lwt.return
+    (try ignore (Code.code_of_status status); return ()
+     with _ -> fail (Bad_status status))
     >>= fun () ->
-    Cohttp_lwt.Body.to_string body
-    >>== fun response_str ->
+    catching_lwt Cohttp_lwt.Body.to_string body
+    >>= fun response_str ->
     if log then
       Logging.log "Receiving rpc response from %s: %s" (Uri.to_string server) response_str;
     decode_response result_decoder request_id response_str
