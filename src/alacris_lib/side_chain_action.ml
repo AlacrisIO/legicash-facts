@@ -6,7 +6,6 @@ open Lwt_exn
 open Json_rpc
 
 open Legilogic_ethereum
-open Ethereum_chain
 
 open Side_chain
 open Side_chain_facilitator
@@ -26,21 +25,22 @@ let check_side_chain_contract_created contract_address =
     (let addr = Address.to_0x contract_address in
      Logging.log "Saved contract address %s invalid" addr;
      Printf.eprintf
-       "Found contract address %s, but it doesn't contain the contract we expect.
+       "Found contract address %s, but it doesn't contain the contract we expect:
+        It contains code %s
+        but we expected: %s
         Did you reset the state of the test ethereum network without resetting the
         state of the test side-chain? If so, kill the side_chain_server and the
         side_chain_client, and try again after resetting their state with `make clean`.\n"
-       addr;
-     raise Invalid_contract)
+       addr
+       (Hex.unparse_0x_bytes code)
+       (Hex.unparse_0x_bytes Facilitator_contract_binary.contract_bytes);
+     fail Invalid_contract)
 
 let create_side_chain_contract installer_address =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
-  Ethereum_user.make_signed_transaction
-    installer_address
-    (Operation.CreateContract Facilitator_contract_binary.contract_bytes)
-    TokenAmount.zero
-    (TokenAmount.of_int 1000000)
-  >>= Ethereum_user.(user_action installer_address confirm_transaction)
+  Ethereum_user.create_contract ~sender:installer_address
+    ~code:Facilitator_contract_binary.contract_bytes TokenAmount.zero
+  >>= Ethereum_user.confirm_pre_transaction installer_address
   >>= fun (_tx, confirmation) ->
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
   >>= function
@@ -66,7 +66,7 @@ let ensure_side_chain_contract_created installer_address =
 module Test = struct
   open Lib.Test
   open Signing.Test
-  open Ethereum_transaction.Test
+  open Ethereum_user.Test
   open Side_chain_facilitator.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true

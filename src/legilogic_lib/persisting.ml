@@ -147,10 +147,9 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
     State.marshal_string state |> Db.put db_key >>= const state
   let resume (context: context) (key : key) (current_state: state) : activity =
     (*Logging.log "RESUME prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string initial_state);*)
-    (match Hashtbl.find_opt table key with
-     | None -> ()
-     | Some _ -> Lib.bork "object with key ~s ~s already resumed!" key_prefix (Key.to_yojson_string key));
     let activity = make_activity context key (saving (db_key key)) current_state in
+    (if Hashtbl.mem table key then
+       Lib.bork "object with key ~s ~s already resumed!" key_prefix (Key.to_yojson_string key));
     Hashtbl.replace table key activity;
     activity
   let make context key init =
@@ -162,14 +161,15 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
   let get context key =
     (*Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
     let db_key = db_key key in
-    match Hashtbl.find_opt table key with
-    | Some x -> x
-    | None ->
-      let state =
-        match Db.get db_key with
-        | Some s -> (try State.unmarshal_string s with
-            e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"
-                   key_prefix (Key.to_yojson_string key) (Hex.unparse_0x_data s) (Printexc.to_string e))
-        | None -> make_default_state context key in
-      resume context key state
+    (match Hashtbl.find_opt table key with
+     | Some x -> x
+     | None ->
+       let state =
+         match Db.get db_key with
+         | Some s -> (try State.unmarshal_string s with
+             e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"
+                    key_prefix (Key.to_yojson_string key) (Hex.unparse_0x_data s) (Printexc.to_string e))
+         | None -> make_default_state context key in
+       resume context key state)
+    (*|> fun obj -> Logging.log "GOT prefix %s key %s obj %d" key_prefix (Key.to_yojson_string key) (0 + Obj.magic obj); obj*)
 end

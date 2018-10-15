@@ -191,8 +191,7 @@ module Lwt_exn = struct
       let return x = Lwt.return (Ok x)
       let bind m a = Lwt.bind m (function Ok x -> a x | Error e -> fail e)
     end)
-  let run_lwt mf x =
-    Lwt.bind (mf x) (OrExn.get >> Lwt.return)
+  let run_lwt mf x = Lwt.bind (mf x) (OrExn.get >> Lwt.return)
   let run mf x = run_lwt mf x |> Lwt_main.run
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let catching f x = try f x with e -> fail e
@@ -489,14 +488,14 @@ module SimpleActor = struct
   type 'state t =
     { state_ref : 'state ref
     ; mailbox : ('state, 'state) Lwter.arr Lwt_mvar.t }
-  let make ?(mailbox=Lwt_mvar.create_empty ()) ?(with_transaction=identity) initial_state =
+  let make ?(mailbox=Lwt_mvar.create_empty ()) ?(wrapper=identity) initial_state =
     let state_ref = ref initial_state in
     Lwt.async (fun () ->
       initial_state
       |> forever
            (fun state ->
               Lwt_mvar.take mailbox >>= fun transform ->
-              with_transaction transform state
+              wrapper transform state
               >>= fun new_state ->
               state_ref := new_state;
               return new_state));

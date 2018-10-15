@@ -106,7 +106,7 @@ let _ =
   Logging.log "*** STARTING SIDE CHAIN SERVER, PLEASE WAIT ***";
   Lwt_exn.run
     (fun () ->
-       of_lwt Db.open_connection "alacris-server"
+       of_lwt Db.open_connection "alacris_server_db"
        >>= fun () ->
        Side_chain_action.ensure_side_chain_contract_created facilitator_address
        >>= fun contract_address ->
