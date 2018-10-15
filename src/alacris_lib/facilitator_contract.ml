@@ -2,6 +2,7 @@
 
 open Legilogic_lib
 open Signing
+open Action
 
 open Legilogic_ethereum
 open Ethereum_chain
@@ -31,11 +32,12 @@ let pre_deposit ~facilitator amount =
 (* Create a signed transaction to call the contract to deposit money onto
    an account managed by the facilitator, ready to be committed on the main chain
    TODO: get rid of this, have proper state machine in side_chain_user. *)
-let deposit (facilitator, amount) =
+let deposit user (facilitator, amount) =
   let open Ethereum_user in
-  let open UserAsyncAction in
   OngoingTransactionStatus.Wanted (pre_deposit ~facilitator amount)
-  |> (add_ongoing_transaction >>> track_transaction >>> check_transaction_confirmed)
+  |> Lwt_exn.(add_ongoing_transaction user
+              >>> of_lwt track_transaction
+              >>> check_transaction_confirmed)
 
 let make_withdraw_call facilitator ticket bond confirmed_state =
   let parameters = [ abi_address facilitator

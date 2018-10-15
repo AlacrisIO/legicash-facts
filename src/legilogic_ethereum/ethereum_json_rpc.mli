@@ -77,6 +77,8 @@ module TransactionInformation : sig
   include YojsonableS with type t := t
 end
 
+val operation_to_parameters : Address.t -> Operation.t -> TransactionParameters.t
+val pre_transaction_to_parameters : Address.t -> PreTransaction.t -> TransactionParameters.t
 val transaction_to_parameters : Transaction.t -> TransactionParameters.t
 
 (* Returned by eth_signTransaction *)
@@ -134,7 +136,7 @@ val eth_block_number :
 
 val eth_estimate_gas :
   ?timeout:float -> ?log:bool
-  -> TransactionParameters.t * BlockParameter.t -> TokenAmount.t Lwt_exn.t
+  -> TransactionParameters.t -> TokenAmount.t Lwt_exn.t
 (** Make a call or transaction, which won’t be added to the blockchain and returns the used gas,
     which can be used for estimating the used gas. *)
 

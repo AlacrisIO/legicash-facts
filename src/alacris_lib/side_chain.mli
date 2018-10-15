@@ -7,6 +7,8 @@ open Types
 open Merkle_trie
 
 open Legilogic_ethereum
+(** We use the very same TokenAmount type for the main chain and the side-chain,
+    as indeed the tokens form a two-way peg. *)
 module TokenAmount = Ethereum_chain.TokenAmount
 
 (* TODO: use GADTs... but first teach ppx_deriving_yojson about them? *)
@@ -127,7 +129,9 @@ module AdminTransactionRequest : sig
      All details are in the RxHeader and TxHeader.
   *)
   type t =
-    | StateUpdate
+    | StateUpdate of Revision.t * Digest.t
+    (* Revision of the side_chain that was confirmed in the main chain,
+       and the transaction hash for the state update transaction on the main chain. *)
   include PersistableS with type t := t
 end
 
@@ -216,11 +220,15 @@ module AccountState : sig
   val empty : t
 end
 
+(** Module for Maps that for a facilitator map consecutive revisions from 0 to N each to
+    the Transaction that has the given revision as Side_chain.TxHeader.tx_revision *)
 module TransactionMap : MerkleTrieS with type key = Revision.t and type value = Transaction.t
 
+(** Module for Maps that for a given facilitator map addresses each to the AccountState
+    for the given address. *)
 module AccountMap : MerkleTrieS with type key = Address.t and type value = AccountState.t
 
-(** public state of a facilitator side-chain, as posted to the court registry and main chain
+(** Public state of a facilitator side-chain, as posted to the court registry and main chain
 
     TODO: somehow store the following?
     ; confirmed_main_chain_state: digest (* Ethereum_chain.State.t *)
@@ -235,7 +243,9 @@ module State : sig
   (* NB: If you modify it, make sure to keep this in synch with TransactionCommitment.t *)
   type t = { facilitator_revision: Revision.t
            ; spending_limit: TokenAmount.t
-           (* expedited limit still unspent since confirmation. TODO: find a good way to update it back up when things get confirmed *)
+           (*           ; expedited_spending_limit: TokenAmount.t
+                        (* limit to expedited operations. TODO: find a good way to update it back up when things get confirmed *)
+                        ; expedited_spending_since_last_confirmed_state: TokenAmount.t *)
            ; accounts: AccountMap.t
            ; transactions: TransactionMap.t
            ; main_chain_transactions_posted: DigestSet.t }

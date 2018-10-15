@@ -193,14 +193,20 @@ module TransactionReceipt = struct
            end) : (PersistableS with type t := t))
 end
 
-let transaction_to_parameters Transaction.{tx_header = { sender; nonce; gas_limit; gas_price; value }; operation } =
+let operation_to_parameters sender operation =
   let (to_, data) = match operation with
     | Operation.TransferTokens recipient -> (Some recipient, None)
     | Operation.CreateContract code -> (None, Some code)
     | Operation.CallFunction (recipient, data) -> (Some recipient, Some data) in
   TransactionParameters.
-    { from= sender; to_; gas= Some gas_limit; gas_price = Some gas_price; value = Some value;
-      data ; nonce= Some nonce; condition= None }
+    { from= sender; to_; gas= None; gas_price = None; value = None; data ; nonce= None; condition= None }
+
+let pre_transaction_to_parameters sender PreTransaction.{operation; gas_limit; value} =
+  {(operation_to_parameters sender operation) with gas = Some gas_limit; value = Some value}
+
+let transaction_to_parameters Transaction.{tx_header = { sender; nonce; gas_limit; gas_price; value }; operation } =
+  {(operation_to_parameters sender operation)
+  with gas= Some gas_limit; gas_price = Some gas_price; value = Some value; nonce= Some nonce }
 
 let eth_accounts =
   ethereum_json_rpc "eth_accounts"
@@ -210,7 +216,7 @@ let eth_accounts =
 let eth_estimate_gas =
   ethereum_json_rpc "eth_estimateGas"
     TokenAmount.of_yojson_exn
-    (yojson_2args TransactionParameters.to_yojson BlockParameter.to_yojson)
+    (yojson_1arg TransactionParameters.to_yojson)
 
 let eth_gas_price =
   ethereum_json_rpc "eth_gasPrice"
