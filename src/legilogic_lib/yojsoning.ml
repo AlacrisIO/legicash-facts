@@ -74,13 +74,24 @@ let option_yojsoning yojsoning =
 
 let list_to_yojson to_yojson l = `List (List.map to_yojson l)
 
+(** Return the type of [y], as a string, for JSON-parsing error messages **)
+let yojson_type_string (y : yojson) : string =
+  match y with
+  | `Null     -> "null"   | `Int _   -> "int"   | `Float _   -> "float"
+  | `String _ -> "string" | `Assoc _ -> "assoc" | `List _    -> "list"
+  | `Tuple _  -> "tuple"  | `Bool _  -> "bool"  | `Variant _ -> "variant"
+  | `Intlit _ -> "intlit"
+
+let yojson_error_string (s : string) (x : yojson) : string =
+  Printf.sprintf "%s: %s is a %s " s (string_of_yojson x) (yojson_type_string x)
+
 let list_of_yojson of_yojson = function
   | `List l -> Result.list_map of_yojson l
-  | _ -> Error "bad json list"
+  | _ as x -> Error (yojson_error_string "bad json list" x)
 
 let list_of_yojson_exn of_yojson_exn = function
   | `List l -> (List.map of_yojson_exn l)
-  | _ -> Yojson.json_error "bad json list"
+  | _ as x -> Yojson.json_error @@ yojson_error_string "bad json list" x
 
 let list_yojsoning yojsoning =
   { to_yojson=list_to_yojson yojsoning.to_yojson
@@ -90,7 +101,8 @@ let string_yojsoning =
   { to_yojson = (fun x -> `String x)
   ; of_yojson = function
       | `String x -> Ok x
-      | _ -> Error "not a json string" }
+      | _ as x -> Error (yojson_error_string "not a json string" x)
+  }
 
 let string_of_char = String.make 1
 let char_of_string s =
