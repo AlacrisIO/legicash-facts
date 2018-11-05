@@ -50,7 +50,24 @@ If you would rather install the needed software manually,
 look at the file [scripts/Dockerfile](scripts/Dockerfile)
 to see what's installed in the Docker image.
 
-### Using Docker
+#### Using Docker
+
+You may have to start the docker daemon if it isn't launched automatically by your system:
+
+    sudo dockerd
+
+You can then download the docker image use by our CI as follows:
+
+    docker login ; : only necessary the first time, with credentials created on docker.com
+    docker pull registry.gitlab.com/legicash/legicash-facts:build-env
+
+Or you can re-build it with:
+
+    (cd scripts ; docker build -t registry.gitlab.com/legicash/legicash-facts:build-env .)
+
+Beware that Docker builds are not deterministic (they notably depend on ubuntu and opam updates),
+so may not succeed. You may fallback to downloading the image we use (first recipe above).
+Ideally, in the future we'd use NixOS or at least Nix to build our software deterministically.
 
 To run the Docker image, use the following command
 from this repository as current directory:
@@ -61,9 +78,28 @@ You can give the image a more concise name `legicash-facts` with the command
 
      docker tag registry.gitlab.com/legicash/legicash-facts:build-env legicash-facts
 
+#### A toolchain outside Docker
+
+You should be able to install our toolchain on top of Debian or Ubuntu (or a chroot containing them)
+by following the recipe in [scripts/Dockerfile](scripts/Dockerfile).
+
+Unhappily, the recipe depends on the state not just of Ubuntu but also of OPAM,
+and OPAM sometimes fails to build our dependencies.
+Until we move to Nix, and/or have our own known-working OPAM repository,
+a fallback plan is to extract the `~/.opam/` installation from our Docker CI image
+into your home directory as follows (assuming you downloaded the image already as above):
+
+    docker run -it -v ${HOME}:/home registry.gitlab.com/legicash/legicash-facts:build-env rsync -av --delete /root/.opam/ /home/.opam/
+
+If you install opam this way rather than the regular way,
+you still need to add the proper opam incantation to your `.zshrc` (mutatis mutandis for other shells):
+
+    . ${HOME}/.opam/opam-init/init.zsh > /dev/null 2> /dev/null || true
+
+
 ### Building the software
 
-You can build everything that matters to run our software with:
+Once your toolchain is ready, you can build everything that matters to run our software with:
 
     make
 
