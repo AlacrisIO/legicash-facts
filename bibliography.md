@@ -77,7 +77,8 @@
   (PR for similar light client functionality [in geth](https://github.com/ethereum/go-ethereum/pull/16534/files)),
   [Consensys Labs' Ethereum developer tools list](https://github.com/ConsenSysLabs/ethereum-developer-tools-list),
   [Solium, linter and formatter for Solidity](https://github.com/duaraghav8/solium),
-  [Ethertrust, analysis tool for smart contracts](https://www.netidee.at/ethertrust).
+  [Ethertrust, analysis tool for smart contracts](https://www.netidee.at/ethertrust),
+  [The Challenges of Building Ethereum Infrastructure](https://medium.com/@lopp/the-challenges-of-building-ethereum-infrastructure-87e443e47a4b).
 
 * Compiling to the EVM:
   [Pirapira's Bamboo](https://github.com/pirapira/bamboo).

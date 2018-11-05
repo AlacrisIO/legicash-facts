@@ -207,6 +207,7 @@ contract Facilitators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         // TODO: side-chain operation support
             )
             public {
+        // NB: This is largely a stub. TODO: Actually implement the function.
         require(_confirmed_state ==
             digest_claim(_facilitator, ClaimType.STATE_UPDATE,
                          state_bits_hash(state_bits)));
@@ -237,6 +238,7 @@ contract Facilitators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         // TODO: side-chain operation support
             )
             public {
+        // NB: This is largely a stub. TODO: Actually implement the function.
         require(_confirmed_state ==
             digest_claim(_facilitator, ClaimType.STATE_UPDATE,
                          state_bits_hash(state_bits)));

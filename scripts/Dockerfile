@@ -15,13 +15,12 @@
 # Set the base image
 FROM ubuntu
 
-# Dockerfile author / maintainer
-MAINTAINER Paul Steckler <steck@legi.cash>
+# Dockerfile maintainer (original author: Paul Steckler)
+MAINTAINER Francois-Rene Rideau <fare@legi.cash>
 
 # Install Ubuntu packages
 RUN apt-get update -y
-RUN apt-get install -y aspcud dh-autoreconf libgdbm-dev libgmp-dev libleveldb-dev libpcre3-dev libsnappy-dev make nginx nodejs npm opam pkg-config software-properties-common sudo unzip zlib1g-dev
-RUN apt-get install zsh screen rlwrap
+RUN apt-get install -y aspcud dh-autoreconf libgdbm-dev libgmp-dev libleveldb-dev libpcre3-dev libsnappy-dev make nginx nodejs npm opam pkg-config rlwrap screen software-properties-common sudo unzip zlib1g-dev zsh
 
 # Install Solidity compiler
 RUN add-apt-repository ppa:ethereum/ethereum
