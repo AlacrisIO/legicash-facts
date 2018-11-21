@@ -63,6 +63,12 @@ stress_tester
 
 ```
 
+#### Cleaning states
+Before each run we need to clean up states with command:
+```bash
+$ make docker-reset-state
+```
+
 #### Run all containers
 To run all containers at once run the command: 
 ```bash
