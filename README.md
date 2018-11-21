@@ -56,9 +56,10 @@ You may have to start the docker daemon if it isn't launched automatically by yo
 
     sudo dockerd
 
-You can then download the docker image use by our CI as follows:
+You can then download the docker image use by our CI as follows
+(create your docker credentials on docker.com with same email address as used for gitlab.com):
 
-    docker login ; : only necessary the first time, with credentials created on docker.com
+    docker login ; : only necessary the first time
     docker pull registry.gitlab.com/legicash/legicash-facts:build-env
 
 Or you can re-build it with:
