@@ -50,6 +50,7 @@ module UserOperation : sig
     | Deposit of deposit_details
     | Payment of payment_details
     | Withdrawal of withdrawal_details
+  (* TODO: do we need a two-phase send then receive (but only after settlement send was settled) for non-expedited payments? *)
 
   include PersistableS with type t := t
 end
@@ -130,6 +131,8 @@ module AdminTransactionRequest : sig
   *)
   type t =
     | StateUpdate of Revision.t * Digest.t
+    (*| BondDeposit
+      | BondWithdrawal *)
     (* Revision of the side_chain that was confirmed in the main chain,
        and the transaction hash for the state update transaction on the main chain. *)
   include PersistableS with type t := t
@@ -228,7 +231,21 @@ module TransactionMap : MerkleTrieS with type key = Revision.t and type value = 
     for the given address. *)
 module AccountMap : MerkleTrieS with type key = Address.t and type value = AccountState.t
 
-(** Public state of a operator side-chain, as posted to the court registry and main chain
+(** Public state of an operator's side-chain, as posted to the court registry and main chain.
+
+The entire point and purpose of a blockchain state, whether it's a main chain or a side chain,
+is that its contents and its structure can and will be verified algorithmically by the nodes
+validating the protocol: it's a verifiable trace of execution of an ordered set of transactions.
+This state must include not just the set of transactions, but a set of indexes sufficient
+for the validators to efficiently assess whether the state is indeed correct. Efficiently here
+means that each increment of chain state can be checked in a time polynomial in the logarithm
+of the size of the state (a polynomial of small degree with small constant terms).
+
+While operators may try to anticipate the future, to e.g. predict how when a block will be confirmed
+(thus re-increasing the spending limit) and how much liquidity they should keep on each side-chain,
+any speculative state belongs to the operators' private state, unless contractual commitments are
+made based on such predictions. There is actually one such case: the computation of minimum deposit
+required as collateral.
 
     TODO: somehow store the following?
     ; confirmed_main_chain_state: digest (* Ethereum_chain.State.t *)
