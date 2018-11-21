@@ -226,3 +226,44 @@ wc: force
 	$(SHOW) "Lines of .ml or .mli code"
 	$(HIDE) for i in src/*/ ; do printf "%9s    %s\n" "$$(wc -l $$(find $$i -name '*.ml*') | tail -1 | (read a b ; echo $$a))" "$$i" ; done
 	$(HIDE) printf "%9s    %s\n" "$$(wc -l $$(find ./src -name '*.ml*') | tail -1 | (read a b ; echo $$a))" total
+
+
+# Docker part
+DOCKER_COMPOSE = docker-compose
+DOCKER_COMPOSE_FILE = docker/docker-compose.yml
+
+docker-pull: ## Pull Alacris prerequsites images
+	$(SHOW) " Pulling Alacris Docker images"
+	$(HIDE) docker/pull_images.sh
+
+docker-build-all: ## Build all or c=<name> containers in foreground
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(c)
+
+docker-build: ## Build all or c=<name> containers in foreground
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(c)
+
+docker-list: ## List available services
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) config --services
+
+docker-up: ## Start all or c=<name> containers in foreground
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up $(c)
+
+docker-start: ## Start all or c=<name> containers in background
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up -d $(c)
+
+docker-stop: ## Stop all or c=<name> containers
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) stop $(c)
+
+docker-restart: ## Restart all or c=<name> containers
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) stop $(c)
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up $(c) -d
+
+docker-status: ## Show status of containers
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) ps
+
+docker-clean:  ## Clean all data
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) down -v
+
+docker-reset-state: ## Clean Alacris state data
+	$(SHOW) "Reseting Alacris states"
+	$(HIDE) sudo docker/state_cleanup.sh
