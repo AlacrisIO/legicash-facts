@@ -237,7 +237,8 @@ docker-pull: ## Pull Alacris prerequsites images
 	$(HIDE) docker/pull_images.sh
 
 docker-build-all: ## Build all or c=<name> containers in foreground
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(c)
+	$(SHOW) " BUilding Alacris Docker images"
+	$(SHOW) docker/build_all_images.sh
 
 docker-build: ## Build all or c=<name> containers in foreground
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(c)
