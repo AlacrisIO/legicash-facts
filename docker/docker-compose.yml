@@ -69,7 +69,7 @@ services:
     hostname: "stress-tester"
     container_name: "stress-tester"
     environment:
-      - ATTACKED_HOST=http://app.legi.cash:8081
+      - ATTACKED_HOST=http://alacris-client:8081
       - LOCUST_MODE=standalone
     volumes:
       - ./containers/stress_tester/files:/stress_tester
