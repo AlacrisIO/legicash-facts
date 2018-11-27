@@ -3,7 +3,7 @@ services:
   # Alacris services
   alacris_private_ethereum_node: # Ethereum test network and block explorer
     build: containers/alacris_private_ethereum_node
-    image: gcr.io/legicash-demo-1950/legicash-demo/alacris-private-ethereum-node:${TAG:-v1.1}
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_private_ethereum_node:${TAG:-v1.1}
     hostname: "alacris-private-ethereum-node"
     container_name: "alacris-private-ethereum-node"
     volumes:
@@ -22,7 +22,7 @@ services:
       dockerfile: docker/containers/alacris_side_chain_manager/Dockerfile
   #    args:
   #      branch: ${BRANCH}
-    image: gcr.io/legicash-demo-1950/legicash-demo/alacris-side-chain-manager:${TAG:-v1.1}
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager:${TAG:-v1.1}
     hostname: "alacris-side-chain-manager"
     container_name: "alacris-side-chain-manager"
     environment:
@@ -47,7 +47,7 @@ services:
       args:
         #branch: ${BRANCH}
         frontend_branch: master
-    image: gcr.io/legicash-demo-1950/legicash-demo/alacris-client:${TAG:-v1.1}
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_client:${TAG:-v1.1}
     hostname: "alacris-client"
     container_name: "alacris-client"
     volumes:
@@ -65,7 +65,7 @@ services:
 
   stress_tester: # Locust master container
     build: containers/stress_tester
-    image: gcr.io/legicash-demo-1950/legicash-demo/stress-tester:${TAG:-v1.1}
+    image: gcr.io/legicash-demo-1950/legicash-demo/stress_tester:${TAG:-v1.1}
     hostname: "stress-tester"
     container_name: "stress-tester"
     environment:
