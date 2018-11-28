@@ -1,9 +1,14 @@
 # Base image
 FROM gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 as build
 
+USER root
+
+# Copy app source to container and set permissions for appuser
 COPY . /var/www/app/legicash-facts
+RUN chown -R appuser:appuser /var/www/app/legicash-facts
 
 # Build SCGI server
+USER appuser
 WORKDIR /var/www/app/legicash-facts
 RUN make
 

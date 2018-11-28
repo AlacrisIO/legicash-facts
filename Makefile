@@ -238,7 +238,7 @@ docker-pull: ## Pull Alacris prerequsites images
 
 docker-build-all: ## Build all or c=<name> containers in foreground
 	$(SHOW) " BUilding Alacris Docker images"
-	$(SHOW) docker/build_all_images.sh
+	$(SHOW) docker/scripts/build_all_images.sh
 
 docker-build: ## Build all or c=<name> containers in foreground
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(c)
@@ -267,4 +267,4 @@ docker-clean:  ## Clean all data
 
 docker-reset-state: ## Clean Alacris state data
 	$(SHOW) "Reseting Alacris states"
-	$(HIDE) sudo docker/state_cleanup.sh
+	$(HIDE) sudo docker/scripts/reset_state.sh
