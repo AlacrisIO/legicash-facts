@@ -112,33 +112,47 @@ let get_keys_filename = "demo-keys-small.json" |> Config.get_config_filename
 
 
 
-(* void_return_ins laddr *)
-let deposit_oper laddr = 
+let random_deposit_oper laddr = 
   let deposit_idx = Random.int (List.length laddr) and deposit_amnt = Random.int 100 in
     let deposit_addr = List.nth laddr deposit_idx and deposit_amnt256 = UInt256.of_int deposit_amnt in 
       void_return_ins (deposit_to ~facilitator:trent_address deposit_addr deposit_amnt256)
 
 
 
-let withdrawal_oper = void_return_ins
+let random_withdrawal_oper laddr =
+ let withdrawal_idx = Random.int (List.length laddr) and withdrawal_amnt = Random.int 100 in
+  let withdrawal_addr = List.nth laddr withdrawal_idx and withdrawal_amnt256 = UInt256.of_int withdrawal_amnt in
+   void_return_ins (withdrawal_from ~facilitator:trent_address withdrawal_addr withdrawal_amnt256)
 
-let payment_oper = void_return_ins
+let random_payment_oper laddr =
+  let recipient_idx = Random.int (List.length laddr) and sender_idx = Random.int (List.length laddr) and payment_amnt = Random.int 100 in
+    let recipient_addr = List.nth laddr recipient_idx and sender_addr = List.nth laddr sender_idx and payment_amnt256 = UInt256.of_int payment_amnt in
+      void_return_ins (payment_on ~facilitator:trent_address sender_addr recipient_addr payment_amnt256 "memo")
 
-let balance_oper = void_return_ins
 
-let recent_transaction_oper = void_return_ins
+let random_balance_oper laddr = 
+  let queried_idx = Random.int (List.length laddr) in
+    let queried_addr = List.nth laddr queried_idx in 
+      void_return_ins (get_balance_on ~facilitator:trent_address queried_addr)
 
-let status_oper = void_return_ins
 
-let single_oper laddr =
+let random_recent_transaction_oper = void_return_ins
+
+let random_status_oper laddr = 
+  let queried_idx = Random.int (List.length laddr) in
+    let queried_addr = List.nth laddr queried_idx in 
+      void_return_ins (get_status_on_trent_and_main_chain queried_addr)
+
+
+let random_single_oper laddr =
     let pos = Random.int 6 in
     match pos with
-    | 0 -> deposit_oper laddr
-    | 1 -> withdrawal_oper laddr
-    | 2 -> payment_oper laddr
-    | 3 -> balance_oper laddr
-    | 4 -> recent_transaction_oper laddr
-    | _ -> status_oper laddr
+    | 0 -> random_deposit_oper laddr
+    | 1 -> random_withdrawal_oper laddr
+    | 2 -> random_payment_oper laddr
+    | 3 -> random_balance_oper laddr
+    | 4 -> random_recent_transaction_oper laddr
+    | _ -> random_status_oper laddr
 
 
 let get_address (_,keypair) =
@@ -156,65 +170,5 @@ let _ =
    let list_addr = get_list_address keys_file in
      let nb_iteration = 1000 in
        for _ = 0 to nb_iteration do
-         single_oper list_addr
+         random_single_oper list_addr
        done
-
-(*  Random.self_init *)
-(*  let iterN = 10000 *)
-(*  let ar = Array.init 100 (fun i->i) *)
-
-(*
-  for counter = 1 to iterN
-  do
-    let pos = Random int 6
-    match pos with
-    | 0 -> (* deposit *)
-      let deposit_addr = Random int 10000
-      let deposit_qmnt = Random int 100
-      let DepWant = deposit_to ~facilitator:trent_address deposit_addr deposit_amnt
-
-(*
-
-    | 1 -> (* withdrawal *)
-     (try 
-           let result_json = withdrawal_from ~facilitator:trent_address
-                               withdrawal.address withdrawal.amount in
-           ok_json id result_json
-         with
-         | Lib.Internal_error msg -> internal_error_response id msg
-         | exn -> internal_error_response id (Printexc.to_string exn))
-    | 2 -> (* payment *)
-     (try 
-           payment_on ~facilitator:trent_address
-             payment.sender payment.recipient payment.amount "memo"
-           |> ok_json id
-         with
-         | Lib.Internal_error msg -> internal_error_response id msg
-         | exn -> internal_error_response id (Printexc.to_string exn))
-    | 3 -> (* balance *)
-     (try 
-           get_balance_on ~facilitator:trent_address address_record.address
-           >>= return_result id
-         with
-         | Lib.Internal_error msg -> internal_error_response id msg
-         | exn -> internal_error_response id (Printexc.to_string exn))
-    | 4 -> (* recent_transactions *)
-     (try 
-         with
-         | Lib.Internal_error msg -> internal_error_response id msg
-         | exn -> internal_error_response id (Printexc.to_string exn))
-    | 5 -> (* status *)
-     (try 
-           get_status_on_trent_and_main_chain address
-           >>= return_result id
-         with
-         | Lib.Internal_error msg -> internal_error_response id msg
-         | exn -> internal_error_response id (Printexc.to_string exn))
-
-*)
-
-
-    | _ -> error_response id msg
-  done;
-
-*)
