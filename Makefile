@@ -110,6 +110,15 @@ $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST): src/alacris_client/side_chain_client_tes
 	$(SHOW) "Building Alacris side_chain_client_test executable"
 	$(HIDE) dune build $(SIDE_CHAIN_CLIENT_TEST)
 
+SIDE_CHAIN_CLIENT_STRESS_TEST:=src/alacris_client/side_chain_client_stress_test.exe
+side_chain_client_stress_test: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_STRESS_TEST)
+$(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_STRESS_TEST): src/alacris_client/side_chain_client_stress_test.ml $(ML_SOURCES) $(CONTRACT)
+	$(SHOW) "Building Alacris side_chain_client_stress_test executable"
+	$(HIDE) dune build $(SIDE_CHAIN_CLIENT_STRESS_TEST)
+
+
+
+
 # You don't usually need to install using opam, but if you want to:
 install: $(ALACRIS_LIB)
 ifeq ($(shell ocamlfind query -qe alacris 2> /dev/null),)
