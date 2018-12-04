@@ -96,18 +96,6 @@ let return_result id json_or_exn =
 let trent_address = Signing.Test.trent_address
 
 
-let void_return = 
-  let sum = ref 0 in
-  for i = 0 to 10 do
-    sum := !sum + i
-  done
-
-let void_return_ins _ = 
-  let sum = ref 0 in
-  for i = 0 to 10 do
-    sum := !sum + i
-  done
-
 let get_keys_filename = "demo-keys-small.json" |> Config.get_config_filename
 
 
@@ -115,33 +103,33 @@ let get_keys_filename = "demo-keys-small.json" |> Config.get_config_filename
 let random_deposit_oper laddr = 
   let deposit_idx = Random.int (List.length laddr) and deposit_amnt = Random.int 100 in
     let deposit_addr = List.nth laddr deposit_idx and deposit_amnt256 = UInt256.of_int deposit_amnt in 
-      void_return_ins (deposit_to ~facilitator:trent_address deposit_addr deposit_amnt256)
+      ignore (deposit_to ~facilitator:trent_address deposit_addr deposit_amnt256)
 
 
 
 let random_withdrawal_oper laddr =
  let withdrawal_idx = Random.int (List.length laddr) and withdrawal_amnt = Random.int 100 in
   let withdrawal_addr = List.nth laddr withdrawal_idx and withdrawal_amnt256 = UInt256.of_int withdrawal_amnt in
-   void_return_ins (withdrawal_from ~facilitator:trent_address withdrawal_addr withdrawal_amnt256)
+   ignore (withdrawal_from ~facilitator:trent_address withdrawal_addr withdrawal_amnt256)
 
 let random_payment_oper laddr =
   let recipient_idx = Random.int (List.length laddr) and sender_idx = Random.int (List.length laddr) and payment_amnt = Random.int 100 in
     let recipient_addr = List.nth laddr recipient_idx and sender_addr = List.nth laddr sender_idx and payment_amnt256 = UInt256.of_int payment_amnt in
-      void_return_ins (payment_on ~facilitator:trent_address sender_addr recipient_addr payment_amnt256 "memo")
+      ignore (payment_on ~facilitator:trent_address sender_addr recipient_addr payment_amnt256 "memo")
 
 
 let random_balance_oper laddr = 
   let queried_idx = Random.int (List.length laddr) in
     let queried_addr = List.nth laddr queried_idx in 
-      void_return_ins (get_balance_on ~facilitator:trent_address queried_addr)
+      ignore (get_balance_on ~facilitator:trent_address queried_addr)
 
 
-let random_recent_transaction_oper = void_return_ins
+let random_recent_transaction_oper = ignore
 
 let random_status_oper laddr = 
   let queried_idx = Random.int (List.length laddr) in
     let queried_addr = List.nth laddr queried_idx in 
-      void_return_ins (get_status_on_trent_and_main_chain queried_addr)
+      ignore (get_status_on_trent_and_main_chain queried_addr)
 
 
 let random_single_oper laddr =
@@ -158,18 +146,10 @@ let random_single_oper laddr =
 let get_address (_,keypair) =
   keypair.Keypair.address
 
-(* Here are the possible ways of defining the types. All possibilities are ok. *)
-(* let get_list_address : string -> address list = fun file -> *)
-(* let get_list_address (file : string) : address list = *)
-(* let get_list_address (file : string) = *) 
-(* let get_list_address file : address list = *)
-
 let get_list_address file = 
   Yojsoning.yojson_of_file file
   |> decode_keypairs
   |> List.map get_address
-
-
 
 let _ =
   let keys_file = get_keys_filename in
