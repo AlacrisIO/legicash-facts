@@ -158,7 +158,13 @@ let random_single_oper laddr =
 let get_address (_,keypair) =
   keypair.Keypair.address
 
-let get_list_address : string -> address list = fun file ->
+(* Here are the possible ways of defining the types. All possibilities are ok. *)
+(* let get_list_address : string -> address list = fun file -> *)
+(* let get_list_address (file : string) : address list = *)
+(* let get_list_address (file : string) = *) 
+(* let get_list_address file : address list = *)
+
+let get_list_address file = 
   Yojsoning.yojson_of_file file
   |> decode_keypairs
   |> List.map get_address

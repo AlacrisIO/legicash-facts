@@ -453,14 +453,14 @@ let direct_operation :
     let status = OngoingTransactionStatus.Requested signed_request in
     add_ongoing_side_chain_transaction status
 
-let payment PaymentWanted.{facilitator; recipient; amount; memo; payment_expedited} =
+let payment PaymentWanted.{facilitator; recipient; amount; memo; payment_expedited} : TransactionTracker.t UserAsyncAction.t =
   direct_operation facilitator
     (fun fee_schedule ->
        let payment_invoice = Invoice.{recipient; amount; memo} in
        let payment_fee = payment_fee_for fee_schedule amount in
        UserOperation.Payment {payment_invoice; payment_fee; payment_expedited})
 
-let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} =
+let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} : TransactionTracker.t UserAsyncAction.t =
   direct_operation facilitator
     (fun fee_schedule ->
        let withdrawal_fee = withdrawal_fee_for fee_schedule withdrawal_amount in

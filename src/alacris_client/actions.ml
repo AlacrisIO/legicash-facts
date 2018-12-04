@@ -10,6 +10,7 @@ open Legilogic_lib
 open Action
 open Lwt_exn
 open Yojsoning
+open Signing
 open Types
 open Json_rpc
 
@@ -126,17 +127,17 @@ let make_transaction_result address tx_revision main_chain_confirmation =
                          ; main_chain_confirmation } in
     return (transaction_result_to_yojson deposit_result)
 
-let schedule_transaction user transaction parameters =
+let schedule_transaction (user : Address.t) (transaction : 'a -> TransactionTracker.t UserAsyncAction.t) parameters =
   add_main_chain_thread
     (User.transaction user transaction parameters
      >>= fun (transaction_commitment, main_chain_confirmation) ->
      let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
      make_transaction_result user tx_revision main_chain_confirmation)
 
-let deposit_to ~facilitator user deposit_amount =
+let deposit_to ~facilitator (user : Address.t) (deposit_amount : TokenAmount.t) : yojson =
   schedule_transaction user deposit DepositWanted.{facilitator; deposit_amount}
 
-let withdrawal_from ~facilitator user withdrawal_amount =
+let withdrawal_from ~facilitator (user : Address.t) (withdrawal_amount : TokenAmount.t) : yojson =
   schedule_transaction user withdrawal WithdrawalWanted.{facilitator; withdrawal_amount}
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
@@ -159,8 +160,9 @@ let payment_timestamp () =
   schedule_transaction sender payment
   PaymentWanted.{facilitator; recipient; amount; memo; payment_expedited= false } *)
 
-(* TODO: simplify this all away *)
-let payment_on ~facilitator sender recipient amount memo =
+(* TODO: simplify this all away. Problem is that schedule_transaction cannot be used
+   because two addresses are used. *)
+let payment_on ~facilitator (sender : Address.t) (recipient : Address.t) (amount : TokenAmount.t) (memo : string) : yojson =
   add_main_chain_thread
     (User.action sender payment
        PaymentWanted.{facilitator; recipient; amount; memo; payment_expedited= false }
