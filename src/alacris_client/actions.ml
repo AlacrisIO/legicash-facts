@@ -111,7 +111,7 @@ let get_recent_user_transactions_on_trent address maybe_limit =
 (* side-effecting operations *)
 
 (* format deposit and withdrawal result *)
-let make_transaction_result address tx_revision main_chain_confirmation =
+let make_transaction_result (address : Address.t) (side_chain_tx_revision : Revision.t) (main_chain_confirmation : Ethereum_chain.Confirmation.t) : yojson OrExn.t Lwt.t =
   UserQueryRequest.Get_account_state { address }
   |> post_user_query_request
   >>= fun account_state_json ->
@@ -121,13 +121,12 @@ let make_transaction_result address tx_revision main_chain_confirmation =
                 |> return
   | Ok account_state ->
     let side_chain_account_state = account_state in
-    let side_chain_tx_revision = tx_revision in
     let deposit_result = { side_chain_account_state
                          ; side_chain_tx_revision
                          ; main_chain_confirmation } in
     return (transaction_result_to_yojson deposit_result)
 
-let schedule_transaction (user : Address.t) (transaction : 'a -> TransactionTracker.t UserAsyncAction.t) parameters =
+let schedule_transaction (user : Address.t) (transaction : 'a -> TransactionTracker.t UserAsyncAction.t) (parameters : 'a) : yojson =
   add_main_chain_thread
     (User.transaction user transaction parameters
      >>= fun (transaction_commitment, main_chain_confirmation) ->
@@ -176,8 +175,7 @@ let payment_on ~facilitator (sender : Address.t) (recipient : Address.t) (amount
 
 (* OLD RESPONSE. TODO: find out what the demo-frontend *really needs*
    (* remaining code is preparing response *)
-   let transaction = transaction_commitment.transaction in
-   let tx_revision = transaction.tx_header.tx_revision in
+   let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
    UserQueryRequest.Get_account_state { address = sender }
    |> post_user_query_request
    >>= fun sender_account_json ->

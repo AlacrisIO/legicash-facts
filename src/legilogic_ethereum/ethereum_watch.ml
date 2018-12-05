@@ -3,8 +3,6 @@ open Lib
 open Types
 open Action
 
-(* TODO: move the two functions below to their own file ethereum_watch or something,
-   that lets you watch the progress of transactions on the ethereum blockchain. *)
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
   'value AsyncStream.t Lwt.t =
   let open Lwter in
@@ -38,6 +36,11 @@ let main_chain_block_notification_stream
         Lwt.return (Error (Internal_error "Start block not reached yet"), next_block)
     | Error e -> Lwt.return (Error e, next_block) in
   stream_of_poller ~delay poller start_block
+
+(* TODO: implement following operations:
+   ---Watch Ethereum blocks on the ethereum blockchain.
+   ---Distinguish between confirmed blocks and not quite confirmed blocks.
+*)
 
 
 module Test = struct

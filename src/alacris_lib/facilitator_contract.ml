@@ -47,3 +47,8 @@ let make_withdraw_call facilitator ticket bond confirmed_state =
   let call = encode_function_call { function_name = "withdraw"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 
+let make_state_update_call state_digest = 
+  let parameters = [ abi_digest state_digest ] in
+  let call = encode_function_call { function_name = "claim_state_update"; parameters } in
+  Operation.CallFunction (get_contract_address (), call)
+(* TODO Add support for including a bond with the claim *)

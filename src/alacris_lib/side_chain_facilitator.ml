@@ -69,7 +69,9 @@ end
    divide requests in multiple kinds:
  * user query, which looks at some existing account without modification
  * user transaction request, which modifies their account
- * system transaction, which e.g. posts
+ * system transaction, which e.g. posts a state update to the main chain
+   (Which all the time update the main chain. We have a batch of operations to put to the
+    main chain. )
 
    The side-chain has three different (kind of) states:
  * current, the facilitator's view of itself

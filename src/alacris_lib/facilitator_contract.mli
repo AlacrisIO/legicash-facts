@@ -27,3 +27,7 @@ val make_withdraw_call : Address.t -> Revision.t -> TokenAmount.t -> Digest.t ->
 (** build the encoding of a call to the "withdraw" function of the facilitator contract
     arguments: facilitator address, bond amount, confirmed state
 *)
+
+val make_state_update_call : Digest.t -> Ethereum_chain.Operation.t
+(* Facilitator address, contract address, and the ethereum main chain *)
+(* TODO: signature from the smart court registry () *)

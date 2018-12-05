@@ -97,17 +97,18 @@ end
 
 module OngoingTransactionStatus = struct
   (* TODO: include a strong reference to the TransactionTracker, so it won't get garbage collected
-     at just the wrong moment; make sure it can properly be persisted. Sigh. *)
+     at just the wrong moment; make sure it can properly be persisted. Sigh.
+     Need to clarify this problem. *)
   [@@@warning "-39"]
   type t =
     | DepositWanted of DepositWanted.t * TokenAmount.t
     | DepositPosted of DepositWanted.t * TokenAmount.t * Ethereum_user.TransactionTracker.Key.t
     | DepositConfirmed of DepositWanted.t * TokenAmount.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
-    | Requested of UserTransactionRequest.t signed
-    | SignedByFacilitator of TransactionCommitment.t
-    | PostedToRegistry of TransactionCommitment.t
-    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | Requested of UserTransactionRequest.t signed (* for all operation *)
+    | SignedByFacilitator of TransactionCommitment.t (* for all operation *)
+    | PostedToRegistry of TransactionCommitment.t (* for all operation *)
+    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* for withdrawal only *)
+    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* for withdrawal only *)
   [@@deriving yojson]
   include (YojsonPersistable (struct
              type nonrec t = t
@@ -249,7 +250,8 @@ module TransactionTracker = struct
              PostedToRegistry tc |> continue
            | PostedToRegistry tc ->
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
-             (* TODO: add support for waiting for a state update from the facilitator *)
+             (* TODO: add support for waiting for a state update from the facilitator 
+                (applies to all 3 operations) *)
              (wait_for_facilitator_state_update tc.facilitator_revision
               >>= function
               | Ok c ->
@@ -259,11 +261,11 @@ module TransactionTracker = struct
               | Error error -> invalidate ongoing error)
            | PostedToMainChain (tc, confirmation) ->
              (* Withdrawal that we're going to have to claim *)
-             (*bottom ()*)
+             (* TODO: wait for confirmation on the main chain and handle lawsuits *)
              ConfirmedOnMainChain (tc, confirmation) |> continue
            | ConfirmedOnMainChain (tc, confirmation) ->
              (* Confirmed Withdrawal that we're going to have to execute *)
-             (*bottom ()*)
+             (* TODO: post a transaction to actually get the money *)
              FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |> finalize)
         | Final x -> return x in
       key, loop state
