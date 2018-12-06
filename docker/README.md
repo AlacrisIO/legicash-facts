@@ -112,7 +112,6 @@ What happens here is that new code gets built and application binaries get repla
 ## Directory structure
 ```
 docker
-├── build_all_images.sh
 ├── config
 │   ├── demo-keys-big.json
 │   ├── demo-keys-small.json
@@ -154,7 +153,6 @@ docker
 │   │       ├── conf
 │   │       │   ├── side_chain_server_config.json
 │   │       │   └── supervisord.conf
-│   │       ├── private_key
 │   │       └── scripts
 │   │           ├── prefund.sh
 │   │           └── run-side-chain-server.sh
@@ -163,25 +161,18 @@ docker
 │   ├── build-prerequisites
 │   │   ├── Dockerfile
 │   │   └── files
-│   │       └── private_key
-│   ├── frontend
-│   │   ├── Dockerfile
-│   │   └── files
-│   │       ├── conf
-│   │       │   ├── frontend.conf
-│   │       │   └── nginx.conf
-│   │       └── private_key
 │   └── stress_tester
 │       ├── Dockerfile
 │       └── files
 │           ├── run-locust.sh
 │           └── test-locust.py
 ├── docker-compose.yml
-├── pull_images.sh
 ├── README.md
-└── state_cleanup.sh
-
-
+└── scripts
+    ├── build_all_images.sh
+    ├── pull_images.sh
+    ├── recompile.sh
+    └── reset_state.sh
 ```
 
 ## Containers
