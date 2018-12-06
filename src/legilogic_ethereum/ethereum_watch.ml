@@ -40,6 +40,7 @@ let main_chain_block_notification_stream
 (* TODO: implement following operations:
    ---Watch Ethereum blocks on the ethereum blockchain.
    ---Distinguish between confirmed blocks and not quite confirmed blocks.
+   There is no notion of confirmed ethereum block.
 *)
 
 

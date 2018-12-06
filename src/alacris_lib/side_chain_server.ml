@@ -1,7 +1,5 @@
 (* side_chain_server -- TCP/IP server to receive client requests *)
 
-open Lwt_io
-
 open Legilogic_lib
 open Action
 open Lwt_exn
@@ -72,8 +70,8 @@ let process_request_exn _client_address (in_channel,out_channel) =
      (e.g. by turning it into a yojson that fulfills the JSON RPC interface) before we close.
   *)
   >>= catching (write_string_to_lwt_io_channel out_channel)
-  >>= fun () -> catching_lwt close in_channel
-  >>= fun () -> catching_lwt close out_channel
+  >>= fun () -> catching_lwt Lwt_io.close in_channel
+  >>= fun () -> catching_lwt Lwt_io.close out_channel
 
 (* squeeze Lwt_exn into Lwt *)
 let process_request client_address channels =
@@ -115,7 +113,7 @@ let _ =
          (Address.to_0x contract_address);
        load_facilitator_state facilitator_address
        >>= fun _facilitator_state ->
-       let%lwt _server = establish_server_with_client_address sockaddr process_request in
+       let%lwt _server = Lwt_io.establish_server_with_client_address sockaddr process_request in
        start_facilitator facilitator_address
        >>= fun () ->
        Logging.log "*** SIDE CHAIN SERVER STARTED ***";

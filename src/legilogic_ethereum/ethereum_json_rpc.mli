@@ -1,8 +1,12 @@
 (* JSON RPC interface to Ethereum node
-   https://github.com/ethereum/wiki/wiki/JSON-RPC
-   https://github.com/ethereum/go-ethereum/wiki/Managing-your-accounts
-   https://ethereumbuilders.gitbooks.io/guide/content/en/ethereum_json_rpc.html
-   https://wiki.parity.io/JSONRPC
+   --- eth_* functionality:
+     https://github.com/ethereum/wiki/wiki/JSON-RPC
+     https://ethereumbuilders.gitbooks.io/guide/content/en/ethereum_json_rpc.html
+     https://wiki.parity.io/JSONRPC
+   --- personal_* functionality:
+     https://github.com/ethereum/go-ethereum/wiki/Managing-your-accounts
+     https://github.com/ethereum/go-ethereum/wiki/Management-APIs
+
 *)
 open Legilogic_lib
 open Action

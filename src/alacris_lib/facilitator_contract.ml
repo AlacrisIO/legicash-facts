@@ -51,4 +51,11 @@ let make_state_update_call state_digest =
   let parameters = [ abi_digest state_digest ] in
   let call = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
-(* TODO Add support for including a bond with the claim *)
+
+
+(* TODO Add support for including a bond with the claim.
+   Which routine to include? Bonds contains:
+   ---get_gas_cost_estimate
+   ---minimum_bond
+   ---require_bond
+ *)
