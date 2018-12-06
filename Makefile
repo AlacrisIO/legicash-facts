@@ -265,6 +265,10 @@ docker-status: ## Show status of containers
 docker-clean:  ## Clean all data
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) down -v
 
+docker-recompile: ## Recompile application
+	$(SHOW) "Recompiling Alacris apps"
+	@$ docker/scripts/recompile.sh
+
 docker-reset-state: ## Clean Alacris state data
 	$(SHOW) "Reseting Alacris states"
 	$(HIDE) sudo docker/scripts/reset_state.sh

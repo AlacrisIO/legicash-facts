@@ -84,6 +84,30 @@ For `frontend` app to be able to connect to client add hostname to `/etc/hosts` 
 ```bash
 echo  "127.0.0.1       app.legi.cash" | sudo tee --append /etc/hosts > /dev/null
 ```
+#### Important URLs
+Frontend application: http://app.legi.cash:8800
+
+Ethereum block exporer: http://app.legi.cash:8000
+
+#### Recompile applications
+If you want to apply your code changes while all containers are running runt the command:
+```bash
+make docker-recompile
+```
+Output:
+```bash
+$ make docker-recompile
+Recompiling Alacris apps
+side-chain-server: stopped
+Deleting side chain manager state
+side-chain-server: started
+alacris-client: stopped
+Deleting alacris client state
+alacris-client: started
+
+```
+What happens here is that new code gets built and application binaries get replaced inside of the container. Something like "deploy to local environment" 
+
 
 ## Directory structure
 ```
