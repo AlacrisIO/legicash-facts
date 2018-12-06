@@ -36,8 +36,9 @@ let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
 (* TODO: ACTUALLY IMPLEMENT IT, MAYBE MOVE IT to side_chain.ml ? *)
-let wait_for_facilitator_state_update revision =
-  (*bork "wait_for_facilitator_state_update not implemented yet"; bottom ()*)
+let wait_for_facilitator_state_update (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  (* bork "wait_for_facilitator_state_update not implemented yet"; bottom () *)
+  (* It will refer to ethereum_watch *)
   (* THIS IS FAKE NEWS! *)
   Lwt_exn.return
     Ethereum_chain.Confirmation.

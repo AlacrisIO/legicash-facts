@@ -214,7 +214,7 @@ val personal_new_account :
   ?timeout:float -> ?log:bool
   -> string -> Address.t Lwt_exn.t
 
-val personal_sign_transaction :
+val personal_send_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t * string -> SignedTransaction.t Lwt_exn.t
 (** Sign a transaction without unlocking *)

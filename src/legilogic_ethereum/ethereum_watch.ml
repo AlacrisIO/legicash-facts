@@ -41,6 +41,9 @@ let main_chain_block_notification_stream
    ---Watch Ethereum blocks on the ethereum blockchain.
    ---Distinguish between confirmed blocks and not quite confirmed blocks.
    There is no notion of confirmed ethereum block.
+   A block is considered "confirmed" after 120 blocks.
+
+   We need a configuration file on input.
 *)
 
 

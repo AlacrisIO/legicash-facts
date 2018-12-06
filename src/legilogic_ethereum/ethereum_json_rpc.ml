@@ -298,8 +298,8 @@ let personal_new_account =
     Address.of_yojson_exn
     (yojson_1arg StringT.to_yojson)
 
-let personal_sign_transaction =
-  ethereum_json_rpc "personal_signTransaction"
+let personal_send_transaction =
+  ethereum_json_rpc "personal_sendTransaction"
     SignedTransaction.of_yojson_exn
     (yojson_2args TransactionParameters.to_yojson StringT.to_yojson)
 

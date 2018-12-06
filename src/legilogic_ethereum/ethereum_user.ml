@@ -189,7 +189,7 @@ let confirmation_of_transaction_receipt =
     Confirmation.{transaction_hash; transaction_index; block_number; block_hash}
 
 (** Number of blocks required for a transaction to be considered confirmed *)
-(* TODO: for production, use 100, not 0 *)
+(* TODO: for production, use 100, not 0. Put it as configuration file on input*)
 let block_depth_for_confirmation = Revision.of_int 0
 
 exception Still_pending
@@ -271,7 +271,7 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_
      | Not_found ->
        Logging.log "Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
        fail Missing_password)
-    >>= fun password -> personal_sign_transaction (transaction_to_parameters transaction, password)
+    >>= fun password -> personal_send_transaction (transaction_to_parameters transaction, password)
     >>= fun signed -> return (transaction, signed)
 
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
