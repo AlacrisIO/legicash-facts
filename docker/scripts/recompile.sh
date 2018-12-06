@@ -10,7 +10,7 @@ docker run --rm -i -w $APP_DIR -v ${PWD}:$APP_DIR -u $(id -u) $DOCKER_IMAGE make
 # stop side chain manager
 docker exec alacris-side-chain-manager supervisorctl stop side-chain-server
 # Copy new code to container
-docker cp ${PWD}$BUILD_DIR/legilogic_ethereum/ethereum_prefunder.exe alacris-client:$APP_DIR/_run/ethereum_prefunder.exe
+docker cp ${PWD}$BUILD_DIR/alacris_lib/side_chain_server.exe alacris-client:$APP_DIR/_run/side_chain_server.exe
 # Clean side chain manager state
 echo "Deleting side chain manager state"
 docker exec alacris-side-chain-manager rm -rf $APP_DIR/_run/alacris_server_db > /dev/null 2>&1
