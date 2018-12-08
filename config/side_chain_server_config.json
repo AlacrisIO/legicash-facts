@@ -1,2 +1,9 @@
-{ "port" : 8095
+{ "port" : 8095,
+  "Ethereum_parameter" : {
+      "minimal_number_block_for_confirmation" : 0
+  }
+  "LevelDB_parameter" : {
+      "batch_timeout_trigger_in_seconds" : 0.01
+      "batch_size_trigger_in_requests" : 1000
+  }
 }

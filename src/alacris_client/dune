@@ -18,10 +18,7 @@
   (name side_chain_client_stress_test)
   (modules side_chain_client_stress_test)
   (preprocess (pps ppx_deriving.std ppx_inline_test ppx_deriving_yojson))
-  (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime alacris_lib side_chain_client_lib str scgi unix)
-)
-
-
+  (libraries cryptokit cstruct leveldb ppx_deriving_yojson.runtime alacris_lib side_chain_client_lib str scgi unix))
 
 (executable
  (name side_chain_client_test)

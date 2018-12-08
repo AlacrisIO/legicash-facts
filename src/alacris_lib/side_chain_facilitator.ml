@@ -15,7 +15,8 @@ open Types
 open Merkle_trie
 
 open Legilogic_ethereum
-
+open Side_chain_server_config
+   
 open Side_chain
 
 exception Facilitator_not_found of string
@@ -580,8 +581,8 @@ let increment_capped max x =
   if x < max then x + 1 else max
 
 (* TODO: tweak these numbers later *)
-let batch_timeout_trigger_in_seconds = 0.01
-let batch_size_trigger_in_requests = 1000
+(* let batch_timeout_trigger_in_seconds = 0.01 *)
+(* let batch_size_trigger_in_requests = 1000 *)
 
 let inner_transaction_request_loop =
   let open Lwter in
@@ -619,12 +620,12 @@ let inner_transaction_request_loop =
                   | Ok confirmation ->
                     Lwt.wakeup_later continuation (Ok (confirmation, batch_committed));
                     let new_size = increment_capped max_int size in
-                    if new_size = batch_size_trigger_in_requests then
+                    if new_size = Side_chain_server_config.batch_size_trigger_in_requests then
                       (* Flush the data after enough entries are written *)
                       Lwt.wakeup_later size_trigger ()
                     else if new_size = 1 then
                       (* Start a timeout to trigger flushing, but only after some entry is written *)
-                      Lwt.async (fun () -> Lwt_unix.sleep batch_timeout_trigger_in_seconds
+                      Lwt.async (fun () -> Lwt_unix.sleep Side_chain_server_config.batch_timeout_trigger_in_seconds
                                   >>= fun () -> Lwt.wakeup_later time_trigger ();
                                   Lwt.return_unit);
                     request_batch new_facilitator_state new_size)

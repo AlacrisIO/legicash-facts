@@ -13,7 +13,7 @@ open Trie
 
 open Ethereum_chain
 open Ethereum_json_rpc
-
+open Side_chain_server_config
 
 (* TODO: A much better state machine to get wanted transactions confirmed.
 
@@ -190,7 +190,8 @@ let confirmation_of_transaction_receipt =
 
 (** Number of blocks required for a transaction to be considered confirmed *)
 (* TODO: for production, use 100, not 0. Put it as configuration file on input*)
-let block_depth_for_confirmation = Revision.of_int 0
+(* let block_depth_for_confirmation = Revision.of_int 0 *)
+let block_depth_for_confirmation = Side_chain_server_config.minNbBlockConfirm
 
 exception Still_pending
 exception TransactionFailed of OngoingTransactionStatus.t * exn

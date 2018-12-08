@@ -8,15 +8,13 @@ open Types
 open Signing
 
 open Alacris_lib
+open Legilogic_ethereum
 open Side_chain
 open Side_chain_facilitator
-
+open Side_chain_server_config
+   
 let _ =
   Config.set_application_name "alacris"
-
-type side_chain_server_config =
-  { port : int; }
-[@@deriving of_yojson]
 
 let _init_random =
   Random.self_init
@@ -39,17 +37,10 @@ let facilitator_address =
   register_keypair nickname keypair;
   address
 
-let config =
-  "side_chain_server_config.json"
-  |> Config.get_config_filename
-  |> Yojsoning.yojson_of_file
-  |> side_chain_server_config_of_yojson
-  |> function
-  | Ok config -> config
-  | Error msg -> Lib.bork "Error loading side chain server configuration: %s" msg
 
-let sockaddr = Unix.(ADDR_INET (inet_addr_any, config.port))
-
+(* let minNbBlockConfirm = lazy (match config with lazy {minimal_number_block_for_confirmation={nb}} -> nb) *)
+(* let minNbBlockConfirm = config.minimal_number_block_for_confirmation*)
+                      
 (* TODO: pass request id, so we can send a JSON RPC style reply? *)
 (* TODO: have some try ... finally construct handle the closing of the channels *)
 let process_request_exn _client_address (in_channel,out_channel) =
@@ -113,7 +104,7 @@ let _ =
          (Address.to_0x contract_address);
        load_facilitator_state facilitator_address
        >>= fun _facilitator_state ->
-       let%lwt _server = Lwt_io.establish_server_with_client_address sockaddr process_request in
+       let%lwt _server = Lwt_io.establish_server_with_client_address Side_chain_server_config.sockaddr process_request in
        start_facilitator facilitator_address
        >>= fun () ->
        Logging.log "*** SIDE CHAIN SERVER STARTED ***";
