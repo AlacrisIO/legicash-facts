@@ -77,12 +77,6 @@ module Confirmation = struct
   include (TrivialPersistable (PrePersistable) : (PersistableS with type t := t))
 end
 
-(** TODO: have an actual confirmation that a contract could check.
-    For Ethereum, we might check the transaction hashes match, or
-    perform a Merkle proof using the transactionsRoot in the given block
-*)
-let is_confirmation_valid _confirmation _transaction = true
-
 let genesis_state = State.{revision= Revision.zero; accounts= AccountMap.empty}
 
 (* TODO: use whichever way is used to compute on-chain hashes for marshaling.
@@ -152,4 +146,12 @@ module Transaction = struct
     PreTransaction.{operation;value;gas_limit}
 end
 
+(** TODO: have an actual confirmation that a contract could check.
+    For Ethereum, we might check the transaction hashes match, or
+    perform a Merkle proof using the transactionsRoot in the given block
+*)
+let is_confirmation_valid (_confirmation: Confirmation.t) (_transaction: Transaction.t) : bool = true
+
+
+                   
 module TransactionDigestSet = DigestSet

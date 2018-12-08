@@ -189,7 +189,8 @@ let confirmation_of_transaction_receipt =
     Confirmation.{transaction_hash; transaction_index; block_number; block_hash}
 
 (** Number of blocks required for a transaction to be considered confirmed *)
-(* TODO: for production, use 100, not 0. Put it as configuration file on input*)
+(* The value should be set in side_chain_server_config.json file. 
+   For production, use 100, not 0. Put it as configuration file on input *)
 (* let block_depth_for_confirmation = Revision.of_int 0 *)
 let block_depth_for_confirmation = Side_chain_server_config.minNbBlockConfirm
 

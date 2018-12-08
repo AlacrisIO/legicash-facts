@@ -250,7 +250,6 @@ let eth_get_transaction_count =
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
 (** Returns the number of transaction at address (and transaction) **)
 
-  
 let eth_get_transaction_receipt =
   ethereum_json_rpc "eth_getTransactionReceipt"
     (option_of_yojson_exn TransactionReceipt.of_yojson_exn)

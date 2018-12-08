@@ -187,7 +187,8 @@ val eth_sign :
   -> Address.t * Data.t -> Data.t Lwt_exn.t
 (** Sign some data *)
 
-(* Inexistent and unused
+(* The corresponding operation is not existent in the official ethereum API. It is also not used.
+   Therefore outcommented.
 val eth_sign_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> SignedTransaction.t Lwt_exn.t

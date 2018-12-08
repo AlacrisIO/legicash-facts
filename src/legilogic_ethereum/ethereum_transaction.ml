@@ -5,7 +5,8 @@ open Signing
 open Action
 open Lwt_exn
 open Json_rpc
-
+open Digesting
+   
 open Ethereum_chain
 
 (* TODO: when to return false vs raise an exception? Add timeout & log *)
@@ -16,7 +17,7 @@ let transaction_executed transaction_hash =
 
 
 (* TODO: factor this function into parsing a transaction and comparing transaction objects. *)
-let transaction_execution_matches_transaction transaction_hash (transaction: Transaction.t) =
+let transaction_execution_matches_transaction (transaction_hash: digest) (transaction: Transaction.t) : bool Lwt_exn.t =
   transaction_executed transaction_hash
   >>= fun executed ->
   if not executed then
@@ -35,13 +36,10 @@ let transaction_execution_matches_transaction transaction_hash (transaction: Tra
          && TokenAmount.compare info.value tx_header.value = 0
          && (* operation-specific checks *)
          match transaction.operation with
-         | TransferTokens recipient_address ->
-           info.to_ = Some recipient_address
-         | CreateContract data ->
-           info.input = data
+         | TransferTokens recipient_address -> info.to_ = Some recipient_address
+         | CreateContract data -> info.input = data
          | CallFunction (contract_address, call_input) ->
-           info.to_ = Some contract_address
-           && info.input = call_input
+           info.to_ = Some contract_address && info.input = call_input
        with _ -> false)
 
 let ensure_private_key ?timeout ?log (keypair : Keypair.t) =

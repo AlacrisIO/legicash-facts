@@ -355,6 +355,7 @@ module UIntZable (P: PreUIntZableS) = struct
   let yojsoning = yojsoning_map to_0x of_0x string_yojsoning
   let marshaling = marshaling_sized_string size_in_bytes to_big_endian_bits of_big_endian_bits
   let is_add_carry x y = compare x (lognot y) > 0
+  (*  let lognot x = x TODO: Need to write an implementation *)
   let is_add_valid x y = not (is_add_carry x y)
   let is_mul_valid x y = is_sized_nat size_in_bits (Z.mul (z_of x) (z_of y))
   let is_sum x y z = is_add_valid y z && equal x (add y z) (* NB: pre-check add *)
