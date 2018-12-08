@@ -212,11 +212,13 @@ let eth_accounts =
   ethereum_json_rpc "eth_accounts"
     (list_of_yojson_exn Address.of_yojson_exn)
     yojson_noargs
+(** Returns a list of address owned by the client **)
 
 let eth_estimate_gas =
   ethereum_json_rpc "eth_estimateGas"
     TokenAmount.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
+(** Returns estimate of gas needed for transaction **)
 
 let eth_gas_price =
   ethereum_json_rpc "eth_gasPrice"
@@ -228,47 +230,58 @@ let eth_get_balance =
   ethereum_json_rpc "eth_getBalance"
     TokenAmount.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
-
+(** Returns the balance of the account of given address (and block) **)
+  
 let eth_get_code =
   ethereum_json_rpc "eth_getCode"
     Yojsoning.Bytes.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
-
+(** Returns the code of given address (and block) **)
+  
 let eth_get_transaction_by_hash =
   ethereum_json_rpc "eth_getTransactionByHash"
     TransactionInformation.of_yojson_exn
     (yojson_1arg Digest.to_yojson)
-
+(** Returns a transaction (big object) by the hash code **)
+  
 let eth_get_transaction_count =
   ethereum_json_rpc "eth_getTransactionCount"
     Nonce.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
+(** Returns the number of transaction at address (and transaction) **)
 
+  
 let eth_get_transaction_receipt =
   ethereum_json_rpc "eth_getTransactionReceipt"
     (option_of_yojson_exn TransactionReceipt.of_yojson_exn)
     (yojson_1arg Digest.to_yojson)
-
+(** Returns a receipt of transaction by transaction hash (not available if transaction still pending) **)
+  
 let eth_send_raw_transaction =
   ethereum_json_rpc "eth_sendRawTransaction"
     Digest.of_yojson_exn
     (yojson_1arg Data.to_yojson)
+(** Create new message call transaction or a contract creation for signed transaction **)
 
 let eth_send_transaction =
   ethereum_json_rpc "eth_sendTransaction"
     Digest.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
-
+(** Creates new message call transaction or a contract creation if the datafield contains code **)
+  
 let eth_sign =
   ethereum_json_rpc "eth_sign"
     Data.of_yojson_exn
     (yojson_2args Address.to_yojson Data.to_yojson)
+(** Computes an eth signature **)
 
+(* Inexistent in the API and unused
 let eth_sign_transaction =
   ethereum_json_rpc "eth_signTransaction"
     SignedTransaction.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
-
+*)
+  
 let eth_block_number =
   ethereum_json_rpc "eth_blockNumber"
     Revision.of_yojson_exn

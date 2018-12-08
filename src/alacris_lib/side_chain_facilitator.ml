@@ -580,10 +580,6 @@ let post_admin_query_request =
 let increment_capped max x =
   if x < max then x + 1 else max
 
-(* TODO: tweak these numbers later *)
-(* let batch_timeout_trigger_in_seconds = 0.01 *)
-(* let batch_size_trigger_in_requests = 1000 *)
-
 let inner_transaction_request_loop =
   let open Lwter in
   fun facilitator_state_ref ->

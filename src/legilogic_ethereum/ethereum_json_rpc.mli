@@ -187,10 +187,12 @@ val eth_sign :
   -> Address.t * Data.t -> Data.t Lwt_exn.t
 (** Sign some data *)
 
+(* Inexistent and unused
 val eth_sign_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> SignedTransaction.t Lwt_exn.t
-(** Sign a transaction from an unlocked account *)
+(** Sign a transaction from an unlocked account **)
+ *)
 
 (* https://github.com/ethereum/go-ethereum/wiki/Management-APIs *)
 
