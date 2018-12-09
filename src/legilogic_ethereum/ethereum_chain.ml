@@ -149,6 +149,12 @@ end
 (** TODO: have an actual confirmation that a contract could check.
     For Ethereum, we might check the transaction hashes match, or
     perform a Merkle proof using the transactionsRoot in the given block
+    NOTE: We should not compute the transaction hash ourself.
+    --- 1 : When we post, a hash is computed and returned.
+        (It is in TransactionReceipt.transaction_hash) returned by eth_get_transaction_receipt.
+    --- 2 : When we query the client it returns a confirmation object telling whether the 
+            transaction completed successfully.
+
 *)
 let is_confirmation_valid (_confirmation: Confirmation.t) (_transaction: Transaction.t) : bool = true
 

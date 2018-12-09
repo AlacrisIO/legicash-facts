@@ -262,6 +262,7 @@ let eth_send_raw_transaction =
     (yojson_1arg Data.to_yojson)
 (** Create new message call transaction or a contract creation for signed transaction **)
 
+(* Not used in the code *)
 let eth_send_transaction =
   ethereum_json_rpc "eth_sendTransaction"
     Digest.of_yojson_exn

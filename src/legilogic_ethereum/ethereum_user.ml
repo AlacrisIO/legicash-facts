@@ -266,6 +266,7 @@ let make_tx_header (sender, value, gas_limit) =
 
 exception Missing_password
 
+(* The type seems hard to get. It looks like Transaction.t -> (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr *)
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
     let address = transaction.tx_header.sender in
@@ -278,10 +279,7 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_
 
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
     from given address, with given operation, value and gas_limit *)
-
-let make_signed_transaction : Address.t -> Operation.t -> TokenAmount.t -> TokenAmount.t ->
-                              (Transaction.t * SignedTransaction.t) Lwt_exn.t =
-  fun sender operation value gas_limit ->
+let make_signed_transaction (sender : Address.t) (operation :  Operation.t) (value : TokenAmount.t) (gas_limit : TokenAmount.t) : (Transaction.t * SignedTransaction.t) Lwt_exn.t =
   make_tx_header (sender, value, gas_limit)
   >>= fun tx_header ->
   sign_transaction Transaction.{tx_header; operation}

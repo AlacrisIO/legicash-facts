@@ -9,7 +9,9 @@ open Digesting
    
 open Ethereum_chain
 
-(* TODO: when to return false vs raise an exception? Add timeout & log *)
+(* TODO: when to return false vs raise an exception? Add timeout & log
+   Used only by next routine transaction_execution_matches_transaction 
+   Which is used only for tests *)
 let transaction_executed transaction_hash =
   Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
   >>= fun info ->
@@ -17,6 +19,7 @@ let transaction_executed transaction_hash =
 
 
 (* TODO: factor this function into parsing a transaction and comparing transaction objects. *)
+(* This function below is used only for tests (in ethereum_user) at present time *)
 let transaction_execution_matches_transaction (transaction_hash: digest) (transaction: Transaction.t) : bool Lwt_exn.t =
   transaction_executed transaction_hash
   >>= fun executed ->
@@ -27,7 +30,8 @@ let transaction_execution_matches_transaction (transaction_hash: digest) (transa
     >>= fun info ->
     return
       (try
-         (* for all operations, check these fields *)
+         (* for all operations, check these fields.
+            Shall we add in the checks "&& info.hash = transaction_hash" ???  *)
          let tx_header = transaction.tx_header in
          info.from = Some tx_header.sender
          && info.nonce = tx_header.nonce
