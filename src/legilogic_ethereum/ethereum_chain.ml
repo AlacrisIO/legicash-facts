@@ -154,7 +154,7 @@ end
         (It is in TransactionReceipt.transaction_hash) returned by eth_get_transaction_receipt.
     --- 2 : When we query the client it returns a confirmation object telling whether the 
             transaction completed successfully.
-
+    ---Therefore, this code below will never work.
 *)
 let is_confirmation_valid (_confirmation: Confirmation.t) (_transaction: Transaction.t) : bool = true
 

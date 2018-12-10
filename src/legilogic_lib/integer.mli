@@ -38,11 +38,15 @@ module type UIntBaseS = sig
   val zero : t
   val one : t
 
-  (** Logical negation *)
+  (** Bitwise Logical negation *)
   val lognot : t -> t
 
   val succ : t -> t
   val pred : t -> t
+  (** function taking two entries a, b.
+      --- If a = b then returns 0
+      --- If a > b then returns 1
+      --- If a < b then returns -1 *)
   val compare : t -> t -> int
   val max : t -> t -> t
   val min : t -> t -> t

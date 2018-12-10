@@ -240,7 +240,7 @@ module TransactionTracker = struct
               | Ok request -> Requested request |> continue
               | Error error -> invalidate ongoing error)
            | Requested request ->
-             (* TODO: handle retries *)
+             (* TODO: handle retries. But it should be in the side_chain_facilitator *)
              (request
               |> Side_chain_client.post_user_transaction_request
               >>= function

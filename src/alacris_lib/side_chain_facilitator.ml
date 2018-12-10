@@ -131,8 +131,8 @@ exception Malformed_request of string
     (but may later have to be split to another function).
     Thus, we can later parallelize this check.
     TODO: parallelize the signature checking in a C worker thread that lets us do additional OCaml work.
-*)
-
+    What means the "is_forced"
+ **)
 let validate_user_transaction_request :
   (UserTransactionRequest.t signed * bool, TransactionRequest.t) Lwt_exn.arr =
   fun (signed_request, is_forced) ->
@@ -158,10 +158,9 @@ let validate_user_transaction_request :
       >>> check (is_signed_value_valid UserTransactionRequest.digest requester signed_request)
             (konstant "The signature for the request doesn't match the requester")
       (* TODO: check confirmed main & side chain state + validity window *)
-      >>> (* Check that the numbers add up: *)
-      let open TokenAmount in
+      >>> let open TokenAmount in
       match operation with
-      | Deposit
+      | UserOperation.Deposit
           { deposit_amount
           ; deposit_fee
           ; main_chain_deposit={tx_header= {value}} as main_chain_deposit
@@ -432,7 +431,7 @@ let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
     | Some tx_proof ->
       TransactionCommitment.
         { transaction; tx_proof; facilitator_revision; spending_limit;
-          accounts; main_chain_transactions_posted; signature }
+           accounts; main_chain_transactions_posted; signature }
     | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x revision)
 
 (* Process a user request, with a flag to specify whether it's a forced request
@@ -457,8 +456,11 @@ let process_user_transaction_request :
   make_transaction_commitment transaction |> Lwt_exn.return
 
   
-(** This is a placeholder until we separate client and server in separate processes *)
-let post_user_transaction_request request =
+(** This is a placeholder until we separate client and server in separate processes 
+   NDMathieu: Are we still merged or are we now in separate processes? The docker contains
+   a client and a server.
+ *)
+let post_user_transaction_request (request: UserTransactionRequest.t signed) =
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =
