@@ -117,7 +117,7 @@ let get_facilitator_state () : FacilitatorState.t =
   |> (function Some x -> x | None -> bork "Facilitator service not started")
   |> fun service -> !(service.state_ref)
 
-let facilitator_account_lens address =
+let facilitator_account_lens (address : Address.t) : (FacilitatorState.t, AccountState.t) Lens.t =
   FacilitatorState.lens_current |-- State.lens_accounts
   |-- defaulting_lens (konstant AccountState.empty) (AccountMap.lens address)
 
@@ -142,7 +142,7 @@ let validate_user_transaction_request :
     let AccountState.{balance; account_revision} = (facilitator_account_lens requester).get state in
     let FacilitatorState.{fee_schedule} = state in
     let open Lwt_exn in
-    let check test exngen =
+    let check (test: bool) (exngen: unit -> 'a) =
       fun x ->
         if test then return x
         else fail (Malformed_request (exngen ())) in
@@ -191,12 +191,14 @@ let validate_user_transaction_request :
               (fun () ->
                  Printf.sprintf "Payment amount %s is larger than authorized limit %s"
                    (to_string payment_invoice.amount) (to_string fee_schedule.per_account_limit))
+        (* Check for overflow *)
         >>> check (is_forced ||
                    is_mul_valid state.fee_schedule.fee_per_billion payment_invoice.amount)
               (fun () ->
                  Printf.sprintf
                    "Payment fee calculation overflows with amount %s, scheduled fee per billion %s"
                    (to_string payment_invoice.amount) (to_string fee_schedule.fee_per_billion))
+        (* Check *)
         >>> check (is_forced ||
                    compare payment_fee
                      (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
@@ -365,7 +367,8 @@ let credit_balance (amount : TokenAmount.t) (account_address : Address.t)
     (Lens.modify (facilitator_account_lens account_address |-- AccountState.lens_balance)
        (TokenAmount.add amount))
 
-let debit_balance amount account_address =
+let debit_balance (amount : TokenAmount.t) (account_address : Address.t)
+  : ('a, 'a) FacilitatorAction.arr =
   let lens = facilitator_account_lens account_address |-- AccountState.lens_balance in
   decrement_state_tokens
     amount lens
@@ -375,7 +378,7 @@ let debit_balance amount account_address =
             (Address.to_0x account_address) (TokenAmount.to_string (lens.get state))
             (TokenAmount.to_string amount)))
 
-let accept_fee fee : ('a, 'a) FacilitatorAction.arr =
+let accept_fee (fee : TokenAmount.t) : ('a, 'a) FacilitatorAction.arr =
   fun x state -> credit_balance fee state.FacilitatorState.keypair.address x state
 
 (** compute the effects of a request on the account state *)
@@ -404,8 +407,7 @@ let effect_validated_user_transaction_request :
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
 let post_validated_transaction_request :
   ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
-  simple_client
-    inner_transaction_request_mailbox
+  simple_client inner_transaction_request_mailbox
     (fun (request, resolver) -> `Confirm (request, resolver))
 
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) FacilitatorAction.arr =
@@ -456,10 +458,6 @@ let process_user_transaction_request :
   make_transaction_commitment transaction |> Lwt_exn.return
 
   
-(** This is a placeholder until we separate client and server in separate processes 
-   NDMathieu: Are we still merged or are we now in separate processes? The docker contains
-   a client and a server.
- *)
 let post_user_transaction_request (request: UserTransactionRequest.t signed) =
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 

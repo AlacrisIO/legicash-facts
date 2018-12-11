@@ -14,7 +14,6 @@ open Action
 
 open Alacris_lib
 open Side_chain
-open Side_chain_facilitator
 
 open Side_chain_client_lib
 
@@ -83,10 +82,6 @@ let json_has_error json =
   | `Assoc _ ->
     YoJson.mem "error" json
   | _ -> false
-
-let get_facilitator_transactions () =
-  let facilitator_state = Test.get_facilitator_state () in
-  facilitator_state.current.transactions
 
 let make_threaded_test endpoint name address amount =
   deposit_withdrawal_json_to_yojson { address; amount }
