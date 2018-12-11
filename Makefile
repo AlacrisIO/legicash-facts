@@ -270,5 +270,9 @@ docker-recompile: ## Recompile application
 	@$ docker/scripts/recompile.sh
 
 docker-reset-state: ## Clean Alacris state data
-	$(SHOW) "Reseting Alacris states"
+	$(SHOW) "Resetting Alacris states"
 	$(HIDE) sudo docker/scripts/reset_state.sh
+
+docker-prune: ## Delete dangling images
+	$(SHOW) Deleting dangling docekr images
+	$(HIDE) docker system prune
