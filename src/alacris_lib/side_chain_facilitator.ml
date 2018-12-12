@@ -73,9 +73,7 @@ end
  * user transaction request, which modifies their account
  * system transaction, which e.g. posts a state update to the main chain
    (Which all the time update the main chain.
-    We have a batch of operations to put to the main chain.
-    
-    )
+    We have a batch of operations to put to the main chain.)
  
 
 
@@ -117,7 +115,7 @@ let get_facilitator_state () : FacilitatorState.t =
   |> (function Some x -> x | None -> bork "Facilitator service not started")
   |> fun service -> !(service.state_ref)
 
-let facilitator_account_lens (address : Address.t) : (FacilitatorState.t, AccountState.t) Lens.t =
+let facilitator_account_lens (address : Address.t) : account_lens =
   FacilitatorState.lens_current |-- State.lens_accounts
   |-- defaulting_lens (konstant AccountState.empty) (AccountMap.lens address)
 
@@ -177,7 +175,7 @@ let validate_user_transaction_request :
         >>> check (Ethereum_chain.is_confirmation_valid
                      main_chain_deposit_confirmation main_chain_deposit)
               (fun () -> "The main chain deposit confirmation is invalid")
-      | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
+      | UserOperation.Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
         check (payment_invoice.recipient != requester)
           (fun () -> "Recipient same as requester")
         >>> check (is_add_valid payment_invoice.amount payment_fee)
@@ -198,7 +196,7 @@ let validate_user_transaction_request :
                  Printf.sprintf
                    "Payment fee calculation overflows with amount %s, scheduled fee per billion %s"
                    (to_string payment_invoice.amount) (to_string fee_schedule.fee_per_billion))
-        (* Check *)
+        (* Check that the payment fee is sufficient *)
         >>> check (is_forced ||
                    compare payment_fee
                      (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
@@ -210,7 +208,7 @@ let validate_user_transaction_request :
                    (to_string payment_fee)
                    (to_string (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
                                  one_billion_tokens)))
-      | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+      | UserOperation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
         check (is_add_valid withdrawal_amount withdrawal_fee)
           (fun () -> "Adding withdrawal amount and fee causes an overflow!")
         >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
@@ -250,6 +248,7 @@ let _balance_at_revision : Address.t -> Revision.t -> State.t -> TokenAmount.t =
     ignore (address, revision, state);
     bottom ()
 
+(* TODO: Clearly this function returning zero is not what we want *)
 let compute_updated_limit :
   facilitator:Address.t -> previous_confirmed:State.t -> new_confirmed:Revision.t -> current:State.t
   -> TokenAmount.t =
@@ -458,7 +457,7 @@ let process_user_transaction_request :
   make_transaction_commitment transaction |> Lwt_exn.return
 
   
-let post_user_transaction_request (request: UserTransactionRequest.t signed) =
+let facil_post_user_transaction_request (request: UserTransactionRequest.t signed) =
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =
@@ -538,7 +537,7 @@ let get_recent_transactions address maybe_limit facilitator_state =
   `List (List.map Transaction.to_yojson
            (TransactionMap.foldrk get_operation_for_address all_transactions (Revision.zero,[]) snd))
 
-let get_proof tx_revision (facilitator_state : FacilitatorState.t) =
+let get_2proof tx_revision (facilitator_state : FacilitatorState.t) =
   let transactions = facilitator_state.current.transactions in
   match TransactionMap.Proof.get tx_revision transactions with
   | None ->
@@ -561,14 +560,15 @@ let process_user_query_request request =
    | Get_recent_transactions { address; count } ->
      get_recent_transactions address count state |> return
    | Get_proof {tx_revision} ->
-     get_proof tx_revision state |> return)
+     get_2proof tx_revision state |> return)
 
-let post_user_query_request =
+let facil_post_user_query_request =
   (*stateless_parallelize*) process_user_query_request
 
 (** Take messages from the admin_query_request_mailbox, and process them (TODO: in parallel?) *)
 let process_admin_query_request = bottom
-let post_admin_query_request =
+
+let facil_post_admin_query_request =
   (*stateless_parallelize*) process_admin_query_request
 
 (** We assume that the operation will correctly apply:
@@ -576,7 +576,6 @@ let post_admin_query_request =
     deposits confirmation will check out,
     active revision will only increase, etc.
 *)
-
 let increment_capped max x =
   if x < max then x + 1 else max
 
@@ -669,6 +668,7 @@ let initial_facilitator_state address =
     ; fee_schedule= initial_fee_schedule }
 
 (* TODO: make it a PersistentActivity. *)
+(* TODO: don't create a new facilitator unless explicitly requested? *)
 let start_facilitator address =
   let open Lwt_exn in
   match !the_facilitator_service_ref with
@@ -684,9 +684,7 @@ let start_facilitator address =
     let facilitator_state =
       try
         FacilitatorState.load address
-      with Not_found ->
-        (* TODO: don't create a new facilitator unless explicitly requested? *)
-        initial_facilitator_state address
+      with Not_found -> initial_facilitator_state address
     in
     let state_ref = ref facilitator_state in
     the_facilitator_service_ref := Some { address; state_ref };

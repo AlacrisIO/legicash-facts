@@ -36,18 +36,18 @@ val facilitator_account_lens : Address.t -> account_lens
 (** start the background facilitator processes for given facilitator address *)
 val start_facilitator : (Address.t, unit) Lwt_exn.arr
 
-(** [post_user_transaction_request request] asynchronously processes [request] (not forced)
+(** [facil_post_user_transaction_request request] asynchronously processes [request] (not forced)
     returning a [Transaction.t] on success.
 *)
-val post_user_transaction_request : (UserTransactionRequest.t signed, TransactionCommitment.t) Lwt_exn.arr
+val facil_post_user_transaction_request : (UserTransactionRequest.t signed, TransactionCommitment.t) Lwt_exn.arr
 
-(** [post_user_query_request request] asynchronously processes [request]
+(** [facil_post_user_query_request request] asynchronously processes [request]
     returning a [Transaction] on success. *)
-val post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
+val facil_post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
 
-(** [post_admin_query_request request] asynchronously processes [request]
+(** [facil_post_admin_query_request request] asynchronously processes [request]
     returning a [Transaction] on success. *)
-val post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
+val facil_post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
 
 
 (*

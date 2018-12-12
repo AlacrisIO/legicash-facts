@@ -59,8 +59,10 @@ let post_query_hook = ref post_query_to_server
 let post_user_query_request (request : UserQueryRequest.t) =
   `UserQuery request |> !post_query_hook
 
+(*
 let post_admin_query_request (request : AdminQueryRequest.t) =
   `AdminQuery request |> !post_query_hook
+ *)
 
 (* Transaction's return TransactionCommitment's *)
 let post_user_transaction_request_to_server (request : UserTransactionRequest.t signed) =
@@ -74,6 +76,7 @@ let post_user_transaction_request_to_server (request : UserTransactionRequest.t 
 
 let post_user_transaction_request_hook = ref post_user_transaction_request_to_server
 
+                                       
 let post_user_transaction_request request =
   request |> !post_user_transaction_request_hook
 

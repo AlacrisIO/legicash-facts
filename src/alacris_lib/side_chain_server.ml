@@ -50,11 +50,11 @@ let process_request_exn _client_address (in_channel,out_channel) =
   >>= trying (catching_arr ExternalRequest.unmarshal_string)
   >>= (function
     | Ok (`UserQuery request) ->
-      (post_user_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
+      (facil_post_user_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
     | Ok (`UserTransaction request) ->
-      (post_user_transaction_request request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
+      (facil_post_user_transaction_request request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
     | Ok (`AdminQuery request) ->
-      (post_admin_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
+      (facil_post_admin_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
     | Error e ->
       Error e |> encode_response Unit.marshal)
   (* TODO: We need to always close, and thus exit the Lwt_exn monad and properly handle the Result
