@@ -1,0 +1,4 @@
+{ "scheme" : "http",
+  "host" : "alacris-private-ethereum-node",
+  "port" : 8545
+}
