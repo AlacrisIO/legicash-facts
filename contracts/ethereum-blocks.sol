@@ -1,7 +1,7 @@
 pragma solidity ^0.4.23;
 //pragma experimental ABIEncoderV2;
 
-/* This contract checks that facilitators do maintain a valid patricia tree of Ethereum blocks
+/* This contract checks that operators do maintain a valid patricia tree of Ethereum blocks
    as part of their side-chains. This tree in turn allows for verification of deposits and
    withdrawals (and, in the future, other transactions that users may want
    to write layer 3 contracts about).
@@ -18,7 +18,7 @@ pragma solidity ^0.4.23;
 // and/or we can port the OCaml code from src/trie.ml
 
 contract EthereumBlocks {
-    // As part of a state update, a facilitator will publish a trie of all ethereum blocks.
+    // As part of a state update, a operator will publish a trie of all ethereum blocks.
     //
     // The trie must be of a height close enough to the top that the top can be validated,
     // either [TODO: we have to choose statically]

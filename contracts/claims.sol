@@ -87,7 +87,7 @@ contract Claims {
     /**
      * Make a claim
      *
-     * Usage Pattern: make_claim(digest_claim(facilitator, tag, keccak256(abi.encodePacked(x, y, z)))).
+     * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
     function make_claim(bytes32 _claim) internal {
         require(claim_status[_claim]==0); // The claim must not have been made before

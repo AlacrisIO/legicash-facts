@@ -1,6 +1,6 @@
 (* actions.ml -- actions behind the endpoints *)
 
-(* TODO: actually separate actions between client-side actions and facilitator-side actions,
+(* TODO: actually separate actions between client-side actions and operator-side actions,
    running in two different sets of threads,
    if possible on two different processes on two different machines,
    with access to different credentials.
@@ -82,7 +82,7 @@ let apply_main_chain_thread id : yojson =
   with Not_found ->
     error_json "Thread %d not found" id
 
-(* operations posted to facilitator *)
+(* operations posted to operator *)
 
 (* query operations *)
 
@@ -90,8 +90,8 @@ let get_proof tx_revision =
   UserQueryRequest.Get_proof { tx_revision }
   |> post_user_query_request
 
-let get_balance_on ~facilitator address =
-  ignore facilitator; (* TODO: refactor so it makes sense WTF? *)
+let get_balance_on ~operator address =
+  ignore operator; (* TODO: refactor so it makes sense WTF? *)
   UserQueryRequest.Get_account_balance { address }
   |> post_user_query_request
 
@@ -133,11 +133,11 @@ let schedule_transaction user transaction parameters =
      let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
      make_transaction_result user tx_revision main_chain_confirmation)
 
-let deposit_to ~facilitator user deposit_amount =
-  schedule_transaction user deposit DepositWanted.{facilitator; deposit_amount}
+let deposit_to ~operator user deposit_amount =
+  schedule_transaction user deposit DepositWanted.{operator; deposit_amount}
 
-let withdrawal_from ~facilitator user withdrawal_amount =
-  schedule_transaction user withdrawal WithdrawalWanted.{facilitator; withdrawal_amount}
+let withdrawal_from ~operator user withdrawal_amount =
+  schedule_transaction user withdrawal WithdrawalWanted.{operator; withdrawal_amount}
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
@@ -157,13 +157,13 @@ let payment_timestamp () =
 (*TODO: move instrumentation to a proper place and leave it at that:
   let payment_on_trent sender recipient amount memo =
   schedule_transaction sender payment
-  PaymentWanted.{facilitator; recipient; amount; memo; payment_expedited= false } *)
+  PaymentWanted.{operator; recipient; amount; memo; payment_expedited= false } *)
 
 (* TODO: simplify this all away *)
-let payment_on ~facilitator sender recipient amount memo =
+let payment_on ~operator sender recipient amount memo =
   add_main_chain_thread
     (User.action sender payment
-       PaymentWanted.{facilitator; recipient; amount; memo; payment_expedited= false }
+       PaymentWanted.{operator; recipient; amount; memo; payment_expedited= false }
      >>= fun (_key, tracker_promise) ->
      (* set timestamp, now that initial processing on Trent is done *)
      payment_timestamp ();

@@ -10,7 +10,7 @@ contract ClaimTypes is Claims {
     // Moreover, we want to distinguish between struct's, so we tag them with a type tag.
 
     enum ClaimType {
-        STATE_UPDATE, // for a facilitator, claim an update to the side chain state.
+        STATE_UPDATE, // for a operator, claim an update to the side chain state.
         WITHDRAWAL_CLAIM, // for a user, claim a withdrawal
         WITHDRAWAL // for a user, exercise a valid withdrawal claim and withdraw the money
     }
@@ -18,17 +18,17 @@ contract ClaimTypes is Claims {
     /**
      * Digest a claim.
      *
-     * Usage pattern: digest_claim(facilitator, tag, abi.encodePacked(struct_values...))
+     * Usage pattern: digest_claim(operator, tag, abi.encodePacked(struct_values...))
      * Unhappily, that pattern can't be made a function (bad types) and can't be made a macro (no macros).
      *
-     * @param _facilitator the facilitator for the side-chain.
+     * @param _operator the operator for the side-chain.
      * @param _tag identification of the type of data structure being claimed.
      * @param _data data for the claim, typically itself the digest of a larger data structure.
      * @return the digest for the claim.
      */
-    function digest_claim(address _facilitator, ClaimType _tag, bytes32 _data)
+    function digest_claim(address _operator, ClaimType _tag, bytes32 _data)
             internal pure returns(bytes32) {
-        return keccak256(abi.encodePacked(_facilitator, _tag, _data));
+        return keccak256(abi.encodePacked(_operator, _tag, _data));
     }
 
     /**

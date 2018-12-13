@@ -73,10 +73,10 @@ $(BUILD_DIR)/$(ETHEREUM_PREFUNDER): $(ML_SOURCES)
 
 # for the side_chain_client demo, this is a simplified contract that just
 # logs deposits and withdrawals
-CONTRACT:=src/alacris_lib/facilitator_contract_binary.ml
+CONTRACT:=src/alacris_lib/operator_contract_binary.ml
 contract: $(CONTRACT)
 $(CONTRACT) : contracts/deposit-withdraw.sol $(wildcard contracts/*.sol)
-	$(SHOW) "Compiling facilitator contract"
+	$(SHOW) "Compiling operator contract"
 	$(HIDE) cd contracts/ && solc --bin -o ../_build/contracts --overwrite court.sol
 	$(HIDE) awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' < ./_build/contracts/Court.bin > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
 
@@ -162,9 +162,9 @@ run_ethereum_net :
 	$(HIDE) scripts/ethereum-devnet/run.sh
 
 # 2- Fund test accounts on the private Ethereum network,
-# importantly including the facilitator's account
+# importantly including the operator's account
 fund_accounts : $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) force
-	$(HIDE) $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) ./config/facilitator_keys.json ./config/demo-keys-small.json
+	$(HIDE) $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) ./config/operator_keys.json ./config/demo-keys-small.json
 
 # 3- Run our server
 run_side_chain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
@@ -198,7 +198,7 @@ clean:
 	$(SHOW) "Cleaning via dune"
 	$(HIDE) dune clean
 	$(SHOW) "Removing contract binary"
-	$(HIDE) rm -f src/alacris_lib/facilitator_contract_binary.ml
+	$(HIDE) rm -f src/alacris_lib/operator_contract_binary.ml
 	$(SHOW) "Removing OPAM install file"
 	$(HIDE) rm -f alacris.install
 	$(SHOW) "Removing run directory"

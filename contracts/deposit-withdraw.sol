@@ -3,18 +3,18 @@
 
 pragma solidity ^0.4.24;
 
-contract Facilitators {
+contract Operators {
 
-  event Deposited(address facilitator, address recipient, uint value, bytes memo);
+  event Deposited(address operator, address recipient, uint value, bytes memo);
 
-  function deposit(address facilitator, bytes memo) public payable {
-    emit Deposited(facilitator, msg.sender, msg.value, memo);
+  function deposit(address operator, bytes memo) public payable {
+    emit Deposited(operator, msg.sender, msg.value, memo);
   }
 
-  event Withdrawal(address facilitator, uint64 ticket);
+  event Withdrawal(address operator, uint64 ticket);
 
-  function withdraw(address facilitator, uint64 ticket, uint _bond, bytes32 _confirmed_state) public {
-    emit Withdrawal(facilitator, ticket);
+  function withdraw(address operator, uint64 ticket, uint _bond, bytes32 _confirmed_state) public {
+    emit Withdrawal(operator, ticket);
     _bond+0;
     _confirmed_state[0];
     // msg.sender.transfer(_value + _bond);
