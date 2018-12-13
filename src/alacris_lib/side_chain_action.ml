@@ -8,7 +8,7 @@ open Json_rpc
 open Legilogic_ethereum
 
 open Side_chain
-open Side_chain_facilitator
+open Side_chain_operator
 open Side_chain_user
 
 let contract_address_key = "alacris.contract-address"
@@ -19,7 +19,7 @@ exception Invalid_contract
 let check_side_chain_contract_created contract_address =
   Ethereum_json_rpc.(eth_get_code (contract_address, BlockParameter.Latest))
   >>= fun code ->
-  if code = Facilitator_contract_binary.contract_bytes then
+  if code = Operator_contract_binary.contract_bytes then
     return contract_address
   else
     (let addr = Address.to_0x contract_address in
@@ -33,13 +33,13 @@ let check_side_chain_contract_created contract_address =
         side_chain_client, and try again after resetting their state with `make clean`.\n"
        addr
        (Hex.unparse_0x_bytes code)
-       (Hex.unparse_0x_bytes Facilitator_contract_binary.contract_bytes);
+       (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
      fail Invalid_contract)
 
 let create_side_chain_contract installer_address =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
   Ethereum_user.create_contract ~sender:installer_address
-    ~code:Facilitator_contract_binary.contract_bytes TokenAmount.zero
+    ~code:Operator_contract_binary.contract_bytes TokenAmount.zero
   >>= Ethereum_user.confirm_pre_transaction installer_address
   >>= fun (_tx, confirmation) ->
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
@@ -60,19 +60,19 @@ let ensure_side_chain_contract_created installer_address =
      Logging.log "Not found, creating the contract...";
      create_side_chain_contract installer_address)
   >>= fun contract_address ->
-  Facilitator_contract.set_contract_address contract_address;
+  Operator_contract.set_contract_address contract_address;
   return contract_address
 
 module Test = struct
   open Lib.Test
   open Signing.Test
   open Ethereum_user.Test
-  open Side_chain_facilitator.Test
+  open Side_chain_operator.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
   let get_user_balance address =
-    (get_facilitator_state () |> (facilitator_account_lens address).get).balance
+    (get_operator_state () |> (operator_account_lens address).get).balance
   let get_alice_balance () = get_user_balance alice_address
   let get_bob_balance () = get_user_balance bob_address
 
@@ -80,7 +80,7 @@ module Test = struct
   let%test "deposit_and_payment_and_withdrawal" =
     Signing.Test.register_test_keypairs ();
     Side_chain_client.Test.post_user_transaction_request_hook :=
-      Side_chain_facilitator.post_user_transaction_request;
+      Side_chain_operator.post_user_transaction_request;
     try
       Lwt_exn.run
         (fun () ->
@@ -89,15 +89,15 @@ module Test = struct
            ensure_side_chain_contract_created prefunded_address >>= fun contract_address ->
            Logging.log "Contract address: %s" (Address.to_0x contract_address); return ()
            >>= fund_accounts >>= fun () ->
-           let facilitator = trent_address in
-           start_facilitator facilitator >>= fun () ->
+           let operator = trent_address in
+           start_operator operator >>= fun () ->
            let initial_alice_balance = get_alice_balance () in
            let initial_bob_balance = get_bob_balance () in
 
            (* 1- Test deposit *)
            let deposit_amount = TokenAmount.of_string "500000000000000000" in
            User.transaction alice_address deposit
-             DepositWanted.{facilitator; deposit_amount}
+             DepositWanted.{operator; deposit_amount}
            >>= fun (_commitment, _confirmation) ->
            let alice_balance_after_deposit = get_alice_balance () in
            expect_equal "Alice balance after deposit" TokenAmount.to_string
@@ -107,14 +107,14 @@ module Test = struct
            (* 2- Test payment *)
            let payment_amount = TokenAmount.of_string "170000000000000000" in
            User.transaction alice_address payment
-             PaymentWanted.{facilitator ; recipient= bob_address ; amount= payment_amount
+             PaymentWanted.{operator ; recipient= bob_address ; amount= payment_amount
                            ; memo="test" ; payment_expedited= false}
            >>= fun (_commitment2, _confirmation2) ->
            let bob_balance_after_payment = get_bob_balance () in
            expect_equal "Bob balance after payment" TokenAmount.to_string
              bob_balance_after_payment
              (TokenAmount.add initial_bob_balance payment_amount) ;
-           get_facilitator_fee_schedule trent_address
+           get_operator_fee_schedule trent_address
            >>= fun fee_schedule ->
            let payment_fee = payment_fee_for fee_schedule payment_amount in
            let alice_balance_after_payment = get_alice_balance () in
@@ -125,7 +125,7 @@ module Test = struct
            (* 3- Test Withdrawal -- withdraw all that was deposited *)
            let withdrawal_amount = TokenAmount.sub payment_amount fee_schedule.withdrawal_fee in
            User.transaction bob_address withdrawal
-             WithdrawalWanted.{facilitator; withdrawal_amount}
+             WithdrawalWanted.{operator; withdrawal_amount}
            >>= fun (_commitment, _confirmation) ->
            let bob_balance_after_withdrawal = get_bob_balance () in
            expect_equal "Bob balance after withdrawal" TokenAmount.to_string

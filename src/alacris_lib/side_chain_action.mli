@@ -5,13 +5,13 @@ open Signing
 (* the "flows" mentioned here are those mentioned in the file "demo.md" *)
 
 (*
-   val detect_main_chain_facilitator_issues : (unit, unit) verifier_action
-   (** constantly watch the main chain and search for prosecutable issues relating to facilitators *)
+   val detect_main_chain_operator_issues : (unit, unit) verifier_action
+   (** constantly watch the main chain and search for prosecutable issues relating to operators *)
 *)
 
 (* Flow 2: Payment
    Step 1: Alice fills in the details of a check from an initial invoice, then signs it.
-   In practice, the system interactively offers the user the facilitators, fees, delays, etc.,
+   In practice, the system interactively offers the user the operators, fees, delays, etc.,
    available to pay the merchant and let him decide.
 
    Step 2: Trent verifies that everything's fine and signs a certified check,
@@ -47,8 +47,8 @@ open Signing
 (*
    val send_user_request : UserState.t -> Request.t signed -> conversation -> unit or_exn
 
-   val send_facilitator_confirmation :
-   FacilitatorState.t -> Confirmation.t signed -> conversation -> unit or_exn
+   val send_operator_confirmation :
+   OperatorState.t -> Confirmation.t signed -> conversation -> unit or_exn
 *)
 
 val check_side_chain_contract_created : Address.t -> Address.t Lwt_exn.t
@@ -57,7 +57,7 @@ val check_side_chain_contract_created : Address.t -> Address.t Lwt_exn.t
 
 val create_side_chain_contract : Address.t -> Address.t Lwt_exn.t
 (** Given an address for whoever will pay to install it (its keys and password already registered),
-    installs the facilitator contract on main chain, enabling the side chain *)
+    installs the operator contract on main chain, enabling the side chain *)
 
 val ensure_side_chain_contract_created : Address.t -> Address.t Lwt_exn.t
 (** Given an address for whoever will pay to install it (its keys and password already registered),

@@ -14,7 +14,7 @@ open Action
 
 open Alacris_lib
 open Side_chain
-open Side_chain_facilitator
+open Side_chain_operator
 
 open Side_chain_client_lib
 
@@ -84,9 +84,9 @@ let json_has_error json =
     YoJson.mem "error" json
   | _ -> false
 
-let get_facilitator_transactions () =
-  let facilitator_state = Test.get_facilitator_state () in
-  facilitator_state.current.transactions
+let get_operator_transactions () =
+  let operator_state = Test.get_operator_state () in
+  operator_state.current.transactions
 
 let make_threaded_test endpoint name address amount =
   deposit_withdrawal_json_to_yojson { address; amount }
@@ -285,8 +285,8 @@ let test_recent_transactions ?(limit=None) () =
   loop 0
 
 (* TODO: add proofs for transactions
-   issue: this code doesn't have access to facilitator state containing TransactionMap
-   possible solution is to have facilitator reveal transaction details through an endpoint
+   issue: this code doesn't have access to operator state containing TransactionMap
+   possible solution is to have operator reveal transaction details through an endpoint
 
    Not providing test for transaction rate endpoint, seems out of scope here
 *)

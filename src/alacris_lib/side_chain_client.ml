@@ -9,7 +9,7 @@ open Action
 open Lwt_exn
 open Signing
 
-type facilitator_config =
+type operator_config =
   { nickname : string
   ; address : Address.t
   } [@@deriving of_yojson]
@@ -17,7 +17,7 @@ type facilitator_config =
 type side_chain_client_config =
   { host : string
   ; port : int
-  ; facilitator : facilitator_config
+  ; operator : operator_config
   } [@@deriving of_yojson]
 
 let config =
@@ -33,8 +33,8 @@ let config =
 let sockaddr =
   lazy (match config with lazy {host;port} -> Unix.(ADDR_INET (inet_addr_of_string host, port)))
 
-let facilitator_address =
-  lazy (match config with lazy {facilitator={address}} -> address)
+let operator_address =
+  lazy (match config with lazy {operator={address}} -> address)
 
 let decode_response unmarshaler =
   unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwter.arr
