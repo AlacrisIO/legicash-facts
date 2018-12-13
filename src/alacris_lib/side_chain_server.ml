@@ -44,6 +44,7 @@ let facilitator_address =
 (* TODO: pass request id, so we can send a JSON RPC style reply? *)
 (* TODO: have some try ... finally construct handle the closing of the channels *)
 let process_request_exn _client_address (in_channel,out_channel) =
+  Logging.log "process_request_exn, running 1";
   let encode_response marshaler =
     marshaler |> Tag.marshal_result_or_exn |> marshal_string_of_marshal |> arr in
   read_string_from_lwt_io_channel in_channel
@@ -66,6 +67,7 @@ let process_request_exn _client_address (in_channel,out_channel) =
 
 (* squeeze Lwt_exn into Lwt *)
 let process_request client_address channels =
+  Logging.log "process_request, running 1";
   run_lwt (trying (catching (process_request_exn client_address))
            >>> handling (fun e ->
              Logging.log "Exception while processing server request: %s" (Printexc.to_string e);

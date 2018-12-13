@@ -100,7 +100,8 @@ type validated_transaction_request =
 type inner_transaction_request =
   [ validated_transaction_request
   | `Flush of int
-  | `Committed of (State.t signed * unit Lwt.u) ]
+  | `Committed of (State.t signed * unit Lwt.u)
+  | `GetCurrentState of (State.t Lwt.u) ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -456,7 +457,7 @@ let process_user_transaction_request :
   >>= fun () ->
   make_transaction_commitment transaction |> Lwt_exn.return
 
-  
+
 let facil_post_user_transaction_request (request: UserTransactionRequest.t signed) =
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 
@@ -571,6 +572,7 @@ let process_admin_query_request = bottom
 let facil_post_admin_query_request =
   (*stateless_parallelize*) process_admin_query_request
 
+
 (** We assume that the operation will correctly apply:
     balances are sufficient for spending,
     deposits confirmation will check out,
@@ -648,9 +650,19 @@ let inner_transaction_request_loop =
                    FacilitatorState.lens_committed.set signed_state facilitator_state in
                  facilitator_state_ref := new_facilitator_state;
                  Lwt.wakeup_later previous_notify_batch_committed ();
-                 request_batch new_facilitator_state size in
-             request_batch facilitator_state 0)
+                 request_batch new_facilitator_state size
+               | `GetCurrentState (state_resolver : State.t Lwt.u) ->
+                  Lwt.wakeup_later state_resolver !facilitator_state_ref.current;
+                  Lwt.return (facilitator_state, (batch_id + 1), batch_committed)
+          (*                  Lwt.async (fun () -> Lwt.return !facilitator_state_ref.current) *)
+               (* Called from the state updater thread *)
+             in request_batch facilitator_state 0)
+             
 
+
+
+
+  
 let initial_side_chain_state =
   State.
     { facilitator_revision= Revision.of_int 0
@@ -691,6 +703,19 @@ let start_facilitator address =
     Lwt.async (const state_ref >>> inner_transaction_request_loop);
     Lwt_exn.return ()
 
+
+(* Need to create a thread, persistent activity
+   for the merging operation to the main chain.
+   ---Polled by the users for their transaction.
+   ---push transaction to the ethereum.
+   Advanced TODO: update as the auction plays out.
+ *)
+(*
+let lwt_for synchronizing 
+
+ *)
+
+    
 module Test = struct
   open Signing.Test
 

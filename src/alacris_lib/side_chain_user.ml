@@ -39,6 +39,7 @@ let get_keypair_of_address user =
 let wait_for_facilitator_state_update (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
   (* bork "wait_for_facilitator_state_update not implemented yet"; bottom () *)
   (* It will refer to ethereum_watch *)
+  (* Confirmation obtained from the side_chain by the operator by the yojson *)
   (* THIS IS FAKE NEWS! *)
   Lwt_exn.return
     Ethereum_chain.Confirmation.
