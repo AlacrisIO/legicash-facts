@@ -22,7 +22,8 @@ module Side_chain_server_config = struct
     }
   [@@deriving of_yojson]
 
-  let config =
+  let load_server_config : unit -> side_chain_server_config =
+    fun () -> 
     "side_chain_server_config.json"
     |> Config.get_config_filename
     |> Yojsoning.yojson_of_file
@@ -31,6 +32,30 @@ module Side_chain_server_config = struct
     | Ok config -> config
     | Error msg -> Lib.bork "Error loading side chain server configuration: %s" msg
 
+  let the_server_config_ref : (side_chain_server_config option ref) = ref None
+
+  let get_server_config : unit -> side_chain_server_config =
+    fun () ->
+    match !the_server_config_ref with
+    | Some x -> x
+    | None ->
+       let (the_config : side_chain_server_config) = load_server_config() in 
+       the_server_config_ref := Some the_config;
+       the_config
+                 
+  let (config : side_chain_server_config) = 
+    "side_chain_server_config.json"
+    |> Config.get_config_filename
+    |> Yojsoning.yojson_of_file
+    |> side_chain_server_config_of_yojson
+    |> function
+    | Ok config -> config
+    | Error msg -> Lib.bork "Error loading side chain server configuration: %s" msg
+
+
+
+
+    
   let sockaddr = Unix.(ADDR_INET (inet_addr_any, config.port))
 
   (* let minNbBlockConfirm = lazy (match config with lazy {minimal_number_block_for_confirmation={nb}} -> nb) *)

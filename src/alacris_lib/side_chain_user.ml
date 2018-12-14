@@ -213,6 +213,7 @@ module TransactionTracker = struct
           let open OngoingTransactionStatus in
           (match ongoing with
            | DepositWanted (({facilitator; deposit_amount} as deposit_wanted), deposit_fee) ->
+             Logging.log "DepositWanted operation";
              let pre_transaction =
                TokenAmount.(add deposit_amount deposit_fee)
                |> Facilitator_contract.pre_deposit ~facilitator in
@@ -223,6 +224,7 @@ module TransactionTracker = struct
               | Ok (tracker_key, _, _) ->
                 DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
+             Logging.log "DepositPosted operation";
              let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
              (promise >>= function
               | Failed (_, error) -> invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
@@ -230,8 +232,9 @@ module TransactionTracker = struct
                 DepositConfirmed (deposit_wanted, deposit_fee, transaction, confirmation) |> continue)
            | DepositConfirmed ({deposit_amount}, deposit_fee,
                                main_chain_deposit, main_chain_deposit_confirmation) ->
-             revision_generator () >>= fun revision ->
-             (make_user_transaction_request user facilitator revision
+             Logging.log "DepositConfirmed operation";
+             revision_generator () >>= fun (revision : Revision.t) ->
+             (make_user_transaction_request (user : Address.t) (facilitator : Address.t) (revision : Revision.t)
                 (Deposit
                    { deposit_amount
                    ; deposit_fee
@@ -241,36 +244,38 @@ module TransactionTracker = struct
               | Ok request -> Requested request |> continue
               | Error error -> invalidate ongoing error)
            | Requested request ->
+             Logging.log "Requested operation";
              (* TODO: handle retries. But it should be in the side_chain_facilitator *)
              (request
               |> Side_chain_client.post_user_transaction_request
               >>= function
-              | Ok tc -> SignedByFacilitator tc |> continue
+              | Ok (tc : TransactionCommitment.t) -> SignedByFacilitator tc |> continue
               | Error error -> invalidate ongoing error)
-           | SignedByFacilitator tc ->
+           | SignedByFacilitator (tc : TransactionCommitment.t) ->
+             Logging.log "SignedByFacilitator operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
-           | PostedToRegistry tc ->
+           | PostedToRegistry (tc : TransactionCommitment.t) ->
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              (* TODO: add support for waiting for a state update from the facilitator 
                 (applies to all 3 operations) *)
              (wait_for_facilitator_state_update tc.facilitator_revision
               >>= function
-              | Ok c ->
+              | Ok (c : Ethereum_chain.Confirmation.t) ->
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
                  | Deposit _ | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
                  | Withdrawal _ -> PostedToMainChain (tc, c) |> continue)
               | Error error -> invalidate ongoing error)
-           | PostedToMainChain (tc, confirmation) ->
+           | PostedToMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
              (* Withdrawal that we're going to have to claim *)
              (* TODO: wait for confirmation on the main chain and handle lawsuits *)
              ConfirmedOnMainChain (tc, confirmation) |> continue
-           | ConfirmedOnMainChain (tc, confirmation) ->
+           | ConfirmedOnMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
              FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |> finalize)
-        | Final x -> return x in
-      key, loop state
+        | Final x -> return x
+      in key, loop state
   end
   include PersistentActivity(Base)
   module Key = Base.Key

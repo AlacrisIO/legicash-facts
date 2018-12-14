@@ -110,6 +110,7 @@ let _ =
        start_facilitator facilitator_address
        >>= fun () ->
        Logging.log "*** SIDE CHAIN SERVER STARTED ***";
+       Logging.log "*** Checking if it passed ***";
        (* NEVER RETURN *)
        of_lwt (fun () -> Lwt.wait () |> fst) ())
     ()
