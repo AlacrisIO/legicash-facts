@@ -30,8 +30,8 @@ let config =
      | Ok config -> config
      | Error msg -> Lib.bork "Error loading side chain client configuration: %s" msg)
 
-let sockaddr =
-  lazy (match config with lazy {host;port} -> Unix.(ADDR_INET (inet_addr_of_string host, port)))
+let sockaddr = lazy (match config with lazy {host;port} ->
+    Unix.ADDR_INET (Get_ip_address.inet_addr_from_ip_or_host host, port))
 
 let operator_address =
   lazy (match config with lazy {operator={address}} -> address)
