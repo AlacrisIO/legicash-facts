@@ -27,10 +27,10 @@ let make_deposit_call : Address.t -> Ethereum_chain.Operation.t =
 let deposit_gas_limit = TokenAmount.of_int 100000
 
 let pre_deposit ~facilitator amount =
-  PreTransaction.{operation=make_deposit_call facilitator;value=amount;gas_limit=deposit_gas_limit}
+  PreTransaction.{operation=make_deposit_call facilitator; value=amount; gas_limit=deposit_gas_limit}
 
 (* Create a signed transaction to call the contract to deposit money onto
-   an account managed by the facilitator, ready to be committed on the main chain
+   an account managed by the facilitator, ready to be committed on the main chain 
    TODO: get rid of this, have proper state machine in side_chain_user. *)
 let deposit user (facilitator, amount) =
   let open Ethereum_user in

@@ -653,7 +653,7 @@ let inner_transaction_request_loop =
                  request_batch new_facilitator_state size
                | `GetCurrentState (state_resolver : State.t Lwt.u) ->
                   Lwt.wakeup_later state_resolver !facilitator_state_ref.current;
-                  Lwt.return (facilitator_state, (batch_id + 1), batch_committed)
+                  Lwt.return (facilitator_state, batch_id, batch_committed)
           (*                  Lwt.async (fun () -> Lwt.return !facilitator_state_ref.current) *)
                (* Called from the state updater thread *)
              in request_batch facilitator_state 0)
