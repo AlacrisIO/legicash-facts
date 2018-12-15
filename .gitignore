@@ -7,5 +7,5 @@ tezos
 *.tmp
 *.pyc
 alacris.install
-src/alacris_lib/facilitator_contract_binary.ml
+src/alacris_lib/operator_contract_binary.ml
 foo
