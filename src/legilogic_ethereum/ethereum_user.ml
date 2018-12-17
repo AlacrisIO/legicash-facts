@@ -266,7 +266,6 @@ let make_tx_header (sender, value, gas_limit) =
 
 exception Missing_password
 
-(* The type seems hard to get. It looks like Transaction.t -> (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr *)
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
     let address = transaction.tx_header.sender in

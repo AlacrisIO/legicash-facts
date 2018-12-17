@@ -93,8 +93,11 @@ let load_facilitator_state address =
   Logging.log "Done loading side chain state";
   return facilitator_state
 
+let sockaddr = Unix.(ADDR_INET (inet_addr_any, Side_chain_server_config.config.port))
+
+  
 let _ =
-  Logging.log "*** STARTING SIDE CHAIN SERVER, PLEASE WAIT ***";
+  Logging.log "*** STARTING SIDE CHAIN SERVER tst, PLEASE WAIT ***";
   Lwt_exn.run
     (fun () ->
        of_lwt Db.open_connection "alacris_server_db"
@@ -106,7 +109,7 @@ let _ =
          (Address.to_0x contract_address);
        load_facilitator_state facilitator_address
        >>= fun _facilitator_state ->
-       let%lwt _server = Lwt_io.establish_server_with_client_address Side_chain_server_config.sockaddr process_request in
+       let%lwt _server = Lwt_io.establish_server_with_client_address sockaddr process_request in
        start_facilitator facilitator_address
        >>= fun () ->
        Logging.log "*** SIDE CHAIN SERVER STARTED ***";
