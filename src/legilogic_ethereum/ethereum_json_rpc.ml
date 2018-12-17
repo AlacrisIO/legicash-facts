@@ -275,12 +275,11 @@ let eth_sign =
     (yojson_2args Address.to_yojson Data.to_yojson)
 (** Computes an eth signature **)
 
-(* Inexistent in the API and unused
+(* Inexistent in the API and unused *)
 let eth_sign_transaction =
   ethereum_json_rpc "eth_signTransaction"
     SignedTransaction.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
-*)
   
 let eth_block_number =
   ethereum_json_rpc "eth_blockNumber"
@@ -311,8 +310,8 @@ let personal_new_account =
     Address.of_yojson_exn
     (yojson_1arg StringT.to_yojson)
 
-let personal_send_transaction =
-  ethereum_json_rpc "personal_sendTransaction"
+let personal_sign_transaction =
+  ethereum_json_rpc "personal_signTransaction"
     SignedTransaction.of_yojson_exn
     (yojson_2args TransactionParameters.to_yojson StringT.to_yojson)
 
