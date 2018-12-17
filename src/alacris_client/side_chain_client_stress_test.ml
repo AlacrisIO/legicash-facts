@@ -103,25 +103,25 @@ let get_keys_filename = "demo-keys-small.json" |> Config.get_config_filename
 let random_deposit_oper laddr = 
   let deposit_idx = Random.int (List.length laddr) and deposit_amnt = Random.int 100 in
     let deposit_addr = List.nth laddr deposit_idx and deposit_amnt256 = UInt256.of_int deposit_amnt in 
-      ignore (deposit_to ~facilitator:trent_address deposit_addr deposit_amnt256)
+      ignore (deposit_to ~operator:trent_address deposit_addr deposit_amnt256)
 
 
 
 let random_withdrawal_oper laddr =
  let withdrawal_idx = Random.int (List.length laddr) and withdrawal_amnt = Random.int 100 in
   let withdrawal_addr = List.nth laddr withdrawal_idx and withdrawal_amnt256 = UInt256.of_int withdrawal_amnt in
-   ignore (withdrawal_from ~facilitator:trent_address withdrawal_addr withdrawal_amnt256)
+   ignore (withdrawal_from ~operator:trent_address withdrawal_addr withdrawal_amnt256)
 
 let random_payment_oper laddr =
   let recipient_idx = Random.int (List.length laddr) and sender_idx = Random.int (List.length laddr) and payment_amnt = Random.int 100 in
     let recipient_addr = List.nth laddr recipient_idx and sender_addr = List.nth laddr sender_idx and payment_amnt256 = UInt256.of_int payment_amnt in
-      ignore (payment_on ~facilitator:trent_address sender_addr recipient_addr payment_amnt256 "memo")
+      ignore (payment_on ~operator:trent_address sender_addr recipient_addr payment_amnt256 "memo")
 
 
 let random_balance_oper laddr = 
   let queried_idx = Random.int (List.length laddr) in
     let queried_addr = List.nth laddr queried_idx in 
-      ignore (get_balance_on ~facilitator:trent_address queried_addr)
+      ignore (get_balance_on ~operator:trent_address queried_addr)
 
 
 let random_recent_transaction_oper = ignore

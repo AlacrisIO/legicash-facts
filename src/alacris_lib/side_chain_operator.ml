@@ -1,5 +1,5 @@
 (* WARNING: We use GLOBAL STATE for our mailboxes,
-   so there's only one facilitator running in a given process.
+   so there's only one operator running in a given process.
    I blame OCaml for lack of dynamic binding. 
    Yay Common Lisp special variables and Scheme parameters! *)
 open Lens.Infix
@@ -675,7 +675,7 @@ let initial_operator_state address =
     ; fee_schedule= initial_fee_schedule }
 
 (* TODO: make it a PersistentActivity. *)
-(* TODO: don't create a new facilitator unless explicitly requested? *)
+(* TODO: don't create a new operator unless explicitly requested? *)
 let start_operator address =
   let open Lwt_exn in
   match !the_operator_service_ref with
@@ -692,7 +692,7 @@ let start_operator address =
       (* TODO: don't create a new operator unless explicitly requested? *)
       try
         OperatorState.load address
-      with Not_found -> initial_facilitator_state address
+      with Not_found -> initial_operator_state address
     in
     let state_ref = ref operator_state in
     the_operator_service_ref := Some { address; state_ref };

@@ -37,7 +37,7 @@ let get_keypair_of_address user =
 
 (* TODO: ACTUALLY IMPLEMENT IT, MAYBE MOVE IT to side_chain.ml ? *)
 let wait_for_operator_state_update (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
-  (* bork "wait_for_facilitator_state_update not implemented yet"; bottom () *)
+  (* bork "wait_for_operator_state_update not implemented yet"; bottom () *)
   (* It will refer to ethereum_watch *)
   (* Confirmation obtained from the side_chain by the operator by the yojson *)
   (* THIS IS FAKE NEWS! *)
@@ -106,19 +106,11 @@ module OngoingTransactionStatus = struct
     | DepositWanted of DepositWanted.t * TokenAmount.t
     | DepositPosted of DepositWanted.t * TokenAmount.t * Ethereum_user.TransactionTracker.Key.t
     | DepositConfirmed of DepositWanted.t * TokenAmount.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
-<<<<<<< HEAD
     | Requested of UserTransactionRequest.t signed (* for all operation *)
-    | SignedByFacilitator of TransactionCommitment.t (* for all operation *)
+    | SignedByOperator of TransactionCommitment.t (* for all operation *)
     | PostedToRegistry of TransactionCommitment.t (* for all operation *)
     | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* for withdrawal only *)
     | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* for withdrawal only *)
-=======
-    | Requested of UserTransactionRequest.t signed
-    | SignedByOperator of TransactionCommitment.t
-    | PostedToRegistry of TransactionCommitment.t
-    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
->>>>>>> origin/master
   [@@deriving yojson]
   include (YojsonPersistable (struct
              type nonrec t = t
@@ -220,12 +212,8 @@ module TransactionTracker = struct
         | Ongoing ongoing ->
           let open OngoingTransactionStatus in
           (match ongoing with
-<<<<<<< HEAD
-           | DepositWanted (({facilitator; deposit_amount} as deposit_wanted), deposit_fee) ->
-             Logging.log "DepositWanted operation";
-=======
            | DepositWanted (({operator; deposit_amount} as deposit_wanted), deposit_fee) ->
->>>>>>> origin/master
+             Logging.log "DepositWanted operation";
              let pre_transaction =
                TokenAmount.(add deposit_amount deposit_fee)
                |> Operator_contract.pre_deposit ~operator in
@@ -244,14 +232,9 @@ module TransactionTracker = struct
                 DepositConfirmed (deposit_wanted, deposit_fee, transaction, confirmation) |> continue)
            | DepositConfirmed ({deposit_amount}, deposit_fee,
                                main_chain_deposit, main_chain_deposit_confirmation) ->
-<<<<<<< HEAD
              Logging.log "DepositConfirmed operation";
              revision_generator () >>= fun (revision : Revision.t) ->
-             (make_user_transaction_request (user : Address.t) (facilitator : Address.t) (revision : Revision.t)
-=======
-             revision_generator () >>= fun revision ->
-             (make_user_transaction_request user operator revision
->>>>>>> origin/master
+             (make_user_transaction_request (user : Address.t) (operator : Address.t) (revision : Revision.t)
                 (Deposit
                    { deposit_amount
                    ; deposit_fee
@@ -262,32 +245,21 @@ module TransactionTracker = struct
               | Error error -> invalidate ongoing error)
            | Requested request ->
              Logging.log "Requested operation";
-             (* TODO: handle retries. But it should be in the side_chain_facilitator *)
+             (* TODO: handle retries. But it should be in the side_chain_operator *)
              (request
               |> Side_chain_client.post_user_transaction_request
               >>= function
-<<<<<<< HEAD
-              | Ok (tc : TransactionCommitment.t) -> SignedByFacilitator tc |> continue
+              | Ok (tc : TransactionCommitment.t) -> SignedByOperator tc |> continue
               | Error error -> invalidate ongoing error)
-           | SignedByFacilitator (tc : TransactionCommitment.t) ->
-             Logging.log "SignedByFacilitator operation";
-=======
-              | Ok tc -> SignedByOperator tc |> continue
-              | Error error -> invalidate ongoing error)
-           | SignedByOperator tc ->
->>>>>>> origin/master
+           | SignedByOperator (tc : TransactionCommitment.t) ->
+             Logging.log "SignedByOperator operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
            | PostedToRegistry (tc : TransactionCommitment.t) ->
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
-<<<<<<< HEAD
-             (* TODO: add support for waiting for a state update from the facilitator 
+             (* TODO: add support for waiting for a state update from the operator 
                 (applies to all 3 operations) *)
-             (wait_for_facilitator_state_update tc.facilitator_revision
-=======
-             (* TODO: add support for waiting for a state update from the operator *)
              (wait_for_operator_state_update tc.operator_revision
->>>>>>> origin/master
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
@@ -490,25 +462,15 @@ let direct_operation :
     let status = OngoingTransactionStatus.Requested signed_request in
     add_ongoing_side_chain_transaction status
 
-<<<<<<< HEAD
-let payment PaymentWanted.{facilitator; recipient; amount; memo; payment_expedited} : TransactionTracker.t UserAsyncAction.t =
-  direct_operation facilitator
-=======
-let payment PaymentWanted.{operator; recipient; amount; memo; payment_expedited} =
+let payment PaymentWanted.{operator; recipient; amount; memo; payment_expedited} : TransactionTracker.t UserAsyncAction.t =
   direct_operation operator
->>>>>>> origin/master
     (fun fee_schedule ->
        let payment_invoice = Invoice.{recipient; amount; memo} in
        let payment_fee = payment_fee_for fee_schedule amount in
        UserOperation.Payment {payment_invoice; payment_fee; payment_expedited})
 
-<<<<<<< HEAD
-let withdrawal WithdrawalWanted.{facilitator; withdrawal_amount} : TransactionTracker.t UserAsyncAction.t =
-  direct_operation facilitator
-=======
-let withdrawal WithdrawalWanted.{operator; withdrawal_amount} =
+let withdrawal WithdrawalWanted.{operator; withdrawal_amount} : TransactionTracker.t UserAsyncAction.t =
   direct_operation operator
->>>>>>> origin/master
     (fun fee_schedule ->
        let withdrawal_fee = withdrawal_fee_for fee_schedule withdrawal_amount in
        UserOperation.Withdrawal {withdrawal_amount; withdrawal_fee})
