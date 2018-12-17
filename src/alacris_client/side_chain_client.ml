@@ -163,7 +163,7 @@ let _ =
           (match maybe_deposit with
            | Ok deposit ->
              (try
-                let result_json = deposit_to ~facilitator:trent_address deposit.address deposit.amount in
+                let result_json = deposit_to ~operator:trent_address deposit.address deposit.amount in
                 ok_json id result_json
               with
               | Lib.Internal_error msg -> internal_error_response id msg
@@ -174,7 +174,7 @@ let _ =
           (match maybe_withdrawal with
            | Ok withdrawal ->
              (try
-                let result_json = withdrawal_from ~facilitator:trent_address
+                let result_json = withdrawal_from ~operator:trent_address
                                     withdrawal.address withdrawal.amount in
                 ok_json id result_json
               with
@@ -192,7 +192,7 @@ let _ =
           (match maybe_payment with
            | Ok payment ->
              (try
-                payment_on ~facilitator:trent_address
+                payment_on ~operator:trent_address
                   payment.sender payment.recipient payment.amount "memo"
                 |> ok_json id
               with
@@ -204,7 +204,7 @@ let _ =
           (match maybe_address with
            | Ok address_record ->
              (try
-                get_balance_on ~facilitator:trent_address address_record.address
+                get_balance_on ~operator:trent_address address_record.address
                 >>= return_result id
               with
               | Lib.Internal_error msg -> internal_error_response id msg

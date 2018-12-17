@@ -25,20 +25,16 @@ val apply_main_chain_thread : int -> yojson
 (** view deposit/withdrawal thread result *)
 
 
-(* val schedule_transaction : Legilogic_lib.Signing.address -> 'b -> 'c -> yojson *)
-(** various transaction being done **)
-
-
-val deposit_to : facilitator:Address.t -> Address.t -> TokenAmount.t -> yojson
+val deposit_to : operator:Address.t -> Address.t -> TokenAmount.t -> yojson
 (** trent address, user address, number of tokens *)
 
-val withdrawal_from : facilitator:Address.t -> Address.t -> TokenAmount.t -> yojson
+val withdrawal_from : operator:Address.t -> Address.t -> TokenAmount.t -> yojson
 (** trent address, user address, number of tokens *)
 
-val payment_on : facilitator:Address.t -> Address.t -> Address.t -> TokenAmount.t -> string -> yojson
+val payment_on : operator:Address.t -> Address.t -> Address.t -> TokenAmount.t -> string -> yojson
 (** payment between two users; first address is sender, second is recipient *)
 
-val get_balance_on : facilitator:Address.t -> Address.t -> yojson Lwt_exn.t
+val get_balance_on : operator:Address.t -> Address.t -> yojson Lwt_exn.t
 (** balance for particular user *)
 
 val get_recent_user_transactions_on_trent : Address.t -> Revision.t option -> yojson Lwt_exn.t

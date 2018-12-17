@@ -16,9 +16,9 @@ val post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
 val post_user_transaction_request : (UserTransactionRequest.t signed, TransactionCommitment.t) Lwt_exn.arr
 (** send transaction request to side chain over TCP/IP *)
 
-val facilitator_address : Address.t Lazy.t
-(* Address of the configured facilitator for the current client.
-   TODO: actually support more than one facilitator in the client. *)
+val operator_address : Address.t Lazy.t
+(* Address of the configured operator for the current client.
+   TODO: actually support more than one operator in the client. *)
 
 module Test : sig
   val post_query_hook : (Query.t, yojson) Lwt_exn.arr ref

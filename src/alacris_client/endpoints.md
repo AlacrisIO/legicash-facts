@@ -254,7 +254,7 @@ Deposit/withdrawal threads
     }
 
   where "side\_chain\_tx\_revision" is a sequence number for the request confirmed by the side chain
-  facilitator, and "main\_chain\_confirmation" has the details of the transaction in a block on the
+  operator, and "main\_chain\_confirmation" has the details of the transaction in a block on the
   main chain.
 
 Validation of proofs

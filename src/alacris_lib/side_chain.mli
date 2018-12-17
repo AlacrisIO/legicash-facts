@@ -28,7 +28,7 @@ module Invoice : sig
   include PersistableS with type t := t
 end
 
-(** an operation on a facilitator side-chain *)
+(** an operation on a operator side-chain *)
 module UserOperation : sig
   [@warning "-39"]
   type deposit_details =
@@ -59,12 +59,12 @@ end
 
    type settlement_details =
    { sender: public_key
-   ; sender_facilitator: public_key
+   ; sender_operator: public_key
    ; recipient: public_key
-   ; recipient_facilitator: public_key }
+   ; recipient_operator: public_key }
 *)
 
-(** Headers for a request to a facilitator
+(** Headers for a request to a operator
 
     Every client request that initiates a transaction comes with a request
     window, that puts a cap on the validity of the request in terms of inclusion
@@ -82,7 +82,7 @@ end
     the given date. *)
 module RxHeader : sig
   type t =
-    { facilitator: Address.t
+    { operator: Address.t
     ; requester: Address.t
     ; requester_revision: Revision.t
     ; confirmed_main_chain_state_digest: digest (* Ethereum_chain.State.t *)
@@ -94,7 +94,7 @@ module RxHeader : sig
   include PersistableS with type t := t
 end
 
-(** Request from user to facilitator for operation on the side chain
+(** Request from user to operator for operation on the side chain
     an operation, plus headers that provide a reference to the past and a timeout
 *)
 module UserTransactionRequest : sig
@@ -105,7 +105,7 @@ end
 
 module SignedUserTransactionRequest : SignedS with type payload = UserTransactionRequest.t
 
-(** header for a confirmation from a facilitator:
+(** header for a confirmation from a operator:
 
     Future Optimization: when storing the transaction in memory or on disk,
     common data that can be deduced from context is omitted from storage and computed instead.
@@ -125,7 +125,7 @@ end
 module AdminTransactionRequest : sig
   (* Update the side-chain to take into account that the state of the side chain at given revision
      was confirmed on the main chain at given revision,
-     thus allowing the facilitator to refresh their spending limit.
+     thus allowing the operator to refresh their spending limit.
      All details are in the RxHeader and TxHeader.
   *)
   type t =
@@ -192,7 +192,7 @@ module ExternalRequest : sig
   include PersistableS with type t := t
 end
 
-(** A transaction confirmation from a facilitator, as included in the TransactionMap of its State:
+(** A transaction confirmation from a operator, as included in the TransactionMap of its State:
     a request, plus headers that help validate against fraud.
 *)
 module Transaction : sig
@@ -205,7 +205,7 @@ end
 
 (* TODO: actually maintain the user_revision;
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
-(** public state of the account of a user with a facilitator as visible in the public side-chain *)
+(** public state of the account of a user with a operator as visible in the public side-chain *)
 module AccountState : sig
   type t =
     { balance: TokenAmount.t (* amount of tokens in the account *)
@@ -216,19 +216,19 @@ module AccountState : sig
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 
-  (** Default (empty) state for a new facilitator *)
+  (** Default (empty) state for a new operator *)
   val empty : t
 end
 
-(** Module for Maps that for a facilitator map consecutive revisions from 0 to N each to
+(** Module for Maps that for a operator map consecutive revisions from 0 to N each to
     the Transaction that has the given revision as Side_chain.TxHeader.tx_revision *)
 module TransactionMap : MerkleTrieS with type key = Revision.t and type value = Transaction.t
 
-(** Module for Maps that for a given facilitator map addresses each to the AccountState
+(** Module for Maps that for a given operator map addresses each to the AccountState
     for the given address. *)
 module AccountMap : MerkleTrieS with type key = Address.t and type value = AccountState.t
 
-(** Public state of a facilitator side-chain, as posted to the court registry and main chain
+(** Public state of a operator side-chain, as posted to the court registry and main chain
 
     TODO: somehow store the following?
     ; confirmed_main_chain_state: digest (* Ethereum_chain.State.t *)
@@ -241,7 +241,7 @@ module AccountMap : MerkleTrieS with type key = Address.t and type value = Accou
 *)
 module State : sig
   (* NB: If you modify it, make sure to keep this in synch with TransactionCommitment.t *)
-  type t = { facilitator_revision: Revision.t
+  type t = { operator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            (*           ; expedited_spending_limit: TokenAmount.t
                         (* limit to expedited operations. TODO: find a good way to update it back up when things get confirmed *)
@@ -258,12 +258,12 @@ module SignedState : SignedS with type payload = State.t
 
 (** TODO: verifier state and actions in some module Side_chain_verifier. *)
 
-(** Fee structure for a facilitator
+(** Fee structure for a operator
     NB: an important constraint is that we need to advertise this fee structure to users
     TODO: account for size of transaction if memo can be long.
     TODO: make fee structure updatable by posting a new fee schedule in advance.
 *)
-module FacilitatorFeeSchedule : sig
+module OperatorFeeSchedule : sig
   type t =
     { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
     ; withdrawal_fee: TokenAmount.t (* fee to accept a withdrawal *)
@@ -285,7 +285,7 @@ module TransactionCommitment : sig
   type t =
     { transaction: Transaction.t (* The Transaction being committed to *)
     ; tx_proof: TransactionMap.Proof.t (* Merkle proof for the tx *)
-    ; facilitator_revision: Revision.t (* From State.t *)
+    ; operator_revision: Revision.t (* From State.t *)
     ; spending_limit: TokenAmount.t (* From State.t *)
     ; accounts: Digest.t (* From State.t, digest only *)
     ; main_chain_transactions_posted: Digest.t (* From State.t, digest only *)
@@ -304,12 +304,12 @@ module Confirmation = TransactionCommitment
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 
 (** Side chain update to be posted on the main chain, including signatures by court registry clerks.
-    The update itself has to be signed by the facilitator
+    The update itself has to be signed by the operator
     current_state is a digest of State.t *)
 type update = {current_state: digest; availability_proof: court_clerk_confirmation list}
 (*[@@deriving lens { prefix = true }]*)
 
-exception No_facilitator_yet
+exception No_operator_yet
 
 exception Already_open
 
@@ -333,5 +333,5 @@ module SignaturePrefix : sig
   val state_update : t
 end
 
-val initial_fee_schedule : FacilitatorFeeSchedule.t
+val initial_fee_schedule : OperatorFeeSchedule.t
 

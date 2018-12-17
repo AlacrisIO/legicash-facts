@@ -24,14 +24,14 @@ open Side_chain
 
 module DepositWanted : sig
   type t =
-    { facilitator: Address.t
+    { operator: Address.t
     ; deposit_amount: TokenAmount.t }
   [@@deriving yojson]
 end
 
 module PaymentWanted : sig
   type t =
-    { facilitator: Address.t
+    { operator: Address.t
     ; recipient: Address.t
     ; amount: TokenAmount.t
     ; memo: string
@@ -41,7 +41,7 @@ end
 
 module WithdrawalWanted : sig
   type t =
-    { facilitator: Address.t
+    { operator: Address.t
     ; withdrawal_amount: TokenAmount.t }
   [@@deriving yojson]
 end
@@ -55,7 +55,7 @@ module OngoingTransactionStatus : sig
     | DepositPosted of DepositWanted.t * TokenAmount.t * Ethereum_user.TransactionTracker.Key.t
     | DepositConfirmed of DepositWanted.t * TokenAmount.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
     | Requested of UserTransactionRequest.t signed
-    | SignedByFacilitator of TransactionCommitment.t
+    | SignedByOperator of TransactionCommitment.t
     | PostedToRegistry of TransactionCommitment.t
     | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
     | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
@@ -92,7 +92,7 @@ type revision_generator = (unit, Revision.t) Lwter.arr
 
 module TransactionTracker : sig
   module Key : sig
-    type t= { user : Address.t; facilitator : Address.t; revision : Revision.t }
+    type t= { user : Address.t; operator : Address.t; revision : Revision.t }
     include YojsonMarshalableS with type t := t
   end
   module State = TransactionStatus
@@ -104,11 +104,11 @@ module TransactionTracker : sig
   val wait : FinalTransactionStatus.t Lwt.t -> (TransactionCommitment.t * Ethereum_chain.Confirmation.t) Lwt_exn.t
 end
 
-(** private state a user keeps for his account with a facilitator *)
+(** private state a user keeps for his account with a operator *)
 module UserAccountState : sig
   type t =
-    { is_facilitator_valid: bool
-    (* is the facilitator open for business and not known to be a liar? *)
+    { is_operator_valid: bool
+    (* is the operator open for business and not known to be a liar? *)
     ; confirmed_state: AccountState.t
     (* TODO: replace pending_operations with
        ; transaction_counter : Revision.t
@@ -121,14 +121,14 @@ module UserAccountState : sig
     (* The set of revisions of ongoing in-client transactions *) }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
-  (** User's view of the default (empty) state for a new facilitator *)
+  (** User's view of the default (empty) state for a new operator *)
   val empty : t
 end
 
 module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type value = UserAccountState.t)
 
 (** User state (for Alice)
-    For now, only one facilitator; but in the future, allow for many.
+    For now, only one operator; but in the future, allow for many.
 
     Because the system is asynchronous and trustless, we must always maintain multiple views
     of the state of the system, and the status of each change in the system.
@@ -141,7 +141,7 @@ module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type val
 
     side chain status:
     T0 => T1, T2, T3; T1 => T2, T3; T2 => T3 (ouch); T3 pulls in Ursula, a
-    substitute facilitator(!), with *a separate data structure*
+    substitute operator(!), with *a separate data structure*
     (T2.J0: unknown to Judy yet
     OR T2.J1: almost confirmed by Judy (seen on the main blockchain, not confirmed yet)
     OR T2.J2: confirmed all the way to Judy
@@ -153,7 +153,7 @@ module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type val
     OR T3.U2.J1: SOME Ursula accepted to replace Trent, posted to Judy, who didn't confirm yet
     OR T3.U2.J2: SOME Ursula accepted to replace Trent, posted to Judy, who confirmed
     OR T3.U3.J0: ALL Ursulas are dishonest, do your own thing, quick,
-    do an individual exit or become a facilitator yourself, etc.
+    do an individual exit or become a operator yourself, etc.
     OR T3.U3.J1: ALL Ursulas are dishonest, did our thing, waiting for confirmation.
     OR T3.U3.J2: ALL Ursulas are dishonest, did our thing, won.)
 
@@ -174,7 +174,7 @@ module UserAccountStateMap : (MerkleTrieS with type key = Address.t and type val
 module UserState : sig
   type t =
     { address: Address.t
-    ; facilitators: UserAccountStateMap.t
+    ; operators: UserAccountStateMap.t
     ; notification_counter: Revision.t
     ; notifications: (Revision.t * yojson) list }
   [@@deriving lens { prefix=true }]
@@ -191,9 +191,9 @@ module User : sig
     -> ('a, TransactionCommitment.t * Ethereum_chain.Confirmation.t) Lwt_exn.arr
 end
 
-val get_facilitator_fee_schedule : (Address.t, FacilitatorFeeSchedule.t) Lwt_exn.arr
+val get_operator_fee_schedule : (Address.t, OperatorFeeSchedule.t) Lwt_exn.arr
 
-val payment_fee_for : FacilitatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
+val payment_fee_for : OperatorFeeSchedule.t -> TokenAmount.t -> TokenAmount.t
 (** Compute the suitable fee for a payment of given amount *)
 
 val deposit : (DepositWanted.t, TransactionTracker.t) UserAsyncAction.arr

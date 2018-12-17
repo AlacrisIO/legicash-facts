@@ -3,15 +3,15 @@ pragma solidity ^0.4.23;
    to demonstrate that using an address instead of an ABI-encoded
    function call will call the fallback, with the address as data.
    This technique can be used to accept payments using a simple TransferToken operation.
-   In a one-contract-per-facilitator setup, the amount can be directly credited
-   to the single facilitator of the contract.
+   In a one-contract-per-operator setup, the amount can be directly credited
+   to the single operator of the contract.
    In a one-contract-per-court-registry setup, this could still work, but with extra steps:
-   the facilitator with the first confirmed state with a claim signed by the depositor is
-   the facilitator that gets credited, which requires a confirmation of the claim on the side-chain.
+   the operator with the first confirmed state with a claim signed by the depositor is
+   the operator that gets credited, which requires a confirmation of the claim on the side-chain.
 */
 
-contract Facilitator {
-  event logTransfer(address facilitator,uint amount);
+contract Operator {
+  event logTransfer(address operator,uint amount);
 
   // fallback receives a value of 'bytes' type, want to log it as an address
   function bytesToAddress(bytes bys) private pure returns (address addr) {

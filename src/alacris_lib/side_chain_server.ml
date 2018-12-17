@@ -10,7 +10,7 @@ open Signing
 open Alacris_lib
 open Legilogic_ethereum
 open Side_chain
-open Side_chain_facilitator
+open Side_chain_operator
 open Side_chain_server_config
    
 let _ =
@@ -20,20 +20,20 @@ let _init_random =
   Random.self_init
 
 (** TODO: encrypt the damn file! *)
-type facilitator_keys_config =
+type operator_keys_config =
   { nickname : string
   ; keypair : Keypair.t }
 [@@deriving of_yojson]
 
-let facilitator_address =
-  "facilitator_keys.json"
+let operator_address =
+  "operator_keys.json"
   |> Config.get_config_filename
   |> Yojsoning.yojson_of_file
-  |> facilitator_keys_config_of_yojson
+  |> operator_keys_config_of_yojson
   |> OrString.get
   |> fun { nickname; keypair } ->
   let address = keypair.address in
-  Logging.log "Using facilitator keypair %S %s" nickname (Address.to_0x address);
+  Logging.log "Using operator keypair %S %s" nickname (Address.to_0x address);
   register_keypair nickname keypair;
   address
 
@@ -74,24 +74,24 @@ let process_request client_address channels =
              return ()))
     channels
 
-let load_facilitator_state address =
+let load_operator_state address =
   Logging.log "Loading the side_chain state...";
   Db.check_connection ();
-  trying (catching_arr FacilitatorState.load) address
+  trying (catching_arr OperatorState.load) address
   >>= handling
         (function
-          | Facilitator_not_found _ ->
+          | Operator_not_found _ ->
             Logging.log "Side chain not found, generating a new demo side chain";
-            let initial_state = initial_facilitator_state address in
+            let initial_state = initial_operator_state address in
             let open Lwt in
-            FacilitatorState.save initial_state
+            OperatorState.save initial_state
             >>= Db.commit
             >>= fun () ->
             Lwt_exn.return initial_state
           | e -> fail e)
-  >>= fun facilitator_state ->
+  >>= fun operator_state ->
   Logging.log "Done loading side chain state";
-  return facilitator_state
+  return operator_state
 
 let sockaddr = Unix.(ADDR_INET (inet_addr_any, Side_chain_server_config.config.port))
 
@@ -102,15 +102,15 @@ let _ =
     (fun () ->
        of_lwt Db.open_connection "alacris_server_db"
        >>= fun () ->
-       Side_chain_action.ensure_side_chain_contract_created facilitator_address
+       Side_chain_action.ensure_side_chain_contract_created operator_address
        >>= fun contract_address ->
-       assert (contract_address = Facilitator_contract.get_contract_address ());
+       assert (contract_address = Operator_contract.get_contract_address ());
        Logging.log "Using contract %s"
          (Address.to_0x contract_address);
-       load_facilitator_state facilitator_address
-       >>= fun _facilitator_state ->
+       load_operator_state operator_address
+       >>= fun _operator_state ->
        let%lwt _server = Lwt_io.establish_server_with_client_address sockaddr process_request in
-       start_facilitator facilitator_address
+       start_operator operator_address
        >>= fun () ->
        Logging.log "*** SIDE CHAIN SERVER STARTED ***";
        Logging.log "*** Checking if it passed ***";

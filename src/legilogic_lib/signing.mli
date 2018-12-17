@@ -7,7 +7,7 @@ open Persisting
 open Types
 open Action
 
-(** Address identifying a party (user, facilitator).
+(** Address identifying a party (user, operator).
     Per Ethereum, use the low 160-bits of the Keccak256 digest of the party's public key *)
 module Address : sig
   include UIntS

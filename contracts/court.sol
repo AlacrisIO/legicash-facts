@@ -1,7 +1,7 @@
 pragma solidity ^0.4.23;
 
 /**
- * Contract for a Court that adjudicates claims about side-chains managed by facilitators.
+ * Contract for a Court that adjudicates claims about side-chains managed by operators.
  *
  * This file is the main entry point of the Alacris contract.
  * The contract is defined in parts imported from the files below:
@@ -10,9 +10,9 @@ import "claims.sol";
 import "claimtypes.sol";
 import "bonds.sol";
 import "ethereum-blocks.sol";
-import "facilitator.sol";
+import "operator.sol";
 
-contract Court is Claims, ClaimTypes, Bonds, EthereumBlocks, Facilitators {
+contract Court is Claims, ClaimTypes, Bonds, EthereumBlocks, Operators {
 }
 
 // TODO: For patricia tree verification, import code from:

@@ -104,7 +104,7 @@ end
 module RxHeader = struct
   [@warning "-39"]
   type t =
-    { facilitator: Address.t
+    { operator: Address.t
     ; requester: Address.t
     ; requester_revision: Revision.t
     ; confirmed_main_chain_state_digest: Digest.t
@@ -117,7 +117,7 @@ module RxHeader = struct
     type nonrec t = t
     let marshaling =
       marshaling8
-        (fun { facilitator
+        (fun { operator
              ; requester
              ; requester_revision
              ; confirmed_main_chain_state_digest
@@ -125,15 +125,15 @@ module RxHeader = struct
              ; confirmed_side_chain_state_digest
              ; confirmed_side_chain_state_revision
              ; validity_within } ->
-          facilitator, requester, requester_revision,
+          operator, requester, requester_revision,
           confirmed_main_chain_state_digest, confirmed_main_chain_state_revision,
           confirmed_side_chain_state_digest, confirmed_side_chain_state_revision,
           validity_within)
-        (fun facilitator requester requester_revision
+        (fun operator requester requester_revision
           confirmed_main_chain_state_digest confirmed_main_chain_state_revision
           confirmed_side_chain_state_digest confirmed_side_chain_state_revision
           validity_within ->
-          { facilitator
+          { operator
           ; requester
           ; requester_revision
           ; confirmed_main_chain_state_digest
@@ -357,7 +357,7 @@ module AccountState = struct
     let walk_dependencies = no_dependencies
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
-  (** Default (empty) state for a new facilitator *)
+  (** Default (empty) state for a new operator *)
   let empty = {balance= TokenAmount.zero; account_revision= Revision.zero}
 end
 
@@ -373,7 +373,7 @@ end
 
 module State = struct
   [@warning "-39"]
-  type t = { facilitator_revision: Revision.t
+  type t = { operator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            ; accounts: AccountMap.t
            ; transactions: TransactionMap.t
@@ -386,14 +386,14 @@ module State = struct
       (* TODO: add a big prefix for the signing? *)
       marshaling_tagged Side_chain_tag.state
         (marshaling5
-           (fun { facilitator_revision
+           (fun { operator_revision
                 ; spending_limit
                 ; accounts
                 ; transactions
                 ; main_chain_transactions_posted } ->
-             (facilitator_revision, spending_limit, accounts, transactions, main_chain_transactions_posted))
-           (fun facilitator_revision spending_limit accounts transactions main_chain_transactions_posted ->
-              { facilitator_revision
+             (operator_revision, spending_limit, accounts, transactions, main_chain_transactions_posted))
+           (fun operator_revision spending_limit accounts transactions main_chain_transactions_posted ->
+              { operator_revision
               ; spending_limit
               ; accounts
               ; transactions
@@ -409,7 +409,7 @@ module State = struct
   end
   include (Persistable (PrePersistable) : PersistableS with type t := t)
   let empty =
-    { facilitator_revision= Revision.zero
+    { operator_revision= Revision.zero
     ; spending_limit= TokenAmount.zero
     ; accounts= AccountMap.empty
     ; transactions= TransactionMap.empty
@@ -418,7 +418,7 @@ end
 
 module SignedState = Signed(State)
 
-module FacilitatorFeeSchedule = struct
+module OperatorFeeSchedule = struct
   [@warning "-39"]
   type t =
     { deposit_fee: TokenAmount.t
@@ -447,7 +447,7 @@ module TransactionCommitment = struct
   type t =
     { transaction: Transaction.t
     ; tx_proof: TransactionMap.Proof.t
-    ; facilitator_revision: Revision.t
+    ; operator_revision: Revision.t
     ; spending_limit: TokenAmount.t
     ; accounts: Digest.t
     ; main_chain_transactions_posted: Digest.t
@@ -459,18 +459,18 @@ module TransactionCommitment = struct
       marshaling7
         (fun { transaction
              ; tx_proof
-             ; facilitator_revision
+             ; operator_revision
              ; spending_limit
              ; accounts
              ; main_chain_transactions_posted
              ; signature } ->
-          transaction, tx_proof, facilitator_revision, spending_limit,
+          transaction, tx_proof, operator_revision, spending_limit,
           accounts, main_chain_transactions_posted, signature)
-        (fun transaction tx_proof facilitator_revision spending_limit
+        (fun transaction tx_proof operator_revision spending_limit
           accounts main_chain_transactions_posted signature ->
           { transaction
           ; tx_proof
-          ; facilitator_revision
+          ; operator_revision
           ; spending_limit
           ; accounts
           ; main_chain_transactions_posted
@@ -489,7 +489,7 @@ type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@der
 type update = { current_state: Digest.t (* State.t *)
               ; availability_proof: court_clerk_confirmation list}
 
-exception No_facilitator_yet
+exception No_operator_yet
 
 exception Already_open
 
@@ -512,7 +512,7 @@ end
 
 (* 1 ether = 1e18 wei = 242 USD (as of 2018-09-23), with gas price of ~4.1 gwei *)
 let initial_fee_schedule =
-  FacilitatorFeeSchedule.
+  OperatorFeeSchedule.
     { deposit_fee= TokenAmount.of_string "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
     ; withdrawal_fee= TokenAmount.of_string "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
     ; per_account_limit= TokenAmount.of_string "10000000000000000000" (* 1e19 wei = 10 ether ~= 2420 USD *)

@@ -728,14 +728,14 @@ module Test = struct
          return (unparse_0x_bytes data = hello_encoding))
       ()
 
-  let%test "fallback-with-facilitator-address" =
-    (* we call the fallback function in a contract by using the facilitator address as "code" *)
+  let%test "fallback-with-operator-address" =
+    (* we call the fallback function in a contract by using the operator address as "code" *)
     let open Ethereum_abi in
     Lwt_exn.run
       (fun () ->
          of_lwt Db.open_connection "unit_test_db"
          >>= fun () ->
-         (* code is result of running "solc --bin facilitator-fallback.sol", and prepending "0x" *)
+         (* code is result of running "solc --bin operator-fallback.sol", and prepending "0x" *)
          let code =
            "0x608060405234801561001057600080fd5b50610108806100206000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000602082015190506c01000000000000000000000000810490509190505600a165627a7a7230582098fc57c39988f3dcf9f7168b876b9f491273775ea6b44db8cb9483966fa1adc10029"
          in
@@ -760,8 +760,8 @@ module Test = struct
          (* Call the fallback in the contract we've created.
             It bypasses the regular ABI to access this address directly. *)
          let amount_to_transfer = TokenAmount.of_int 93490 in
-         let facilitator_address = Address.of_0x "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
-         let call = Ethereum_util.bytes_of_address facilitator_address in
+         let operator_address = Address.of_0x "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
+         let call = Ethereum_util.bytes_of_address operator_address in
          call_function ~sender ~contract ~call amount_to_transfer
          >>= confirm_pre_transaction sender
          >>= fun (_transaction, Confirmation.{transaction_hash}) ->
@@ -776,14 +776,14 @@ module Test = struct
          (* we saw the expected event *)
          let logged_event = match log.LogObject.topics with [x] -> x | _ -> Lib.bork "bluh" in
          let event_parameters =
-           [(Address_value facilitator_address, Address); abi_token_amount amount_to_transfer]
+           [(Address_value operator_address, Address); abi_token_amount amount_to_transfer]
          in
          let event_signature =
            {function_name= "logTransfer"; parameters= event_parameters}
            |> function_signature_digest
          in
          assert (logged_event = event_signature) ;
-         (* the facilitator address is visible as data *)
+         (* the operator address is visible as data *)
          let data = unparse_0x_bytes log.data in
          let logged_encoding =
            let tuple_value, tuple_ty = abi_tuple_of_abi_values event_parameters in
