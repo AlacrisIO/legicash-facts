@@ -188,12 +188,12 @@ val eth_sign :
 (** Sign some data *)
 
 (* The corresponding operation is not existent in the official ethereum API. It is also not used.
-   Therefore outcommented.
+   Therefore outcommented. *)
 val eth_sign_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> SignedTransaction.t Lwt_exn.t
 (** Sign a transaction from an unlocked account **)
- *)
+
 
 (* https://github.com/ethereum/go-ethereum/wiki/Management-APIs *)
 
