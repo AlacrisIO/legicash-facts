@@ -52,13 +52,13 @@ let process_request_exn _client_address (in_channel,out_channel) =
   >>= (function
     | Ok (`UserQuery request) ->
        Logging.log "process_request_exn : UserQuery";
-       (facil_post_user_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
+       (oper_post_user_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
     | Ok (`UserTransaction request) ->
        Logging.log "process_request_exn : UserTransaction";
-      (facil_post_user_transaction_request request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
+      (oper_post_user_transaction_request request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
     | Ok (`AdminQuery request) ->
        Logging.log "process_request_exn : AdminQuery";
-      (facil_post_admin_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
+      (oper_post_admin_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
     | Error e ->
       Error e |> encode_response Unit.marshal)
   (* TODO: We need to always close, and thus exit the Lwt_exn monad and properly handle the Result

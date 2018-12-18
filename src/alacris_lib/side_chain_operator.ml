@@ -459,7 +459,7 @@ let process_user_transaction_request :
   make_transaction_commitment transaction |> Lwt_exn.return
 
 
-let facil_post_user_transaction_request (request: UserTransactionRequest.t signed) =
+let oper_post_user_transaction_request (request: UserTransactionRequest.t signed) =
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =
@@ -564,13 +564,13 @@ let process_user_query_request request =
    | Get_proof {tx_revision} ->
      get_2proof tx_revision state |> return)
 
-let facil_post_user_query_request =
+let oper_post_user_query_request =
   (*stateless_parallelize*) process_user_query_request
 
 (** Take messages from the admin_query_request_mailbox, and process them (TODO: in parallel?) *)
 let process_admin_query_request = bottom
 
-let facil_post_admin_query_request =
+let oper_post_admin_query_request =
   (*stateless_parallelize*) process_admin_query_request
 
 

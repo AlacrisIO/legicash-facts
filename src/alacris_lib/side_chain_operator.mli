@@ -36,18 +36,18 @@ val operator_account_lens : Address.t -> account_lens
 (** start the background operator processes for given operator address *)
 val start_operator : (Address.t, unit) Lwt_exn.arr
 
-(** [facil_post_user_transaction_request request] asynchronously processes [request] (not forced)
+(** [oper_post_user_transaction_request request] asynchronously processes [request] (not forced)
     returning a [Transaction.t] on success.
 *)
-val facil_post_user_transaction_request : (UserTransactionRequest.t signed, TransactionCommitment.t) Lwt_exn.arr
+val oper_post_user_transaction_request : (UserTransactionRequest.t signed, TransactionCommitment.t) Lwt_exn.arr
 
-(** [facil_post_user_query_request request] asynchronously processes [request]
+(** [oper_post_user_query_request request] asynchronously processes [request]
     returning a [Transaction] on success. *)
-val facil_post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
+val oper_post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
 
-(** [facil_post_admin_query_request request] asynchronously processes [request]
+(** [oper_post_admin_query_request request] asynchronously processes [request]
     returning a [Transaction] on success. *)
-val facil_post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
+val oper_post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
 
 
 (*
