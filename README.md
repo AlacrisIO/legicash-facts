@@ -56,9 +56,10 @@ You may have to start the docker daemon if it isn't launched automatically by yo
 
     sudo dockerd
 
-You can then download the docker image use by our CI as follows:
+You can then download the docker image use by our CI as follows
+(create your docker credentials on docker.com with same email address as used for gitlab.com):
 
-    docker login ; : only necessary the first time, with credentials created on docker.com
+    docker login ; : only necessary the first time
     docker pull registry.gitlab.com/legicash/legicash-facts:build-env
 
 Or you can re-build it with:
@@ -90,6 +91,7 @@ a fallback plan is to extract the `~/.opam/` installation from our Docker CI ima
 into your home directory as follows (assuming you downloaded the image already as above):
 
     docker run -it -v ${HOME}:/home registry.gitlab.com/legicash/legicash-facts:build-env rsync -av --delete /root/.opam/ /home/.opam/
+    sudo chown -R ${USER} ${HOME}/.opam
 
 If you install opam this way rather than the regular way,
 you still need to add the proper opam incantation to your `.zshrc` (mutatis mutandis for other shells):

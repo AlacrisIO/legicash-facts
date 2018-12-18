@@ -183,6 +183,7 @@ module TransactionStatus = struct
   let operation = fun x -> (x |> pre_transaction).operation
 end
 
+(** TODO: check receipt status!!! *)
 let confirmation_of_transaction_receipt =
   function
     TransactionReceipt.{transaction_hash ; transaction_index; block_number; block_hash} ->
