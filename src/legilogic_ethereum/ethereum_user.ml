@@ -528,15 +528,13 @@ let check_transaction_confirmed :
     | FinalTransactionStatus.Confirmed (t, c) -> return (t, c)
     | FinalTransactionStatus.Failed (t, e) -> fail (TransactionFailed (t, e))
 
-let confirm_pre_transaction address =
+let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr = 
   issue_pre_transaction address
   >>> of_lwt track_transaction
   >>> check_transaction_confirmed
 
-let transfer_gas_limit = TokenAmount.of_int 21000
-
 let transfer_tokens ~recipient value =
-  PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=transfer_gas_limit}
+  PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=Side_chain_server_config.transfer_gas_limit}
 
 let make_pre_transaction ~sender operation ?gas_limit value =
   (match gas_limit with

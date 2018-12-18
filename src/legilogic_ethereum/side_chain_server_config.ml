@@ -2,12 +2,15 @@
 
 open Legilogic_lib
 open Types
-
+open Ethereum_chain
+   
 module Side_chain_server_config = struct 
 
   type ethereum_parameter_config =
     { minimal_number_block_for_confirmation : int
     ; max_number_connection_geth : int
+    ; transfer_gas_limit : int
+    ; time_state_update_sec : float
     }
   [@@deriving of_yojson]
 
@@ -57,7 +60,9 @@ module Side_chain_server_config = struct
 
   let (batch_size_trigger_in_requests : int) = config.leveldb_parameter.batch_size_trigger_in_requests
 
-    
+  let (transfer_gas_limit : TokenAmount.t) = TokenAmount.of_int config.ethereum_parameter.transfer_gas_limit
+
+  let (time_state_update_sec : float) = config.ethereum_parameter.time_state_update_sec
 
 end
                           

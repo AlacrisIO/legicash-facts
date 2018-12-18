@@ -122,12 +122,15 @@ let _ =
       begin
         match api_call with
           "balances" ->
+          Logging.log "GET: balances";
           get_all_balances_on_trent ()
           >>= return_result id
         | "tps" ->
+          Logging.log "GET: tps";
           get_transaction_rate_on_trent ()
           |> ok_json id
         | "proof" ->
+          Logging.log "GET: proof";
           (match Request.param request "tx-revision" with
            | Some param -> (
                try
@@ -140,6 +143,7 @@ let _ =
                  internal_error_response id (Printexc.to_string exn))
            | None -> bad_request_response id "Expected one parameter, tx-revision")
         | "thread" ->
+          Logging.log "GET: thread";
           (match Request.param request "id" with
              Some param ->
              (try
@@ -159,6 +163,7 @@ let _ =
       begin
         match api_call with
         | "deposit" ->
+          Logging.log "POST: deposit";
           let maybe_deposit = deposit_json_of_yojson json in
           (match maybe_deposit with
            | Ok deposit ->
@@ -170,6 +175,7 @@ let _ =
               | exn -> internal_error_response id (Printexc.to_string exn))
            | Error msg -> error_response id msg)
         | "withdrawal" ->
+          Logging.log "POST: withdrawal";
           let maybe_withdrawal = withdrawal_json_of_yojson json in
           (match maybe_withdrawal with
            | Ok withdrawal ->
@@ -182,12 +188,14 @@ let _ =
               | exn -> internal_error_response id (Printexc.to_string exn))
            | Error msg -> error_response id msg)
         | "sleep" ->
+          Logging.log "POST: sleep";
           (try
              Lwt_unix.sleep 1.0 >>= (fun () -> ok_json id (`Int 42))
            with
            | Lib.Internal_error msg -> internal_error_response id msg
            | exn -> internal_error_response id (Printexc.to_string exn))
         | "payment" ->
+          Logging.log "POST: payment";
           let maybe_payment = payment_json_of_yojson json in
           (match maybe_payment with
            | Ok payment ->
@@ -200,6 +208,7 @@ let _ =
               | exn -> internal_error_response id (Printexc.to_string exn))
            | Error msg -> error_response id msg)
         | "balance" ->
+          Logging.log "POST: balance";
           let maybe_address = address_json_of_yojson json in
           (match maybe_address with
            | Ok address_record ->
@@ -211,6 +220,7 @@ let _ =
               | exn -> internal_error_response id (Printexc.to_string exn))
            | Error msg -> error_response id msg)
         | "recent_transactions" ->
+          Logging.log "POST: recent_transactions";
           let maybe_limit_string = Request.param request "limit" in
           let invalid_limit = Some (Revision.zero) in
           let maybe_limit =
@@ -235,6 +245,7 @@ let _ =
                  >>= return_result id)
              | Error msg -> error_response id msg)
         | "status" ->
+          Logging.log "POST: status";
           let maybe_address = address_json_of_yojson json in
           (match maybe_address with
            | Ok { address } ->

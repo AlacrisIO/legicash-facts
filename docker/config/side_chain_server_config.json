@@ -1,7 +1,9 @@
 { "port" : 8095,
   "ethereum_parameter" : {
       "minimal_number_block_for_confirmation" : 0,
-      "max_number_connection_geth" : 1
+      "max_number_connection_geth" : 1, 
+      "transfer_gas_limit" : 21000, 
+      "time_state_update_sec" : 1800
   },
   "leveldb_parameter" : {
       "batch_timeout_trigger_in_seconds" : 0.01,
