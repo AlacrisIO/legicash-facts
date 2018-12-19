@@ -252,7 +252,8 @@ module TransactionTracker = struct
               | Ok (tc : TransactionCommitment.t) ->
                  Logging.log "side_chain_user: TrTracker, Ok case";
                  SignedByOperator tc |> continue
-              | Error error ->
+              | Error (error : exn) ->
+                 Logging.log "side_chain_user: exn=%s" (Printexc.to_string error);
                  Logging.log "side_chain_user: TrTracker, Error case";
                  invalidate ongoing error)
            | SignedByOperator (tc : TransactionCommitment.t) ->
