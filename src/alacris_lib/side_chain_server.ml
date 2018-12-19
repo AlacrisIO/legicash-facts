@@ -45,7 +45,10 @@ let operator_address =
 (* TODO: have some try ... finally construct handle the closing of the channels *)
 let process_request_exn _client_address (in_channel,out_channel) =
   Logging.log "process_request_exn, running 1";
+  let (iter : int ref) = ref 0 in
   let encode_response marshaler =
+    Logging.log "encode_response iter=%i" !iter;
+    iter := !iter + 1;
     marshaler |> Tag.marshal_result_or_exn |> marshal_string_of_marshal |> arr in
   read_string_from_lwt_io_channel in_channel
   >>= trying (catching_arr ExternalRequest.unmarshal_string)
@@ -60,7 +63,8 @@ let process_request_exn _client_address (in_channel,out_channel) =
        Logging.log "process_request_exn : AdminQuery";
       (oper_post_admin_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
     | Error e ->
-      Error e |> encode_response Unit.marshal)
+       Logging.log "process_request_exn : Error case";
+       Error e |> encode_response Unit.marshal)
   (* TODO: We need to always close, and thus exit the Lwt_exn monad and properly handle the Result
      (e.g. by turning it into a yojson that fulfills the JSON RPC interface) before we close.
   *)
@@ -116,7 +120,6 @@ let _ =
        start_operator operator_address
        >>= fun () ->
        Logging.log "*** SIDE CHAIN SERVER STARTED ***";
-       Logging.log "*** Checking if it passed ***";
        (* NEVER RETURN *)
        of_lwt (fun () -> Lwt.wait () |> fst) ())
     ()

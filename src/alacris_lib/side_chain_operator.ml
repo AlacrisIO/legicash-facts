@@ -210,15 +210,23 @@ let validate_user_transaction_request :
                    (to_string (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
                                  one_billion_tokens)))
       | UserOperation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
+         Logging.log "validate_user_transaction_request, withdrawal, case 1";
         check (is_add_valid withdrawal_amount withdrawal_fee)
-          (fun () -> "Adding withdrawal amount and fee causes an overflow!")
+          (fun () ->
+            Logging.log "validate_user_transaction_request, withdrawal, exception 1: overflow";
+            "Adding withdrawal amount and fee causes an overflow!")
         >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
-              (fun () ->
-                 Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
-                   (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
+            (fun () ->
+              Logging.log "validate_user_transaction_request, withdrawal, exception 2";
+              Logging.log "validate_user_transaction_request, Balance %s insufficient to cover withdrawal amount %s plus fee %s" (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee);
+              Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
+                (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
         >>> check (is_forced || compare withdrawal_fee fee_schedule.withdrawal_fee >= 0)
-              (fun () -> Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
-                           (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
+              (fun () ->
+                Logging.log "validate_user_transaction_request, withdrawal, exception 3";
+                Logging.log "Insufficient withdrawal fee %s, requiring at least %s" (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee);
+                Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
+                  (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
 
 (** Add a transaction to the side_chain, given the [updated_limit] and the [tx_request].
     Don't do that until you've properly processed the transaction! *)
@@ -448,18 +456,22 @@ let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
    this could be done in different threads or processes.
 *)
 let process_user_transaction_request :
-  (UserTransactionRequest.t signed * bool, TransactionCommitment.t) Lwt_exn.arr =
+      (UserTransactionRequest.t signed * bool, TransactionCommitment.t) Lwt_exn.arr =
+  Logging.log "Beginning of process_user_transaction_request";
   let open Lwt_exn in
   validate_user_transaction_request
   >>> post_validated_transaction_request
   >>> fun (transaction, wait_for_commit) ->
+  Logging.log "Before call to wait_for_commit";
   let open Lwt in
   wait_for_commit
   >>= fun () ->
+  Logging.log "Before call to make_transaction_commitment";
   make_transaction_commitment transaction |> Lwt_exn.return
 
 
 let oper_post_user_transaction_request (request: UserTransactionRequest.t signed) =
+  Logging.log "passing through oper_post_user_transaction_request";
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =

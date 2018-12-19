@@ -24,6 +24,14 @@ module Side_chain_server_config = struct
     { num_timestamps : int
     }
   [@@deriving of_yojson]
+
+  type fee_schedule_parameter_config =
+    { deposit_fee : string
+    ; withdrawal_fee : string
+    ; per_account_limit : string
+    ; fee_per_billion : string
+    }
+  [@@deriving of_yojson]
     
 
 
@@ -33,6 +41,7 @@ module Side_chain_server_config = struct
     ; ethereum_parameter : ethereum_parameter_config
     ; leveldb_parameter : leveldb_parameter_config
     ; sidechain_parameter : sidechain_parameter_config
+    ; fee_schedule_parameter : fee_schedule_parameter_config
     }
   [@@deriving of_yojson]
 
@@ -75,5 +84,23 @@ module Side_chain_server_config = struct
 
   let (num_timestamps : int) = config.sidechain_parameter.num_timestamps
 
+
+  (* Recommended default values:
+     deposit_fee       = "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
+     withdrawal_fee    = "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
+     per_account_limit = "10000000000000000000" (* 1e19 wei = 10 ether ~= 2420 USD *)
+     fee_per_billion   = "1000000" } (* 1e6/1e9 = 1e-3 = .1%  *)
+   *)
+                             
+  let (deposit_fee_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.deposit_fee
+                                      
+  let (withdrawal_fee_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.withdrawal_fee
+                                      
+  let (per_account_limit_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.per_account_limit
+                                      
+  let (fee_per_billion_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.fee_per_billion
+                                      
+
+                             
 end
                           

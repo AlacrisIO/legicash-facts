@@ -11,5 +11,14 @@
   },
   "sidechain_parameter" : {
       "num_timestamps" : 100000
+  },
+  "fee_schedule_parameter" : {
+      "deposit_fee" : "10000000000000",
+      "withdrawal_fee" : "10000000000000",
+      "per_account_limit" : "10000000000000000000",
+      "fee_per_billion" : "1000000"
   }
+
+
+  
 }
