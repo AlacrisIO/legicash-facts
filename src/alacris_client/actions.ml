@@ -20,6 +20,7 @@ open Alacris_lib
 open Side_chain
 open Side_chain_client
 open Side_chain_user
+open Side_chain_server_config
 
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
@@ -88,23 +89,28 @@ let apply_main_chain_thread id : yojson =
 (* query operations *)
 
 let get_proof tx_revision =
+  Logging.log "actions : get_proof";
   UserQueryRequest.Get_proof { tx_revision }
   |> post_user_query_request
 
 let get_balance_on ~operator address =
+  Logging.log "actions : get_balance_on";
   ignore operator; (* TODO: refactor so it makes sense WTF? *)
   UserQueryRequest.Get_account_balance { address }
   |> post_user_query_request
 
 let get_status_on_trent_and_main_chain address =
+  Logging.log "actions : get_status_on_trent_and_main_chain";
   UserQueryRequest.Get_account_state { address }
   |> post_user_query_request
 
 let get_all_balances_on_trent () =
+  Logging.log "actions : get_all_balances_on_trent";
   UserQueryRequest.Get_account_balances
   |> post_user_query_request
 
 let get_recent_user_transactions_on_trent address maybe_limit =
+  Logging.log "actions : get_recent_user_transactions_on_trent";
   UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
   |> post_user_query_request
 
@@ -112,6 +118,7 @@ let get_recent_user_transactions_on_trent address maybe_limit =
 
 (* format deposit and withdrawal result *)
 let make_transaction_result (address : Address.t) (side_chain_tx_revision : Revision.t) (main_chain_confirmation : Ethereum_chain.Confirmation.t) : yojson OrExn.t Lwt.t =
+  Logging.log "actions : make_transaction_result";
   UserQueryRequest.Get_account_state { address }
   |> post_user_query_request
   >>= fun account_state_json ->
@@ -126,6 +133,7 @@ let make_transaction_result (address : Address.t) (side_chain_tx_revision : Revi
                          ; main_chain_confirmation } in
     return (transaction_result_to_yojson deposit_result)
 
+(* The type 'a is DepositWanted or WithdrawalWanted *)
 let schedule_transaction (user : Address.t) (transaction : 'a -> TransactionTracker.t UserAsyncAction.t) (parameters : 'a) : yojson =
   add_main_chain_thread
     (User.transaction user transaction parameters
@@ -141,8 +149,7 @@ let withdrawal_from ~operator (user : Address.t) (withdrawal_amount : TokenAmoun
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
-let num_timestamps = 100000
-let payment_timestamps = Array.make num_timestamps 0.0
+let payment_timestamps = Array.make Side_chain_server_config.num_timestamps 0.0
 
 (* offset where next timestamp goes *)
 let payment_timestamps_cursor = ref 0
@@ -151,7 +158,7 @@ let payment_timestamp () =
   payment_timestamps.(!payment_timestamps_cursor) <- Unix.gettimeofday ();
   incr payment_timestamps_cursor;
   (* wrap if needed *)
-  if !payment_timestamps_cursor >= num_timestamps then
+  if !payment_timestamps_cursor >= Side_chain_server_config.num_timestamps then
     payment_timestamps_cursor := 0
 
 (*TODO: move instrumentation to a proper place and leave it at that:
@@ -222,7 +229,7 @@ let get_transaction_rate_on_trent () =
   let current_cursor = !payment_timestamps_cursor in
   let last_cursor =
     if current_cursor = 0 then
-      num_timestamps - 1
+      Side_chain_server_config.num_timestamps - 1
     else
       current_cursor - 1
   in
@@ -235,7 +242,7 @@ let get_transaction_rate_on_trent () =
     else if payment_timestamps.(ndx) <= minute_ago then
       count
     else (* decrement, or wrap backwards *)
-      count_transactions (if ndx = 0 then num_timestamps - 1 else ndx - 1) (count + 1)
+      count_transactions (if ndx = 0 then Side_chain_server_config.num_timestamps - 1 else ndx - 1) (count + 1)
   in
   let raw_count = count_transactions last_cursor 0 in
   let transactions_per_second = raw_count / 60 in

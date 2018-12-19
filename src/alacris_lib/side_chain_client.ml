@@ -45,6 +45,7 @@ let decode_response (unmarshaler : 'a unmarshaler) : (string, 'a or_exn) Lwter.a
   
 (* Queries return JSON *)
 let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =
+  Logging.log "side_chain_client : post_query_to_server";
   match request with
   | `AdminQuery _
   | `UserQuery _ ->
@@ -71,24 +72,14 @@ let fct_decode_response (x : int) : bytes -> TransactionCommitment.t * int =
   Logging.log "Passing by fct_decode_response x=%i" x;
   TransactionCommitment.unmarshal x
 
-(*  
-let ufct_extrequest : ExternalRequest.t -> string =
-  fun x ->
-  let (y : string) = ExternalRequest.marshal_string x in
-  Logging.log "ufct y=%s" y;
-  y
- *)   
   
 (* Transaction's return TransactionCommitment's *)
 let post_user_transaction_request_to_server (request : UserTransactionRequest.t signed) : TransactionCommitment.t OrExn.t Lwt.t =
   Logging.log "side_chain_client : post_user_transaction_request_to_server";
   let (external_request : ExternalRequest.t) = `UserTransaction request in
-  Logging.log "side_chain_client";
-  (*  let estr = ExternalRequest.marshal_string external_request;*)
   with_connection (Lazy.force sockaddr)
     (fun (in_channel, out_channel) ->
       Logging.log "side_chain_client : fun (in_channel, out_channel)";
-      (*      ufct_extrequest external_request *)
       let (eval : string) = ExternalRequest.marshal_string external_request in
       Logging.log "Marshaled value eval=%s" eval;
       eval

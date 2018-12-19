@@ -8,5 +8,8 @@
   "leveldb_parameter" : {
       "batch_timeout_trigger_in_seconds" : 0.01,
       "batch_size_trigger_in_requests" : 1000
+  },
+  "sidechain_parameter" : {
+      "num_timestamps" : 100000
   }
 }

@@ -20,10 +20,19 @@ module Side_chain_server_config = struct
     }
   [@@deriving of_yojson]
 
+  type sidechain_parameter_config =
+    { num_timestamps : int
+    }
+  [@@deriving of_yojson]
+    
+
+
+    
   type side_chain_server_config =
     { port : int
     ; ethereum_parameter : ethereum_parameter_config
     ; leveldb_parameter : leveldb_parameter_config
+    ; sidechain_parameter : sidechain_parameter_config
     }
   [@@deriving of_yojson]
 
@@ -63,6 +72,8 @@ module Side_chain_server_config = struct
   let (transfer_gas_limit : TokenAmount.t) = TokenAmount.of_int config.ethereum_parameter.transfer_gas_limit
 
   let (time_state_update_sec : float) = config.ethereum_parameter.time_state_update_sec
+
+  let (num_timestamps : int) = config.sidechain_parameter.num_timestamps
 
 end
                           
