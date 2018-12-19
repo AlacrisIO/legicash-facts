@@ -98,6 +98,7 @@ let make_request : string -> ('a -> yojson) -> 'a -> request Lwt_exn.t =
     return {json_rpc_version;method_name;params;id}
 
 let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
+  Logging.log "json_rpc : decode_response";
   fun result_decoder request_id response ->
     let malformed_response exn = fail (Malformed_response (response, exn)) in
     let checking jsonrpc x id =

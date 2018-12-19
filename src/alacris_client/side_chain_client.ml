@@ -18,7 +18,7 @@ open Actions
 module Request = Scgi.Request
 
 let _ = Config.set_application_name "alacris"
-let _ = set_log_file "logs/alacris-client.log"
+(* let _ = set_log_file "logs/alacris-client.log" *)
 
 (* TODO: before we got to production, make sure keys at rest are suitably encrypted *)
 let _ =
