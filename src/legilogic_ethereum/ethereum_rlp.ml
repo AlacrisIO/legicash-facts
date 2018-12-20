@@ -6,9 +6,14 @@ open Signing
 
 open Ethereum_chain
 
-(* TO DO: save ourselves an intermediate representation and offer combinators
-   to directly encode and decode data as RLP.
-*)
+(* TODO: save ourselves an intermediate representation and offer combinators
+   to directly encode and decode data as RLP, in the style of Legilogic_lib.Marshaling.
+   Then just use it instead of Legilogic_lib.Marshaling, which is better for on-disk / on-network
+   data size as well as for contract code size.
+   Then add a layer of automatic derivation using PPX.
+
+   NB: This file is not currently used outside of ethereum_patricia_merkle.
+ *)
 
 type rlp_item = RlpItem of string | RlpItems of rlp_item list
 

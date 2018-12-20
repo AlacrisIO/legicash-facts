@@ -1,5 +1,17 @@
 (* ethereum_patricial_merkle.ml -- Ethereum Patricia Merkle tries *)
-(* TODO: Complete this file *)
+(* TODO: Complete this file
+
+This file is currently an incomplete attempt at reimplementing Ethereum-style patricia merkle trees,
+with 16 subnodes per node. Currently our side-chain uses its own variant of patricia merkle trees
+that I (fare) ported from Lisp code I wrote some time ago. My code was hard enough to debug after
+having implemented it once before and understanding all its details. I admit I'm not sure I
+understand all the details of the Ethereum thing yet, or why they picked 4 bits of key rather than
+1 or 2 (which might have been optimal size-wise) for the branching factor.
+
+Eventually, we probably want at least a specification of the Ethereum patricia merkle trees
+in our logic specification DSL (embedded in Coq? - but anyway with extraction to OCaml as well as
+EVM), so that our contracts can verify claims about the Ethereum blockchain.
+ *)
 (* references:
 
    https://github.com/ethereum/wiki/wiki/Patricia-Tree
