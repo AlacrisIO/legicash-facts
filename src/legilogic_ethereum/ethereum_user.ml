@@ -211,6 +211,20 @@ let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmatio
   else
     fail Still_pending
 
+let check_confirmation_deep_enough_bool (confirmation : Confirmation.t) : bool Lwt_exn.t =
+  Logging.log "ethereum_user : check_confirmation_deep_enough";
+  (*Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);*)
+  eth_block_number ()
+  >>= fun block_number ->
+  if Revision.(is_add_valid confirmation.block_number block_depth_for_confirmation
+               && compare block_number (add confirmation.block_number block_depth_for_confirmation)
+                  >= 0) then
+    return true
+  else
+    return false
+
+
+  
 type nonce_operation = Peek | Next | Reset [@@deriving yojson]
 
 module NonceTracker = struct

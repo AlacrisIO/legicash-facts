@@ -415,9 +415,12 @@ let effect_validated_user_transaction_request :
 (** TODO: have a server do all the effect_requests sequentially,
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
 let post_validated_transaction_request :
-  ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
+      ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
+  Logging.log "post_validated_transaction_request, before simple_client call";
   simple_client inner_transaction_request_mailbox
-    (fun (request, resolver) -> `Confirm (request, resolver))
+    (fun (request, resolver) ->
+      Logging.log "The post_validated_transaction_request lambda";
+      `Confirm (request, resolver))
 
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
   function
@@ -600,6 +603,7 @@ let inner_transaction_request_loop =
     return (!operator_state_ref, 0, Lwt.return_unit)
     >>= forever
           (fun (operator_state, batch_id, previous) ->
+            Logging.log "inner_transaction_request_loop, beginning of lambda";
              (* The promise sent back to requesters, that they have to wait on
                 for their confirmation's batch to have been committed,
                 and our private resolver for this batch. *)
@@ -613,8 +617,11 @@ let inner_transaction_request_loop =
              (* When we are ready and either trigger criterion is met,
                 send ourselves a Flush message for this batch_id *)
              Lwt.async (fun () -> Lwt.join [previous;Lwt.pick [time_triggered; size_triggered]]
-                         >>= (fun () -> Lwt_mvar.put inner_transaction_request_mailbox (`Flush batch_id)));
+                                  >>= (fun () ->
+                          Logging.log "inner_transaction_request_loop, before flush operation";
+                          Lwt_mvar.put inner_transaction_request_mailbox (`Flush batch_id)));
              let rec request_batch operator_state size =
+               Logging.log "inner_transaction_request_loop, beginning of request_batch";
                (** The below mailbox is filled by post_validated_request, except for
                    the async line just preceding, whereby a `Flush message is sent. *)
                Lwt_mvar.take inner_transaction_request_mailbox

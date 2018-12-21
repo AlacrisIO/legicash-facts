@@ -193,8 +193,8 @@ module TransactionReceipt = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
 end
-
-let operation_to_parameters sender operation =
+                          
+let operation_to_parameters (sender : Address.t) (operation : Operation.t) : TransactionParameters.t =
   let (to_, data) = match operation with
     | Operation.TransferTokens recipient -> (Some recipient, None)
     | Operation.CreateContract code -> (None, Some code)
@@ -202,7 +202,7 @@ let operation_to_parameters sender operation =
   TransactionParameters.
     { from= sender; to_; gas= None; gas_price = None; value = None; data ; nonce= None; condition= None }
 
-let pre_transaction_to_parameters sender PreTransaction.{operation; gas_limit; value} =
+let pre_transaction_to_parameters (sender : Address.t) PreTransaction.{operation; gas_limit; value} =
   {(operation_to_parameters sender operation) with gas = Some gas_limit; value = Some value}
 
 let transaction_to_parameters Transaction.{tx_header = { sender; nonce; gas_limit; gas_price; value }; operation } =

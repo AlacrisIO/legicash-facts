@@ -1,6 +1,7 @@
 (* operator_contract.ml -- OCaml interface to contract entry points *)
 
 open Legilogic_lib
+open Types
 open Signing
 open Action
 
@@ -47,9 +48,12 @@ let make_withdraw_call operator ticket bond confirmed_state =
   let call = encode_function_call { function_name = "withdraw"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 
-let make_state_update_call state_digest = 
-  let parameters = [ abi_digest state_digest ] in
-  let call = encode_function_call { function_name = "claim_state_update"; parameters } in
+
+(* calls the "claim_state_update" that calls "make_claim" that works with a mapping 
+   from bytes32 to integers. *)
+let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.t =
+  let (parameters : 'a list) = [ abi_digest state_digest ] in
+  let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 
 

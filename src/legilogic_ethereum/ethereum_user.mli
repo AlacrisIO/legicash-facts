@@ -84,6 +84,8 @@ module User : PersistentActivityS
 
 val add_ongoing_transaction : Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr
 
+
+  
 val confirmation_of_transaction_receipt : TransactionReceipt.t -> Confirmation.t
 
 val block_depth_for_confirmation : Revision.t
@@ -93,6 +95,10 @@ val block_depth_for_confirmation : Revision.t
 exception Still_pending
 (** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
 
+val check_confirmation_deep_enough : Confirmation.t -> Confirmation.t Lwt_exn.t
+
+val check_confirmation_deep_enough_bool : Confirmation.t -> bool Lwt_exn.t
+        
 val issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr
 (** Issue a pre-transaction as transaction on the Ethereum network, return a tracker *)
 

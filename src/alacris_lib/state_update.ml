@@ -1,5 +1,6 @@
 open Side_chain
-
+open Types
+   
 type state_update_service =
   { address : Address.t
   ; oper_ref : OperatorState.t ref }
@@ -8,8 +9,13 @@ type state_update_service =
 let the_state_update_service_ref : (state_update_service option ref) = ref None
 
 
-let push_state (oper_state : OperatorState.t) (sign : Digest) : unit =
-  
+let push_state (sign : Digest.t) : unit =
+  let (result_oper : Ethereum_chain.Operation.t) = make_state_update_call sign in
+  match result_oper with
+  | TransferTokens _ -> bork "That is not supposed to happen 1"
+  | CreateContract _ -> bork "That is not supposed to happen 2"
+  | CallFunction result_call -> 
+    
 
                                                                      
 let do_update (oper_state : OperatorState.t) : unit =
