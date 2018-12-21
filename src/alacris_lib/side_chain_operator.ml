@@ -124,6 +124,28 @@ let signed_request_requester rx = rx.payload.UserTransactionRequest.rx_header.re
 
 exception Malformed_request of string
 
+(*
+let check_cp (test: bool) (exngen: unit -> 'a) =
+  fun x ->
+  if test then Lwt_exn.return x
+  else Lwt_exn.fail (Malformed_request (exngen ())) 
+  
+let check_cp (test: bool) (exngen: unit -> 'a) =
+  fun x ->
+  if test then Lwt_exn.return x
+  else Lwt_exn.fail (Malformed_request (exngen ()))
+ *)
+
+let check_transaction_confirmation (transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
+  let (test : bool Lwt_exn.t) = Ethereum_user.check_confirmation_deep_enough_bool confirmation in
+  Lwt_exn.bind test (fun test ->
+      if test then
+        Lwt_exn.return true
+      else
+        Lwt_exn.fail (Malformed_request (exngen())))
+
+                             
+  
 (** Check that the request is basically well-formed, or else fail
     This function should include all checks that can be made without any non-local side-effect
     beside reading pure or monotonic data, which is allowed for now
@@ -141,7 +163,7 @@ let validate_user_transaction_request :
     let AccountState.{balance; account_revision} = (operator_account_lens requester).get state in
     let OperatorState.{fee_schedule} = state in
     let open Lwt_exn in
-    let check (test: bool) (exngen: unit -> 'a) =
+    let check (test: bool) (exngen: unit -> string) =
       fun x ->
         if test then return x
         else fail (Malformed_request (exngen ())) in
