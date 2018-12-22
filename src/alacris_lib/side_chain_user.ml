@@ -49,7 +49,7 @@ let wait_for_operator_state_update (revision : Revision.t) : Ethereum_chain.Conf
       ; block_hash= Digest.zero }
 
 
-let make_rx_header user operator revision =
+let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =
   Lwt.return RxHeader.
                { operator
                ; requester= user
@@ -61,7 +61,7 @@ let make_rx_header user operator revision =
                    !stub_confirmed_side_chain_state.operator_revision
                ; validity_within= default_validity_window }
 
-let make_user_transaction_request user operator revision operation =
+let make_user_transaction_request (user : Address.t) (operator : Address.t) (revision : Revision.t) (operation : UserOperation.t) : SignedUserTransactionRequest.t Lwt_exn.t =
   let open Lwt_exn in
   of_lwt (make_rx_header user operator) revision
   >>= fun rx_header ->

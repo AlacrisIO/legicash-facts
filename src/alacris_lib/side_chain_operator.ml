@@ -136,9 +136,10 @@ let check_cp (test: bool) (exngen: unit -> 'a) =
   else Lwt_exn.fail (Malformed_request (exngen ()))
  *)
 
-let check_transaction_confirmation (transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
+let check_transaction_confirmation (_transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
   let (test : bool Lwt_exn.t) = Ethereum_user.check_confirmation_deep_enough_bool confirmation in
   Lwt_exn.bind test (fun test ->
+      Logging.log "Passing transformation test=%B" test;
       if test then
         Lwt_exn.return true
       else
@@ -172,6 +173,7 @@ let validate_user_transaction_request :
            UNTIL WE IMPROVE THE SIDE CHAIN USER SOFTWARE
            TODO - Fix the side_chain_user and endpoints/actions code, then re-enable this check. *)
       let open Revision in
+      Logging.log "requester_revision=%i account_revision=%i" (Revision.to_int requester_revision) (Revision.to_int account_revision);
       check (requester_revision = (add account_revision one) || true) (* <-- TODO: REMOVE the || true *)
         (fun () ->
            Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
@@ -195,6 +197,10 @@ let validate_user_transaction_request :
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
         (* TODO: CHECK FROM THE CONFIRMATION THAT THE CORRECT PERSON DID THE DEPOSIT,
            AND/OR THAT IT   WAS TAGGED WITH THE CORRECT RECIPIENT. *)
+              (*        
+        >>> check_transaction_confirmation main_chain_deposit main_chain_deposit_confirmation
+              (fun () -> "The main chain deposit confirmation is invalid")
+               *)
         >>> check (Ethereum_chain.is_confirmation_valid
                      main_chain_deposit_confirmation main_chain_deposit)
               (fun () -> "The main chain deposit confirmation is invalid")
@@ -495,7 +501,7 @@ let process_user_transaction_request :
   make_transaction_commitment transaction |> Lwt_exn.return
 
 
-let oper_post_user_transaction_request (request: UserTransactionRequest.t signed) =
+let oper_post_user_transaction_request (request: UserTransactionRequest.t signed) : TransactionCommitment.t Lwt_exn.t =
   Logging.log "passing through oper_post_user_transaction_request";
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 

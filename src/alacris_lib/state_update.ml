@@ -1,6 +1,6 @@
 open Side_chain
 open Types
-   
+
 type state_update_service =
   { address : Address.t
   ; oper_ref : OperatorState.t ref }
@@ -8,7 +8,10 @@ type state_update_service =
 
 let the_state_update_service_ref : (state_update_service option ref) = ref None
 
-
+(* Alert to take care of:
+   ---lack of gas 
+   ---transaction not passed
+ *)
 let push_state (sign : Digest.t) : unit =
   let (result_oper : Ethereum_chain.Operation.t) = make_state_update_call sign in
   match result_oper with
@@ -21,7 +24,7 @@ let push_state (sign : Digest.t) : unit =
 let do_update (oper_state : OperatorState.t) : unit =
   let current_signed = SignedState.make oper_state.keypair oper_state in
   if (oper_state.committed.signature != current_signed) then
-    push_state oper_state current_state
+    push_state current_signed
 
 let do_update_lwt : unit -> unit Lwt.t =
   fun () ->
