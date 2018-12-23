@@ -114,6 +114,8 @@ val confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * Co
 val transfer_tokens : recipient:Address.t -> TokenAmount.t -> PreTransaction.t
 (** PreTransaction to transfer tokens from one address to another *)
 
+val make_pre_transaction : sender:Address.t -> Operation.t -> ?gas_limit:TokenAmount.t -> TokenAmount.t -> PreTransaction.t Lwt_exn.t
+  
 val create_contract : sender:Address.t -> code:Bytes.t
                       -> ?gas_limit:TokenAmount.t -> TokenAmount.t
                       -> PreTransaction.t Lwt_exn.t

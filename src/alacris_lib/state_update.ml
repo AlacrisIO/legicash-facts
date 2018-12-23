@@ -1,12 +1,20 @@
 open Legilogic_lib
+open Lib
+open Signing
+open Action
+open Lwt_exn
+open Json_rpc
+
+open Legilogic_ethereum
+
 open Side_chain
 open Side_chain_operator
-open Legilogic_ethereum
-open Ethereum_chain
+open Side_chain_user
 open Operator_contract
-open Signing
 (* open Types *)
-
+(* open Ethereum_chain *)
+open Ethereum_user
+   
 type state_update_service =
   { address : Address.t
   ; oper_ref : OperatorState.t ref }
@@ -21,8 +29,8 @@ let the_state_update_service_ref : (state_update_service option ref) = ref None
 let push_state (digest : Digesting.Digest.t) : unit =
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
   let (value : TokenAmount.t) = TokenAmount.zero in
-  let (gas_limit : TokenAmount.t) = TokenAmount.zero in (* Will not work of course *)
-  make_pre_transaction ~sender:installer_address operation gas_limit value 
+  let (gas_limit_val : TokenAmount.t) = TokenAmount.zero in (* Will not work of course *)
+  Ethereum_user.make_pre_transaction ~sender:installer_address operation gas_limit value 
   >>= Ethereum_user.confirm_pre_transaction installer_address
   >>= fun (_tx, confirmation) ->
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
