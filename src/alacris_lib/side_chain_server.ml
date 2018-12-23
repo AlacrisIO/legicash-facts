@@ -19,6 +19,8 @@ let _ =
 let _init_random =
   Random.self_init
 
+(*
+  
 (** TODO: encrypt the damn file! *)
 type operator_keys_config =
   { nickname : string
@@ -37,6 +39,7 @@ let operator_address =
   register_keypair nickname keypair;
   address
 
+ *)
 
 (* let minNbBlockConfirm = lazy (match config with lazy {minimal_number_block_for_confirmation={nb}} -> nb) *)
 (* let minNbBlockConfirm = config.minimal_number_block_for_confirmation*)

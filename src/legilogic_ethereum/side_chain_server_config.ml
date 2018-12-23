@@ -2,10 +2,31 @@
 
 open Legilogic_lib
 open Types
+open Action
+open Signing
 open Ethereum_chain
    
 module Side_chain_server_config = struct 
 
+  (** TODO: encrypt the damn file! *)
+  type operator_keys_config =
+    { nickname : string
+    ; keypair : Keypair.t }
+  [@@deriving of_yojson]
+
+  let operator_address =
+    "operator_keys.json"
+    |> Config.get_config_filename
+    |> Yojsoning.yojson_of_file
+    |> operator_keys_config_of_yojson
+    |> OrString.get
+    |> fun { nickname; keypair } ->
+    let address = keypair.address in
+    Logging.log "Using operator keypair %S %s" nickname (Address.to_0x address);
+    register_keypair nickname keypair;
+    address
+
+  
   type ethereum_parameter_config =
     { minimal_number_block_for_confirmation : int
     ; max_number_connection_geth : int

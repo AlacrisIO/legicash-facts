@@ -14,6 +14,7 @@ open Operator_contract
 (* open Types *)
 (* open Ethereum_chain *)
 open Ethereum_user
+open Side_chain_server_config
    
 type state_update_service =
   { address : Address.t
@@ -29,9 +30,10 @@ let the_state_update_service_ref : (state_update_service option ref) = ref None
 let push_state (digest : Digesting.Digest.t) : unit =
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
   let (value : TokenAmount.t) = TokenAmount.zero in
-  let (gas_limit_val : TokenAmount.t) = TokenAmount.zero in (* Will not work of course *)
-  Ethereum_user.make_pre_transaction ~sender:installer_address operation gas_limit value 
-  >>= Ethereum_user.confirm_pre_transaction installer_address
+  let (gas_limit_val : TokenAmount.t option) = Some TokenAmount.zero in (* Will not work of course *)
+  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in 
+  Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val value 
+  >>= Ethereum_user.confirm_pre_transaction oper_addr
   >>= fun (_tx, confirmation) ->
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
     
