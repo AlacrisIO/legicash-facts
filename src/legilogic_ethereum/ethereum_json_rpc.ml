@@ -202,6 +202,7 @@ let operation_to_parameters (sender : Address.t) (operation : Operation.t) : Tra
   TransactionParameters.
     { from= sender; to_; gas= None; gas_price = None; value = None; data ; nonce= None; condition= None }
 
+(* Unused function *)  
 let pre_transaction_to_parameters (sender : Address.t) PreTransaction.{operation; gas_limit; value} =
   {(operation_to_parameters sender operation) with gas = Some gas_limit; value = Some value}
 

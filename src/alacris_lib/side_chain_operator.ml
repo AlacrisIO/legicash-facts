@@ -120,7 +120,8 @@ let operator_account_lens (address : Address.t) : account_lens =
   OperatorState.lens_current |-- State.lens_accounts
   |-- defaulting_lens (konstant AccountState.empty) (AccountMap.lens address)
 
-let signed_request_requester rx = rx.payload.UserTransactionRequest.rx_header.requester
+let signed_request_requester (rx : UserTransactionRequest.t signed) : Address.t =
+  rx.payload.UserTransactionRequest.rx_header.requester
 
 exception Malformed_request of string
 
@@ -136,7 +137,7 @@ let check_cp (test: bool) (exngen: unit -> 'a) =
   else Lwt_exn.fail (Malformed_request (exngen ()))
  *)
 
-let check_transaction_confirmation (_transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
+let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
   let (test : bool Lwt_exn.t) = Ethereum_user.check_confirmation_deep_enough_bool confirmation in
   Lwt_exn.bind test (fun test ->
       Logging.log "Passing transformation test=%B" test;

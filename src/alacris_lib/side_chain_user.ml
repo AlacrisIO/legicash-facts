@@ -372,10 +372,12 @@ let operator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
     defaulting_lens (konstant UserAccountState.empty)
       (UserAccountStateMap.lens operator)
 
+  
 let get_next_account_revision : Address.t -> unit -> UserState.t -> (Revision.t * UserState.t) Lwt.t =
   fun operator () state ->
     let revision_lens = operator_lens operator |-- UserAccountState.lens_side_chain_revision in
-    let revision = revision_lens.get state in
+    let (revision : Revision.t) = revision_lens.get state in
+    Logging.log "get_next_account_revision revision=%i" (Revision.to_int revision);
     Lwt.return (revision, (state |> revision_lens.set Revision.(add one revision)))
 
 module User = struct
@@ -460,6 +462,7 @@ let get_user_address : (unit, Address.t) UserAsyncAction.arr =
 let direct_operation :
   Address.t -> (OperatorFeeSchedule.t -> UserOperation.t, TransactionTracker.t) UserAsyncAction.arr =
   fun operator make_operation ->
+    Logging.log "running direct_operation function";
     let open UserAsyncAction in
     of_lwt_exn get_operator_fee_schedule operator >>= fun fee_schedule ->
     let operation = make_operation fee_schedule in

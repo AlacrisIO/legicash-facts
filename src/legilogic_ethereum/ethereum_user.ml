@@ -274,7 +274,7 @@ module NonceTracker = struct
   let next address = get () address Next
 end
 
-let make_tx_header (sender, value, gas_limit) =
+let make_tx_header (sender, value, gas_limit) : TxHeader.t Lwt_exn.t =
   Logging.log "ethereum_user : make_tx_header";
   (* TODO: get gas price and nonce from geth *)
   eth_gas_price () >>= fun gas_price ->
@@ -297,7 +297,7 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_
 
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
     from given address, with given operation, value and gas_limit *)
-let make_signed_transaction (sender : Address.t) (operation :  Operation.t) (value : TokenAmount.t) (gas_limit : TokenAmount.t) : (Transaction.t * SignedTransaction.t) Lwt_exn.t =
+let make_signed_transaction (sender : Address.t) (operation : Operation.t) (value : TokenAmount.t) (gas_limit : TokenAmount.t) : (Transaction.t * SignedTransaction.t) Lwt_exn.t =
   Logging.log "ethereum_user : make_signed_transaction";
   make_tx_header (sender, value, gas_limit)
   >>= fun tx_header ->
@@ -556,10 +556,11 @@ let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transacti
   >>> of_lwt track_transaction
   >>> check_transaction_confirmed
 
+(* Used only in tests *)
 let transfer_tokens ~recipient value =
   PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=Side_chain_server_config.transfer_gas_limit}
 
-let make_pre_transaction ~sender operation ?gas_limit value =
+let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : TokenAmount.t) : PreTransaction.t Lwt_exn.t =
   Logging.log "ethereum_user : make_pre_transaction";
   (match gas_limit with
    | Some x -> return x
