@@ -159,5 +159,5 @@ end
 let is_confirmation_valid (_confirmation: Confirmation.t) (_transaction: Transaction.t) : bool = true
 
 
-                   
+
 module TransactionDigestSet = DigestSet

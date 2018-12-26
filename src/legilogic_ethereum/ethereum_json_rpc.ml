@@ -211,63 +211,54 @@ let transaction_to_parameters Transaction.{tx_header = { sender; nonce; gas_limi
   with gas= Some gas_limit; gas_price = Some gas_price; value = Some value; nonce= Some nonce }
 
 let eth_accounts =
-  (*  Logging.log "ETH json rpc calling eth_account"; *)
   ethereum_json_rpc "eth_accounts"
     (list_of_yojson_exn Address.of_yojson_exn)
     yojson_noargs
 (** Returns a list of address owned by the client **)
 
 let eth_estimate_gas =
-  (*  Logging.log "ETH json rpc calling eth_estimate_gas"; *)
   ethereum_json_rpc "eth_estimateGas"
     TokenAmount.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
 (** Returns estimate of gas needed for transaction **)
 
 let eth_gas_price =
-  (*  Logging.log "ETH json rpc calling eth_gas_price"; *)
   ethereum_json_rpc "eth_gasPrice"
     TokenAmount.of_yojson_exn
     yojson_noargs
 (** Get the current gas price in wei *)
 
 let eth_get_balance =
-  (*  Logging.log "ETH json rpc calling eth_get_balance"; *)
   ethereum_json_rpc "eth_getBalance"
     TokenAmount.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
 (** Returns the balance of the account of given address (and block) **)
   
 let eth_get_code =
-  (*  Logging.log "ETH json rpc calling etc_get_code"; *)
   ethereum_json_rpc "eth_getCode"
     Yojsoning.Bytes.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
 (** Returns the code of given address (and block) **)
   
 let eth_get_transaction_by_hash =
-  (*  Logging.log "ETH json rpc calling eth_get_transaction_by_hash"; *)
   ethereum_json_rpc "eth_getTransactionByHash"
     TransactionInformation.of_yojson_exn
     (yojson_1arg Digest.to_yojson)
 (** Returns a transaction (big object) by the hash code **)
   
 let eth_get_transaction_count =
-  (*  Logging.log "ETH json rpc calling eth_get_transaction_count"; *)
   ethereum_json_rpc "eth_getTransactionCount"
     Nonce.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
 (** Returns the number of transaction at address (and transaction) **)
 
 let eth_get_transaction_receipt =
-  (*  Logging.log "ETH json rpc calling eth_get_transaction_receipt"; *)
   ethereum_json_rpc "eth_getTransactionReceipt"
     (option_of_yojson_exn TransactionReceipt.of_yojson_exn)
     (yojson_1arg Digest.to_yojson)
 (** Returns a receipt of transaction by transaction hash (not available if transaction still pending) **)
   
 let eth_send_raw_transaction =
-  (*  Logging.log "ETH json rpc calling eth_send_raw_transaction"; *)
   ethereum_json_rpc "eth_sendRawTransaction"
     Digest.of_yojson_exn
     (yojson_1arg Data.to_yojson)
@@ -275,14 +266,12 @@ let eth_send_raw_transaction =
 
 (* Not used in the code *)
 let eth_send_transaction =
-  (*  Logging.log "ETH json rpc calling eth_send_transaction"; *)
   ethereum_json_rpc "eth_sendTransaction"
     Digest.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
 (** Creates new message call transaction or a contract creation if the datafield contains code **)
   
 let eth_sign =
-  (*  Logging.log "ETH json rpc calling eth_sign"; *)
   ethereum_json_rpc "eth_sign"
     Data.of_yojson_exn
     (yojson_2args Address.to_yojson Data.to_yojson)
@@ -290,13 +279,11 @@ let eth_sign =
 
 (* Inexistent in the API and unused *)
 let eth_sign_transaction =
-  (*  Logging.log "ETH json rpc calling eth_sign_transaction"; *)
   ethereum_json_rpc "eth_signTransaction"
     SignedTransaction.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
   
 let eth_block_number =
-  (*  Logging.log "ETH json rpc calling eth_block_number"; *)
   ethereum_json_rpc "eth_blockNumber"
     Revision.of_yojson_exn
     yojson_0args
@@ -304,7 +291,6 @@ let eth_block_number =
 (* Geth-specific methods, should only be used in tests *)
 
 let personal_import_raw_key =
-  (*  Logging.log "ETH json rpc calling personal_import_raw_key"; *)
   ethereum_json_rpc "personal_importRawKey"
     Address.of_yojson_exn
     (yojson_2args
@@ -312,31 +298,26 @@ let personal_import_raw_key =
        StringT.to_yojson)
 
 let personal_list_accounts =
-  (*  Logging.log "ETH json rpc calling personal_list_accounts"; *)
   ethereum_json_rpc "personal_listAccounts"
     (list_of_yojson_exn Address.of_yojson_exn)
     yojson_noargs
 
 let personal_lock_account =
-  (*  Logging.log "ETH json rpc calling personal_lock_account"; *)
   ethereum_json_rpc "personal_lockAccount"
     YoJson.to_bool
     (yojson_1arg Address.to_yojson)
 
 let personal_new_account =
-  (*  Logging.log "ETH json rpc calling personal_new_account"; *)
   ethereum_json_rpc "personal_newAccount"
     Address.of_yojson_exn
     (yojson_1arg StringT.to_yojson)
 
 let personal_sign_transaction =
-  (*  Logging.log "ETH json rpc calling personal_sign_transaction"; *)
   ethereum_json_rpc "personal_signTransaction"
     SignedTransaction.of_yojson_exn
     (yojson_2args TransactionParameters.to_yojson StringT.to_yojson)
 
 let personal_unlock_account =
-  (*  Logging.log "ETH json rpc calling personal_unlock_account"; *)
   ethereum_json_rpc "personal_unlockAccount"
     YoJson.to_bool
     (fun (address, password, duration) ->

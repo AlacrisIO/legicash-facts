@@ -27,7 +27,7 @@ let the_state_update_service_ref : (state_update_service option ref) = ref None
    ---lack of gas 
    ---transaction not passed
  *)
-let push_state (digest : Digesting.Digest.t) : unit =
+let push_state (digest : Digesting.Digest.t) : unit Lwt_exn.t =
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (gas_limit_val : TokenAmount.t option) = Some TokenAmount.zero in (* Will not work of course *)
@@ -36,18 +36,25 @@ let push_state (digest : Digesting.Digest.t) : unit =
   >>= Ethereum_user.confirm_pre_transaction oper_addr
   >>= fun (_tx, confirmation) ->
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
-    
+  >>= function
+  | None -> bork "No tx receipt for contract creation"
+  | Some receipt -> return ()
+
 
                                                                      
-let do_update (oper_state : OperatorState.t) : unit Lwt.t =
-  let current_signed = SignedState.make oper_state.keypair oper_state in
-  if (oper_state.committed.signature != current_signed) then
+let do_update (oper_state : OperatorState.t) : unit Lwt_exn.t =
+  let (current_signed : Signature.t) = (SignedState.make oper_state.keypair oper_state.current).signature in
+  let (current_digest : Digesting.digest) = State.digest oper_state.current in
+  push_state current_digest
+(*  if (oper_state.committed.signature != current_signed) then
     push_state current_signed
+  else
+    return None*)
 
-let do_update_lwt : unit -> unit Lwt.t =
+let do_update_lwt : unit -> unit Lwt_exn.t =
   fun () ->
-  do_update !oper_ref;
-  Lwt_unix.sleep Side_chain_server_config.time_state_update_sec
+  (fun () -> do_update !(the_state_update_service_ref.oper_ref)) |> (Lwt_unix.sleep Side_chain_server_config.time_state_update_sec)
+      
       
 
   

@@ -19,31 +19,7 @@ let _ =
 let _init_random =
   Random.self_init
 
-(*
-  
-(** TODO: encrypt the damn file! *)
-type operator_keys_config =
-  { nickname : string
-  ; keypair : Keypair.t }
-[@@deriving of_yojson]
 
-let operator_address =
-  "operator_keys.json"
-  |> Config.get_config_filename
-  |> Yojsoning.yojson_of_file
-  |> operator_keys_config_of_yojson
-  |> OrString.get
-  |> fun { nickname; keypair } ->
-  let address = keypair.address in
-  Logging.log "Using operator keypair %S %s" nickname (Address.to_0x address);
-  register_keypair nickname keypair;
-  address
-
- *)
-
-(* let minNbBlockConfirm = lazy (match config with lazy {minimal_number_block_for_confirmation={nb}} -> nb) *)
-(* let minNbBlockConfirm = config.minimal_number_block_for_confirmation*)
-                      
 (* TODO: pass request id, so we can send a JSON RPC style reply? *)
 (* TODO: have some try ... finally construct handle the closing of the channels *)
 let process_request_exn _client_address (in_channel,out_channel) =
@@ -112,15 +88,15 @@ let _ =
     (fun () ->
        of_lwt Db.open_connection "alacris_server_db"
        >>= fun () ->
-       Side_chain_action.ensure_side_chain_contract_created operator_address
+       Side_chain_action.ensure_side_chain_contract_created Side_chain_server_config.operator_address
        >>= fun contract_address ->
        assert (contract_address = Operator_contract.get_contract_address ());
        Logging.log "Using contract %s"
          (Address.to_0x contract_address);
-       load_operator_state operator_address
+       load_operator_state Side_chain_server_config.operator_address
        >>= fun _operator_state ->
        let%lwt _server = Lwt_io.establish_server_with_client_address sockaddr process_request in
-       start_operator operator_address
+       start_operator Side_chain_server_config.operator_address
        >>= fun () ->
        Logging.log "*** SIDE CHAIN SERVER STARTED ***";
        (* NEVER RETURN *)
