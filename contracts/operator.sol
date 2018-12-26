@@ -30,7 +30,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state) public payable {
-        make_claim(keccak256(abi.encodePacked(ClaimType.STATE_UPDATE, msg.sender, _new_state)));
+        make_claim(keccak256(abi.encodePacked(msg.sender, ClaimType.STATE_UPDATE, _new_state)));
     }
 
     function operator_state(

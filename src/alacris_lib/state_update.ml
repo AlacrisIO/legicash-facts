@@ -75,19 +75,19 @@ let start_state_updater address =
       bork "Cannot start a state updater service for address %s because there's already one for %s"
         (Address.to_0x address) (Address.to_0x x.address)
   | None ->
-    let facilitator_state =
+    let operator_state =
       try
-        FacilitatorState.load address
-      with Not_found -> initial_facilitator_state address
+        OperatorState.load address
+      with Not_found -> initial_operator_state address
     in
-    let state_ref = ref facilitator_state in
-    the_facilitator_service_ref := Some { address; state_ref };
+    let state_ref = ref operator_state in
+    the_operator_service_ref := Some { address; state_ref };
     Lwt.async (const state_ref >>> inner_state_update_request_loop);
     Lwt_exn.return ()
 
-let get_update_state () : FacilitatorState.t =
-  !the_facilitator_service_ref
-  |> (function Some x -> x | None -> bork "Facilitator service not started")
+let get_update_state () : OperatorState.t =
+  !the_operator_service_ref
+  |> (function Some x -> x | None -> bork "Operator service not started")
   |> fun service -> !(service.state_ref)
 
 
