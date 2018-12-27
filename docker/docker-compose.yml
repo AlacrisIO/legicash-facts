@@ -8,6 +8,7 @@ services:
     container_name: "alacris-private-ethereum-node"
     volumes:
       - /tmp/legilogs/_ethereum:/var/www/app/alacris-private-ethereum-node/_ethereum
+      - /tmp/legilogs/:/var/www/app/alacris-private-ethereum-node/_run/logs
     networks:
       legicash-demo:
         ipv4_address: 10.5.0.4
