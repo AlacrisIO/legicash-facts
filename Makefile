@@ -232,12 +232,12 @@ wc: force
 DOCKER_COMPOSE = docker-compose
 DOCKER_COMPOSE_FILE = docker/docker-compose.yml
 
-docker-pull: ## Pull Alacris prerequsites images
+docker-pull: ## Pull Alacris prerequisites images
 	$(SHOW) " Pulling Alacris Docker images"
 	$(HIDE) docker/scripts/pull_images.sh
 
 docker-build-all: ## Build all or c=<name> containers in foreground
-	$(SHOW) " BUilding Alacris Docker images"
+	$(SHOW) " Building Alacris Docker images"
 	$(SHOW) docker/scripts/build_all_images.sh
 
 docker-build: ## Build all or c=<name> containers in foreground
@@ -274,5 +274,5 @@ docker-reset-state: ## Clean Alacris state data
 	$(HIDE) sudo docker/scripts/reset_state.sh
 
 docker-prune: ## Delete dangling images
-	$(SHOW) Deleting dangling docekr images
+	$(SHOW) Deleting dangling docker images
 	$(HIDE) docker system prune
