@@ -1,4 +1,4 @@
-pragma solidity ^0.4.23;
+pragma solidity ^0.5.2;
 
 /**
  * Contract for a Court that adjudicates claims about side-chains managed by operators.

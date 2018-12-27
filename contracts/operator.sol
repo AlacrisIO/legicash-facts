@@ -1,4 +1,4 @@
-pragma solidity ^0.4.23;
+pragma solidity ^0.5.2;
 //pragma experimental ABIEncoderV2;
 
 import "claims.sol";
@@ -17,7 +17,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     // Question: should we allow the depositor to specify the recipient as well, for a few extra GAS?
     //
     event Deposited(address _operator, address _recipient, uint _value, bytes memo);
-    function deposit(address _operator, bytes memo) public payable {
+    function deposit(address _operator, bytes memory memo) public payable {
             emit Deposited(_operator, msg.sender, msg.value, memo);
     }
 
@@ -93,7 +93,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     // without keeping the withdrawal claim alive indefinitely.
     function withdrawal_confirmation(address _operator, uint64 _ticket)
             private pure returns(bytes32) {
-        return digest_claim(_operator, ClaimType.WITHDRAWAL, bytes32(_ticket));
+        return digest_claim(_operator, ClaimType.WITHDRAWAL, bytes32(uint256(_ticket)));
     }
 
     function withdraw(address _operator, uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
@@ -185,7 +185,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         msg.sender.transfer(_bond);
     }
 
-    function state_bits_hash(bytes32[] state_bits) public pure returns (bytes32) {
+    function state_bits_hash(bytes32[] memory state_bits) public pure returns (bytes32) {
       return keccak256(abi.encodePacked(state_bits));
     }
 
@@ -202,8 +202,8 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         uint _value,
         uint _bond,
         bytes32 _confirmed_state,
-        bytes32[] state_bits,
-        bytes32[] _merkle_path_in_operations
+        bytes32[] memory state_bits,
+        bytes32[] memory _merkle_path_in_operations
         // TODO: side-chain operation support
             )
             public {
@@ -233,8 +233,8 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         uint _value,
         uint _bond,
         bytes32 _confirmed_state,
-        bytes32[] state_bits,
-        bytes32[] _merkle_path_in_operations
+        bytes32[] memory state_bits,
+        bytes32[] memory _merkle_path_in_operations
         // TODO: side-chain operation support
             )
             public {

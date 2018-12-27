@@ -1,4 +1,4 @@
-pragma solidity ^0.4.23;
+pragma solidity ^0.5.2;
 /* This is a test contract, used in tests in src/ethereum_transaction.ml
    to demonstrate that using an address instead of an ABI-encoded
    function call will call the fallback, with the address as data.
