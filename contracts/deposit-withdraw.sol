@@ -1,7 +1,7 @@
 // contract with just deposit, withdrawal, for purposes of endpoints demo
 // emit events, don't do anything else
 
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
 contract Operators {
 
