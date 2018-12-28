@@ -956,12 +956,10 @@ module TrieSet (Elt : UIntS) (T : TrieS with type key = Elt.t and type value = u
   let find_last f t = Option.get (find_last_opt f t)
   let of_list l = List.fold_right add l empty
 
-  (*
-     let to_seq t = Seq.map fst (T.to_seq t)
-     let to_seq_from k t = Seq.map fst (T.to_seq_from k t)
-     let add_seq s t = T.add_seq (Seq.map (fun x -> (x, ())) s) t
-     let of_seq s = add_seq s empty
-  *)
+  let to_seq t = Seq.map fst (T.to_seq t)
+  let to_seq_from k t = Seq.map fst (T.to_seq_from k t)
+  let add_seq s t = T.add_seq (Seq.map (fun x -> (x, ())) s) t
+  let of_seq s = add_seq s empty
 
   (* TODO: for union, inter, diff, compare, equal, subset, optimize for full subtries, by keeping cardinality as well as digest as synthetic data ? *)
   let union a b = T.merge (fun _ _ _ -> Some ()) a b
