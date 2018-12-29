@@ -400,12 +400,11 @@ module type MapS = sig
   *)
   val split: key -> t -> t * value option * t
 
-  (* 4.07.0 and later
-     val to_seq : t -> (key * value) Seq.t
-     val to_seq_from : key -> t -> (key * value) Seq.t
-     val add_seq : (key * value) Seq.t -> t -> t
-     val of_seq : (key * value) Seq.t -> t
-  *)
+  (* 4.07.0 and later *)
+  val to_seq : t -> (key * value) Seq.t
+  val to_seq_from : key -> t -> (key * value) Seq.t
+  val add_seq : (key * value) Seq.t -> t -> t
+  val of_seq : (key * value) Seq.t -> t
 
   val lens : key -> (t, value) Lens.t
 
@@ -415,7 +414,8 @@ end
 val defaulting_lens : (unit -> 'b) -> ('a, 'b) Lens.t -> ('a, 'b) Lens.t
 (** Assuming that the lens raises Not_found if the value is not found, and then using the provided default, modify the value found (or the default) and put it back in the object *)
 
-(*val seq_cat : 'a Seq.t -> 'a Seq.t -> 'a Seq.t*)
+val seq_append : 'a Seq.t -> 'a Seq.t -> 'a Seq.t
+(** same as Extlib.Seq.append from OCaml batteries *)
 
 module type ShowableS = sig
   type t

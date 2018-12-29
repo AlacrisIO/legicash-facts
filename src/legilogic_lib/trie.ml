@@ -119,17 +119,17 @@ module type TrieS = sig
   type (+'a) path = {costep: costep; steps: 'a step list}
 
   (** Apply a step *)
-  type 'a unstep =
-    { unstep_left: key -> int -> 'a -> 'a -> 'a
-    ; unstep_right: key -> int -> 'a -> 'a -> 'a
-    ; unstep_skip: key -> int -> int -> key -> 'a -> 'a }
+  type ('trunk, -'branch) unstep =
+    { unstep_left: key -> int -> 'trunk -> 'branch -> 'trunk
+    ; unstep_right: key -> int -> 'branch -> 'trunk -> 'trunk
+    ; unstep_skip: key -> int -> int -> key -> 'trunk -> 'trunk }
 
   val symmetric_unstep:
     branch:(key -> int -> 'a -> 'a -> 'a) ->
-    skip:(key -> int -> int -> key -> 'a -> 'a) -> 'a unstep
+    skip:(key -> int -> int -> key -> 'a -> 'a) -> ('a, 'a) unstep
 
-  val step_apply : 'a unstep -> ('a * costep) -> 'a step -> ('a * costep)
-  val path_apply : 'a unstep -> 'a -> 'a path -> ('a * costep)
+  val step_apply : ('trunk, 'branch) unstep -> ('trunk * costep) -> 'branch step -> ('trunk * costep)
+  val path_apply : ('trunk, 'branch) unstep -> 'trunk -> 'branch path -> ('trunk * costep)
 
   include MapS
     with type key := key
@@ -443,16 +443,16 @@ module Trie
       recursek ~i:child_index ~tree:child
         ~k:(fun child -> skipk ~i ~height ~length ~bits ~childr:child ~synth ~k)
 
-  let foldlk f trie acc k =
-    let rec frec index trie acc k = match Wrap.get trie with
-      | Empty -> k acc
-      | Leaf {value} -> (f index value acc k)
-      | Branch {left; right; height} ->
-        frec index left acc (fun acc -> frec (right_index index height) right acc k)
-      | Skip {child; bits; length; height} ->
-        frec (skip_index index bits length height) child acc k
-    in
-    frec Key.zero trie acc k
+  let rec foldlik : (key -> value -> 'acc -> ('acc -> 'res) -> 'res) -> key -> t -> 'acc -> ('acc -> 'res) -> 'res =
+    fun f index trie acc k ->
+    match Wrap.get trie with
+    | Empty -> k acc
+    | Leaf {value} -> (f index value acc k)
+    | Branch {left; right; height} ->
+       foldlik f index left acc (fun acc -> foldlik f (right_index index height) right acc k)
+    | Skip {child; bits; length; height} ->
+       foldlik f (skip_index index bits length height) child acc k
+  let foldlk f = foldlik f Key.zero
 
   let foldrk f t acc k =
     let rec frec index trie acc k = match Wrap.get trie with
@@ -612,10 +612,10 @@ module Trie
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
 
-  type 'a unstep =
-    { unstep_left: key -> int -> 'a -> 'a -> 'a
-    ; unstep_right: key -> int -> 'a -> 'a -> 'a
-    ; unstep_skip: key -> int -> int -> key -> 'a -> 'a }
+  type ('trunk, 'branch) unstep =
+    { unstep_left: key -> int -> 'trunk -> 'branch -> 'trunk
+    ; unstep_right: key -> int -> 'branch -> 'trunk -> 'trunk
+    ; unstep_skip: key -> int -> int -> key -> 'trunk -> 'trunk }
 
   let symmetric_unstep ~branch ~skip =
     { unstep_left=branch
@@ -628,11 +628,11 @@ module Trie
     match step with
     | LeftBranch {right} ->
       let h = height + 1 in
-      (unstep.unstep_right index h trie right, {height=h; index})
+      (unstep.unstep_left index h trie right, {height=h; index})
     | RightBranch {left} ->
       let h = height + 1 in
       let i = Key.sub index (Key.shift_left Key.one height) in
-      (unstep.unstep_left i h left trie, {height=h; index=i})
+      (unstep.unstep_right i h left trie, {height=h; index=i})
     | SkipChild {bits; length} ->
       let h = height + length in
       let i = Key.sub index (Key.extract index 0 h) in
@@ -650,7 +650,8 @@ module Trie
 
   type 'a path = {costep: costep; steps: 'a step list}
 
-  let path_apply unstep t {costep; steps} =
+  let path_apply : ('trunk, 'branch) unstep -> 'trunk -> 'branch path -> ('trunk * costep) =
+    fun unstep t {costep; steps} ->
     List.fold_left (step_apply unstep) (t, costep) steps
 
   let path_map f {costep;steps} =
@@ -868,16 +869,20 @@ module Trie
       | (Some va), (Some vb) -> f i va vb in
     merge f' a b
 
-  (*let to_seq t = foldlk (fun i v n k () -> (Seq.Cons (i, v) (fun () -> k n))) t Nil identity
-    let to_seq_from k t =
-    let (focus, {costep, steps}) = find_path k t in
+  let to_seq_i : key -> t -> (key * value) Seq.t = fun i t ->
+    foldlik (fun i v a k -> k (fun () -> Seq.Cons ((i, v), a))) i t Seq.empty identity
+  let to_seq = to_seq_i Key.zero
+  let to_seq_from : key -> t -> (key * value) Seq.t = fun k t ->
+    let (focus, path) = find_path k t in
     path_apply
-    { unstep_left = (fun _ _ a b -> seq_cat a b)
-    ; unstep_right = (fun _ _ _ b -> b)
-    ; unstep_skip = (fun _ _ _ _ a -> a) }
-    steps (focus, costep)
-    let add_seq s t = Seq.fold_left (fun t (k, v) -> add k v t) t s
-    val of_seq s = add_seq s empty*)
+      { unstep_left = (fun index height trunk branch ->
+          (seq_append trunk (to_seq_i (right_index index height) branch)))
+      ; unstep_right = (fun _ _ _ trunk -> trunk)
+      ; unstep_skip = (fun _ _ _ _ trunk -> trunk) }
+      (to_seq_i path.costep.index focus) path
+    |> fst
+  let add_seq s t = Seq.fold_left (fun t (k, v) -> add k v t) t s
+  let of_seq s = add_seq s empty
 
   let lens k = Lens.{get= find k; set= add k}
 
@@ -951,12 +956,10 @@ module TrieSet (Elt : UIntS) (T : TrieS with type key = Elt.t and type value = u
   let find_last f t = Option.get (find_last_opt f t)
   let of_list l = List.fold_right add l empty
 
-  (*
-     let to_seq t = Seq.map fst (T.to_seq t)
-     let to_seq_from k t = Seq.map fst (T.to_seq_from k t)
-     let add_seq s t = T.add_seq (Seq.map (fun x -> (x, ())) s) t
-     let of_seq s = add_seq s empty
-  *)
+  let to_seq t = Seq.map fst (T.to_seq t)
+  let to_seq_from k t = Seq.map fst (T.to_seq_from k t)
+  let add_seq s t = T.add_seq (Seq.map (fun x -> (x, ())) s) t
+  let of_seq s = add_seq s empty
 
   (* TODO: for union, inter, diff, compare, equal, subset, optimize for full subtries, by keeping cardinality as well as digest as synthetic data ? *)
   let union a b = T.merge (fun _ _ _ -> Some ()) a b

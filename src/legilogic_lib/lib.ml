@@ -153,10 +153,10 @@ module type MapS = sig
   val path_map: ('a -> 'b) -> 'a path -> 'b path
 
   (* Flesh it out?  Currently this exists in [Trie].
-     type (+'a) unstep
-     type (+'a) costep
-     val step_apply : 'a unstep -> 'a step -> ('a * 'a costep) -> ('a * 'a costep)
-     val path_apply : 'a unstep -> 'a path -> ('a * 'a costep) -> ('a * 'a costep)
+     type ('trunk, -'branch) unstep
+     type costep
+     val step_apply : ('trunk, 'branch) unstep -> ('trunk * costep) -> 'branch step -> ('trunk * costep)
+     val path_apply : ('trunk, 'branch) unstep -> 'trunk -> 'branch path -> ('trunk * costep)
   *)
 
   exception Inconsistent_path
@@ -181,6 +181,10 @@ module type MapS = sig
   val partition: (key -> value -> bool) -> t -> t * t
   val split: key -> t -> t * value option * t
 
+  val to_seq : t -> (key * value) Seq.t
+  val to_seq_from : key -> t -> (key * value) Seq.t
+  val add_seq : (key * value) Seq.t -> t -> t
+  val of_seq : (key * value) Seq.t -> t
 
   val lens : key -> (t, value) Lens.t
   val find_defaulting : (unit -> value) -> key -> t -> value
@@ -189,9 +193,10 @@ end
 let defaulting_lens default lens =
   Lens.{get= (fun x -> try lens.get x with Not_found -> default ()); set= lens.set}
 
-(*let seq_cat a b () = match a () with
-  | Nil -> b ()
-  | Cons x a' -> Cons x (seq_cat a' b)*)
+let rec seq_append x y () =
+  match x () with
+  | Seq.Nil -> y ()
+  | Seq.Cons (hd, tl) -> Seq.Cons (hd, fun () -> seq_append tl y ())
 
 module type ShowableS = sig
   type t
