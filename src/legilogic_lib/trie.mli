@@ -122,40 +122,40 @@ module type TrieS = sig
       [step]s from a wider trie. *)
   type +'a path = {costep: costep; steps: 'a step list}
 
-  (** Methods for undoing an ['a path] from a child ['a] into a parent ['a],
-      where ['a] is typically a [t] for zipping, or a [digest] for Merkle
+  (** Methods for undoing an ['a path] from a child ['b] into a parent ['b],
+      where ['a] and ['b] are both typically a [t] for zipping, or a [digest] for Merkle
       proofs. *)
-  type 'a unstep =
+  type ('trunk, 'branch) unstep =
     { (** [unstep_left k h l r] undoes a [LeftBranch] step, reconstituting
-          the parent value ['a] with base key [k] at height [h] from the left
-          child value [l] (from the subject and context) and the right child
-          value [r] (from the step). *)
-      unstep_left: key -> int -> 'a -> 'a -> 'a ;
+          the parent value [: 'trunk] with base key [k] at height [h] from the
+          left child value [l : 'trunk] (from the subject and context) and the
+          right child value [r : 'branch] (from the step). *)
+      unstep_left: key -> int -> 'trunk -> 'branch -> 'trunk ;
       (** [unstep_right k h l r] undoes a [LeftBranch] step, reconstituting
-          the parent value ['a] with base key [k] at height [h] from the left
-          child value [l] (from the step) and the right child value [r] (from
-          the subject and context). *)
-      unstep_right: key -> int -> 'a -> 'a -> 'a ;
+          the parent value [: 'trunk] with base key [k] at height [h] from the
+          left child value [l : 'branch] (from the step) and the right child
+          value [r : 'trunk] (from the subject and context). *)
+      unstep_right: key -> int -> 'branch -> 'trunk -> 'trunk ;
       (** [unstep_skip k h l b c] undoes a [SkipChild] step with base key [k]
           at height [h] given length [l] and bits [b] from the step and child
-          value [c] from the subject. *)
-      unstep_skip: key -> int -> int -> key -> 'a -> 'a }
+          value [c : 'trunk] from the subject. *)
+      unstep_skip: key -> int -> int -> key -> 'trunk -> 'trunk }
 
   (** Constructor for a [unstep], assuming equal treatment of left and right. *)
   val symmetric_unstep:
     branch:(key -> int -> 'a -> 'a -> 'a) ->
-    skip:(key -> int -> int -> key -> 'a -> 'a) -> 'a unstep
+    skip:(key -> int -> int -> key -> 'a -> 'a) -> ('a, 'a) unstep
 
   (** [step_apply unstep (trie, costep) step] walks back the [step]
       from the subject [value] subject and context [costep] given the
       methods from [unstep], yielding a subject and context for the
       reconstituted wider trie. *)
-  val step_apply : 'a unstep -> ('a * costep) -> 'a step -> ('a * costep)
+  val step_apply : ('trunk, 'branch) unstep -> ('trunk * costep) -> 'branch step -> ('trunk * costep)
 
   (** [path_apply unstep value (costep, steps)] walks back the entire [path],
       folding [step_apply] on each step in [steps] starting from the subject
       [value] and the context of height and key [costep] *)
-  val path_apply : 'a unstep -> 'a -> 'a path -> ('a * costep)
+  val path_apply : ('trunk, 'branch) unstep -> 'trunk -> 'branch path -> ('trunk * costep)
 
   include MapS
     with type key := key
