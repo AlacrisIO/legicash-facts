@@ -47,7 +47,7 @@ Our Continuous Integration uses a custom Docker image with
 the needed software installed on top of Ubuntu.
 
 If you would rather install the needed software manually,
-look at the file [scripts/Dockerfile](scripts/Dockerfile)
+look at the file [docker/containers/build-prerequisites/Dockerfile](docker/containers/build-prerequisites/Dockerfile)
 to see what's installed in the Docker image.
 
 #### Using Docker
@@ -64,7 +64,11 @@ You can then download the docker image use by our CI as follows
 
 Or you can re-build it with:
 
-    (cd scripts ; docker build -t registry.gitlab.com/legicash/legicash-facts:build-env .)
+    docker build -t registry.gitlab.com/legicash/legicash-facts:build-env docker/containers/build-prerequisites
+
+And if you re-build it, you can update the gitlab CI image with:
+
+    docker push registry.gitlab.com/legicash/legicash-facts:build-env
 
 Beware that Docker builds are not deterministic (they notably depend on ubuntu and opam updates),
 so may not succeed. You may fallback to downloading the image we use (first recipe above).
@@ -82,7 +86,7 @@ You can give the image a more concise name `legicash-facts` with the command
 #### A toolchain outside Docker
 
 You should be able to install our toolchain on top of Debian or Ubuntu (or a chroot containing them)
-by following the recipe in [scripts/Dockerfile](scripts/Dockerfile).
+by following the recipe in [docker/containers/build-prerequisites/Dockerfile](docker/containers/build-prerequisites/Dockerfile).
 
 Unhappily, the recipe depends on the state not just of Ubuntu but also of OPAM,
 and OPAM sometimes fails to build our dependencies.

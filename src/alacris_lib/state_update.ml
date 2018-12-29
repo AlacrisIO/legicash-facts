@@ -11,23 +11,28 @@ open Side_chain
 open Side_chain_operator
 open Side_chain_user
 open Operator_contract
-(* open Types *)
+open Types
 (* open Ethereum_chain *)
 open Ethereum_user
+open Digesting
 open Side_chain_server_config
    
-type state_update_service =
-  { address : Address.t
-  ; oper_ref : OperatorState.t ref }
+type digest_update_service =
+  { revision : Revision.t
+  ; oper_digest : Digest.t}
 
+let init_state : unit -> digest_update_service = fun () ->
+  let (op_digest: Digest.t) = Digesting.digest_of_string "str" in 
+  {revision = -1; oper_digest = op_digest}
 
-let the_state_update_service_ref : (state_update_service option ref) = ref None
+  
+let the_state_update_service_ref : (state_update_service ref) = single_state
 
 (* Alert to take care of:
    ---lack of gas 
    ---transaction not passed
  *)
-let push_state (digest : Digesting.Digest.t) : unit Lwt_exn.t =
+let push_state_digest (digest : Digesting.Digest.t) : unit Lwt_exn.t =
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (gas_limit_val : TokenAmount.t option) = Some TokenAmount.zero in (* Will not work of course *)
@@ -40,25 +45,31 @@ let push_state (digest : Digesting.Digest.t) : unit Lwt_exn.t =
   | None -> bork "No tx receipt for contract creation"
   | Some receipt -> return ()
 
-
-                                                                     
-let do_update (oper_state : OperatorState.t) : unit Lwt_exn.t =
-  let (current_signed : Signature.t) = (SignedState.make oper_state.keypair oper_state.current).signature in
+(*
+let push_update (oper_state : OperatorState.t) : unit Lwt_exn.t =
   let (current_digest : Digesting.digest) = State.digest oper_state.current in
-  push_state current_digest
+  push_state_digest current_digest
 (*  if (oper_state.committed.signature != current_signed) then
     push_state current_signed
   else
     return None*)
+ *)
 
-let do_update_lwt : unit -> unit Lwt_exn.t =
+
+let do_sleep_unix : unit -> unit Lwt_exn.t =
+  fun () -> Lwt_unix.sleep Side_chain_server_config.time_state_update_sec
+  
+(*
+let do_update_lwt : unit -> unit Lwt.t =
   fun () ->
-  (fun () -> do_update !(the_state_update_service_ref.oper_ref)) |> (Lwt_unix.sleep Side_chain_server_config.time_state_update_sec)
+  (fun () -> do_update x.oper_digest
+  |> OrExn.get 
+  |> do_sleep_unix
       
       
 
   
-let forever_state_update : unit -> unit Lwt.t =
+let forever_state_update : unit -> unit Lwt_exn.t =
   fun () ->
   Lwt.bind do_update_lwt forever_state_update
                                                                      
@@ -91,4 +102,4 @@ let get_update_state () : OperatorState.t =
   |> fun service -> !(service.state_ref)
 
 
-                                                                         
+ *)

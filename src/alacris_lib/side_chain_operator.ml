@@ -13,6 +13,7 @@ open Persisting
 open Signing
 open Types
 open Merkle_trie
+open State_update
 
 open Legilogic_ethereum
 open Side_chain_server_config
@@ -689,6 +690,7 @@ let inner_transaction_request_loop =
                       Lwt_mvar.put inner_transaction_request_mailbox
                         (`Committed (signed_state, notify_batch_committed)));
                     OperatorState.save operator_state_to_save
+                    (* >>= State_update.do_update (get_operator_state ()) *)
                     >>= fun () -> Db.async_commit notify_ready
                     >>= fun () -> Lwt.return (operator_state, (batch_id + 1), batch_committed))
                  else
