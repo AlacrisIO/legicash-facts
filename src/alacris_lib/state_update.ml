@@ -18,7 +18,7 @@ open Side_chain_server_config
    
 type state_update_service =
   { address : Address.t
-  ; oper_ref : OperatorState.t ref }
+  ; oper_ref : OperatorState.t}
 
 
 let the_state_update_service_ref : (state_update_service option ref) = ref None
@@ -43,7 +43,7 @@ let push_state (digest : Digesting.Digest.t) : unit Lwt_exn.t =
 
                                                                      
 let do_update (oper_state : OperatorState.t) : unit Lwt_exn.t =
-  let (current_signed : Signature.t) = (SignedState.make oper_state.keypair oper_state.current).signature in
+(*let (current_signed : Signature.t) = (SignedState.make oper_state.keypair oper_state.current).signature in *)
   let (current_digest : Digesting.digest) = State.digest oper_state.current in
   push_state current_digest
 (*  if (oper_state.committed.signature != current_signed) then
@@ -51,14 +51,23 @@ let do_update (oper_state : OperatorState.t) : unit Lwt_exn.t =
   else
     return None*)
 
-let do_update_lwt : unit -> unit Lwt_exn.t =
+(*
+let do_sleep_unix : unit -> unit Lwt_exn.t =
+  fun () -> Lwt_unix.sleep Side_chain_server_config.time_state_update_sec
+  
+  
+let do_update_lwt : unit -> unit Lwt.t =
   fun () ->
-  (fun () -> do_update !(the_state_update_service_ref.oper_ref)) |> (Lwt_unix.sleep Side_chain_server_config.time_state_update_sec)
+  (fun () -> match !the_state_update_service_ref with
+             | None -> bork "the_stateupdate_service_ref was not initialized"
+             | Some x -> do_update x.oper_ref)
+  |> OrExn.get 
+  |> do_sleep_unix
       
       
 
   
-let forever_state_update : unit -> unit Lwt.t =
+let forever_state_update : unit -> unit Lwt_exn.t =
   fun () ->
   Lwt.bind do_update_lwt forever_state_update
                                                                      
@@ -92,3 +101,4 @@ let get_update_state () : OperatorState.t =
 
 
                                                                          
+ *)
