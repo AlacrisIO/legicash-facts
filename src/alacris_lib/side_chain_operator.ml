@@ -159,7 +159,7 @@ let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation
  **)
 let validate_user_transaction_request :
   (UserTransactionRequest.t signed * bool, TransactionRequest.t) Lwt_exn.arr =
-  fun (signed_request, is_forced) ->
+  fun ((signed_request, is_forced) : (UserTransactionRequest.t signed * bool)) ->
     let {payload=UserTransactionRequest.{ rx_header={ requester; requester_revision }; operation }} =
       signed_request in
     let state = get_operator_state () in
@@ -448,7 +448,7 @@ let post_validated_transaction_request :
       ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
   Logging.log "post_validated_transaction_request, before simple_client call";
   simple_client inner_transaction_request_mailbox
-    (fun (request, resolver) ->
+    (fun ((request, resolver) : (TransactionRequest.t * (TransactionMap.value * unit Lwt.t) or_exn Lwt.u)) ->
       Logging.log "The post_validated_transaction_request lambda";
       `Confirm (request, resolver))
 
@@ -494,7 +494,7 @@ let process_user_transaction_request :
   let open Lwt_exn in
   validate_user_transaction_request
   >>> post_validated_transaction_request
-  >>> fun (transaction, wait_for_commit) ->
+  >>> fun ((transaction, wait_for_commit) : (TransactionMap.value * unit Lwt.t)) ->
   Logging.log "Before call to wait_for_commit";
   let open Lwt in
   wait_for_commit
@@ -629,10 +629,10 @@ let increment_capped max x =
 
 let inner_transaction_request_loop =
   let open Lwter in
-  fun operator_state_ref ->
+  fun (operator_state_ref : OperatorAsyncAction.state ref) ->
     return (!operator_state_ref, 0, Lwt.return_unit)
     >>= forever
-          (fun (operator_state, batch_id, previous) ->
+          (fun ((operator_state, batch_id, previous) : (OperatorAsyncAction.state * int * unit t)) ->
             Logging.log "inner_transaction_request_loop, beginning of lambda";
              (* The promise sent back to requesters, that they have to wait on
                 for their confirmation's batch to have been committed,
@@ -650,7 +650,7 @@ let inner_transaction_request_loop =
                                   >>= (fun () ->
                           Logging.log "inner_transaction_request_loop, before flush operation";
                           Lwt_mvar.put inner_transaction_request_mailbox (`Flush batch_id)));
-             let rec request_batch operator_state size =
+             let rec request_batch (operator_state : OperatorAsyncAction.state) (size : int) =
                Logging.log "inner_transaction_request_loop, beginning of request_batch";
                (** The below mailbox is filled by post_validated_request, except for
                    the async line just preceding, whereby a `Flush message is sent. *)
@@ -658,7 +658,7 @@ let inner_transaction_request_loop =
                >>= function
                | `Confirm (request_signed, continuation) ->
                  process_validated_transaction_request request_signed operator_state
-                 |> fun (confirmation_or_exn, new_operator_state) ->
+                 |> fun ((confirmation_or_exn, new_operator_state) : (TransactionMap.value OrExn.t * OperatorAsyncAction.state)) ->
                  operator_state_ref := new_operator_state;
                  (match confirmation_or_exn with
                   | Error e ->
@@ -704,7 +704,9 @@ let inner_transaction_request_loop =
                  request_batch new_operator_state size
                | `GetCurrentState (state_resolver : State.t Lwt.u) ->
                   Lwt.wakeup_later state_resolver !operator_state_ref.current;
-                  Lwt.return (operator_state, batch_id, batch_committed)
+                  let (the_dig : Digest.t) = State.digest !operator_state_ref.current in
+                  push_state_digest the_dig |> (fun (_val : unit t) -> Lwt.return (operator_state, batch_id, batch_committed))
+                    
              in request_batch operator_state 0)
 
   

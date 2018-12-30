@@ -1,18 +1,19 @@
+(* open Json_rpc *)
+(* open Side_chain_operator *)
+(* open Side_chain_user *)
+(* open Ethereum_chain *)
+
 open Legilogic_lib
 open Lib
 open Signing
 open Action
 open Lwt_exn
-open Json_rpc
 
 open Types
 
 open Legilogic_ethereum
 open Side_chain
-(*open Side_chain_operator *)
-open Side_chain_user
 open Operator_contract
-(* open Ethereum_chain *)
 open Ethereum_user
 open Digesting
 open Side_chain_server_config
@@ -37,7 +38,7 @@ let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
    ---lack of gas 
    ---transaction not passed
  *)
-let push_state_digest (digest : Digesting.Digest.t) : unit Lwt_exn.t =
+let push_state_digest_exn (digest : Digesting.Digest.t) : unit Lwt_exn.t =
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (gas_limit_val : TokenAmount.t option) = Some TokenAmount.zero in (* Will not work of course *)
@@ -48,8 +49,11 @@ let push_state_digest (digest : Digesting.Digest.t) : unit Lwt_exn.t =
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
   >>= function
   | None -> bork "No tx receipt for contract creation"
-  | Some receipt -> return ()
+  | Some _receipt -> return ()
 
+let push_state_digest (digest : Digesting.Digest.t) : unit Lwt.t =
+  Lwt.bind (push_state_digest_exn digest) (fun (_val : unit OrExn.t) -> Lwt.return ())
+                   
 (*
 let push_update (oper_state : OperatorState.t) : unit Lwt_exn.t =
   let (current_digest : Digesting.digest) = State.digest oper_state.current in
