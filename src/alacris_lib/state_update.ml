@@ -5,28 +5,33 @@ open Action
 open Lwt_exn
 open Json_rpc
 
-open Legilogic_ethereum
+open Types
 
+open Legilogic_ethereum
 open Side_chain
-open Side_chain_operator
+(*open Side_chain_operator *)
 open Side_chain_user
 open Operator_contract
-open Types
 (* open Ethereum_chain *)
 open Ethereum_user
 open Digesting
 open Side_chain_server_config
-   
-type digest_update_service =
-  { revision : Revision.t
+
+
+type digest_entry =
+  { revi : Revision.t
   ; oper_digest : Digest.t}
 
-let init_state : unit -> digest_update_service = fun () ->
-  let (op_digest: Digest.t) = Digesting.digest_of_string "str" in 
-  {revision = -1; oper_digest = op_digest}
 
-  
-let the_state_update_service_ref : (state_update_service ref) = single_state
+let init_state : unit -> digest_entry = fun () ->
+  let (op_digest: Digest.t) = Digesting.digest_of_string "str" in
+  let (rev : Revision.t) = Revision.of_int 0 in 
+  {revi = rev; oper_digest = op_digest}
+
+
+
+    
+let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
 
 (* Alert to take care of:
    ---lack of gas 
@@ -57,8 +62,9 @@ let push_update (oper_state : OperatorState.t) : unit Lwt_exn.t =
 
 
 let do_sleep_unix : unit -> unit Lwt_exn.t =
-  fun () -> Lwt_unix.sleep Side_chain_server_config.time_state_update_sec
-  
+  fun () -> 
+  Lwt.bind (Lwt_unix.sleep Side_chain_server_config.time_state_update_sec) (fun () -> return ())
+
 (*
 let do_update_lwt : unit -> unit Lwt.t =
   fun () ->
