@@ -51,9 +51,19 @@ let push_state_digest_exn (digest : Digesting.Digest.t) : unit Lwt_exn.t =
   | None -> bork "No tx receipt for contract creation"
   | Some _receipt -> return ()
 
+
+(* Eating the exception, very bad! But needed *)                   
 let push_state_digest (digest : Digesting.Digest.t) : unit Lwt.t =
   Lwt.bind (push_state_digest_exn digest) (fun (_val : unit OrExn.t) -> Lwt.return ())
-                   
+
+
+(* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
+let do_sleep_unix : unit -> unit Lwt_exn.t =
+  fun () -> 
+  Lwt.bind (Lwt_unix.sleep Side_chain_server_config.time_state_update_sec) (fun () -> return ())
+
+
+    
 (*
 let push_update (oper_state : OperatorState.t) : unit Lwt_exn.t =
   let (current_digest : Digesting.digest) = State.digest oper_state.current in
@@ -64,10 +74,6 @@ let push_update (oper_state : OperatorState.t) : unit Lwt_exn.t =
     return None*)
  *)
 
-
-let do_sleep_unix : unit -> unit Lwt_exn.t =
-  fun () -> 
-  Lwt.bind (Lwt_unix.sleep Side_chain_server_config.time_state_update_sec) (fun () -> return ())
 
     
 (*
