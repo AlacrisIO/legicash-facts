@@ -102,7 +102,7 @@ type inner_transaction_request =
   [ validated_transaction_request
   | `Flush of int
   | `Committed of (State.t signed * unit Lwt.u)
-  | `GetCurrentState of (State.t Lwt.u) ]
+  | `PostCurrentState of (State.t Lwt.u) ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -452,6 +452,19 @@ let post_validated_transaction_request :
       Logging.log "The post_validated_transaction_request lambda";
       `Confirm (request, resolver))
 
+
+let post_state_update_needed_uo (useroper : UserOperation.t) : bool =
+  match useroper with
+  | Deposit _ -> false
+  | Payment _ -> false
+  | Withdrawal _ -> true
+
+let post_state_update_needed_tr (transreq : TransactionRequest.t) : bool =
+  match transreq with
+  | `AdminTransaction _ -> false
+  | `UserTransaction x -> post_state_update_needed_uo x.payload.operation
+
+                  
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
   function
   | `UserTransaction request ->
@@ -701,7 +714,7 @@ let inner_transaction_request_loop =
                  operator_state_ref := new_operator_state;
                  Lwt.wakeup_later previous_notify_batch_committed_u ();
                  request_batch new_operator_state size
-               | `GetCurrentState (state_resolver : State.t Lwt.u) ->
+               | `PostCurrentState (state_resolver : State.t Lwt.u) ->
                   Lwt.wakeup_later state_resolver !operator_state_ref.current;
                   let (the_dig : Digest.t) = State.digest !operator_state_ref.current in
                   Lwt.bind (push_state_digest the_dig) (fun () -> Lwt.return (operator_state, batch_id, batch_committed_t))
