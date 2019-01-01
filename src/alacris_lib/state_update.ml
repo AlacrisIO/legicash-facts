@@ -37,7 +37,7 @@ let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
    ---lack of gas 
    ---transaction not passed
  *)
-let push_state_digest_exn (digest : Digesting.Digest.t) : unit Lwt_exn.t =
+let push_state_digest_exn (digest : Digest.t) : Digest.t Lwt_exn.t =
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (gas_limit_val : TokenAmount.t option) = Some TokenAmount.zero in (* Will not work of course *)
@@ -48,12 +48,12 @@ let push_state_digest_exn (digest : Digesting.Digest.t) : unit Lwt_exn.t =
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
   >>= function
   | None -> bork "No tx receipt for contract creation"
-  | Some _receipt -> return ()
+  | Some _receipt -> return digest
 
 
-(* Eating the exception, very bad! But needed *)                   
-let push_state_digest (digest : Digesting.Digest.t) : unit Lwt.t =
-  Lwt.bind (push_state_digest_exn digest) (fun (_val : unit OrExn.t) -> Lwt.return ())
+(* Eating the exception, very bad! But needed *)
+let push_state_digest (digest : Digest.t) : Digest.t Lwt.t =
+  Lwt.bind (push_state_digest_exn digest) (fun (_val : Digest.t OrExn.t) -> Lwt.return digest)
 
 
 (* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)

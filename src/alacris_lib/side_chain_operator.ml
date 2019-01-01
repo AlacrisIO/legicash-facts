@@ -464,7 +464,7 @@ let post_validated_transaction_request :
       `Confirm (request, resolver))
 
 
-let post_state_update_request (transreq : TransactionRequest.t) : Digest.t Lwt.t =
+let post_state_update_request (transreq : TransactionRequest.t) : Digest.t Lwt_exn.t =
   Logging.log "post_state_update_request, before simple_client call";
   let (lneedupdate : bool) = post_state_update_needed_tr transreq in
   if lneedupdate then
@@ -472,9 +472,11 @@ let post_state_update_request (transreq : TransactionRequest.t) : Digest.t Lwt.t
                 (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
                   Logging.log "The post_state_update_request lambda";
                   `GetCurrentDigest digest_resolver) in
-    fct transreq
+    let open Lwt in
+    fct transreq >>= push_state_digest_exn
+    (*    Lwt.bind (fct transreq) push_state_digest *)
   else
-    Lwt.return Digesting.null_digest
+    Lwt_exn.return Digesting.null_digest
   
 (* (push_state_digest the_dig) *)
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
