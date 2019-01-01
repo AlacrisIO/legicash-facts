@@ -102,7 +102,7 @@ type inner_transaction_request =
   [ validated_transaction_request
   | `Flush of int
   | `Committed of (State.t signed * unit Lwt.u)
-  | `PostCurrentState of (State.t Lwt.u) ]
+  | `GetCurrentDigest of (Digest.t Lwt.u) ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -441,25 +441,6 @@ let effect_validated_user_transaction_request :
       debit_balance (TokenAmount.add withdrawal_amount withdrawal_fee) requester
       >>> accept_fee withdrawal_fee
 
-
-(** TODO: have a server do all the effect_requests sequentially,
-    after they have been validated in parallel (well, except that Lwt is really single-threaded *)
-let post_validated_transaction_request :
-      ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
-  Logging.log "post_validated_transaction_request, before simple_client call";
-  simple_client inner_transaction_request_mailbox
-    (fun ((request, resolver) : (TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
-      Logging.log "The post_validated_transaction_request lambda";
-      `Confirm (request, resolver))
-
-(*
-let post_state_update_request : ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
-  Logging.log "post_validated_transaction_request, before simple_client call";
-  simple_client inner_transaction_request_mailbox
-    (fun ((
-  
- *)
-  
 let post_state_update_needed_uo (useroper : UserOperation.t) : bool =
   match useroper with
   | Deposit _ -> false
@@ -471,7 +452,31 @@ let post_state_update_needed_tr (transreq : TransactionRequest.t) : bool =
   | `AdminTransaction _ -> false
   | `UserTransaction x -> post_state_update_needed_uo x.payload.operation
 
-                  
+
+(** TODO: have a server do all the effect_requests sequentially,
+    after they have been validated in parallel (well, except that Lwt is really single-threaded *)
+let post_validated_transaction_request :
+      ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
+  Logging.log "post_validated_transaction_request, before simple_client call";
+  simple_client inner_transaction_request_mailbox
+    (fun ((request, resolver) : (TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
+      Logging.log "The post_validated_transaction_request lambda";
+      `Confirm (request, resolver))
+
+
+let post_state_update_request (transreq : TransactionRequest.t) : Digest.t Lwt.t =
+  Logging.log "post_state_update_request, before simple_client call";
+  let (lneedupdate : bool) = post_state_update_needed_tr transreq in
+  if lneedupdate then
+    let fct = simple_client inner_transaction_request_mailbox
+                (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
+                  Logging.log "The post_state_update_request lambda";
+                  `GetCurrentDigest digest_resolver) in
+    fct transreq
+  else
+    Lwt.return Digesting.null_digest
+  
+(* (push_state_digest the_dig) *)
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
   function
   | `UserTransaction request ->
@@ -514,7 +519,7 @@ let process_user_transaction_request :
   let open Lwt_exn in
   validate_user_transaction_request
   >>> post_validated_transaction_request
-  >>> fun ((transaction, wait_for_commit) : (TransactionMap.value * unit Lwt.t)) : TransactionCommitment.t Lwt_exn.t ->
+  >>> fun ((transaction, wait_for_commit) : (Transaction.t * unit Lwt.t)) : TransactionCommitment.t Lwt_exn.t ->
   Logging.log "Before call to wait_for_commit";
   let open Lwt in
   wait_for_commit
@@ -670,7 +675,7 @@ let inner_transaction_request_loop =
                                   >>= (fun () ->
                           Logging.log "inner_transaction_request_loop, before flush operation";
                           Lwt_mvar.put inner_transaction_request_mailbox (`Flush batch_id)));
-             let rec request_batch (operator_state : OperatorAsyncAction.state) (size : int) =
+             let rec request_batch (operator_state : OperatorAsyncAction.state) (size : int) : (OperatorAsyncAction.state * int * unit Lwt.t) Lwt.t =
                Logging.log "inner_transaction_request_loop, beginning of request_batch";
                (** The below mailbox is filled by post_validated_request, except for
                    the async line just preceding, whereby a `Flush message is sent. *)
@@ -678,10 +683,8 @@ let inner_transaction_request_loop =
                >>= function
                | `Confirm ((request_signed, continuation) : (TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
                  process_validated_transaction_request request_signed operator_state
-                 |> fun ((confirmation_or_exn, new_operator_state) : (TransactionMap.value OrExn.t * OperatorAsyncAction.state)) ->
+                 |> fun ((confirmation_or_exn, new_operator_state) : (Transaction.t OrExn.t * OperatorAsyncAction.state)) ->
                  operator_state_ref := new_operator_state;
-                 let (_ltrval : bool) = post_state_update_needed_tr request_signed in
-                 
                  (match confirmation_or_exn with
                   | Error e ->
                     Lwt.wakeup_later continuation (Error e);
@@ -723,10 +726,9 @@ let inner_transaction_request_loop =
                  operator_state_ref := new_operator_state;
                  Lwt.wakeup_later previous_notify_batch_committed_u ();
                  request_batch new_operator_state size
-               | `PostCurrentState (state_resolver : State.t Lwt.u) ->
-                  Lwt.wakeup_later state_resolver !operator_state_ref.current;
-                  let (the_dig : Digest.t) = State.digest !operator_state_ref.current in
-                  Lwt.bind (push_state_digest the_dig) (fun () -> Lwt.return (operator_state, batch_id, batch_committed_t))
+               | `GetCurrentDigest (digest_resolver : Digest.t Lwt.u) ->
+                  Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
+                  Lwt.return (operator_state, batch_id, batch_committed_t)
              in request_batch operator_state 0)
 
   
