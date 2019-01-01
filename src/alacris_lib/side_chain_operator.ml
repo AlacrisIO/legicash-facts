@@ -448,11 +448,18 @@ let post_validated_transaction_request :
       ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
   Logging.log "post_validated_transaction_request, before simple_client call";
   simple_client inner_transaction_request_mailbox
-    (fun ((request, resolver) : (TransactionRequest.t * (TransactionMap.value * unit Lwt.t) or_exn Lwt.u)) ->
+    (fun ((request, resolver) : (TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
       Logging.log "The post_validated_transaction_request lambda";
       `Confirm (request, resolver))
 
-
+(*
+let post_state_update_request : ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
+  Logging.log "post_validated_transaction_request, before simple_client call";
+  simple_client inner_transaction_request_mailbox
+    (fun ((
+  
+ *)
+  
 let post_state_update_needed_uo (useroper : UserOperation.t) : bool =
   match useroper with
   | Deposit _ -> false
@@ -507,7 +514,7 @@ let process_user_transaction_request :
   let open Lwt_exn in
   validate_user_transaction_request
   >>> post_validated_transaction_request
-  >>> fun ((transaction, wait_for_commit) : (TransactionMap.value * unit Lwt.t)) ->
+  >>> fun ((transaction, wait_for_commit) : (TransactionMap.value * unit Lwt.t)) : TransactionCommitment.t Lwt_exn.t ->
   Logging.log "Before call to wait_for_commit";
   let open Lwt in
   wait_for_commit
@@ -669,10 +676,12 @@ let inner_transaction_request_loop =
                    the async line just preceding, whereby a `Flush message is sent. *)
                Lwt_mvar.take inner_transaction_request_mailbox
                >>= function
-               | `Confirm ((request_signed, continuation) : (TransactionRequest.t * (TransactionMap.value * unit Lwt.t) or_exn Lwt.u)) ->
+               | `Confirm ((request_signed, continuation) : (TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
                  process_validated_transaction_request request_signed operator_state
                  |> fun ((confirmation_or_exn, new_operator_state) : (TransactionMap.value OrExn.t * OperatorAsyncAction.state)) ->
                  operator_state_ref := new_operator_state;
+                 let (_ltrval : bool) = post_state_update_needed_tr request_signed in
+                 
                  (match confirmation_or_exn with
                   | Error e ->
                     Lwt.wakeup_later continuation (Error e);
@@ -692,7 +701,7 @@ let inner_transaction_request_loop =
                | `Flush (id : int) ->
                  assert (id = batch_id);
                  if size > 0 then
-                   (let (ready, notify_ready) = Lwt.task () in
+                   (let ((ready, notify_ready) : (unit Lwt.t * unit Lwt.u)) = Lwt.task () in
                     let signed_state =
                       SignedState.make operator_state.keypair operator_state.current in
                     let operator_state_to_save =

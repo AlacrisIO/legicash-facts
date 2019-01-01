@@ -2,9 +2,10 @@
 (* open Side_chain_operator *)
 (* open Side_chain_user *)
 (* open Ethereum_chain *)
+(* open Lib *)
+(* open Ethereum_user *)
 
 open Legilogic_lib
-open Lib
 open Signing
 open Action
 open Lwt_exn
@@ -14,20 +15,18 @@ open Types
 open Legilogic_ethereum
 open Side_chain
 open Operator_contract
-open Ethereum_user
 open Digesting
 open Side_chain_server_config
 
 
 type digest_entry =
-  { revi : Revision.t
+  { revision : Revision.t
   ; oper_digest : Digest.t}
 
 
-let init_state : unit -> digest_entry = fun () ->
-  let (op_digest: Digest.t) = Digesting.digest_of_string "str" in
-  let (rev : Revision.t) = Revision.of_int 0 in 
-  {revi = rev; oper_digest = op_digest}
+let init_state : unit -> digest_entry =
+  fun () -> {revision = Revision.of_int 0; oper_digest = null_digest}
+  
 
 
 
