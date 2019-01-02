@@ -455,16 +455,16 @@ let post_state_update_needed_tr (transreq : TransactionRequest.t) : bool =
 
 (** TODO: have a server do all the effect_requests sequentially,
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
+(* let post_validated_transaction_request : TransactionRequest.t -> (Transaction.t * unit Lwt.t) Lwt_exn.t*)
 let post_validated_transaction_request :
       ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
-  Logging.log "post_validated_transaction_request, before simple_client call";
   simple_client inner_transaction_request_mailbox
     (fun ((request, resolver) : (TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
       Logging.log "The post_validated_transaction_request lambda";
       `Confirm (request, resolver))
 
 
-let post_state_update_request (transreq : TransactionRequest.t) : Digest.t Lwt_exn.t =
+let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * Digest.t) Lwt_exn.t =
   Logging.log "post_state_update_request, before simple_client call";
   let (lneedupdate : bool) = post_state_update_needed_tr transreq in
   if lneedupdate then
@@ -472,11 +472,10 @@ let post_state_update_request (transreq : TransactionRequest.t) : Digest.t Lwt_e
                 (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
                   Logging.log "The post_state_update_request lambda";
                   `GetCurrentDigest digest_resolver) in
-    let open Lwt in
-    fct transreq >>= push_state_digest_exn
-    (*    Lwt.bind (fct transreq) push_state_digest *)
+    Lwt_exn.bind (Lwt.bind (fct transreq) (push_state_digest_exn))
+      (fun x -> Lwt_exn.return (transreq, x))
   else
-    Lwt_exn.return Digesting.null_digest
+    Lwt_exn.return (transreq, Digesting.null_digest)
   
 (* (push_state_digest the_dig) *)
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
