@@ -96,7 +96,7 @@ module OperatorAsyncAction = AsyncAction(OperatorState)
 type account_lens = (OperatorState.t, AccountState.t) Lens.t
 
 type validated_transaction_request =
-  [ `Confirm of TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u ]
+  [ `Confirm of (TransactionRequest.t * Digest.t) * (Transaction.t * unit Lwt.t) or_exn Lwt.u ]
 
 type inner_transaction_request =
   [ validated_transaction_request
@@ -457,9 +457,9 @@ let post_state_update_needed_tr (transreq : TransactionRequest.t) : bool =
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
 (* let post_validated_transaction_request : TransactionRequest.t -> (Transaction.t * unit Lwt.t) Lwt_exn.t*)
 let post_validated_transaction_request :
-      ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
+      ( (TransactionRequest.t * Digest.t), Transaction.t * unit Lwt.t) Lwt_exn.arr =
   simple_client inner_transaction_request_mailbox
-    (fun ((request, resolver) : (TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
+    (fun ((request, resolver) : ((TransactionRequest.t * Digest.t) * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
       Logging.log "The post_validated_transaction_request lambda";
       `Confirm (request, resolver))
 
@@ -473,11 +473,10 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
                   Logging.log "The post_state_update_request lambda";
                   `GetCurrentDigest digest_resolver) in
     Lwt_exn.bind (Lwt.bind (fct transreq) (push_state_digest_exn))
-      (fun x -> Lwt_exn.return (transreq, x))
+      (fun (x : Digest.t) -> Lwt_exn.return (transreq, x))
   else
     Lwt_exn.return (transreq, Digesting.null_digest)
   
-(* (push_state_digest the_dig) *)
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
   function
   | `UserTransaction request ->
@@ -519,6 +518,7 @@ let process_user_transaction_request :
   Logging.log "Beginning of process_user_transaction_request";
   let open Lwt_exn in
   validate_user_transaction_request
+  >>> post_state_update_request
   >>> post_validated_transaction_request
   >>> fun ((transaction, wait_for_commit) : (Transaction.t * unit Lwt.t)) : TransactionCommitment.t Lwt_exn.t ->
   Logging.log "Before call to wait_for_commit";
@@ -682,7 +682,8 @@ let inner_transaction_request_loop =
                    the async line just preceding, whereby a `Flush message is sent. *)
                Lwt_mvar.take inner_transaction_request_mailbox
                >>= function
-               | `Confirm ((request_signed, continuation) : (TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
+               | `Confirm ((request_signed_dig, continuation) : ((TransactionRequest.t * Digest.t) * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
+                 let (request_signed, _edig) = request_signed_dig in
                  process_validated_transaction_request request_signed operator_state
                  |> fun ((confirmation_or_exn, new_operator_state) : (Transaction.t OrExn.t * OperatorAsyncAction.state)) ->
                  operator_state_ref := new_operator_state;
