@@ -452,32 +452,36 @@ module TransactionCommitment = struct
     ; spending_limit: TokenAmount.t
     ; accounts: Digest.t
     ; main_chain_transactions_posted: Digest.t
-    ; signature: Signature.t }
+    ; signature: Signature.t
+    ; state_digest: Digest.t
+    }
   [@@deriving lens { prefix=true }, yojson]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =
-      marshaling7
+      marshaling8
         (fun { transaction
              ; tx_proof
              ; operator_revision
              ; spending_limit
              ; accounts
              ; main_chain_transactions_posted
-             ; signature } ->
+             ; signature
+             ; state_digest } ->
           transaction, tx_proof, operator_revision, spending_limit,
-          accounts, main_chain_transactions_posted, signature)
+          accounts, main_chain_transactions_posted, signature, state_digest)
         (fun transaction tx_proof operator_revision spending_limit
-          accounts main_chain_transactions_posted signature ->
+          accounts main_chain_transactions_posted signature state_digest ->
           { transaction
           ; tx_proof
           ; operator_revision
           ; spending_limit
           ; accounts
           ; main_chain_transactions_posted
-          ; signature })
+          ; signature
+          ; state_digest })
         Transaction.marshaling TransactionMap.Proof.marshaling Revision.marshaling
-        TokenAmount.marshaling Digest.marshaling Digest.marshaling Signature.marshaling
+        TokenAmount.marshaling Digest.marshaling Digest.marshaling Signature.marshaling Digest.marshaling
     let yojsoning = {to_yojson;of_yojson}
   end
   include (TrivialPersistable (PrePersistable) : PersistableS with type t := t)

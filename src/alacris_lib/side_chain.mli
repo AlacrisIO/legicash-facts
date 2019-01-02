@@ -306,7 +306,8 @@ module TransactionCommitment : sig
     ; spending_limit: TokenAmount.t (* From State.t *)
     ; accounts: Digest.t (* From State.t, digest only *)
     ; main_chain_transactions_posted: Digest.t (* From State.t, digest only *)
-    ; signature: signature } (* Signature of the digest of the state reconstituted from the above *)
+    ; signature: signature (* Signature of the digest of the state reconstituted from the above *)
+    ; state_digest: Digest.t } (* Signature put in the state update *)
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
