@@ -58,7 +58,8 @@ let retrieve_last_entries (start_block : Revision.t) (contract_address : Address
       let (eth_object : EthObject.t) = {from_block=(Block_number start_block); to_block=(Block_number to_block); address = (Some contract_address); topics=(Some topics); blockhash=None} in
       Lwt_exn.bind (eth_get_logs eth_object) (fun (recLLO : EthListLogObjects.t) -> Lwt_exn.return (to_block,recLLO.logs)))
 
-let retrieve_relevant (delay : float) (contract_address : Address.t) (topics : Digest.t list) : LogObject.t Lwt_exn.t =
+let retrieve_relevant_logs
+      (delay : float) (contract_address : Address.t) (topics : Digest.t list) : LogObject.t Lwt_exn.t =
   let rec fct_downloading (start_block : Revision.t) : LogObject.t Lwt_exn.t =
     Lwt_exn.bind (retrieve_last_entries start_block contract_address topics)
       (fun (x : (Revision.t * (LogObject.t list))) ->
