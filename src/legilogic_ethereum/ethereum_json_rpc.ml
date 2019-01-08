@@ -163,8 +163,8 @@ module EthObject = struct
     { from_block: BlockParameter.t [@key "fromBlock"]
     ; to_block: BlockParameter.t [@key "toBlock"]
     ; address : Address.t option [@default None]
-    ; blockhash : Digest.t option [@default None]
     ; topics : Digest.t list option [@default None]
+    ; blockhash : Digest.t option [@default None]
     } [@@deriving yojson {strict = false}]
   include (YojsonPersistable (struct
              type nonrec t = t
@@ -314,7 +314,6 @@ let eth_send_raw_transaction =
     (yojson_1arg Data.to_yojson)
 (** Create new message call transaction or a contract creation for signed transaction **)
 
-
 (* Check that it is coherent *)
 let eth_get_logs =
   ethereum_json_rpc "eth_getLogs"
@@ -322,14 +321,13 @@ let eth_get_logs =
     (yojson_1arg EthObject.to_yojson)
 (** Get a list of matchings blocks *)
 
-  
 (* Not used in the code *)
 let eth_send_transaction =
   ethereum_json_rpc "eth_sendTransaction"
     Digest.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
 (** Creates new message call transaction or a contract creation if the datafield contains code **)
-  
+
 let eth_sign =
   ethereum_json_rpc "eth_sign"
     Data.of_yojson_exn

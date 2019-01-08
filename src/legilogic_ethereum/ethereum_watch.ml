@@ -2,7 +2,12 @@ open Legilogic_lib
 open Lib
 open Types
 open Action
+open Signing
+open Ethereum_json_rpc
 
+
+let starting_watch_ref : (Revision.t ref) = ref Revision.zero
+   
 (* 'state is Revision.t *)   
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
   'value AsyncStream.t Lwt.t =
@@ -38,6 +43,42 @@ let main_chain_block_notification_stream
     | Error e -> Lwt.return (Error e, next_block) in
   stream_of_poller ~delay poller start_block
 
+
+
+(* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
+let sleep_delay_exn : float -> unit Lwt_exn.t =
+  fun delay_sec ->
+  Lwt.bind (Lwt_unix.sleep delay_sec) (fun () -> Lwt_exn.return ())
+
+
+  
+let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Digest.t list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
+  Lwt_exn.bind (eth_block_number ())
+    (fun (to_block : Revision.t) ->
+      let (eth_object : EthObject.t) = {from_block=(Block_number start_block); to_block=(Block_number to_block); address = (Some contract_address); topics=(Some topics); blockhash=None} in
+      Lwt_exn.bind (eth_get_logs eth_object) (fun (recLLO : EthListLogObjects.t) -> Lwt_exn.return (to_block,recLLO.logs)))
+
+let retrieve_relevant (delay : float) (contract_address : Address.t) (topics : Digest.t list) : LogObject.t Lwt_exn.t =
+  let rec fct_downloading (start_block : Revision.t) : LogObject.t Lwt_exn.t =
+    Lwt_exn.bind (retrieve_last_entries start_block contract_address topics)
+      (fun (x : (Revision.t * (LogObject.t list))) ->
+        let (x_to, x_llogs) = x in
+        let (len : int) = List.length x_llogs in
+        starting_watch_ref := x_to;
+        if (len == 0) then
+          Lwt_exn.bind (sleep_delay_exn delay) (fun () -> fct_downloading x_to)
+        else
+          if len > 1 then bork "We should have just one entry that matches"
+          else
+            Lwt_exn.return (List.hd x_llogs)
+      )
+  in fct_downloading !starting_watch_ref
+        
+(*
+ *)
+
+
+  
 (* TODO: implement following operations:
    ---Watch Ethereum blocks on the ethereum blockchain.
    ---Distinguish between confirmed blocks and not quite confirmed blocks.

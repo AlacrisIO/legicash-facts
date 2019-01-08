@@ -99,8 +99,8 @@ module EthObject : sig
     { from_block: BlockParameter.t [@key "fromBlock"] (* optinal. Value latest if absent *)
     ; to_block: BlockParameter.t [@key "toBlock"] (* optinal. Value latest if absent *)
     ; address : Address.t option (* Contract address or list of addresses *)
-    ; blockhash : Digest.t option (* the block hash *)
     ; topics : Digest.t list option (* List of topics to search for *)
+    ; blockhash : Digest.t option (* the block hash *)
     }
   include YojsonableS with type t := t
 end
@@ -221,7 +221,6 @@ val eth_get_logs :
   -> EthObject.t -> EthListLogObjects.t Lwt_exn.t
 (** Send a raw transaction *)
 
-  
 val eth_send_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> Digest.t Lwt_exn.t
