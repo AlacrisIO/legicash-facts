@@ -70,6 +70,27 @@ module BlockParameter = struct
            end) : (PersistableS with type t := t))
 end
 
+(*                      
+module ContractAoListA = struct
+  type t =
+    | Contract_address of Address.t
+    | List_addresses of Address.t list
+  let to_yojson = function
+    | Contract_address x -> Address.to_yojson x
+    | List_addresses x -> bork "This List_addresses was missing"
+  let of_yojson_exn yojson =
+    let (str : string) = Address.of_yojson yojson in
+    let (xt : t) = Contract_address str in
+    xt
+  let of_yojson = of_yojson_of_of_yojson_exn of_yojson_exn
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+ *)  
+
+                      
 module TransactionCondition = struct
   type t =
     | Block_number of Revision.t
@@ -137,6 +158,23 @@ module TransactionInformation = struct
            end) : (PersistableS with type t := t))
 end
 
+module EthObject = struct
+  type t =
+    { from_block: BlockParameter.t [@key "fromBlock"]
+    ; to_block: BlockParameter.t [@key "toBlock"]
+    ; address : Address.t option [@default None]
+    ; blockhash : Digest.t option [@default None]
+    ; topics : Digest.t list option [@default None]
+    } [@@deriving yojson {strict = false}]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+
+
+
+                              
 module SignedTransaction = struct
   type t =
     { raw: Data.t
@@ -193,6 +231,18 @@ module TransactionReceipt = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
 end
+
+module EthListLogObjects = struct
+  [@warning "-39"]
+  type t =
+    { logs: LogObject.t list }
+  [@@deriving yojson {strict = false}]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+
                           
 let operation_to_parameters (sender : Address.t) (operation : Operation.t) : TransactionParameters.t =
   let (to_, data) = match operation with
@@ -264,6 +314,15 @@ let eth_send_raw_transaction =
     (yojson_1arg Data.to_yojson)
 (** Create new message call transaction or a contract creation for signed transaction **)
 
+
+(* Check that it is coherent *)
+let eth_get_logs =
+  ethereum_json_rpc "eth_getLogs"
+    EthListLogObjects.of_yojson_exn
+    (yojson_1arg EthObject.to_yojson)
+(** Get a list of matchings blocks *)
+
+  
 (* Not used in the code *)
 let eth_send_transaction =
   ethereum_json_rpc "eth_sendTransaction"

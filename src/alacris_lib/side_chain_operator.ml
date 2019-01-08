@@ -486,7 +486,7 @@ let process_validated_transaction_request : (TransactionRequest.t, Transaction.t
 
 let make_transaction_commitment : (Transaction.t * Digest.t) -> TransactionCommitment.t =
   fun transaction_dig ->
-    let (transaction, state_digest) = transaction_dig in 
+    let (transaction, state_digest) = transaction_dig in
     let OperatorState.{committed} = get_operator_state () in
     let State.{ operator_revision
               ; spending_limit

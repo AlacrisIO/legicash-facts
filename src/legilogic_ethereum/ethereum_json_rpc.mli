@@ -36,6 +36,16 @@ module BlockParameter : sig
   include PersistableS with type t := t
 end
 
+(*     
+(* A contract address or a list of address *)
+module ContractAoListA : sig
+  type t =
+    | Contract_address of Address.t
+    | List_addresses of Address.t list
+  include PersistableS with type t := t
+end
+ *)
+   
 module TransactionCondition : sig
   type t =
     | Block_number of Revision.t
@@ -83,6 +93,19 @@ module TransactionInformation : sig
   include YojsonableS with type t := t
 end
 
+(* Input fields for the eth_getLogs routine *)
+module EthObject : sig
+  type t =
+    { from_block: BlockParameter.t [@key "fromBlock"] (* optinal. Value latest if absent *)
+    ; to_block: BlockParameter.t [@key "toBlock"] (* optinal. Value latest if absent *)
+    ; address : Address.t option (* Contract address or list of addresses *)
+    ; blockhash : Digest.t option (* the block hash *)
+    ; topics : Digest.t list option (* List of topics to search for *)
+    }
+  include YojsonableS with type t := t
+end
+
+     
 val operation_to_parameters : Address.t -> Operation.t -> TransactionParameters.t
 val pre_transaction_to_parameters : Address.t -> PreTransaction.t -> TransactionParameters.t
 val transaction_to_parameters : Transaction.t -> TransactionParameters.t
@@ -129,6 +152,20 @@ module TransactionReceipt : sig
   include YojsonableS with type t := t
 end
 
+
+
+module EthListLogObjects : sig
+  type t =
+    { logs : LogObject.t list (* The list of matching objects *)
+    }
+  include YojsonableS with type t := t
+end
+
+     
+
+
+
+     
 (** Make a call or transaction, which won’t be added to the blockchain and returns the used gas,
     which can be used for estimating the used gas. *)
 val eth_accounts :
@@ -179,6 +216,12 @@ val eth_send_raw_transaction :
   -> Data.t -> Digest.t Lwt_exn.t
 (** Send a raw transaction *)
 
+val eth_get_logs :
+  ?timeout:float -> ?log:bool
+  -> EthObject.t -> EthListLogObjects.t Lwt_exn.t
+(** Send a raw transaction *)
+
+  
 val eth_send_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> Digest.t Lwt_exn.t

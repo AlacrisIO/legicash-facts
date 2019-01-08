@@ -3,6 +3,7 @@ open Lib
 open Types
 open Action
 
+(* 'state is Revision.t *)   
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
   'value AsyncStream.t Lwt.t =
   let open Lwter in
