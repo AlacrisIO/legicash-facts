@@ -1,31 +1,34 @@
 #!/bin/sh -eu
+# run the Ethereum test net
 
+# Identify where to run things from where this script is.
 HERE=$(dirname "$0")
 cd "$HERE/../../" # Change to toplevel directory of legicash-facts
+TOPDIR=$(pwd) # Top directory for the legicash-facts project
 
-LOGDIR=$(pwd)/_run/logs
-mkdir -p $LOGDIR
+# First, kill any previously existing geth
+killall geth > /dev/null 2>&1 || true
 
-GETH_RUNDIR=$(pwd)/_ethereum
+
+GETH_RUNDIR=$TOPDIR/_ethereum
 mkdir -p $GETH_RUNDIR
-
 cd $GETH_RUNDIR
-
-# run the Ethereum test net
 
 PORT=30303
 RPCPORT=8545
 DATADIR=geth-data
 
-# clean out existing data dir
+# clean out any existing data dir, thereby resetting eth blockchain state.
 if [ -d $DATADIR ]; then
     rm -rf $DATADIR
 fi
 
 mkdir $DATADIR
 
-# kill any existing geth
-killall geth > /dev/null 2>&1 || true
+# Logs used to be under LOGDIR=$TOPDIR/_run/logs/ but then they were erased by make clean,
+# so instead put them in under DATADIR.
+LOGDIR=$DATADIR/logs
+mkdir -p $LOGDIR
 
 geth \
     --dev \
@@ -39,4 +42,4 @@ geth \
     --networkid 17 \
     --nat "any" \
     --ipcpath .ethereum/geth.ipc \
-    > $LOGDIR/testnet.log 2>&1  &
+    > $LOGDIR/testnet.log 2>&1 &
