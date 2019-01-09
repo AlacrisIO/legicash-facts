@@ -23,14 +23,9 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
-    // struct StateUpdateClaim {
-    //     address _operator; // account of the operator making the claim for his side-chain
-    //     bytes32 _new_state; // new state of the side-chain
-    // }
-
     /* TODO: include a bond with this and every claim */
-    function claim_state_update(bytes32 _new_state) public payable {
-        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
+    function claim_state_update(bytes32 _new_state, uint _bond) public payable {
+        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state), _bond);
     }
 
 
@@ -60,8 +55,9 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     function claim_withdrawal(address _operator, uint64 _ticket, uint _value, bytes32 _confirmed_state)
             public payable {
         require_bond(msg.value, maximum_withdrawal_challenge_gas);
+	
         make_claim(withdrawal_claim(
-            _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
+            _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state), msg.value);
     }
 
     event Withdrawal(address operator, uint64 ticket);

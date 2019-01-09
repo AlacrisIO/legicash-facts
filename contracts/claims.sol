@@ -47,6 +47,11 @@ contract Claims {
     int constant CONSUMED = 2; // claim once accepted but now used up
     int constant ACCEPTABLE = 3; // 3 or more means it's either valid or pending
 
+    struct claim_info {
+      int time;
+      uint bond;
+    }
+
     mapping(bytes32 => int) public claim_status;
 
     /** @dev duration after a claim is made during which it can be challenged.
@@ -84,12 +89,14 @@ contract Claims {
         require(is_claim_status_accepted(claim_status[_claim]));
     }
 
+
+
     /**
      * Make a claim
      *
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
-    function make_claim(bytes32 _claim) internal {
+    function make_claim(bytes32 _claim, uint _bond) internal {
         require(claim_status[_claim]==0); // The claim must not have been made before
         claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
     }
