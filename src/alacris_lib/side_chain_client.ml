@@ -81,7 +81,7 @@ let post_user_transaction_request_to_server (request : UserTransactionRequest.t 
     (fun (in_channel, out_channel) ->
       Logging.log "side_chain_client : fun (in_channel, out_channel)";
       let (eval : string) = ExternalRequest.marshal_string external_request in
-      Logging.log "Marshaled value eval=%s" eval;
+      Logging.log "Returning marshaled value";
       eval
       |> write_string_to_lwt_io_channel out_channel
       >>= fun () ->

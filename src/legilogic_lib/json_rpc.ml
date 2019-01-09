@@ -130,8 +130,9 @@ let json_rpc server method_name result_decoder param_encoder
   >>= fun request ->
   let request_id = request.id in
   let request_str = request |> request_to_yojson |> string_of_yojson in
+(*  
   if log then
-    Logging.log "Sending rpc request to %s: %s" (Uri.to_string server) request_str;
+    Logging.log "Sending rpc request to %s: %s" (Uri.to_string server) request_str; *)
   let timeout_thread =
     catching_lwt Lwt_unix.sleep timeout >>= fun () -> fail Timeout in
   let post_thread =
@@ -145,8 +146,9 @@ let json_rpc server method_name result_decoder param_encoder
     >>= fun () ->
     catching_lwt Cohttp_lwt.Body.to_string body
     >>= fun response_str ->
+(*    
     if log then
-      Logging.log "Receiving rpc response from %s: %s" (Uri.to_string server) response_str;
+      Logging.log "Receiving rpc response from %s: %s" (Uri.to_string server) response_str; *)
     decode_response result_decoder request_id response_str
   in
   Lwt.pick [timeout_thread; post_thread]

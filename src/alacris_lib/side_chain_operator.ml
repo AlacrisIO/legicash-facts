@@ -445,7 +445,7 @@ let post_state_update_needed_uo (useroper : UserOperation.t) : bool =
   match useroper with
   | Deposit _ -> false
   | Payment _ -> false
-  | Withdrawal _ -> true
+  | Withdrawal _ -> false (* true if wanting to debug the stuff / false for no pushing *)
 
 let post_state_update_needed_tr (transreq : TransactionRequest.t) : bool =
   match transreq with
@@ -465,15 +465,18 @@ let post_validated_transaction_request :
 
 
 let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * Digest.t) Lwt_exn.t =
-  Logging.log "post_state_update_request, before simple_client call";
+  Logging.log "post_state_update_request, beginning of function";
   let (lneedupdate : bool) = post_state_update_needed_tr transreq in
+  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate;
   if lneedupdate then
     let fct = simple_client inner_transaction_request_mailbox
                 (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
                   Logging.log "The post_state_update_request lambda";
                   `GetCurrentDigest digest_resolver) in
+    Logging.log "post_state_update_request, before simple_client and push function";
     Lwt_exn.bind (Lwt.bind (fct transreq) (push_state_digest_exn))
-      (fun (x : Digest.t) -> Lwt_exn.return (transreq, x))
+      (fun (x : Digest.t) -> Logging.log "Final return statement";
+                             Lwt_exn.return (transreq, x))
   else
     Lwt_exn.return (transreq, Digesting.null_digest)
   
@@ -684,17 +687,23 @@ let inner_transaction_request_loop =
                Lwt_mvar.take inner_transaction_request_mailbox
                >>= function
                | `Confirm ((request_signed_dig, continuation) : ((TransactionRequest.t * Digest.t) * ((Transaction.t * Digest.t) * unit Lwt.t) or_exn Lwt.u)) ->
+                 Logging.log "inner_transaction_request_loop, CASE : Confirm";
                  let (request_signed, edig) = request_signed_dig in
+                 Logging.log "inner_transaction_request_loop, before process_validated_transaction_request";
                  process_validated_transaction_request request_signed operator_state
                  |> fun ((confirmation_or_exn, new_operator_state) : (Transaction.t OrExn.t * OperatorAsyncAction.state)) ->
+                 Logging.log "inner_transaction_request_loop, after process_validated_transaction_request";
                  operator_state_ref := new_operator_state;
                  (match confirmation_or_exn with
                   | Error e ->
+                    Logging.log "inner_transaction_request_loop, error case";
                     Lwt.wakeup_later continuation (Error e);
                     request_batch new_operator_state size
                   | Ok confirmation ->
+                    Logging.log "inner_transaction_request_loop, Ok case";
                     Lwt.wakeup_later continuation (Ok ((confirmation, edig), batch_committed_t));
                     let new_size = increment_capped max_int size in
+                    Logging.log "inner_transaction_request_loop, new_size=%i batch_size_trigger_in_requests=%i" new_size Side_chain_server_config.batch_size_trigger_in_requests;
                     if new_size = Side_chain_server_config.batch_size_trigger_in_requests then
                       (* Flush the data after enough entries are written *)
                       Lwt.wakeup_later size_trigger_u ()
@@ -702,9 +711,11 @@ let inner_transaction_request_loop =
                       (* Start a timeout to trigger flushing, but only after some entry is written *)
                       Lwt.async (fun () -> Lwt_unix.sleep Side_chain_server_config.batch_timeout_trigger_in_seconds
                                   >>= fun () -> Lwt.wakeup_later time_trigger_u ();
-                                  Lwt.return_unit);
+                                                Lwt.return_unit);
+                    Logging.log "inner_transaction_request, After if/then/else";
                     request_batch new_operator_state new_size)
                | `Flush (id : int) ->
+                 Logging.log "inner_transaction_request_loop, CASE : Flush";
                  assert (id = batch_id);
                  if size > 0 then
                    (let ((ready, notify_ready) : (unit Lwt.t * unit Lwt.u)) = Lwt.task () in
@@ -724,12 +735,15 @@ let inner_transaction_request_loop =
                    (Lwt.wakeup_later notify_batch_committed_u ();
                     Lwt.return (operator_state, (batch_id + 1), batch_committed_t))
                | `Committed ((signed_state, previous_notify_batch_committed_u) : (State.t signed * unit Lwt.u)) ->
+                 Logging.log "inner_transaction_request_loop, CASE : Committed";
                  let new_operator_state =
                    OperatorState.lens_committed.set signed_state operator_state in
                  operator_state_ref := new_operator_state;
                  Lwt.wakeup_later previous_notify_batch_committed_u ();
                  request_batch new_operator_state size
                | `GetCurrentDigest (digest_resolver : Digest.t Lwt.u) ->
+                  Logging.log "inner_transaction_request, CASE : GetCurrentDigest";
+                  Lwt.wakeup_later notify_batch_committed_u ();
                   Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
                   Lwt.return (operator_state, batch_id, batch_committed_t)
              in request_batch operator_state 0)

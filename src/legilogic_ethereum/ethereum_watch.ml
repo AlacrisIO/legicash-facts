@@ -75,10 +75,6 @@ let retrieve_relevant_logs
       )
   in fct_downloading !starting_watch_ref
         
-(*
- *)
-
-
   
 (* TODO: implement following operations:
    ---Watch Ethereum blocks on the ethereum blockchain.
