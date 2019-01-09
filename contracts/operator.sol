@@ -33,27 +33,6 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         make_claim(keccak256(abi.encodePacked(msg.sender, ClaimType.STATE_UPDATE, _new_state)));
     }
 
-    function operator_state(
-        bytes32 _previous_main_chain_state,
-        bytes32 _previous_side_chain_state,
-        uint64 _operator_revision,
-        uint _spending_limit,
-        uint _bond_posted,
-        bytes32 _accounts,
-        bytes32 _operations,
-        bytes32 _main_chain_transactions_posted)
-            private pure returns(bytes32) {
-            return keccak256(abi.encodePacked(
-                _previous_main_chain_state,
-                _previous_side_chain_state,
-                _operator_revision,
-                _spending_limit,
-                _bond_posted,
-                _accounts,
-                _operations,
-                _main_chain_transactions_posted));
-    }
-
 
     // WITHDRAWALS
 
@@ -158,27 +137,13 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         uint _value,
         uint _bond,
         bytes32 _confirmed_state,
-        bytes32 _previous_main_chain_state,
         bytes32 _previous_side_chain_state,
-        uint64 _operator_revision,
-        uint _spending_limit,
-        uint _bond_posted,
-        bytes32 _accounts,
-        bytes32 _operations,
-        bytes32 _main_chain_transactions_posted)
+        uint64 _operator_revision)
             public {
         require(_operator_revision < _ticket);
         require(_confirmed_state ==
             digest_claim(_operator, ClaimType.STATE_UPDATE,
-                operator_state(
-                    _previous_main_chain_state,
-                    _previous_side_chain_state,
-                    _operator_revision,
-                    _spending_limit,
-                    _bond_posted,
-                    _accounts,
-                    _operations,
-                    _main_chain_transactions_posted)));
+                    _previous_side_chain_state));
         reject_claim(withdrawal_claim(
             _operator, _account, _ticket, _value, _bond, _confirmed_state));
         // LAST, send the bond as reward to the sender.
@@ -202,18 +167,12 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         uint _value,
         uint _bond,
         bytes32 _confirmed_state,
-        bytes32[] memory state_bits,
-        bytes32[] memory _merkle_path_in_operations
-        // TODO: side-chain operation support
-            )
+        bytes32[] memory state_bits)
             public {
         // NB: This is largely a stub. TODO: Actually implement the function.
         require(_confirmed_state ==
             digest_claim(_operator, ClaimType.STATE_UPDATE,
                          state_bits_hash(state_bits)));
-        bytes32 operations = state_bits[6]; // TODO: make sure that's correct!
-        // TODO: complete this thing XXXXX
-        _merkle_path_in_operations; operations;
         reject_claim(withdrawal_claim(
             _operator, _account, _ticket, _value, _bond, _confirmed_state));
         // LAST, send the bond as reward to the sender.

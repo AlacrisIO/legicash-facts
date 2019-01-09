@@ -130,9 +130,9 @@ let json_rpc server method_name result_decoder param_encoder
   >>= fun request ->
   let request_id = request.id in
   let request_str = request |> request_to_yojson |> string_of_yojson in
-(*  
   if log then
-    Logging.log "Sending rpc request to %s: %s" (Uri.to_string server) request_str; *)
+    Logging.log "Sending rpc request to %s: (details not shown)" (Uri.to_string server);
+    (* Logging.log "Sending rpc request to %s: %s" (Uri.to_string server) request_str; *)
   let timeout_thread =
     catching_lwt Lwt_unix.sleep timeout >>= fun () -> fail Timeout in
   let post_thread =
