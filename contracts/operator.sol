@@ -30,7 +30,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state) public payable {
-        make_claim(keccak256(abi.encodePacked(msg.sender, ClaimType.STATE_UPDATE, _new_state)));
+        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
     }
 
 
@@ -50,9 +50,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         address _operator, address _account,
         uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
             private pure returns(bytes32) {
-        return digest_claim(
-                _operator, ClaimType.WITHDRAWAL_CLAIM,
-                withdrawal_claim_data(_account, _ticket, _value, _bond, _confirmed_state));
+        return digest_claim(_operator, ClaimType.WITHDRAWAL_CLAIM, _confirmed_state);
     }
 
     // TODO: The cost of a legal argument in gas should be statically deduced
