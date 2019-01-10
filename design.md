@@ -94,7 +94,7 @@ responsible for tracking all events in their clique.
   It mandates who to talk to, so you can't just talk to your collaborators, in
   the event that you are colluding to defraud the system. Selection can be based
   on Trent's current perception of the participants.
-  
+
 - <sup>**"...how do you react if someone is slow to reply? whose fault is it
   when A and B fail to talk to each other?"**</sup>
 
@@ -108,18 +108,18 @@ responsible for tracking all events in their clique.
   from others if there's a network failure in B->A which the facilitator report
   graph can route around. Yes, this is a lot of communication overhead, but I
   think this can be guaranteed secure given an honesty threshold.
-  
+
 - <sup>**"...what if some facilitators band against an honest one to get him
   expelled?"**</sup>
 
   The shifting mandated gossip paths are going to make that difficult.
-  
-- <sup>**"Are you going directly for the TCR / Open Registry, or for a closed 
+
+- <sup>**"Are you going directly for the TCR / Open Registry, or for a closed
   registry?"**</sup>
 
   Open: The facilitators are gossips. Maybe other people can gossip, too, if
   they post a bond.
-  
+
 - <sup>**"With what weight quorum wise, though?""**</sup>
 
   This is a probabilistic calculation which will require a formalism about the
@@ -127,16 +127,16 @@ responsible for tracking all events in their clique.
   graph implied by the VRF's and the number of simultaneous reports (graph
   degree), what is the probability that a hostile node gets to gossip only to
   his collaborators, assuming a given threshold of facilitators are honest?
-  
+
 - <sup>**"What if I have extra paths beyond what the vrf mandates? What about
   rewarding the vrf paths?"**</sup>
-  
+
   Using such paths for assessing performance guarantees would undermine the
   security provided by the mandated paths, but obviously any data received by
   those paths can be used to construct Merkle proofs for disputes. We could
   reward such behavior, or set up an auction/pay-per-use for such performance.
-  
-##### Setting up a facilitator 
+
+##### Setting up a facilitator
 
 Trent wishes to become a facilitator. He sends a bond of *x* ETH from `trent` to
 smart-contract jurisdiction `judy`, registering his intent, and the address
@@ -154,7 +154,7 @@ following duties:
    transitions. When someone requests a transaction from him, they report it to
    a random selection of other facilitators, and if he doesn't provide a signed
    response by the next block, he can be punished.
-   
+
 ##### Deposit from the main chain
 
 Alice at address `alice` sends 1 ETH to smart-contract jurisdiction Judy, with a
@@ -196,7 +196,7 @@ that. If another facilitator shared that event with them
 
 ##### Complaint about unrecognized on-chain withdrawal
 
-See [Complaint about unperformed duty](#complaint-about-unperformed-duty). 
+See [Complaint about unperformed duty](#complaint-about-unperformed-duty).
 
 ##### Complaint about badly formatted performed duty
 
@@ -222,7 +222,7 @@ released, if appropriate.
 
 Structure of proof: Merkle path to transaction.
 
-##### Complaint about invalid transaction 
+##### Complaint about invalid transaction
 
 Structure of complaint: An on-chain message containing the Merkle proof for the
 account balance and the transaction which overspends it. Sender and facilitator
