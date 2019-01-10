@@ -114,7 +114,6 @@ contract Claims {
 
     /** Reject a pending claim as invalid. */
     function reject_claim(bytes32 _claim) internal {
-        require_claim_pending(_claim);
         claim_status_complete[_claim].status = REJECTED;
     }
 

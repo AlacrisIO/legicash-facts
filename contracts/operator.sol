@@ -50,18 +50,32 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     event Withdrawal(address operator, uint64 ticket);
 
 
+    function check_claim_validity(bytes32 _claim, uint _bond)
+            private view returns(bool) {
+       if (get_claim_status_accepted(_claim) == false) {
+         return false;
+       }
+       return true;
+    }
+
+
 
     function withdraw(address _operator, bytes32 _confirmed_state, uint _bond)
             public {
         bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state);
 
-        // 
+        // The first check. If the claim does not exist, nothing can be put as rejected.
         require(is_claim_assigned(claim), "State has not been assigned");
 
-        // Check time errors
-	consume_claim(claim);
-
-        msg.sender.transfer(_bond);
+        if (check_claim_validity(claim, _bond) == false) {
+	  // we fail the checks
+	  reject_claim(claim);
+	}
+	else {
+	  // we are in the right setup. Therefore proceeds
+          consume_claim(claim);
+          msg.sender.transfer(_bond);
+	}
     }
 
 
