@@ -1,0 +1,89 @@
+version: "3"
+services:
+  # Alacris services
+  alacris_private_ethereum_node: # Ethereum test network and block explorer
+    build: containers/alacris_private_ethereum_node
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_private_ethereum_node:${TAG:-v1.1}
+    hostname: "alacris-private-ethereum-node"
+    container_name: "alacris-private-ethereum-node"
+    volumes:
+      - /tmp/legilogs/_ethereum:/var/www/app/alacris-private-ethereum-node/_ethereum
+      - /tmp/legilogs/:/var/www/app/alacris-private-ethereum-node/_run/logs
+    networks:
+      legicash-demo:
+        ipv4_address: 10.5.0.4
+    ports:
+      - "8000:8000"
+      - "8545:8545"
+
+  alacris_side_chain_manager: # Legicash-facts side chain server
+    build:
+      context: ../../legicash-facts
+      dockerfile: docker/containers/alacris_side_chain_manager/Dockerfile
+  #    args:
+  #      branch: ${BRANCH}
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager:${TAG:-v1.1}
+    hostname: "alacris-side-chain-manager"
+    container_name: "alacris-side-chain-manager"
+    environment:
+      - ALACRIS_HOME=/var/www/app/legicash-facts
+    volumes:
+      - /tmp/legilogs:/var/www/app/legicash-facts/_run/logs
+      - /tmp/legilogs/alacris_server_db:/var/www/app/legicash-facts/_run/alacris_server_db
+      - /tmp/legilogs/ethereum_prefunder_db:/var/www/app/legicash-facts/_run/ethereum_prefunder_db
+      - ../docker/config/:/var/www/app/legicash-facts/config/
+    networks:
+      legicash-demo:
+        ipv4_address: 10.5.0.5
+    ports:
+      - "8095:8095"
+    depends_on:
+    - "alacris_private_ethereum_node"
+
+  alacris_client: # Legicash-facts application, nginx and scgi/side chain client and frontend
+    build:
+      context: ../../legicash-facts
+      dockerfile: docker/containers/alacris_client/Dockerfile
+      args:
+        #branch: ${BRANCH}
+        frontend_branch: master
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_client:${TAG:-v1.1}
+    hostname: "alacris-client"
+    container_name: "alacris-client"
+    volumes:
+      - /tmp/legilogs:/var/www/app/legicash-facts/_run/logs
+      - /tmp/legilogs/alacris_client_db:/var/www/app/legicash-facts/_run/alacris_client_db
+      - ../docker/config/:/var/www/app/legicash-facts/config/
+    networks:
+      legicash-demo:
+        ipv4_address: 10.5.0.6
+    ports:
+      - "8081:8081"
+      - "8800:8800"
+    depends_on:
+    - "alacris_side_chain_manager"
+
+  stress_tester: # Locust master container
+    build: containers/stress_tester
+    image: gcr.io/legicash-demo-1950/legicash-demo/stress_tester:${TAG:-v1.1}
+    hostname: "stress-tester"
+    container_name: "stress-tester"
+    environment:
+      - ATTACKED_HOST=http://alacris-client:8081
+      - LOCUST_MODE=standalone
+    volumes:
+      - ./containers/stress_tester/files:/stress_tester
+    networks:
+      legicash-demo:
+        ipv4_address: 10.5.0.7
+    ports:
+      - "8089:8089"
+      - "5557:5557"
+      - "5558:5558"
+
+networks:
+  legicash-demo:
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.5.0.0/24

@@ -1,7 +1,11 @@
 .merlin
 _build/
+_run/
+_ethereum/
 tezos
 *~
-*.cmo
-*.cmi
-scripts/ethereum-testnet/geth-data/
+*.tmp
+*.pyc
+alacris.install
+src/alacris_lib/operator_contract_binary.ml
+foo

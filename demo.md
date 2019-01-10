@@ -44,22 +44,29 @@ Postconditions:
 * Alice has an account on Trent's side-chain with balance X+Y.
 * Trent received fee F from Alice.
 
-1. Alice sends X+F to Trent's contract on the main chain.
-2. Alice waits for confirmation then sends deposit request to Trent.
-3. Trent writes deposit confirmation M1...
-4. Trent commits M1 to side-chain
-5. Trent sends M1 to Alice (OKish if fails)
-6. Trent commits M1 to main chain
+Steps:
+* Alice sends X+F to Trent's contract on the main chain.
+* Alice waits for confirmation then sends deposit request to Trent.
+* Trent includes the transaction in his side-chain
+* Trent commits his side-chain (locally; TODO M2: remotely)
+* Trent signs a commitment to this and other transactions
+* Trent sends the commitment to Alice
+* Trent posts a state update to the main chain (TODO M1)
 
-1 is enough for Alice to have her money back even if Trent fails.
-If 3, 4, 5 or 6 didn't happen, Alice still can get her money back, which
-the adversarial exit thing must take into account.
+At every step, Alice is guaranteed to have her money back even if Trent fails,
+though she may have to do force a transaction using another operator and/or on the main chain.
 
-TODO: in a future version, use contracts on the side-chain,
-with a contract that if Alice sends money to Trent2 on the main chain
-(or in another side-chain, e.g. announcing some USD transactions),
-then Trent will credit Alice on his side-chain.
+STATUS: mostly done, except that Trent needs to better check for the
+confirmation to be correct (which is expensive and must be done asynchronously).
 
+TODO: In a future version, also support atomic swap contracts between
+the side-chain and not just the main chain but any arbitrary other blockchain,
+whereby Trent, or any Bob on the side-chain, will accept payment on the other
+blockchain in exchange for time-locked tokens on the side-chain.
+Such atomic swaps allow for "deposits" converted from any asset, and may
+in general be faster and cheaper than main chain deposits.
+However, we still need regular main chain deposits as above for the sake
+of adjusting the overall balance of the two-way peg.
 
 
 ### Payment Flow
@@ -78,21 +85,17 @@ Postconditions:
 * Trent received F as a fee.
 * If the payment expedited, Trent's limit L was decreased by Y.
 
-1. Alice write a message M1, signed by her, that says:
-  "Trent, please pay Z to Bob and receivee your fee F.
-  My previous state with you was P.
-  This message is written at time T0 (identified by main chain state M, side-chain state S).
-  This message is valid until date T1. -- signed by Alice"
-2. Alice sends message M1 to Trent for underwriting.
-3. Trents verifies that M1 is correct, then signs a message M2 certifying M1:
-  "I, Trent, certify M1 as valid and promise to make good on it in my next update to the main chain.
-  Latest side-chain update was PS. My current TXID is T. My new limit for this cycle is NL."
-4. Trent commits M2 to his side-chain (including remote replicas)
-5. Trent sends M2 to Alice (and Bob?)
-6. Alice sends M2 to Bob.
-7. Bob sends M2 to the Gossip Network, waits to check there is no double-spend by Trent.
-8. Bob accepts the payment, and starts servicing Alice.
-9. Trent updates the main chain and the payment is fully cleared.
+Steps:
+* Alice signs a transaction request for a payment to Bob, and sends it to Trent
+* Trent includes the transaction in his side-chain
+* Trent commits his side-chain (locally; TODO M2: remotely)
+* Trent signs a commitment to this and other transactions
+* OPTIONAL: for expedited payments, Trent gets the commitment signed by two thirds of the MKB. (TODO M2)
+* Trent sends the commitment to Alice (with MKB signature if applicable), who can gives it to Bob.
+* Trent posts a state update to the main chain (TODO M1)
+
+STATUS: mostly done, except for the
+confirmation to be correct (which is expensive and must be done asynchronously).
 
 
 ### Withdraw Money
@@ -105,34 +108,41 @@ Preconditions:
 
 Postconditions:
 * Alice has an account on Trent's side chain with balance R.
-* Trent's contract sent Y to an address of Alice's choice.
+* Trent's contract sent Y to Alice.
 * Trent received fee F from Alice.
 
-1. Alice signs a check for withdrawal of Y on Trent's side-chain, with fee F.
-2. Trent signs a confirmation, commits it, then (optionally) sends it back to Alice.
-3. Alice waits for the confirmation to be confirmed on the main chain.
-4. Alice then submits on the main-chain a claim for withdrawal.
-5. Alice waits for a challenge period during which no one disputes her request.
-6. Alice then exerts her undisputed (or successfully defended) claim on the main chain.
+Steps:
+* Alice signs a transaction request for withdrawal, and sends it to Trent
+* Trent includes the transaction in his side-chain, which counts as a withdrawal ticket
+* Trent commits his side-chain (locally; TODO M2: remotely)
+* Trent signs a commitment to this and other transactions
+* Trent sends the commitment to Alice
+* Trent posts a state update to the main chain (TODO M1)
+* Alice waits for the state update to be confirmed (TODO M1)
+* Alice posts a claim for the withdrawal on the main chain, referring to the state update and the ticket
+* Anyone can counter Alice's claim, during a challenge period.
+* IF the claim is complex (NB: hopefully, no need for it), then longer lawsuits may ensue
+  based on the counter-claims. If the claim is simple, the counter-claims can be checked in one step
+  (TODO M1: do at least simple claims; hopefully manage to design the side-chain
+  so that no complex claim is necesary, or else handle them in M2).
+* Alice waits for the challenge period to be over, partakes in any complex lawsuit and wins them.
+  (TODO M1: watch for claims)
+* Alice posts a transaction to the main-chain that executes the now confirmed claim.
 
 
 ### Fraud Proof Flow
 
-Same as above, but first Alice may have to publish her request on the main chain
-to put Trent on notice that he must close Alice's account of be proven invalid.
+Alice and/or Trent should be watching the chain for bad claims and making counter-claims.
 
-1. Alice sends claim to Trent's contract on the main chain with all details
- (including list of pending transactions). Details may be posted on court registry
- instead of included in extenso in court proceedings.
-2. a. If details invalid or incomplete,
-  Trent contests and gets Alice thrown out "come back with your file in order"
-  b. Trent goes missing or invalid. See Facilitator invalidation story, then go back to 2c.
-  c. Trent has to post his side of the story, with a side-chain state update.
-3. Interactive proof without mutable state, in predictable, finite number of steps.
-4. Sanction.
+TODO M1: have a bad guy do invalid claims, have the good guy watch it and making a simple counter-claim.
+Use gross manual approximations for the collateral computation (gas limit * gas price).
 
-The sanction can punish Trent for mismanaging his side-chain,
-can punish Alice for making a spurious claim.
+TODO M2: be sure to implement all cases for claims and counter-claims,
+automatically generated from a description of the data types and constraints.
+Automatically extract precise collateral computation.
+
+TODO M3: add proper timing to prioritize the parties before to authorize third party litigation.
+Add complex claims.
 
 
 ## Advanced Flows
@@ -344,3 +354,44 @@ as part of the next side-chain state update.
 We don't need to introduce UTXOs for our exit model, because
 we instead use a court registry, and map/reduce over parallel proofs
 as a way to compute proven-correct exit balances.
+
+### Fallback for when the Court Registry Fails
+
+If bad guys can win big by capturing the court registry, this will give them a big incentive to do so.
+Is there a good way to prevent the bad guys from winning more money than the authorized floating amount
+even if they capture the court registry?
+At the very least, can we ensure that those people who trusted an honest facilitator
+won't be defrauded if the facilitator remains honest in face of a captured court registry?
+
+Ideas:
+
+1. Some privileged party can raise an alarm, at which point we're back to Plasma-style games.
+   Especially in a one-contract-per-facilitator setting, that could be the facilitator themselves.
+   Of course, this only incentivizes the bad guys to capture that trusted party, first.
+2. Anyone can post a large amount of money as a bond and claim there is a problem with the court registry.
+   Optionally, the bond could be bought back by the facilitator, and an auction could occur between
+   those claiming the court registry was captured and those claiming it wasn't.
+   At that point, we're back to Plasma-style games, and a vote by the depositors who recover their money
+   concludes who does or doesn't get their bond back.
+   Now the bad guys have to capture a large share of the depositors' money before it is profitable
+   to even try capturing the court registry. Of course, if the registry and the deposits are
+   undercapitalized compared to the bad guys, they can "just" invest a lot funds to capture a smaller
+   yet profitable amount of money.
+3. Somehow, the data structures are so well-indexed that any invalid data can be pinpointed to the judge
+   after a logarithmic amount of interactive explorations.
+   Then, you still need to drop a large bond to accuse the court of impropriety,
+   but you can prove your case in finite enough time, at which point there's an objective reason
+   to drop into a fallback mode of Plasma-style exit games.
+4. If there remains at least one honest registrar, he can serve as the fallback guy for peer-to-peer
+   exchange of confirmations, from which honest people can identify which withdrawals to investigate;
+   but the bad guys who captured the registry can create a very large amount of withheld transactions,
+   and issue plenty of good ones to taunt the good guys into challenging them,
+   before they start issuing bad ones, and the good guys may lose a lot of money challenging
+   "actually good" withdrawals before they hit the bad ones.
+5. The bad guys can play a game whereas they withhold blocks, but don't do anything bad yet.
+   The good guys with a clue will can exit early, and the bad guys will let them,
+   leaving the clueless victims without capital to defend them as the bad guys now do the actual attack.
+6. If the facilitator is honest but the court registry claims he's not by withholding signatures,
+   is there a way to survive in a one-contract-per-facilitator and/or ERC-20 world?
+   Without allowing a dishonest facilitator to spuriously cause a bank run situation?
+

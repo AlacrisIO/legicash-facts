@@ -1,0 +1,7 @@
+version = "1.2.0"
+description = "Alacris library"
+requires = "cohttp-lwt-unix integers lens ppx_inline_test secp256k1 yojson"
+archive(byte) = "alacris_lib.cma"
+archive(native) = "alacris_lib.cmxa"
+plugin(byte) = "alacris_lib.cma"
+plugin(native) = "alacris_lib.cmxs"

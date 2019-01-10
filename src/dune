@@ -1,0 +1,43 @@
+;; Alacris sources
+
+;; See https://github.com/ocaml/dune/issues/515 .
+;; Note that that example includes a `release` stanza.
+;; We may want to copy parts of this to a `release` stanza later.
+(env
+ (dev
+  (flags (:standard
+          -g  ;; Add debugging info when compiling / linking
+
+          ;; Disable warnings.
+          ;; -9 : Don't check that all fields in a pattern are mentioned
+          ;; -34 : unused type
+          -w -9-34
+
+          ;; Fail on these warnings
+          ;; -27 : unused variable
+          ;; -32 : unused value
+          ;; -33 : unused open
+          -warn-error -27-32-33))
+  (ocamlc_flags (:standard -thread -I +threads))
+  (ocamlopt_flags (:standard
+                   ; -p  ;; Enable profiling
+                   -thread -I +threads))
+  ))
+
+(library
+ (name alacris_top)
+ (modules
+  version)
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
+ (libraries legilogic_lib legilogic_ethereum alacris_lib)
+ (inline_tests
+    ; (flags (:standard -verbose))
+    ))
+
+;; Our custom toplevel
+(executable
+ (name toplevel)
+ (modules toplevel)
+ (libraries  compiler-libs.toplevel legilogic_lib legilogic_ethereum alacris_lib alacris_top)
+ (link_flags -linkall -cclib -lintegers -I +threads)
+ (modes byte))

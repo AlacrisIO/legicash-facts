@@ -2,7 +2,8 @@
 
 * [Plasma](http://plasma.io),
   [ETH Research on Plasma](https://ethresear.ch/search?q=plasma),
-  [Construction of a Plasma Chain 0x1](https://blog.omisego.network/construction-of-a-plasma-chain-0x1-614f6ebd1612) ([MVP git](https://github.com/omisego/plasma-mvp.git)).
+  [Construction of a Plasma Chain 0x1](https://blog.omisego.network/construction-of-a-plasma-chain-0x1-614f6ebd1612) ([MVP git](https://github.com/omisego/plasma-mvp.git)),
+  [Joseph Poon's talk at Deconomy 2018: "Consensus and Cryptoeconomic Incentive Mechanisms"](https://youtu.be/nZKdy7kZGBc).
 
 * [Efficiently Bridging EVM Blockchains Relay Networks V2](https://blog.gridplus.io/efficiently-bridging-evm-blockchains-8421504e9ced) by Alex Miller
 
@@ -22,6 +23,13 @@
  [documentation](https://ocaml.janestreet.com/ocaml-core/latest/doc/index.html),
  [OCaml Labs](http://ocamllabs.io/).
 
+* OCaml metaprogramming:
+ [Oleg's Reconciling Abstraction with High Performance: A MetaOCaml approach](https://www.nowpublishers.com/article/Details/PGL-038).
+
+* Purely Functional Data Structures:
+ [Okasaki's book](https://www.cs.cmu.edu/~rwh/theses/okasaki.pdf),
+ [a follow-up](https://cstheory.stackexchange.com/questions/1539/whats-new-in-purely-functional-data-structures-since-okasaki)
+
 * [Computability Logic](http://www.csc.villanova.edu/~japaridz/CL/)
 
 * [K Framework](http://www.kframework.org/index.php/Main_Page),
@@ -39,9 +47,11 @@
    [Cryptographic protocol synthesis and verification for multiparty sessions](https://www.microsoft.com/en-us/research/wp-content/uploads/2017/01/cryptographic-protocol-synthesis-and-verification-for-multiparty-sessions-csf09.pdf)
    by Karthikeyan Bhargavan, Ricardo Corin, Pierre-malo Deniélou, Cédric Fournet, James J. Leifer (2009).
    Or [things that cite the latter](http://citeseerx.ist.psu.edu/showciting?doi=10.1.1.156.187).
+   [Conversational Concurrency](http://syndicate-lang.org/tonyg-dissertation/) by Tony Garnock-Jones.
 
 * Byzantine Fault Tolerance:
- [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015)
+ [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015);
+ [A Guide to 99% Fault Tolerant Consensus, by Vitalik Buterin](https://vitalik.ca/general/2018/08/07/99_fault_tolerant.html).
 
 * Scaling:
  [Ethereum wiki Sharding FAQ](https://github.com/ethereum/wiki/wiki/Sharding-FAQ),
@@ -64,7 +74,11 @@
   [Security Audit by QuantStamp](https://quantstamp.com/start),
   [Towards verifying ethereum smart contract bytecode in Isabelle/HOL](https://dl.acm.org/citation.cfm?doid=3176245.3167084),
   [the Parity Light Protocol](https://wiki.parity.io/The-Parity-Light-Protocol-%28PIP%29)
-  (PR for similar light client functionality [in geth](https://github.com/ethereum/go-ethereum/pull/16534/files)).
+  (PR for similar light client functionality [in geth](https://github.com/ethereum/go-ethereum/pull/16534/files)),
+  [Consensys Labs' Ethereum developer tools list](https://github.com/ConsenSysLabs/ethereum-developer-tools-list),
+  [Solium, linter and formatter for Solidity](https://github.com/duaraghav8/solium),
+  [Ethertrust, analysis tool for smart contracts](https://www.netidee.at/ethertrust),
+  [The Challenges of Building Ethereum Infrastructure](https://medium.com/@lopp/the-challenges-of-building-ethereum-infrastructure-87e443e47a4b).
 
 * Compiling to the EVM:
   [Pirapira's Bamboo](https://github.com/pirapira/bamboo).
@@ -73,10 +87,21 @@
   [Scilla-coq](https://github.com/ilyasergey/scilla-coq)
   (see paper [Scilla: a Smart Contract Intermediate-Level LAnguage](http://ilyasergey.net/papers/scilla-overview.pdf)),
   [TezosCoq](https://github.com/tezos/tezoscoq),
-  [Ergo](https://ergo.readthedocs.io/en/latest/Overview.html).
+  [Ergo](https://ergo.readthedocs.io/en/latest/Overview.html),
+  [Russell O'Connor: "Simplicity: A New Language for Blockchains"](https://arxiv.org/abs/1711.03028).
 
 * Atomic swaps:
   [Ethereum atomic swaps with Bitcoin and most other coins, about to hit release](https://www.reddit.com/r/ethereum/comments/865e0l/ethereum_atomic_swaps_with_bitcoin_and_most_other/),
   [AltCoin](https://github.com/AltCoinExchange/ethatomicswap/),
   [RepublicProtocol](https://github.com/republicprotocol/eth-atomic-swap),
   [Komodo BarterDEX](https://komodoplatform.com/decentralized-exchange/)
+
+* Building secure software:
+  [Some thoughts on security after ten years of qmail 1.0 (2007)](https://cr.yp.to/qmail/qmailsec-20071101.pdf),
+  ...
+
+* UI tools for Crypto-currency dApps:
+  [MetaMask Browser Extension](https://github.com/MetaMask/metamask-extension)
+
+* Usability and UX:
+  [Nielsen Norman Group](https://www.nngroup.com/articles/)

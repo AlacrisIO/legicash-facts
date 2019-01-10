@@ -1,0 +1,23 @@
+#!/bin/bash -eu
+
+here=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+export ALACRIS_HOME=$(dirname "$here")
+build=$ALACRIS_HOME/_build/default
+toplevel=$build/src/toplevel.exe
+
+if [ ! -x $toplevel ] ; then
+    echo "Please run \"make toplevel\" before running $0";
+    exit 0
+fi
+
+LIB=
+
+use_lib () {
+    for lib ; do
+        LIB=(${LIB[@]} -I "$build/src/$lib/.$lib.objs" -open "${lib^}")
+    done
+}
+
+# Starting LegiLogic / Alacris OCaml toplevel...
+use_lib legilogic_lib legilogic_ethereum alacris_lib
+$toplevel "${LIB[@]}" "$@"
