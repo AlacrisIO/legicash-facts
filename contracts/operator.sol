@@ -62,13 +62,6 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     event Withdrawal(address operator, uint64 ticket);
 
-    // Logging a Withdrawal event allows validators to reject double-withdrawal
-    // without keeping the withdrawal claim alive indefinitely.
-    function withdrawal_confirmation(address _operator, uint64 _ticket)
-            private pure returns(bytes32) {
-        return digest_claim(_operator, ClaimType.WITHDRAWAL, bytes32(uint256(_ticket)));
-    }
-
     function withdraw(address _operator, uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
             public {
         // Consume a valid withdrawal claim.
@@ -79,7 +72,6 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         emit Withdrawal(_operator, _ticket);
 
         // NB: Always transfer money LAST!
-        // TODO: Should we allow a recipient different from the sender?
         msg.sender.transfer(_value + _bond);
     }
 
@@ -92,7 +84,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     function challenge_withdrawal__confirmed_state_not_accepted (
         address _operator, address _account,
         uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
-        public {
+            public {
         require(!is_claim_status_accepted(claim_status[_confirmed_state]));
         reject_claim(withdrawal_claim(_operator, _account, _ticket, _value, _bond, _confirmed_state));
         // LAST, send the bond as reward to the sender.
@@ -117,7 +109,6 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         reject_claim(withdrawal_claim(
             _operator, _account, _ticket, _value, _bond, _confirmed_state));
         // LAST, send the bond as reward to the sender.
-        // TODO: should we send only half the bond, and burn the rest and/or donate it to a foundation?
         msg.sender.transfer(_bond);
     }
 
@@ -140,12 +131,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
                     _previous_side_chain_state));
         reject_claim(withdrawal_claim(
             _operator, _account, _ticket, _value, _bond, _confirmed_state));
-        // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
-    }
-
-    function state_bits_hash(bytes32[] memory state_bits) public pure returns (bytes32) {
-      return keccak256(abi.encodePacked(state_bits));
     }
 
     /**
@@ -161,15 +147,12 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         uint _value,
         uint _bond,
         bytes32 _confirmed_state,
-        bytes32[] memory state_bits)
+        bytes32 state_bits)
             public {
-        // NB: This is largely a stub. TODO: Actually implement the function.
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE,
-                         state_bits_hash(state_bits)));
+            digest_claim(_operator, ClaimType.STATE_UPDATE,state_bits));
         reject_claim(withdrawal_claim(
             _operator, _account, _ticket, _value, _bond, _confirmed_state));
-        // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
     }
 
@@ -186,21 +169,12 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         uint _value,
         uint _bond,
         bytes32 _confirmed_state,
-        bytes32[] memory state_bits,
-        bytes32[] memory _merkle_path_in_operations
-        // TODO: side-chain operation support
-            )
+        bytes32 state_bits)
             public {
-        // NB: This is largely a stub. TODO: Actually implement the function.
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE,
-                         state_bits_hash(state_bits)));
-        bytes32 operations = state_bits[6]; // TODO: make sure that's correct!
-        // TODO: complete this thing XXXXX
-        _merkle_path_in_operations; operations;
+            digest_claim(_operator, ClaimType.STATE_UPDATE,state_bits));
         reject_claim(withdrawal_claim(
             _operator, _account, _ticket, _value, _bond, _confirmed_state));
-        // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
     }
 
