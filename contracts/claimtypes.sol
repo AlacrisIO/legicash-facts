@@ -38,10 +38,9 @@ contract ClaimTypes is Claims {
      * This allows the operator to get a partial gas refund,
      * But is also a precursor to releasing his bond.
      */
-    function expire_claim(ClaimType _tag, bytes32 _data) internal {
+    function expire_claim_tag_data(ClaimType _tag, bytes32 _data) internal {
 	bytes32 claim = digest_claim(msg.sender, _tag, _data);
-	require(is_claim_status_expired(claim_status[claim]));
-	claim_status[claim] = 0;
+	expire_claim(claim);
     }
 
 

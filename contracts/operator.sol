@@ -83,7 +83,8 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         address _operator, address _account,
         uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
             public {
-        require(!is_claim_status_accepted(claim_status[_confirmed_state]));
+	bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state);
+        require(!get_claim_status_accepted(claim));
         reject_claim(withdrawal_claim(_operator, _account, _ticket, _value, _bond, _confirmed_state));
         msg.sender.transfer(_bond);
     }

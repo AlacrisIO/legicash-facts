@@ -83,13 +83,13 @@ contract Claims {
     }
 
     /** True if a claim is accepted as valid */
-    function is_claim_status_accepted(int _status) internal view returns(bool) {
-        return _status >= 3 && _status <= int(now);
+    function get_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
+        return claim_status_complete[_claim].status == PENDING && claim_status_complete[_claim].time <= int(now);
     }
 
     /** Check that a claim is accepted as valid */
     function require_claim_accepted(bytes32 _claim) internal view {
-        require(is_claim_status_accepted(claim_status_complete[_claim].time));
+        require(get_claim_status_accepted(_claim));
     }
 
 
@@ -125,5 +125,10 @@ contract Claims {
         return _status >= 3 && _status <= int(now) - expiry_delay;
     }
 
+    /** Removal of complete entry */
+    function expire_claim(bytes32 _claim) internal {
+    	require(is_claim_status_expired(claim_status[_claim]));
+	claim_status[_claim] = 0;
+    }
 
 }
