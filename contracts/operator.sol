@@ -48,12 +48,15 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         make_claim(withdrawal_claim(_operator, _confirmed_state), msg.value);
     }
 
-    event Withdrawal(address operator, uint64 ticket);
+    event Withdrawal(address indexed operator, uint64 ticket);
 
 
     function check_claim_validity(bytes32 _claim, uint _bond)
             private view returns(bool) {
        if (get_claim_status_accepted(_claim) == false) {
+         return false;
+       }
+       if (_bond != get_bond_value(_claim)) {
          return false;
        }
        return true;
@@ -74,7 +77,15 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 	}
 	else {
 	  // we are in the right setup. Therefore proceeds
+	  
+	  // First: setting up the claim as 
           consume_claim(claim);
+
+          // Second: Emitting the event
+	  uint64 ticket = 0;
+          emit Withdrawal(_operator, ticket);
+
+          // Third: Emitting the money
           msg.sender.transfer(_bond);
 	}
     }

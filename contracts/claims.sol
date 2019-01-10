@@ -109,8 +109,11 @@ contract Claims {
           internal view returns(bool) {
         return claim_status_complete[_claim].status > 0;
     }
-    
 
+    /** Returning the bond value */
+    function get_bond_value(bytes32 _claim) internal view returns(uint) {
+        return claim_status_complete[_claim].bond;
+    }
 
     /** Reject a pending claim as invalid. */
     function reject_claim(bytes32 _claim) internal {
