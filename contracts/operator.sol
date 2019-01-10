@@ -26,7 +26,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state, uint64 _ticket, uint _bond) external payable {
-        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _ticket, _new_state), _ticket, _bond);
+        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _ticket, _new_state), _bond);
     }
 
     // WITHDRAWALS
@@ -45,11 +45,11 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     function claim_withdrawal(address _operator, uint64 _ticket, bytes32 _confirmed_state)
             public payable {
         require_bond(msg.value, maximum_withdrawal_challenge_gas);
-        make_claim(withdrawal_claim(_operator, _ticket, _confirmed_state), _ticket, msg.value);
+        make_claim(withdrawal_claim(_operator, _ticket, _confirmed_state), msg.value);
     }
 
 
-    function check_claim_validity(bytes32 _claim, uint64 _ticket, uint _bond)
+    function check_claim_validity(bytes32 _claim, uint _bond)
             private view returns(bool) {
        if (get_claim_status_accepted(_claim) == false) {
          return false;
@@ -57,22 +57,19 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
        if (_bond != get_bond_value(_claim)) {
          return false;
        }
-       if (_ticket != get_ticket_value(_claim)) {
-         return false;
-       }
        return true;
     }
 
 
 
-    function withdraw(address _operator, bytes32 _confirmed_state, uint64 _ticket, uint _bond)
+    function withdraw(address _operator, uint64 _ticket, uint _bond, bytes32 _confirmed_state)
             external {
         bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _ticket, _confirmed_state);
 
         // The first check. If the claim does not exist, nothing can be put as rejected.
         require(is_claim_assigned(claim), "State has not been assigned");
 
-        if (check_claim_validity(claim, _ticket, _bond) == false) {
+        if (check_claim_validity(claim, _bond) == false) {
 	  // we fail the checks
 	  reject_claim(claim);
 	}
