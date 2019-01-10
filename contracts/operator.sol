@@ -31,16 +31,6 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // WITHDRAWALS
 
-    function withdrawal_claim_data(
-        address _account, // account making the claim
-        uint64 _ticket, // claimed ticket number (revision in the side chain)
-        uint _value, // claimed value in the ticket
-        uint _bond, // bond deposited with the claim
-        bytes32 _confirmed_state) // digest of a confirmed state of the side-chain
-            private pure returns(bytes32) {
-        return keccak256(abi.encodePacked(_account, _ticket, _value, _bond, _confirmed_state));
-    }
-
     function withdrawal_claim(
         address _operator, bytes32 _confirmed_state)
             private pure returns(bytes32) {
@@ -103,6 +93,9 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         msg.sender.transfer(_bond);
     }
 
+
+
+
     /**
      * Challenge a withdrawal claim because its confirmed_state doesn't contain that big a ticket number.
      */
@@ -110,12 +103,11 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         address _operator,    uint64 _ticket, 
         uint _bond,
         bytes32 _confirmed_state,
-        bytes32 _previous_side_chain_state,
         uint64 _operator_revision)
             public {
         require(_operator_revision < _ticket);
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE,_previous_side_chain_state));
+            digest_claim(_operator, ClaimType.STATE_UPDATE,_confirmed_state));
         reject_claim(withdrawal_claim(_operator, _confirmed_state));
         msg.sender.transfer(_bond);
     }
@@ -133,7 +125,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         bytes32 state_bits)
             public {
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE, state_bits));
+            digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state));
         reject_claim(withdrawal_claim(_operator, _confirmed_state));
         msg.sender.transfer(_bond);
     }
