@@ -75,7 +75,7 @@ $(BUILD_DIR)/$(ETHEREUM_PREFUNDER): $(ML_SOURCES)
 # logs deposits and withdrawals
 CONTRACT:=src/alacris_lib/operator_contract_binary.ml
 contract: $(CONTRACT)
-$(CONTRACT) : contracts/deposit-withdraw.sol $(wildcard contracts/*.sol)
+$(CONTRACT) : $(wildcard contracts/*.sol)
 	$(SHOW) "Compiling operator contract"
 	$(HIDE) cd contracts/ && solc --bin -o ../_build/contracts --overwrite court.sol
 	$(HIDE) awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' < ./_build/contracts/Court.bin > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi

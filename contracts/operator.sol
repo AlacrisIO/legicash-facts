@@ -17,6 +17,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     // Question: should we allow the depositor to specify the recipient as well, for a few extra GAS?
     //
     event Deposited(address _operator, address _recipient, uint _value, bytes memo);
+    
     function deposit(address _operator, bytes memory memo) public payable {
             emit Deposited(_operator, msg.sender, msg.value, memo);
     }
