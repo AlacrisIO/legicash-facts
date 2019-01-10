@@ -300,3 +300,13 @@ Read Chlipala's FRAP (introductory) and CPDT.
 
 Look F* and SMT solvers instead of Coq (?)
 
+
+### Preventing Triple-Spends
+
+A big feature we plan to implement is detection of double-spends, which also prevents triple-spends.
+There are many ways of achieving it.
+
+One way is for the MKB to view and validate the entire structure of the side-chains,
+including the provision against double-spending.
+Every MKB registrar maintains an index of the transactions for each side-chain,
+and rejects any transaction that conflicts with previously registered transactions.

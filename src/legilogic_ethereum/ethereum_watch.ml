@@ -3,8 +3,6 @@ open Lib
 open Types
 open Action
 
-(* TODO: move the two functions below to their own file ethereum_watch or something,
-   that lets you watch the progress of transactions on the ethereum blockchain. *)
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
   'value AsyncStream.t Lwt.t =
   let open Lwter in

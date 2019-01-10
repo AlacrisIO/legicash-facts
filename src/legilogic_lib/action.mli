@@ -427,6 +427,7 @@ val write_string_to_lwt_io_channel : Lwt_io.output_channel -> string -> unit Lwt
     can then be read with read_string_lwt_io_channel
 *)
 
+(* TODO: should we simply be wrapping Lwt_stream ? *)
 module AsyncStream : sig
   (* NB: the tail is *eagerly* scheduled to run by the time we get to the stream.
      Maybe we should change the type to unit -> 'a t to allow for lazy streaming? *)
