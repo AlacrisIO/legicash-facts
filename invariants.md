@@ -39,7 +39,7 @@ including its relationship to the main-chain:
   * Relationship with user chain:
     * the state of the user-account is always making progress
   * Relationship with other side chains:
-    * Takes part honestly in bankrupcy proceedings for and mass exits from other facilitators
+    * Takes part honestly in bankruptcy proceedings for and mass exits from other facilitators
       (see section below).
 
 Note that if the side-chain data structure includes suitable indexes with redundant copies of all
@@ -52,7 +52,6 @@ for little added benefit since some properties like double-spending still requir
 One minor benefit is that it might save some time and space for verifiers (not at all on the server)
 by summarizing away all the ancillary data required to assert correctness
 (signatures, intermediate results, etc.).
-
 
 ## Crucial Protocol Workflows
 
@@ -122,7 +121,7 @@ or in the side-chain of another facilitator who can afterwards in one such messa
 post the simultaneous closing requests of a large number of users.
 Posting such an adversarial closing request will have the cost a regular transaction on the main chain
 or on the sister chain of the other facilitator,
-but no cost on the chain of the accout being closed, whose repudiated facilitator receives no fee.
+but no cost on the chain of the account being closed, whose repudiated facilitator receives no fee.
 Once the closing request is thus made public, the repudiated facilitator *must*
 confirm and close the account within a short deadline,
 or be declared invalid and go through liquidation as described in the section below.

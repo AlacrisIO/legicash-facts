@@ -14,6 +14,7 @@ and here are the basic ones we believe are really essential:
   4. Prove Fraud (Must illustrate interactive proof)
 
 These are advanced flows necessary for the M2 Feature Complete release:
+
   5. Forced transaction on main chain (necessary for repudiability, atomic transactions and layer 3 contracts)
   6. Atomic Cross-chain Settlement Flow (necessary to scale multi-side-chains)
   7. Failed or Closed Facilitator Recovery (necessary for security that scales and is fair)
