@@ -53,7 +53,6 @@ contract Claims {
       uint bond;
     }
 
-    mapping(bytes32 => int) public claim_status;
     mapping(bytes32 => claim_info) public claim_status_complete;
 
 
@@ -100,35 +99,32 @@ contract Claims {
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
     function make_claim(bytes32 _claim, uint _bond) internal {
-        require(claim_status[_claim]==0); // The claim must not have been made before
+        require(claim_status_complete[_claim].status == 0); // The claim must not have been made before
 	int deadtime = int(now) + challenge_period_in_seconds; // Register the claim
-        claim_status[_claim] = deadtime;
 	claim_status_complete[_claim] = claim_info(PENDING, deadtime, _bond);
     }
 
     /** Reject a pending claim as invalid. */
     function reject_claim(bytes32 _claim) internal {
         require_claim_pending(_claim);
-        claim_status[_claim] = REJECTED;
         claim_status_complete[_claim].status = REJECTED;
     }
 
     /** Check that a claim is valid, then use it up. */
     function consume_claim(bytes32 _claim) internal {
         require_claim_accepted(_claim);
-        claim_status[_claim] = CONSUMED;
         claim_status_complete[_claim].status = CONSUMED;
     }
 
     /** True if a claim was accepted but is now expired */
-    function is_claim_status_expired(int _status) internal view returns(bool) {
-        return _status >= 3 && _status <= int(now) - expiry_delay;
+    function is_claim_status_expired(bytes32 _claim) internal view returns(bool) {
+        return claim_status_complete[_claim].status == PENDING && claim_status_complete[_claim].time <= int(now) - expiry_delay;
     }
 
     /** Removal of complete entry */
     function expire_claim(bytes32 _claim) internal {
-    	require(is_claim_status_expired(claim_status[_claim]));
-	claim_status[_claim] = 0;
+    	require(is_claim_status_expired(_claim));
+	claim_status_complete[_claim] = claim_info(0, 0, 0);
     }
 
 }
