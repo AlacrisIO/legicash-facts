@@ -49,7 +49,23 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     event Withdrawal(address operator, uint64 ticket);
 
-    function withdraw(address _operator, uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
+
+
+    function withdraw(address _operator, bytes32 _confirmed_state, uint _bond)
+            public {
+        bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state);
+
+        // 
+        require(is_claim_assigned(claim), "State has not been assigned");
+
+        // Check time errors
+	consume_claim(claim);
+
+        msg.sender.transfer(_bond);
+    }
+
+
+    function withdraw_first_version(address _operator, uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
             public {
         // Consume a valid withdrawal claim.
         consume_claim(withdrawal_claim(_operator, _confirmed_state));
@@ -62,6 +78,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     }
 
 
+
     /**
      * Challenge a withdrawal claim because its confirmed_state isn't accepted as valid.
      */
@@ -70,7 +87,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         uint _bond, bytes32 _confirmed_state)
             public {
 	bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state);
-        require(!get_claim_status_accepted(claim));
+        require(!get_claim_status_accepted(claim), "the claim is already accepted");
         reject_claim(claim);
         msg.sender.transfer(_bond);
     }
@@ -88,7 +105,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         address _preimage_operator, ClaimType _preimage_tag, bytes32 _preimage_data)
             public {
         require(_operator != _preimage_operator || _preimage_tag != ClaimType.STATE_UPDATE);
-        require(_confirmed_state == digest_claim(_preimage_operator, _preimage_tag, _preimage_data));
+        require(_confirmed_state == digest_claim(_preimage_operator, _preimage_tag, _preimage_data), "error in the state bytes");
         reject_claim(withdrawal_claim(_operator, _confirmed_state));
         msg.sender.transfer(_bond);
     }
@@ -105,9 +122,9 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         bytes32 _confirmed_state,
         uint64 _operator_revision)
             public {
-        require(_operator_revision < _ticket);
+        require(_operator_revision < _ticket, "operator revision error");
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE,_confirmed_state));
+            digest_claim(_operator, ClaimType.STATE_UPDATE,_confirmed_state), "confirmed_state error");
         reject_claim(withdrawal_claim(_operator, _confirmed_state));
         msg.sender.transfer(_bond);
     }
@@ -121,11 +138,10 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     function challenge_withdrawal__ticket_not_withdrawal(
         address _operator,   
         uint _bond,
-        bytes32 _confirmed_state,
-        bytes32 state_bits)
+        bytes32 _confirmed_state)
             public {
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state));
+            digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state), "confirmed state error");
         reject_claim(withdrawal_claim(_operator, _confirmed_state));
         msg.sender.transfer(_bond);
     }
@@ -143,7 +159,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         bytes32 state_bits)
             public {
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE, state_bits));
+            digest_claim(_operator, ClaimType.STATE_UPDATE, state_bits), "confirmed_state error");
         reject_claim(withdrawal_claim(_operator, _confirmed_state));
         msg.sender.transfer(_bond);
     }

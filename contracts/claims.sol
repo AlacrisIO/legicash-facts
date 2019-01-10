@@ -78,7 +78,7 @@ contract Claims {
 
     /** Check that a claim is still pending */
     function require_claim_pending(bytes32 _claim) internal view {
-        require(is_claim_status_pending(claim_status_complete[_claim].time));
+        require(is_claim_status_pending(claim_status_complete[_claim].time), "pending status error");
     }
 
     /** True if a claim is accepted as valid */
@@ -88,7 +88,7 @@ contract Claims {
 
     /** Check that a claim is accepted as valid */
     function require_claim_accepted(bytes32 _claim) internal view {
-        require(get_claim_status_accepted(_claim));
+        require(get_claim_status_accepted(_claim), "claim is not accepted");
     }
 
 
@@ -99,10 +99,18 @@ contract Claims {
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
     function make_claim(bytes32 _claim, uint _bond) internal {
-        require(claim_status_complete[_claim].status == 0); // The claim must not have been made before
+        require(claim_status_complete[_claim].status == 0, "claim state not assigned"); // The claim must not have been made before
 	int deadtime = int(now) + challenge_period_in_seconds; // Register the claim
 	claim_status_complete[_claim] = claim_info(PENDING, deadtime, _bond);
     }
+
+    /** Getting whether it is assigned */
+    function is_claim_assigned(bytes32 _claim)
+          internal view returns(bool) {
+        return claim_status_complete[_claim].status > 0;
+    }
+    
+
 
     /** Reject a pending claim as invalid. */
     function reject_claim(bytes32 _claim) internal {
@@ -123,7 +131,7 @@ contract Claims {
 
     /** Removal of complete entry */
     function expire_claim(bytes32 _claim) internal {
-    	require(is_claim_status_expired(_claim));
+    	require(is_claim_status_expired(_claim), "the state is not expired");
 	claim_status_complete[_claim] = claim_info(0, 0, 0);
     }
 
