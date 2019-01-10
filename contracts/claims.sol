@@ -45,14 +45,17 @@ contract Claims {
      */
     int constant REJECTED = 1; // claim rejected, was never true
     int constant CONSUMED = 2; // claim once accepted but now used up
-    int constant ACCEPTABLE = 3; // 3 or more means it's either valid or pending
+    int constant PENDING = 3; // it is a pending entry
 
     struct claim_info {
+      int status;
       int time;
       uint bond;
     }
 
     mapping(bytes32 => int) public claim_status;
+    mapping(bytes32 => claim_info) public claim_status_complete;
+
 
     /** @dev duration after a claim is made during which it can be challenged.
      *
@@ -76,7 +79,7 @@ contract Claims {
 
     /** Check that a claim is still pending */
     function require_claim_pending(bytes32 _claim) internal view {
-        require(is_claim_status_pending(claim_status[_claim]));
+        require(is_claim_status_pending(claim_status_complete[_claim].time));
     }
 
     /** True if a claim is accepted as valid */
@@ -86,7 +89,7 @@ contract Claims {
 
     /** Check that a claim is accepted as valid */
     function require_claim_accepted(bytes32 _claim) internal view {
-        require(is_claim_status_accepted(claim_status[_claim]));
+        require(is_claim_status_accepted(claim_status_complete[_claim].time));
     }
 
 
@@ -98,23 +101,29 @@ contract Claims {
      */
     function make_claim(bytes32 _claim, uint _bond) internal {
         require(claim_status[_claim]==0); // The claim must not have been made before
-        claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
+	int deadtime = int(now) + challenge_period_in_seconds; // Register the claim
+        claim_status[_claim] = deadtime;
+	claim_status_complete[_claim] = claim_info(PENDING, deadtime, _bond);
     }
 
     /** Reject a pending claim as invalid. */
     function reject_claim(bytes32 _claim) internal {
         require_claim_pending(_claim);
         claim_status[_claim] = REJECTED;
+        claim_status_complete[_claim].status = REJECTED;
     }
 
     /** Check that a claim is valid, then use it up. */
     function consume_claim(bytes32 _claim) internal {
         require_claim_accepted(_claim);
         claim_status[_claim] = CONSUMED;
+        claim_status_complete[_claim].status = CONSUMED;
     }
 
     /** True if a claim was accepted but is now expired */
     function is_claim_status_expired(int _status) internal view returns(bool) {
         return _status >= 3 && _status <= int(now) - expiry_delay;
     }
+
+
 }
