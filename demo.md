@@ -15,17 +15,15 @@ and here are the basic ones we believe are really essential:
 
 These are advanced flows necessary for the M2 Feature Complete release:
 
-  1. Forced transaction on main chain (necessary for repudiability, atomic
-     transactions and layer 3 contracts)
-  2. Atomic Cross-chain Settlement Flow (necessary to scale multi-side-chains)
-  3. Failed or Closed Facilitator Recovery (necessary for security that scales
-     and is fair)
-  4. Mass Transfers(?) (necessary for security that scales?)
-  5. Forced transaction on side chain (necessary for making repudiability scale)
-  6. Create Facilitator (very incomplete version for M1)
-  7. Update facilitator sidechain state + pay penalties (partial for M1)
-  8. Close facilitator (necessary for facilitators to get their money back)
-  9. All fraud proofs (not just a few for demo)
+  5. Forced transaction on main chain (necessary for repudiability, atomic transactions and layer 3 contracts)
+  6. Atomic Cross-chain Settlement Flow (necessary to scale multi-side-chains)
+  7. Failed or Closed Facilitator Recovery (necessary for security that scales and is fair)
+  8. Mass Transfers(?) (necessary for security that scales?)
+  9. Forced transaction on side chain (necessary for making repudiability scale)
+  10. Create Facilitator (very incomplete version for M1)
+  11. Update facilitator sidechain state + pay penalties (partial for M1)
+  12. Close facilitator (necessary for facilitators to get their money back)
+  13. All fraud proofs (not just a few for demo)
 
 ## Basic Flows
 
