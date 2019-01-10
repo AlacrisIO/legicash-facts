@@ -26,9 +26,9 @@ contract ClaimTypes is Claims {
      * @param _data data for the claim, typically itself the digest of a larger data structure.
      * @return the digest for the claim.
      */
-    function digest_claim(address _operator, ClaimType _tag, bytes32 _data)
+    function digest_claim(address _operator, ClaimType _tag, uint64 _ticket, bytes32 _data)
             internal pure returns(bytes32) {
-        return keccak256(abi.encodePacked(_operator, _tag, _data));
+        return keccak256(abi.encodePacked(_operator, _tag, _ticket, _data));
     }
 
     /**
@@ -38,8 +38,8 @@ contract ClaimTypes is Claims {
      * This allows the operator to get a partial gas refund,
      * But is also a precursor to releasing his bond.
      */
-    function expire_claim_tag_data(ClaimType _tag, bytes32 _data) internal {
-	bytes32 claim = digest_claim(msg.sender, _tag, _data);
+    function expire_claim_tag_data(ClaimType _tag, uint64 _ticket, bytes32 _data) internal {
+	bytes32 claim = digest_claim(msg.sender, _tag, _ticket, _data);
 	expire_claim(claim);
     }
 

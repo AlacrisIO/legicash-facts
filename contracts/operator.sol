@@ -25,33 +25,31 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     // STATE UPDATE
 
     /* TODO: include a bond with this and every claim */
-    function claim_state_update(bytes32 _new_state, uint _bond) public payable {
-        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state), _bond);
+    function claim_state_update(bytes32 _new_state, uint64 _ticket, uint _bond) external payable {
+        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _ticket, _new_state), _ticket, _bond);
     }
-
 
     // WITHDRAWALS
 
-    function withdrawal_claim(
-        address _operator, bytes32 _confirmed_state)
+    event Withdrawal(address indexed recipient, uint64 indexed ticket);
+
+    function withdrawal_claim(address _operator, uint64 _ticket, bytes32 _confirmed_state)
             private pure returns(bytes32) {
-        return digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state);
+        return digest_claim(_operator, ClaimType.STATE_UPDATE, _ticket, _confirmed_state);
     }
 
     // TODO: The cost of a legal argument in gas should be statically deduced
     // from the structure of the contract itself.
     int maximum_withdrawal_challenge_gas = 100*1000;
 
-    function claim_withdrawal(address _operator, bytes32 _confirmed_state)
+    function claim_withdrawal(address _operator, uint64 _ticket, bytes32 _confirmed_state)
             public payable {
         require_bond(msg.value, maximum_withdrawal_challenge_gas);
-        make_claim(withdrawal_claim(_operator, _confirmed_state), msg.value);
+        make_claim(withdrawal_claim(_operator, _ticket, _confirmed_state), _ticket, msg.value);
     }
 
-    event Withdrawal(address indexed operator, uint64 ticket);
 
-
-    function check_claim_validity(bytes32 _claim, uint _bond)
+    function check_claim_validity(bytes32 _claim, uint64 _ticket, uint _bond)
             private view returns(bool) {
        if (get_claim_status_accepted(_claim) == false) {
          return false;
@@ -59,19 +57,22 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
        if (_bond != get_bond_value(_claim)) {
          return false;
        }
+       if (_ticket != get_ticket_value(_claim)) {
+         return false;
+       }
        return true;
     }
 
 
 
-    function withdraw(address _operator, bytes32 _confirmed_state, uint _bond)
-            public {
-        bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state);
+    function withdraw(address _operator, bytes32 _confirmed_state, uint64 _ticket, uint _bond)
+            external {
+        bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _ticket, _confirmed_state);
 
         // The first check. If the claim does not exist, nothing can be put as rejected.
         require(is_claim_assigned(claim), "State has not been assigned");
 
-        if (check_claim_validity(claim, _bond) == false) {
+        if (check_claim_validity(claim, _ticket, _bond) == false) {
 	  // we fail the checks
 	  reject_claim(claim);
 	}
@@ -82,8 +83,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
           consume_claim(claim);
 
           // Second: Emitting the event
-	  uint64 ticket = 0;
-          emit Withdrawal(_operator, ticket);
+          emit Withdrawal(msg.sender, _ticket);
 
           // Third: Emitting the money
           msg.sender.transfer(_bond);
@@ -94,7 +94,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     function withdraw_first_version(address _operator, uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
             public {
         // Consume a valid withdrawal claim.
-        consume_claim(withdrawal_claim(_operator, _confirmed_state));
+        consume_claim(withdrawal_claim(_operator, _ticket, _confirmed_state));
 
         // Log the withdrawal so future double-claim attempts can be duly rejected.
         emit Withdrawal(_operator, _ticket);
@@ -109,10 +109,10 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
      * Challenge a withdrawal claim because its confirmed_state isn't accepted as valid.
      */
     function challenge_withdrawal__confirmed_state_not_accepted (
-        address _operator,
+        address _operator, uint64 _ticket, 
         uint _bond, bytes32 _confirmed_state)
             public {
-	bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state);
+	bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _ticket, _confirmed_state);
         require(!get_claim_status_accepted(claim), "the claim is already accepted");
         reject_claim(claim);
         msg.sender.transfer(_bond);
@@ -126,13 +126,13 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
      * that fail to match a state update.
      */
     function challenge_withdrawal__confirmed_state_not_state(
-        address _operator,
+        address _operator, uint64 _ticket, 
         uint _bond, bytes32 _confirmed_state,
         address _preimage_operator, ClaimType _preimage_tag, bytes32 _preimage_data)
             public {
         require(_operator != _preimage_operator || _preimage_tag != ClaimType.STATE_UPDATE);
-        require(_confirmed_state == digest_claim(_preimage_operator, _preimage_tag, _preimage_data), "error in the state bytes");
-        reject_claim(withdrawal_claim(_operator, _confirmed_state));
+        require(_confirmed_state == digest_claim(_preimage_operator, _preimage_tag, _ticket, _preimage_data), "error in the state bytes");
+        reject_claim(withdrawal_claim(_operator, _ticket, _confirmed_state));
         msg.sender.transfer(_bond);
     }
 
@@ -143,15 +143,15 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
      * Challenge a withdrawal claim because its confirmed_state doesn't contain that big a ticket number.
      */
     function challenge_withdrawal__ticket_number_too_large(
-        address _operator,    uint64 _ticket, 
+        address _operator,   uint64 _ticket, 
         uint _bond,
         bytes32 _confirmed_state,
         uint64 _operator_revision)
             public {
         require(_operator_revision < _ticket, "operator revision error");
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE,_confirmed_state), "confirmed_state error");
-        reject_claim(withdrawal_claim(_operator, _confirmed_state));
+            digest_claim(_operator, ClaimType.STATE_UPDATE, _ticket, _confirmed_state), "confirmed_state error");
+        reject_claim(withdrawal_claim(_operator, _ticket, _confirmed_state));
         msg.sender.transfer(_bond);
     }
 
@@ -162,13 +162,13 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
      * Parameters afterwards exhibit the ticket at given number, which is of the wrong subtype.
      */
     function challenge_withdrawal__ticket_not_withdrawal(
-        address _operator,   
+        address _operator, uint64 _ticket, 
         uint _bond,
         bytes32 _confirmed_state)
             public {
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE, _confirmed_state), "confirmed state error");
-        reject_claim(withdrawal_claim(_operator, _confirmed_state));
+            digest_claim(_operator, ClaimType.STATE_UPDATE, _ticket, _confirmed_state), "confirmed state error");
+        reject_claim(withdrawal_claim(_operator, _ticket, _confirmed_state));
         msg.sender.transfer(_bond);
     }
 
@@ -179,14 +179,14 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
      * Parameters afterwards exhibit the ticket at given number, which fails to match the claim.
      */
     function challenge_withdrawal__ticket_mismatch(
-        address _operator,  
+        address _operator, uint64 _ticket, 
         uint _bond,
         bytes32 _confirmed_state,
         bytes32 state_bits)
             public {
         require(_confirmed_state ==
-            digest_claim(_operator, ClaimType.STATE_UPDATE, state_bits), "confirmed_state error");
-        reject_claim(withdrawal_claim(_operator, _confirmed_state));
+            digest_claim(_operator, ClaimType.STATE_UPDATE, _ticket, state_bits), "confirmed_state error");
+        reject_claim(withdrawal_claim(_operator, _ticket, _confirmed_state));
         msg.sender.transfer(_bond);
     }
 
@@ -212,7 +212,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         uint _bond,
         bytes32 _confirmed_state)
             public {
-        reject_claim(withdrawal_claim(_operator, _confirmed_state));
+        reject_claim(withdrawal_claim(_operator, _ticket, _confirmed_state));
         msg.sender.transfer(_bond);
     }
     */

@@ -51,6 +51,7 @@ contract Claims {
       int status;
       int time;
       uint bond;
+      uint64 ticket;
     }
 
     mapping(bytes32 => claim_info) public claim_status_complete;
@@ -98,10 +99,10 @@ contract Claims {
      *
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
-    function make_claim(bytes32 _claim, uint _bond) internal {
+    function make_claim(bytes32 _claim, uint64 _ticket, uint _bond) internal {
         require(claim_status_complete[_claim].status == 0, "claim state not assigned"); // The claim must not have been made before
 	int deadtime = int(now) + challenge_period_in_seconds; // Register the claim
-	claim_status_complete[_claim] = claim_info(PENDING, deadtime, _bond);
+	claim_status_complete[_claim] = claim_info(PENDING, deadtime, _bond, _ticket);
     }
 
     /** Getting whether it is assigned */
@@ -114,6 +115,13 @@ contract Claims {
     function get_bond_value(bytes32 _claim) internal view returns(uint) {
         return claim_status_complete[_claim].bond;
     }
+
+    /** Returning the ticket value */
+    function get_ticket_value(bytes32 _claim) internal view returns(uint64) {
+        return claim_status_complete[_claim].ticket;
+    }
+    
+
 
     /** Reject a pending claim as invalid. */
     function reject_claim(bytes32 _claim) internal {
@@ -134,7 +142,7 @@ contract Claims {
     /** Removal of complete entry */
     function expire_claim(bytes32 _claim) internal {
     	require(is_claim_status_expired(_claim), "the state is not expired");
-	claim_status_complete[_claim] = claim_info(0, 0, 0);
+	claim_status_complete[_claim] = claim_info(0, 0, 0, 0);
     }
 
 }
