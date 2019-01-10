@@ -40,6 +40,7 @@ let deposit user (operator, amount) =
               >>> of_lwt track_transaction
               >>> check_transaction_confirmed)
 
+(* Here abi_revision = abi_uint64 because Revision = UInt64 *)
 let make_withdraw_call operator ticket bond confirmed_state =
   let parameters = [ abi_address operator
                    ; abi_revision ticket
