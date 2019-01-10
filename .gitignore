@@ -2,10 +2,12 @@
 _build/
 _run/
 _ethereum/
+_opam/
 tezos
 *~
 *.tmp
 *.pyc
+*.swp
 alacris.install
 src/alacris_lib/operator_contract_binary.ml
 foo
