@@ -46,10 +46,7 @@ let main_chain_block_notification_stream
 
 
 (* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
-let sleep_delay_exn : float -> unit Lwt_exn.t =
-  fun delay_sec ->
-  Lwt.bind (Lwt_unix.sleep delay_sec) (fun () -> Lwt_exn.return ())
-
+let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
 
 (* Look for confirmed or not confirmed blocks. NEED TO ADD: NUMBER of confirmation *)
 let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Digest.t list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =

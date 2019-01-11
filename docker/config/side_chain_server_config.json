@@ -1,8 +1,8 @@
 { "port" : 8095,
   "ethereum_parameter" : {
       "minimal_number_block_for_confirmation" : 0,
-      "max_number_connection_geth" : 1, 
-      "transfer_gas_limit" : 21000, 
+      "max_number_connection_geth" : 1,
+      "deposit_gas_limit" : 100000,
       "time_state_update_sec" : 1800
   },
   "leveldb_parameter" : {
