@@ -443,8 +443,8 @@ let effect_validated_user_transaction_request :
 
 let post_state_update_needed_uo (useroper : UserOperation.t) : (bool*TokenAmount.t) =
   match useroper with
-  | Deposit _ -> (false, TokenAmount.zero)
-  | Payment _ -> (false, TokenAmount.zero)
+  | Deposit _ -> (true, TokenAmount.zero)
+  | Payment _ -> (true, TokenAmount.zero)
   | Withdrawal x -> (true, (TokenAmount.add x.withdrawal_amount x.withdrawal_fee))
 
 let post_state_update_needed_tr (transreq : TransactionRequest.t) : (bool*TokenAmount.t) =
