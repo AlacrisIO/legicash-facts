@@ -24,9 +24,14 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
+    event StateUpdate(address _operator, uint64 _ticket);
+    
+
+
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state, uint64 _ticket, uint _bond) external payable {
         make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _ticket, _new_state), _bond);
+	emit StateUpdate(msg.sender, _ticket);
     }
 
     // WITHDRAWALS
