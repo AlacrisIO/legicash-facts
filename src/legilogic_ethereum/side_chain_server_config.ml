@@ -30,6 +30,7 @@ module Side_chain_server_config = struct
   type ethereum_parameter_config =
     { minimal_number_block_for_confirmation : int
     ; max_number_connection_geth : int
+    ; deposit_gas_limit : int
     ; time_state_update_sec : float
     }
   [@@deriving of_yojson]
@@ -101,6 +102,8 @@ module Side_chain_server_config = struct
   (** This is a hardcoded value in Ethereum so we cannot change it *)
   let (transfer_gas_limit : TokenAmount.t) = TokenAmount.of_int 21000
 
+  let (deposit_gas_limit : TokenAmount.t) = TokenAmount.of_int 100000
+                                           
   let (time_state_update_sec : float) = config.ethereum_parameter.time_state_update_sec
 
   let (num_timestamps : int) = config.sidechain_parameter.num_timestamps
