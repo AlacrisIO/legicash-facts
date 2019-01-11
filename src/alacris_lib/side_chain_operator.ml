@@ -474,7 +474,10 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
                   Logging.log "The post_state_update_request lambda";
                   `GetCurrentDigest digest_resolver) in
     Logging.log "post_state_update_request, before simple_client and push function";
-    Lwt_exn.bind (Lwt.bind (fct transreq) (push_state_digest_exn))
+    Lwt_exn.bind (Lwt.bind (fct transreq)
+                    (fun (digest) ->
+                      let (value : TokenAmount.t) = TokenAmount.zero in
+                      push_state_digest_exn digest value))
       (fun (x : Digest.t) -> Logging.log "Final return statement";
                              Lwt_exn.return (transreq, x))
   else
