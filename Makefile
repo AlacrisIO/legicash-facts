@@ -217,7 +217,13 @@ reset:
 	$(HIDE) ./src/alacris_client/nginx/stop.sh 2> /dev/null || true
 	$(SHOW) " Removing all databases, preserving old logs if any"
 	$(HIDE) rm -rf _old_logs ; \
-	if [ -d _run/logs ] ; then mv _run/logs _old_logs ; fi ; \
+	if [ -d _run/logs ] ; then \
+	  mv _run/logs _old_logs ; \
+	fi ; \
+	if [ -d _ethereum/geth-data/logs ] ; then \
+	  mkdir -p _old_logs ; \
+	  mv _ethereum/geth-data/logs _old_logs/geth-data ; \
+	fi ; \
 	rm -rf _run _ethereum ; \
 	if [ -d _old_logs ] ; then mkdir _run ; mv _old_logs _run/old_logs ; fi
 

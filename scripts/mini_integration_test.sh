@@ -8,10 +8,7 @@ cd "$HERE/../" # Change to toplevel directory of legicash-facts
 export ALACRIS_HOME
 
 LOGDIR=${ALACRIS_HOME}/_run/logs
-mkdir -p $LOGDIR
-
 GETH_RUNDIR=$(pwd)/_ethereum
-mkdir -p $GETH_RUNDIR
 
 MAKE () {(set -x ; make "$@")}
 RESET () { MAKE reset; }
@@ -21,6 +18,8 @@ trap EXIT RESET
 set -eu
 
 RESET
+
+mkdir -p $LOGDIR $GETH_RUNDIR
 
 MAKE run_ethereum_net
 
