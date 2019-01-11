@@ -129,15 +129,15 @@ but will want it for production with independent, untrusted registrars.
    sharing, among other things the VRF of registrars he's mandated to gossip
    with.
 3. Renée verifies that they haven't performed this gossip already.
-4. Renée and Reggie share, for each facilitator, the last event number for which
-   they have the full history of that facilitator.
-5. For each facilitator and registrar, they share the event numbers they have
+4. Renée and Reggie share, for each operator, the last event number for which
+   they have the full history of that operator.
+5. For each operator and registrar, they share the event numbers they have
    beyond the last-full-history numbers.
-6. For each facilitator and registrar, they share the events they've concluded
+6. For each operator and registrar, they share the events they've concluded
    the other is missing.
 7. They generate commitments to the events they've each learned of from the
-   other. These could be a list of the event coordinates (say, facilitator
-   index, and event index, per the facilitator linearization, plus a Merkle root
+   other. These could be a list of the event coordinates (say, operator
+   index, and event index, per the operator linearization, plus a Merkle root
    hash for the events.)
 8. They sign each others' commitments.
 9. Those commitments become part of the history of their registrar events, and
@@ -207,17 +207,17 @@ it might be cheaper to "just" reach Consensus.
 
 Precise English-language specification of Legicash onchain/offchain interactions
 
-**XXX**: Note that at the moment, this document assumes that each facilitator
+**XXX**: Note that at the moment, this document assumes that each operator
 has their own Merkle root hash in the on-chain contract. It [might be
 possible](https://legicash.slack.com/archives/G9XDQA4UA/p1527796141000710) to
-aggregate all global state into a single root hash, which some facilitator is
+aggregate all global state into a single root hash, which some operator is
 mandated to report to the contract.
 
 ## Designs
 
 ### Design with a court registry
 
-Key idea is that facilitator is responsible for reporting all transactions to
+Key idea is that operator is responsible for reporting all transactions to
 interested parties, on pain of penalty. Need a way to prevent DoS attacks by
 demanding too much information.
 
@@ -236,8 +236,8 @@ available.
 
 The problem is particularly acute for performance-assurance of the court
 registry, because it's essential to generating Merkle proofs during disputes
-that an independent, complete view of each facilitator's activity be available.
-So not only does the registry need to record the facilitators' actions, someone
+that an independent, complete view of each operator's activity be available.
+So not only does the registry need to record the operators' actions, someone
 needs to be scrutinizing the registry's responsiveness, leading to an infinite
 regress...
 
@@ -251,8 +251,8 @@ participants.
 
 Alice:   A transmitter of funds on the side-chain.
 Bob:     A receiver of funds on the side-chain.
-Trent:   A side-chain transaction-facilitator.
-Terry_n: Competing side-chain transaction-facilitators.
+Trent:   A side-chain transaction-operator.
+Terry_n: Competing side-chain transaction-operators.
 Judy:    Smart-contract on-chain/off-chain interface.
 
 Each of these has an ETH address, represented by `<name>`, e.g. `alice`
@@ -261,7 +261,7 @@ Each of these has an ETH address, represented by `<name>`, e.g. `alice`
 
 ##### Gossip duties
 
-Each facilitator has a duty to gossip with other facilitators about all the
+Each operator has a duty to gossip with other operators about all the
 transactions they've seen. Other people may sign up for this duty as well, by
 posting an adequate bond.
 
@@ -272,22 +272,22 @@ later failure to perform will be justified to the main chain in terms of that
 signed acknowledgment. However, there are duties associated with the registrar
 role, and performance of those duties is synonomous with acknowledging them.)
 
-An acknowledged/performed duty is signed by the relevant facilitator, and he/she
+An acknowledged/performed duty is signed by the relevant operator, and he/she
 assigns a number to it in a linearization of all their known duties. The signed,
-numbered version is then reported to other facilitators, who take it off their
-list of unperformed duties for that facilitator. That whole linearization goes
+numbered version is then reported to other operators, who take it off their
+list of unperformed duties for that operator. That whole linearization goes
 into their next on-chain Merkle hash.
 
-Facilitators use a VRF to choose who to gossip with, and report on the VRF
+Operators use a VRF to choose who to gossip with, and report on the VRF
 output when initiating gossip. That initiation is itself a performed duty by the
-facilitator, and those he gossiped to then have a duty to gossip their signed
-acknowledgment back to him. A rapid means for facilitators to identify which
+operator, and those he gossiped to then have a duty to gossip their signed
+acknowledgment back to him. A rapid means for operators to identify which
 duty reports to share needs to be figured out. This is very similar to the
 problems faced by a write-heavy distributed database, so that may be a fruitful
 place to look for solutions.
 
 Since this will lead to n<sup>2</sup> transmission and storage, we may want to
-break the facilitators into random cliques of, say, size 20-100, all of whom are
+break the operators into random cliques of, say, size 20-100, all of whom are
 responsible for tracking all events in their clique.
 
 ###### Questions about the gossip protocol
@@ -308,11 +308,11 @@ responsible for tracking all events in their clique.
   other people. If, for instance, A hasn't heard back from B after some
   deadline, that is something they can/must report to the network, and can be
   checked against B's reports to others. Also, A will be able to get B's report
-  from others if there's a network failure in B->A which the facilitator report
+  from others if there's a network failure in B->A which the operator report
   graph can route around. Yes, this is a lot of communication overhead, but I
   think this can be guaranteed secure given an honesty threshold.
 
-- <sup>**"...what if some facilitators band against an honest one to get him
+- <sup>**"...what if some operators band against an honest one to get him
   expelled?"**</sup>
 
   The shifting mandated gossip paths are going to make that difficult.
@@ -320,7 +320,7 @@ responsible for tracking all events in their clique.
 - <sup>**"Are you going directly for the TCR / Open Registry, or for a closed
   registry?"**</sup>
 
-  Open: The facilitators are gossips. Maybe other people can gossip, too, if
+  Open: The operators are gossips. Maybe other people can gossip, too, if
   they post a bond.
 
 - <sup>**"With what weight quorum wise, though?""**</sup>
@@ -329,7 +329,7 @@ responsible for tracking all events in their clique.
   gossip network I need to develop. The question is, roughly, given the random
   graph implied by the VRF's and the number of simultaneous reports (graph
   degree), what is the probability that a hostile node gets to gossip only to
-  his collaborators, assuming a given threshold of facilitators are honest?
+  his collaborators, assuming a given threshold of operators are honest?
 
 - <sup>**"What if I have extra paths beyond what the vrf mandates? What about
   rewarding the vrf paths?"**</sup>
@@ -339,9 +339,9 @@ responsible for tracking all events in their clique.
   those paths can be used to construct Merkle proofs for disputes. We could
   reward such behavior, or set up an auction/pay-per-use for such performance.
 
-##### Setting up a facilitator
+##### Setting up a operator
 
-Trent wishes to become a facilitator. He sends a bond of *x* ETH from `trent` to
+Trent wishes to become a operator. He sends a bond of *x* ETH from `trent` to
 smart-contract jurisdiction `judy`, registering his intent, and the address
 where his off-chain service may be contacted. In doing so, he takes on the
 following duties:
@@ -355,7 +355,7 @@ following duties:
    response within a block, he can be punished.
 4. Responding to transaction requests on his side chain, and reporting the
    transitions. When someone requests a transaction from him, they report it to
-   a random selection of other facilitators, and if he doesn't provide a signed
+   a random selection of other operators, and if he doesn't provide a signed
    response by the next block, he can be punished.
 
 ##### Deposit from the main chain
@@ -366,32 +366,32 @@ note that it's for Trent's side-chain.
 Trent has a duty to recognize this by assigning 1 ETH to `alice` on his side
 chain within 100 blocks. Otherwise, he can be fined, and custody of the money is
 returned to Alice, in terms of methods on Judy which will allow her to transfer
-the ETH to any other address, or to another Judy-jurisdiction facilitator.
-Transfers from this state to another facilitator are treated essentially the
+the ETH to any other address, or to another Judy-jurisdiction operator.
+Transfers from this state to another operator are treated essentially the
 same way as a deposit from another ETH address.
 
-Other facilitators have a duty to gossip about `alice`'s deposit.
+Other operators have a duty to gossip about `alice`'s deposit.
 
 ##### Withdrawal from side chain to main chain
 
 Alice signs a request to Trent to transfer 1 ETH back to her custody on Judy.
-She sends the request to a number of facilitators, including Trent. They have a
+She sends the request to a number of operators, including Trent. They have a
 duty to gossip about it. Trent must assign 1 ETH to Alice by a certain date, or
 be punished.
 
 Once Trent re-assigns via a message to Judy, Alice's balance doesn't go straight
 back to the ETH address `alice`, but `alice` messages to a `judy` method will
 then have the authority to transfer her balance to other addresses, or to other
-Judy-jurisdiction facilitators.
+Judy-jurisdiction operators.
 
 ##### Request for Merkle proof
 
 To initiate a dispute process, anyone can ask for a Merkle proof for any event
-in the system, from any facilitator, and gossip about that to other
-facilitators. If the facilitator doesn't know about the event, it can report
-that. If another facilitator shared that event with them
+in the system, from any operator, and gossip about that to other
+operators. If the operator doesn't know about the event, it can report
+that. If another operator shared that event with them
 
-##### Sharing observed state transitions with other facilitators
+##### Sharing observed state transitions with other operators
 
 ##### Response to transaction request
 
@@ -408,27 +408,27 @@ records.
 
 Structure of complaint: An on-chain message containing the Merkle proof for the
 ill-formed report, and perhaps instructions on how to invalidate it. Signature
-of the responsible facilitator must always be verified, though, because they are
+of the responsible operator must always be verified, though, because they are
 fined.
 
 ##### Complaint about unperformed duty
 
 A proof is constructed for Alice's withdrawal request, as a Merkle path in some
-facilitator's gossip about Trent's unperformed duties, if not a performed-duty
+operator's gossip about Trent's unperformed duties, if not a performed-duty
 report signed by Trent himself. The proof is submitted with a bond, by someone.
 It doesn't have to be Alice; she may not have sufficient funds for the bond.
 Judy checks the Merkle path, and that no relevant custody transfer to Alice has
 been made by Trent. The appropriate bond is slashed, and Alice's funds are
 released, if appropriate.
 
-##### Complaint about transaction unsigned by sender, but signed by facilitator
+##### Complaint about transaction unsigned by sender, but signed by operator
 
 Structure of proof: Merkle path to transaction.
 
 ##### Complaint about invalid transaction
 
 Structure of complaint: An on-chain message containing the Merkle proof for the
-account balance and the transaction which overspends it. Sender and facilitator
+account balance and the transaction which overspends it. Sender and operator
 signatures must be verified, because they are both fined in this case.
 
 Note that the account balance must be part of the verified Merkle tree root, for
@@ -458,12 +458,12 @@ consensus to resolve the question of whether Trent's response was generally
 available.
 
 Thus, registrars are obliged to track and gossip about the duties of
-facilitators and other registrars, and report when an irregularity occurs.
-Registrars maintain two data structures: A set of duties for each facilitator /
+operators and other registrars, and report when an irregularity occurs.
+Registrars maintain two data structures: A set of duties for each operator /
 registrar for which no signature from the responsible agent has been observed
 (i.e., duties not yet acknowledged), and linearized sets of acknowledged duties,
 from which Merkle trees and Merkle proof-paths can be computed. For
-facilitators, there are two such sets of duties: The transaction duties, and the
+operators, there are two such sets of duties: The transaction duties, and the
 gossip duties. For other registrars, there are only the gossip duties.
 
 After a sufficient delay to allow any duty and the corresponding signature to
@@ -477,10 +477,10 @@ have to be particularly fast. However, any dispute deadlines must take the
 expected saturation time for relevant documents into account. It may be sensible
 to allow deadline extensions until some cited document is provided by someone.
 
-All facilitators are mandated Court registrars. Others may participate as
+All operators are mandated Court registrars. Others may participate as
 registrars, if they wish, by posting a suitable bond. They receive rewards for
 the gossip and Merkle proofs they provide, though the exact reward they should
-receive is yet to be determined. It may be that facilitators' rewards for
+receive is yet to be determined. It may be that operators' rewards for
 performance of Court-registrar duties should be zero, for instance.
 
 ### Gossip hand-shake
@@ -530,7 +530,7 @@ Gossip between two registrars R and S occurs via some protocol like this:
 
    There may be a more efficient way to establish this consensus on what to
    share; this is just a first pass. Bit strings on linearized events related to
-   each facilitator/registrar/account, perhaps?
+   each operator/registrar/account, perhaps?
 
 3. They exchange the entries they've each identified as missing from the other's
    list according to the manifests shared in the last step.
@@ -540,7 +540,7 @@ Gossip between two registrars R and S occurs via some protocol like this:
 
 5. They compare hashes on the data. If the hashes don't match, they
    collaboratively logarithmically search the hashed data structure until they
-   find the point of disagreement, á la Truebit. If they find an inconsistency
+   find the point of disagreement, à la Truebit. If they find an inconsistency
    in someone else's attested data, they report that together.
 
 Their reports to each other on what they themselves have gossiped are lists of
@@ -570,7 +570,7 @@ consistent. That sounds very complex to write, though.
   * All data is verified *before* it is signed.
   * All the [Side-chain Well-formedness](#side-chain-well-formedness)
     constraints, in line with the linearized acknowledged duties, for each
-    facilitator, or a dispute launched by this registrar, or received as gossip
+    operator, or a dispute launched by this registrar, or received as gossip
     from another registrar.
   * Last-known state for each of the other registrars in the system is
     maintained, based on the gossip they've been observed to attest to in the
@@ -588,8 +588,8 @@ consistent. That sounds very complex to write, though.
     main-chain state on another fork at that block height, the registrar should
     report that duty there, as well. **This is a complex invariant which needs
     to be nailed down.**
-  * All observed gossip recorded in the facilitator's transaction record
+  * All observed gossip recorded in the operator's transaction record
     corresponds to VRF-mandated gossip transactions with no causal
     contradictions, and all sufficiently old gossip which has been reported as
-    transmitted to a facilitator has been acknowledged by them.
+    transmitted to a operator has been acknowledged by them.
 

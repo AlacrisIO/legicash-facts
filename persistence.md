@@ -7,7 +7,7 @@ This document explains our strategy to persist data against failures and attacks
 Centralized Server with Redundant Backups
 -----------------------------------------
 
-A given facilitator is a network of redundant servers,
+A given operator is a network of redundant servers,
 wherein only one at a given time actually processes requests, sequentially,
 and the other ones are backup servers ready to pick up the workload in a fail over event
 in case the master becomes non responsive.
@@ -37,13 +37,13 @@ The table identifier could itself be a digest of the type description and other 
 
 An intent-addressing key looks more like the usual primary key of a database.
 It also has a table identifier, but instead of the digest it is indexed by other data,
-such as the facilitator address and the revision number of a confirmation, etc.
+such as the operator address and the revision number of a confirmation, etc.
 
 
 Request Pipeline
 ----------------
 
-A facilitator's master machine processes requests as follows:
+A operator's master machine processes requests as follows:
 
 1. Receive the Request.
    Accept encrypted user connections, read and decrypt the bits.

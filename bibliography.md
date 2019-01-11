@@ -105,3 +105,6 @@
 
 * Usability and UX:
   [Nielsen Norman Group](https://www.nngroup.com/articles/)
+
+* Discipline for more robust programming
+  [STAMPING ON EVENT-STREAM](https://www.hillelwayne.com/post/stamping-on-eventstream/)
