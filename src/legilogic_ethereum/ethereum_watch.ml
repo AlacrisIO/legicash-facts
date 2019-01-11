@@ -51,7 +51,7 @@ let sleep_delay_exn : float -> unit Lwt_exn.t =
   Lwt.bind (Lwt_unix.sleep delay_sec) (fun () -> Lwt_exn.return ())
 
 
-  
+(* Look for confirmed or not confirmed blocks. NEED TO ADD: NUMBER of confirmation *)
 let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Digest.t list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
   Lwt_exn.bind (eth_block_number ())
     (fun (to_block : Revision.t) ->
@@ -74,8 +74,8 @@ let retrieve_relevant_logs
             Lwt_exn.return (List.hd x_llogs)
       )
   in fct_downloading !starting_watch_ref
-        
-  
+
+
 (* TODO: implement following operations:
    ---Watch Ethereum blocks on the ethereum blockchain.
    ---Distinguish between confirmed blocks and not quite confirmed blocks.

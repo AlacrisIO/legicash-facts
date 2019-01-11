@@ -714,6 +714,10 @@ let inner_transaction_request_loop =
                                                 Lwt.return_unit);
                     Logging.log "inner_transaction_request, After if/then/else";
                     request_batch new_operator_state new_size)
+               | `GetCurrentDigest (digest_resolver : Digest.t Lwt.u) ->
+                  Logging.log "inner_transaction_request, CASE : GetCurrentDigest";
+                  Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
+                  request_batch operator_state size
                | `Flush (id : int) ->
                  Logging.log "inner_transaction_request_loop, CASE : Flush";
                  assert (id = batch_id);
@@ -741,14 +745,9 @@ let inner_transaction_request_loop =
                  operator_state_ref := new_operator_state;
                  Lwt.wakeup_later previous_notify_batch_committed_u ();
                  request_batch new_operator_state size
-               | `GetCurrentDigest (digest_resolver : Digest.t Lwt.u) ->
-                  Logging.log "inner_transaction_request, CASE : GetCurrentDigest";
-                  Lwt.wakeup_later notify_batch_committed_u ();
-                  Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
-                  Lwt.return (operator_state, batch_id, batch_committed_t)
              in request_batch operator_state 0)
 
-  
+
 let initial_side_chain_state =
   State.
     { operator_revision= Revision.of_int 0
