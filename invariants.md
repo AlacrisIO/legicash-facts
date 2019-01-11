@@ -39,7 +39,7 @@ including its relationship to the main-chain:
   * Relationship with user chain:
     * the state of the user-account is always making progress
   * Relationship with other side chains:
-    * Takes part honestly in bankruptcy proceedings for and mass exits from other facilitators
+    * Takes part honestly in bankruptcy proceedings for and mass exits from other operators
       (see section below).
 
 Note that if the side-chain data structure includes suitable indexes with redundant copies of all
@@ -57,7 +57,7 @@ by summarizing away all the ancillary data required to assert correctness
 
 ### Payment Settlement
 
-When a user wants to transfer money out of one account on the main chain or a facilitator side-chain
+When a user wants to transfer money out of one account on the main chain or a operator side-chain
 into another account on the same chain or a different one
 (which can also be the main chain or a side-chain),
 we will provide and specify a protocol for that
@@ -68,7 +68,7 @@ We suppose that the specification of these payments
 may use some variant of computability logic to model the preservation of resources.
 Some linear disjunction operators will express choices that are available to specific parties
 regarding those resources.
-Which party, user, facilitator or miner, etc.,
+Which party, user, operator or miner, etc.,
 can itself be specified as part of a conjunction operator
 that includes a signature of the suitable party in the product of items part of the choice.
 
@@ -78,7 +78,7 @@ we will presumably need to introduce some variant of temporal logic quantifiers
 to model lower or upper limits to the delays involved.
 
 Payments within a single chain use the chain's regular mechanism:
-the consensus of the main chain, or the authoritative facilitator of the side chain.
+the consensus of the main chain, or the authoritative operator of the side chain.
 Payments across multiple chains require some variant of two-phase commit,
 with suitable timeouts in case one party fails to cooperate until the end.
 Dealing with a dishonest or otherwise failing party can lead to funds being locked
@@ -93,47 +93,47 @@ must be accounted for in the model used for the well-formedness of the chain,
 as previously discussed.
 
 
-### Facilitator Repudiation
+### Operator Repudiation
 
 At any point, disgruntled users can close their account
 and either take their funds to their account on the main chain,
-or entrust their funds to any other facilitator using the exact same facilitation contract.
+or entrust their funds to any other operator using the exact same facilitation contract.
 
-One potential issue with taking funds out is that it is not obvious to anyone but the facilitator
-what transactions may or may not be pending that will or will not make it to the facilitator's chain.
-The user may have posted requests that the facilitator will confirm,
-and he may have posted requests that the facilitator refuses to confirm.
-A dishonest facilitator might even hold some unconfirmed requests as "hostage"
+One potential issue with taking funds out is that it is not obvious to anyone but the operator
+what transactions may or may not be pending that will or will not make it to the operator's chain.
+The user may have posted requests that the operator will confirm,
+and he may have posted requests that the operator refuses to confirm.
+A dishonest operator might even hold some unconfirmed requests as "hostage"
 so the user himself might not know what his final balance is,
 at which point he can never request the correct amount.
-We solve this issue by splitting facilitator repudiation in three steps.
+We solve this issue by splitting operator repudiation in three steps.
 
 First, the account is closed on the side-chain, and
 the user waits for this closure is confirmed on the main chain.
 This first step, closing the account on the side-chain,
-is normally done by the user privately sending an account closing request to the facilitator,
+is normally done by the user privately sending an account closing request to the operator,
 who publicly confirms it and includes it on his side-chain.
-But what if the facilitator refuses to confirm the request and include it on his side-chain?
-Or what if the facilitator demands an exorbitant fee to close the account?
-What if the facilitator and the user have a disagreement on some other matter?
+But what if the operator refuses to confirm the request and include it on his side-chain?
+Or what if the operator demands an exorbitant fee to close the account?
+What if the operator and the user have a disagreement on some other matter?
 Then the user can post the closing request publicly in a message to the contract on the main chain,
-or in the side-chain of another facilitator who can afterwards in one such message
+or in the side-chain of another operator who can afterwards in one such message
 post the simultaneous closing requests of a large number of users.
 Posting such an adversarial closing request will have the cost a regular transaction on the main chain
-or on the sister chain of the other facilitator,
-but no cost on the chain of the account being closed, whose repudiated facilitator receives no fee.
-Once the closing request is thus made public, the repudiated facilitator *must*
+or on the sister chain of the other operator,
+but no cost on the chain of the account being closed, whose repudiated operator receives no fee.
+Once the closing request is thus made public, the repudiated operator *must*
 confirm and close the account within a short deadline,
 or be declared invalid and go through liquidation as described in the section below.
-In the case of a collective closing request from another facilitator,
-the repudiated facilitator also has the option of demonstrating the closing request as invalid
-(if it indeed is), in which case the other facilitator is the one that is declared invalid and liquidated.
+In the case of a collective closing request from another operator,
+the repudiated operator also has the option of demonstrating the closing request as invalid
+(if it indeed is), in which case the other operator is the one that is declared invalid and liquidated.
 
 Second, now that it is officially known to the user and all participants
 that the account is closed, that there are no more floating transactions,
 and what the final balance of the user is, the user claims the balance.
 This claim can again be done either individually, or as part of a mass exit,
-by the claiming recipient (user or new facilitator)
+by the claiming recipient (user or new operator)
 publicly invoking the contract on the main chain.
 To prevent fraudulent double exits, or exits from invalid side-chains,
 the funds are locked for a challenge period during which third parties
@@ -141,29 +141,29 @@ may show a proof-of-fraud and invalidate the exit.
 
 Third and last, once the challenge period successfully times out
 without any valid proof-of-fraud being posted,
-the user (or his new facilitator, if part of a mass exit)
+the user (or his new operator, if part of a mass exit)
 can once again invoke the contract to actually get money from the contract.
 
 The entire process requires several transactions on the main chain
 and may take many hours due to the many delays involved.
 But the user is guaranteed to be able to get his money out of the contract,
-even without cooperation from the repudiated facilitator.
-If the facilitator is cooperative and offers fees the user is ready to afford,
+even without cooperation from the repudiated operator.
+If the operator is cooperative and offers fees the user is ready to afford,
 then the user can of course withdraw money faster
 by using the regular settlement mechanism from the previous section.
-He may or may not care whether his account on said facilitator remains open afterwards.
-If he does care, he may close the account, with or without the facilitator's cooperation.
+He may or may not care whether his account on said operator remains open afterwards.
+If he does care, he may close the account, with or without the operator's cooperation.
 
 The invariants to prove with respect to this protocol are that
 indeed, users can always close their account and get their money out in bounded time,
 assuming that at least one honest main chain miner will publish the exit transactions
-for him and/or his new facilitator,
+for him and/or his new operator,
 but that users can only take out their money once, and only the correct amount.
 
 
-### Facilitator Dissolution
+### Operator Dissolution
 
-When a facilitator is proven to be invalid,
+When a operator is proven to be invalid,
 it may not confirm anymore requests and all accounts are considered closed.
 
 However, there may be valid transactions floating, and
@@ -180,7 +180,7 @@ in case any double spending is detected, it must stop processing
 the accounts that are involved in double-spending
 from the point that this spending is detected and mark their funds for destruction.
 There may also be conflicting but non-fraudulent transactions,
-whereby e.g. the fraudulent facilitator declined to confirm some of a user's transactions,
+whereby e.g. the fraudulent operator declined to confirm some of a user's transactions,
 but later confirmed others;
 as long as the transaction history is consistent with the user not cheating,
 then the longest non-cheating history will be preferred.
@@ -205,7 +205,7 @@ that the process doesn't itself involve any violation of resource conservation l
 
 ### Client and Server Code Extraction
 
-We will extract OCaml code that facilitators and users use to maintain their respective chains
+We will extract OCaml code that operators and users use to maintain their respective chains
 and post updates to the main chain.
 
 We will define "good strategies" and "good contexts" for using the code.
@@ -224,10 +224,10 @@ third parties may offer better arguments than a failing party.
 A party may either time out or present a losing argument even though a winning one exists;
 in these cases, the party is consider to be failing, and
 third parties may declare themselves litigant and offer better arguments.
-This way, dishonest or failing parties (notably facilitators) cannot let the bad guys win
+This way, dishonest or failing parties (notably operators) cannot let the bad guys win
 and get away with other people's money.
 When a party is found to have used a suboptimal argument, they are punished.
-If they are facilitators, they "lose their license" at which point
+If they are operators, they "lose their license" at which point
 the involuntary mass exit process starts.
 
 Multiple third parties may be contesting the trial, and it might not be clear to the judge
@@ -246,7 +246,7 @@ that would result in breaking his promises
 (at least not without clear warning and manual override).
 The verification software will also help punish offenders
 by playing the verification game following an optimal strategy for each party:
-user, facilitator, other facilitator, and independent verifier.
+user, operator, other operator, and independent verifier.
 
 
 ## Model Resistance to Attacks
@@ -264,11 +264,11 @@ And then, we have a 50% attack on the court registry.
 For the q attack, non-working registrars don't count as attacking.
 For the 1-q attack, non-working registrars do count as attacking.
 If some proportion of registrars stop being trusted (10%? 25%?),
-then all users of all facilitators must issue *voluntarily* mass exits.
+then all users of all operators must issue *voluntarily* mass exits.
 Involuntary mass exits cannot help laggards in the case of failing registry.
 
-As a mitigation, if a majority of facilitators (by account volume) agree that the registry is failing,
-then facilitators using that registry can declare that after some date D sufficiently in the future,
+As a mitigation, if a majority of operators (by account volume) agree that the registry is failing,
+then operators using that registry can declare that after some date D sufficiently in the future,
 use of the registry will not be accepted, and
 only slow non-scaling exits to the main chain will be accepted.
 

@@ -251,10 +251,10 @@ before the `.ml` files: they give you a sense of the functionality exposed,
 and they are also where the comments lie.
 
 The core logic of the side-chain is in functions `validate_user_transaction_request`
-and `effect_validated_user_transaction_request` in module `Alacris_lib.Side_chain_facilitator`
+and `effect_validated_user_transaction_request` in module `Alacris_lib.Side_chain_operator`
 that is defined in files
-[`src/alacris_lib/side_chain_facilitator.mli`](src/alacris_lib/side_chain_facilitator.mli) and
-[`src/alacris_lib/side_chain_facilitator.ml`](src/alacris_lib/side_chain_facilitator.ml)
+[`src/alacris_lib/side_chain_operator.mli`](src/alacris_lib/side_chain_operator.mli) and
+[`src/alacris_lib/side_chain_operator.ml`](src/alacris_lib/side_chain_operator.ml)
 (note the correspondance between OCaml modules and pairs of interface and implementation files).
 In a sense, everything else is plumbing around this core functionality.
 
@@ -303,7 +303,7 @@ since some transactions on the side-chain need to have one or multiple
 corresponding actions on the main chain.
 
 This client communicates with the main chain ethereum node (`geth`) with JSON RPC,
-but with the facilitator using a simple ad hoc TCP/IP protocol
+but with the operator using a simple ad hoc TCP/IP protocol
 that simply uses our marshaling to send requests and responses back.
 The front-end interface (in TypeScript, running in the brower)
 talks with the client using an _ad hoc_ JSON protocol (TODO: make it JSON RPC).

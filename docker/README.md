@@ -117,7 +117,7 @@ docker
 │   ├── demo-keys-small.json
 │   ├── demo-keys-small.json.old
 │   ├── ethereum_config.json
-│   ├── facilitator_keys.json
+│   ├── operator_keys.json
 │   ├── side_chain_client_config.json
 │   └── side_chain_server_config.json
 ├── containers
