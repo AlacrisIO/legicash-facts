@@ -54,9 +54,7 @@ let make_withdraw_call operator ticket bond confirmed_state =
    We have Revision = UInt64
 
  *)
-let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.t =
-  let (ticket : Revision.t) = Revision.zero in
-  let (bond : TokenAmount.t) = TokenAmount.zero in 
+let make_state_update_call (state_digest : Digest.t) (ticket : Revision.t) (bond : TokenAmount.t) : Ethereum_chain.Operation.t =
   let (parameters : 'a list) = [ abi_digest state_digest
                                ; abi_revision ticket
                                ; abi_token_amount bond ] in

@@ -441,15 +441,15 @@ let effect_validated_user_transaction_request :
       debit_balance (TokenAmount.add withdrawal_amount withdrawal_fee) requester
       >>> accept_fee withdrawal_fee
 
-let post_state_update_needed_uo (useroper : UserOperation.t) : (bool*TokenAmount.t) =
+let post_state_update_needed_uo (useroper : UserOperation.t) : (bool * TokenAmount.t * TokenAmount.t) =
   match useroper with
-  | Deposit _ -> (true, TokenAmount.zero)
-  | Payment _ -> (true, TokenAmount.zero)
-  | Withdrawal x -> (true, (TokenAmount.add x.withdrawal_amount x.withdrawal_fee))
+  | Deposit _ -> (true, TokenAmount.zero, TokenAmount.zero)
+  | Payment _ -> (true, TokenAmount.zero, TokenAmount.zero)
+  | Withdrawal x -> (true, x.withdrawal_amount, (TokenAmount.add x.withdrawal_amount x.withdrawal_fee))
 
-let post_state_update_needed_tr (transreq : TransactionRequest.t) : (bool*TokenAmount.t) =
+let post_state_update_needed_tr (transreq : TransactionRequest.t) : (bool*TokenAmount.t*TokenAmount.t) =
   match transreq with
-  | `AdminTransaction _ -> (false, TokenAmount.zero)
+  | `AdminTransaction _ -> (false, TokenAmount.zero, TokenAmount.zero)
   | `UserTransaction x -> post_state_update_needed_uo x.payload.operation
 
 (** TODO: have a server do all the effect_requests sequentially,
@@ -465,7 +465,7 @@ let post_validated_transaction_request :
 
 let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * Digest.t) Lwt_exn.t =
   Logging.log "post_state_update_request, beginning of function";
-  let ((lneedupdate, value) : (bool*TokenAmount.t)) = post_state_update_needed_tr transreq in
+  let ((lneedupdate, bond, value) : (bool*TokenAmount.t*TokenAmount.t)) = post_state_update_needed_tr transreq in
   Logging.log "post_state_update_request lneedupdate=%B" lneedupdate;
   if lneedupdate then
     let fct = simple_client inner_transaction_request_mailbox
@@ -474,7 +474,9 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
                   `GetCurrentDigest digest_resolver) in
     Logging.log "post_state_update_request, before simple_client and push function";
     Lwt_exn.bind (Lwt.bind (fct transreq)
-                    (fun (digest) -> push_state_digest_exn digest value))
+                    (fun (digest) ->
+                      let (ticket : Revision.t) = Revision.zero in 
+                      push_state_digest_exn digest ticket bond value))
       (fun (x : Digest.t) -> Logging.log "Final return statement";
                              Lwt_exn.return (transreq, x))
   else
