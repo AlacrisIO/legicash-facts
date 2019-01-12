@@ -52,8 +52,12 @@ let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
 let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Bytes.t list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
   Lwt_exn.bind (eth_block_number ())
     (fun (to_block : Revision.t) ->
-      let (eth_object : EthObject.t) = {from_block=(Block_number start_block); to_block=(Block_number to_block); address = (Some contract_address); topics=(Some topics); blockhash=None} in
-      Lwt_exn.bind (eth_get_logs eth_object) (fun (recLLO : EthListLogObjects.t) -> Lwt_exn.return (to_block,recLLO.logs)))
+      let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address = (Some contract_address); topics=(Some topics); blockhash=None} in
+      Logging.log "retrieve_last_entries. Before call to eth_get_logs";
+      Lwt_exn.bind (eth_get_logs eth_object)
+        (fun (recLLO : EthListLogObjects.t) ->
+          Logging.log "retrieve_last_entries, After call to eth_get_logs";
+          Lwt_exn.return (to_block,recLLO.logs)))
 
 let retrieve_relevant_list_logs
       (delay : float) (contract_address : Address.t) (topics : Bytes.t list) : LogObject.t list Lwt_exn.t =

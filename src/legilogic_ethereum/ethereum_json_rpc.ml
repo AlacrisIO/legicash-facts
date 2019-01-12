@@ -160,8 +160,8 @@ end
 
 module EthObject = struct
   type t =
-    { from_block: BlockParameter.t [@key "fromBlock"]
-    ; to_block: BlockParameter.t [@key "toBlock"]
+    { from_block: BlockParameter.t option [@key "fromBlock"]
+    ; to_block: BlockParameter.t option [@key "toBlock"]
     ; address : Address.t option [@default None]
     ; topics : Yojsoning.Bytes.t list option [@default None]
     ; blockhash : Digest.t option [@default None]

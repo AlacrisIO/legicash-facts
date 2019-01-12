@@ -43,7 +43,7 @@ module Side_chain_server_config = struct
 
   type sidechain_parameter_config =
     { num_timestamps : int
-    ; delay_wait_ethereum_watch : float
+    ; delay_wait_ethereum_watch_in_seconds : float
     }
   [@@deriving of_yojson]
 
@@ -111,7 +111,7 @@ module Side_chain_server_config = struct
 
   let (num_timestamps : int) = config.sidechain_parameter.num_timestamps
 
-  let (delay_wait_ethereum_watch_in_seconds : float) = config.sidechain_parameter.delay_wait_ethereum_watch
+  let (delay_wait_ethereum_watch_in_seconds : float) = config.sidechain_parameter.delay_wait_ethereum_watch_in_seconds
                              
   (* Recommended default values:
      deposit_fee       = "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)

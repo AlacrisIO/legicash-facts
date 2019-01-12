@@ -96,8 +96,8 @@ end
 (* Input fields for the eth_getLogs routine *)
 module EthObject : sig
   type t =
-    { from_block: BlockParameter.t [@key "fromBlock"] (* optinal. Value latest if absent *)
-    ; to_block: BlockParameter.t [@key "toBlock"] (* optinal. Value latest if absent *)
+    { from_block: BlockParameter.t option [@key "fromBlock"] (* optinal. Value latest if absent *)
+    ; to_block: BlockParameter.t option [@key "toBlock"] (* optinal. Value latest if absent *)
     ; address : Address.t option (* Contract address or list of addresses *)
     ; topics : Bytes.t list option (* List of topics to search for *)
     ; blockhash : Digest.t option (* the block hash *)
