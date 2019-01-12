@@ -10,7 +10,8 @@
       "batch_size_trigger_in_requests" : 1000
   },
   "sidechain_parameter" : {
-      "num_timestamps" : 100000
+      "num_timestamps" : 100000,
+      "delay_wait_ethereum_watch_in_seconds" : 1
   },
   "fee_schedule_parameter" : {
       "deposit_fee" : "10000000000000",

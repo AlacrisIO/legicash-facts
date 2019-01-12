@@ -43,6 +43,7 @@ module Side_chain_server_config = struct
 
   type sidechain_parameter_config =
     { num_timestamps : int
+    ; delay_wait_ethereum_watch : float
     }
   [@@deriving of_yojson]
 
@@ -97,6 +98,8 @@ module Side_chain_server_config = struct
 
   let (batch_timeout_trigger_in_seconds : float) = config.leveldb_parameter.batch_timeout_trigger_in_seconds
 
+
+                                                 
   let (batch_size_trigger_in_requests : int) = config.leveldb_parameter.batch_size_trigger_in_requests
 
   (** This is a hardcoded value in Ethereum so we cannot change it *)
@@ -108,7 +111,8 @@ module Side_chain_server_config = struct
 
   let (num_timestamps : int) = config.sidechain_parameter.num_timestamps
 
-
+  let (delay_wait_ethereum_watch_in_seconds : float) = config.sidechain_parameter.delay_wait_ethereum_watch
+                             
   (* Recommended default values:
      deposit_fee       = "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
      withdrawal_fee    = "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)

@@ -13,6 +13,10 @@ open Json_rpc
 open Trie
 
 open Legilogic_ethereum
+open Side_chain_server_config
+open Ethereum_watch
+open Ethereum_json_rpc
+open Ethereum_abi
 
 open Side_chain
 
@@ -35,18 +39,22 @@ let stub_confirmed_side_chain_state_digest = ref (State.digest Side_chain.State.
 let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
-(* TODO: ACTUALLY IMPLEMENT IT, MAYBE MOVE IT to side_chain.ml ? *)
-let wait_for_operator_state_update (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+let wait_for_operator_state_update (contract_address : Address.t) (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
+  let (topic_revision : Bytes.t) = encode_function_parameters [abi_revision revision] in
+  let (topics : Bytes.t list) = [topic_revision] in
   (* bork "wait_for_operator_state_update not implemented yet"; bottom () *)
   (* It will refer to ethereum_watch *)
   (* Confirmation obtained from the side_chain by the operator by the yojson *)
-  (* THIS IS FAKE NEWS! *)
+    (* THIS IS FAKE NEWS! *)
+  Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
+  (fun (_lobj : LogObject.t) ->
   Lwt_exn.return
     Ethereum_chain.Confirmation.
       { transaction_hash= Digest.zero
       ; transaction_index= Revision.zero
       ; block_number= Revision.zero
-      ; block_hash= Digest.zero }
+      ; block_hash= Digest.zero })
 
 
 let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =
@@ -265,7 +273,7 @@ module TransactionTracker = struct
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              (* TODO: add support for waiting for a state update from the operator 
                 (applies to all 3 operations) *)
-             (wait_for_operator_state_update tc.operator_revision
+             (wait_for_operator_state_update operator tc.operator_revision 
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with

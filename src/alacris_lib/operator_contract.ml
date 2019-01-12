@@ -40,9 +40,9 @@ let deposit user (operator, amount) =
               >>> check_transaction_confirmed)
 
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
-let make_withdraw_call operator ticket bond confirmed_state =
+let make_withdraw_call operator operator_revision bond confirmed_state =
   let parameters = [ abi_address operator
-                   ; abi_revision ticket
+                   ; abi_revision operator_revision
                    ; abi_token_amount bond
                    ; abi_digest confirmed_state ] in
   let call = encode_function_call { function_name = "withdraw"; parameters } in

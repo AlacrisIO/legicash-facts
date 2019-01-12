@@ -49,14 +49,14 @@ let main_chain_block_notification_stream
 let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
 
 (* Look for confirmed or not confirmed blocks. NEED TO ADD: NUMBER of confirmation *)
-let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Digest.t list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
+let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Bytes.t list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
   Lwt_exn.bind (eth_block_number ())
     (fun (to_block : Revision.t) ->
       let (eth_object : EthObject.t) = {from_block=(Block_number start_block); to_block=(Block_number to_block); address = (Some contract_address); topics=(Some topics); blockhash=None} in
       Lwt_exn.bind (eth_get_logs eth_object) (fun (recLLO : EthListLogObjects.t) -> Lwt_exn.return (to_block,recLLO.logs)))
 
-let retrieve_relevant_logs
-      (delay : float) (contract_address : Address.t) (topics : Digest.t list) : LogObject.t list Lwt_exn.t =
+let retrieve_relevant_list_logs
+      (delay : float) (contract_address : Address.t) (topics : Bytes.t list) : LogObject.t list Lwt_exn.t =
   let rec fct_downloading (start_block : Revision.t) : LogObject.t list Lwt_exn.t =
     Lwt_exn.bind (retrieve_last_entries start_block contract_address topics)
       (fun (x : (Revision.t * (LogObject.t list))) ->
@@ -71,6 +71,19 @@ let retrieve_relevant_logs
   in fct_downloading !starting_watch_ref
 
 
+let retrieve_relevant_single_logs
+      (delay : float) (contract_address : Address.t) (topics : Bytes.t list) : LogObject.t Lwt_exn.t =
+  Lwt_exn.bind (retrieve_relevant_list_logs delay contract_address topics)
+    (fun (llogs : LogObject.t list) ->
+      let (len : int) = List.length llogs in
+      if len > 1 then
+        bork "The length should be exactly 1"
+      else
+        Lwt_exn.return (List.hd llogs))
+       
+      
+
+   
 (* TODO: implement following operations:
    ---Watch Ethereum blocks on the ethereum blockchain.
    ---Distinguish between confirmed blocks and not quite confirmed blocks.
