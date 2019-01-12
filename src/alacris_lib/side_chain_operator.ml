@@ -102,7 +102,7 @@ type inner_transaction_request =
   [ validated_transaction_request
   | `Flush of int
   | `Committed of (State.t signed * unit Lwt.u)
-  | `GetCurrentDigest of (Digest.t Lwt.u) ]
+  | `GetCurrentDigest of ((Digest.t * Revision.t) Lwt.u) ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -469,14 +469,14 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
   Logging.log "post_state_update_request lneedupdate=%B" lneedupdate;
   if lneedupdate then
     let fct = simple_client inner_transaction_request_mailbox
-                (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
+                (fun ((_request, digest_rev_resolver) : (TransactionRequest.t * (Digest.t*Revision.t) Lwt.u)) ->
                   Logging.log "The post_state_update_request lambda";
-                  `GetCurrentDigest digest_resolver) in
+                  `GetCurrentDigest digest_rev_resolver) in
     Logging.log "post_state_update_request, before simple_client and push function";
     Lwt_exn.bind (Lwt.bind (fct transreq)
-                    (fun (digest) ->
-                      let (ticket : Revision.t) = Revision.zero in 
-                      push_state_digest_exn digest ticket bond value))
+                    (fun (digest_rev) ->
+                      let ((digest, operator_revision) : (Digest.t*Revision.t)) = digest_rev in
+                      push_state_digest_exn digest operator_revision bond value))
       (fun (x : Digest.t) -> Logging.log "Final return statement";
                              Lwt_exn.return (transreq, x))
   else
@@ -716,10 +716,10 @@ let inner_transaction_request_loop =
                                                 Lwt.return_unit);
                     Logging.log "inner_transaction_request, After if/then/else";
                     request_batch new_operator_state new_size)
-               | `GetCurrentDigest (digest_resolver : Digest.t Lwt.u) ->
+               | `GetCurrentDigest (digest_resolver : (Digest.t*Revision.t) Lwt.u) ->
                   Logging.log "inner_transaction_request, CASE : GetCurrentDigest";
                   (* Lwt.wakeup_later notify_batch_committed_u (); *)
-                  Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
+                  Lwt.wakeup_later digest_resolver ((State.digest !operator_state_ref.current), !operator_state_ref.current.operator_revision);
                   request_batch operator_state size
                (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
                | `Flush (id : int) ->

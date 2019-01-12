@@ -24,23 +24,23 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
-    event StateUpdate(address _operator, uint64 indexed _ticket);
+    event StateUpdate(address _operator, uint64 indexed _operator_revision);
     
 
 
     /* TODO: include a bond with this and every claim */
-    function claim_state_update(bytes32 _new_state, uint64 _ticket, uint _bond) external payable {
-        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _ticket, _new_state), _bond);
-	emit StateUpdate(msg.sender, _ticket);
+    function claim_state_update(bytes32 _new_state, uint64 _operator_revision, uint _bond) external payable {
+        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _operator_revision, _new_state), _bond);
+	emit StateUpdate(msg.sender, _operator_revision);
     }
 
     // WITHDRAWALS
 
-    event Withdrawal(address indexed recipient, uint64 indexed ticket);
+    event Withdrawal(address indexed recipient, uint64 indexed operator_revision);
 
-    function withdrawal_claim(address _operator, uint64 _ticket, bytes32 _confirmed_state)
+    function withdrawal_claim(address _operator, uint64 _operator_revision, bytes32 _confirmed_state)
             private pure returns(bytes32) {
-        return digest_claim(_operator, ClaimType.STATE_UPDATE, _ticket, _confirmed_state);
+        return digest_claim(_operator, ClaimType.STATE_UPDATE, _operator_revision, _confirmed_state);
     }
 
     // TODO: The cost of a legal argument in gas should be statically deduced
