@@ -41,7 +41,7 @@ let operator_address =
 let decode_response (unmarshaler : 'a unmarshaler) : (string, 'a or_exn) Lwter.arr =
   Logging.log "side_chain_client : decode_response";
   unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwter.arr
-
+  
   
 (* Queries return JSON *)
 let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =

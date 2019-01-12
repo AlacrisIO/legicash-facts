@@ -56,8 +56,8 @@ let retrieve_last_entries (start_block : Revision.t) (contract_address : Address
       Lwt_exn.bind (eth_get_logs eth_object) (fun (recLLO : EthListLogObjects.t) -> Lwt_exn.return (to_block,recLLO.logs)))
 
 let retrieve_relevant_logs
-      (delay : float) (contract_address : Address.t) (topics : Digest.t list) : LogObject.t Lwt_exn.t =
-  let rec fct_downloading (start_block : Revision.t) : LogObject.t Lwt_exn.t =
+      (delay : float) (contract_address : Address.t) (topics : Digest.t list) : LogObject.t list Lwt_exn.t =
+  let rec fct_downloading (start_block : Revision.t) : LogObject.t list Lwt_exn.t =
     Lwt_exn.bind (retrieve_last_entries start_block contract_address topics)
       (fun (x : (Revision.t * (LogObject.t list))) ->
         let (x_to, x_llogs) = x in
@@ -66,9 +66,7 @@ let retrieve_relevant_logs
         if (len == 0) then
           Lwt_exn.bind (sleep_delay_exn delay) (fun () -> fct_downloading x_to)
         else
-          if len > 1 then bork "We should have just one entry that matches"
-          else
-            Lwt_exn.return (List.hd x_llogs)
+          Lwt_exn.return x_llogs
       )
   in fct_downloading !starting_watch_ref
 

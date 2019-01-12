@@ -716,8 +716,10 @@ let inner_transaction_request_loop =
                     request_batch new_operator_state new_size)
                | `GetCurrentDigest (digest_resolver : Digest.t Lwt.u) ->
                   Logging.log "inner_transaction_request, CASE : GetCurrentDigest";
+                  (* Lwt.wakeup_later notify_batch_committed_u (); *)
                   Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
                   request_batch operator_state size
+               (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
                | `Flush (id : int) ->
                  Logging.log "inner_transaction_request_loop, CASE : Flush";
                  assert (id = batch_id);

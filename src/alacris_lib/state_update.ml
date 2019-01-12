@@ -44,7 +44,9 @@ let push_state_digest_exn (digest : Digest.t) (value : TokenAmount.t) : Digest.t
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   Logging.log "push_state_digest_exn : before make_pre_transaction";
   Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val value 
-  >>= Ethereum_user.confirm_pre_transaction oper_addr
+  >>= fun x ->
+  Logging.log "push_state_digest_exn : before confirm_pre_transaction";
+  Ethereum_user.confirm_pre_transaction oper_addr x
   >>= fun (_tx, confirmation) ->
   Logging.log "push_state_digest_exn : before eth_get_transaction_receipt";
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash

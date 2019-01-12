@@ -50,9 +50,16 @@ let make_withdraw_call operator ticket bond confirmed_state =
 
 
 (* calls the "claim_state_update" that calls "make_claim" that works with a mapping 
-   from bytes32 to integers. *)
+   from bytes32 to integers.
+   We have Revision = UInt64
+
+ *)
 let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.t =
-  let (parameters : 'a list) = [ abi_digest state_digest ] in
+  let (ticket : Revision.t) = Revision.zero in
+  let (bond : TokenAmount.t) = TokenAmount.zero in 
+  let (parameters : 'a list) = [ abi_digest state_digest
+                               ; abi_revision ticket
+                               ; abi_token_amount bond ] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 

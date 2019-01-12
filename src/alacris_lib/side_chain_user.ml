@@ -275,7 +275,8 @@ module TransactionTracker = struct
            | PostedToMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
              Logging.log "side_chain_user: TrTracker, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
-             (* TODO: wait for confirmation on the main chain and handle lawsuits *)
+             (* TODO: wait for confirmation on the main chain and handle lawsuits
+                Right now, no lawsuit *)
              ConfirmedOnMainChain (tc, confirmation) |> continue
            | ConfirmedOnMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
              Logging.log "side_chain_user: TrTracker, ConfirmedOnMainChain operation";

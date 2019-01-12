@@ -24,7 +24,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
-    event StateUpdate(address _operator, uint64 _ticket);
+    event StateUpdate(address _operator, uint64 indexed _ticket);
     
 
 
