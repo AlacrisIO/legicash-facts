@@ -24,19 +24,19 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
-    event StateUpdate(address _operator, uint64 indexed _operator_revision);
+    event StateUpdate(uint64 indexed _operator_revision);
     
 
 
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state, uint64 _operator_revision, uint _bond) external payable {
         make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _operator_revision, _new_state), _bond);
-	emit StateUpdate(msg.sender, _operator_revision);
+	emit StateUpdate(_operator_revision);
     }
 
     // WITHDRAWALS
 
-    event Withdrawal(address indexed recipient, uint64 indexed operator_revision);
+    event Withdrawal(uint64 indexed operator_revision);
 
     function withdrawal_claim(address _operator, uint64 _operator_revision, bytes32 _confirmed_state)
             private pure returns(bytes32) {
@@ -67,9 +67,9 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
 
 
-    function withdraw(address _operator, uint64 _ticket, uint _bond, bytes32 _confirmed_state)
+    function withdraw(address _operator, uint64 _operator_revision, uint _bond, bytes32 _confirmed_state)
             external {
-        bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _ticket, _confirmed_state);
+        bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _operator_revision, _confirmed_state);
 
         // The first check. If the claim does not exist, nothing can be put as rejected.
         require(is_claim_assigned(claim), "State has not been assigned");
@@ -85,7 +85,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
           consume_claim(claim);
 
           // Second: Emitting the event
-          emit Withdrawal(msg.sender, _ticket);
+          emit Withdrawal(_operator_revision);
 
           // Third: Emitting the money
           msg.sender.transfer(_bond);
@@ -99,7 +99,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         consume_claim(withdrawal_claim(_operator, _ticket, _confirmed_state));
 
         // Log the withdrawal so future double-claim attempts can be duly rejected.
-        emit Withdrawal(_operator, _ticket);
+        emit Withdrawal(_ticket);
 
         // NB: Always transfer money LAST!
         msg.sender.transfer(_value + _bond);
