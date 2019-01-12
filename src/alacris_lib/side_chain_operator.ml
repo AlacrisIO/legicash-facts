@@ -476,7 +476,8 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
     Lwt_exn.bind (Lwt.bind (fct transreq)
                     (fun (digest_rev) ->
                       let ((digest, operator_revision) : (Digest.t*Revision.t)) = digest_rev in
-                      push_state_digest_exn digest operator_revision bond value))
+                      let (operator_revision_p1 : Revision.t) = Revision.(add operator_revision one) in (* It is a hack objectively *)
+                      push_state_digest_exn digest operator_revision_p1 bond value))
       (fun (x : Digest.t) -> Logging.log "Final return statement";
                              Lwt_exn.return (transreq, x))
   else
@@ -502,6 +503,7 @@ let make_transaction_commitment : (Transaction.t * Digest.t) -> TransactionCommi
     let signature = committed.signature in
     let main_chain_transactions_posted = dv_digest main_chain_transactions_posted in
     let revision = transaction.tx_header.tx_revision in
+    Logging.log "make_transaction_commitment operator_revision=%i" (Revision.to_int operator_revision);
     match TransactionMap.Proof.get revision transactions with
     | Some tx_proof ->
       TransactionCommitment.
