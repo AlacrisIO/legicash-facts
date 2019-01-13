@@ -276,7 +276,7 @@ module TransactionTracker = struct
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              (* TODO: add support for waiting for a state update from the operator 
                 (applies to all 3 operations) *)
-             (wait_for_operator_state_update operator tc.operator_revision 
+             (wait_for_operator_state_update tc.contract_address tc.operator_revision 
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with

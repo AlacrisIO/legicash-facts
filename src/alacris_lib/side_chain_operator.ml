@@ -17,6 +17,7 @@ open State_update
 
 open Legilogic_ethereum
 open Side_chain_server_config
+open Operator_contract
    
 open Side_chain
 
@@ -502,13 +503,14 @@ let make_transaction_commitment : (Transaction.t * Digest.t) -> TransactionCommi
     let accounts = dv_digest accounts in
     let signature = committed.signature in
     let main_chain_transactions_posted = dv_digest main_chain_transactions_posted in
+    let (contract_address : Address.t) = (get_contract_address ()) in
     let revision = transaction.tx_header.tx_revision in
     Logging.log "make_transaction_commitment operator_revision=%i" (Revision.to_int operator_revision);
     match TransactionMap.Proof.get revision transactions with
     | Some tx_proof ->
       TransactionCommitment.
         { transaction; tx_proof; operator_revision; spending_limit;
-          accounts; main_chain_transactions_posted; signature; state_digest }
+          accounts; main_chain_transactions_posted; signature; state_digest; contract_address }
     | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x revision)
 
 (* Process a user request, with a flag to specify whether it's a forced request

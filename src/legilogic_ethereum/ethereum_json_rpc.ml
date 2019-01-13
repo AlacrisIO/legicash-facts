@@ -234,15 +234,13 @@ end
 
 module EthListLogObjects = struct
   [@warning "-39"]
-  type t =
-    { logs: LogObject.t list }
+  type t = LogObject.t list
   [@@deriving yojson {strict = false}]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
 end
-
                           
 let operation_to_parameters (sender : Address.t) (operation : Operation.t) : TransactionParameters.t =
   let (to_, data) = match operation with

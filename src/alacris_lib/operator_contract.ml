@@ -55,6 +55,7 @@ let make_withdraw_call operator operator_revision bond confirmed_state =
 
  *)
 let make_state_update_call (state_digest : Digest.t) (ticket : Revision.t) (bond : TokenAmount.t) : Ethereum_chain.Operation.t =
+  Logging.log "Before creation of parameter for CallFunction make_state_update_call";
   let (parameters : 'a list) = [ abi_digest state_digest
                                ; abi_revision ticket
                                ; abi_token_amount bond ] in

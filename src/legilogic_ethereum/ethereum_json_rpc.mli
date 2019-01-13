@@ -155,9 +155,7 @@ end
 
 
 module EthListLogObjects : sig
-  type t =
-    { logs : LogObject.t list (* The list of matching objects *)
-    }
+  type t = LogObject.t list (* The list of matching objects *)
   include YojsonableS with type t := t
 end
 
