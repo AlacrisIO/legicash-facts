@@ -40,13 +40,13 @@ let deposit user (operator, amount) =
               >>> check_transaction_confirmed)
 
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
-let make_withdraw_call operator operator_revision bond confirmed_state =
+let make_withdraw_call contract_address operator operator_revision bond confirmed_state =
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount bond
                    ; abi_digest confirmed_state ] in
   let call = encode_function_call { function_name = "withdraw"; parameters } in
-  Operation.CallFunction (get_contract_address (), call)
+  Operation.CallFunction (contract_address, call)
 
 
 (* calls the "claim_state_update" that calls "make_claim" that works with a mapping 
@@ -54,10 +54,10 @@ let make_withdraw_call operator operator_revision bond confirmed_state =
    We have Revision = UInt64
 
  *)
-let make_state_update_call (state_digest : Digest.t) (ticket : Revision.t) (bond : TokenAmount.t) : Ethereum_chain.Operation.t =
+let make_state_update_call (state_digest : Digest.t) (operator_revision : Revision.t) (bond : TokenAmount.t) : Ethereum_chain.Operation.t =
   Logging.log "Before creation of parameter for CallFunction make_state_update_call";
   let (parameters : 'a list) = [ abi_digest state_digest
-                               ; abi_revision ticket
+                               ; abi_revision operator_revision
                                ; abi_token_amount bond ] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)

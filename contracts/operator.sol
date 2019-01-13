@@ -24,19 +24,19 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
-    event StateUpdate(uint64 indexed _operator_revision);
+    event StateUpdate(uint64 indexed _operator_revision, uint64 indexed value);
     
 
 
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state, uint64 _operator_revision, uint _bond) external payable {
         make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _operator_revision, _new_state), _bond);
-	emit StateUpdate(_operator_revision);
+	emit StateUpdate(_operator_revision, 0);
     }
 
     // WITHDRAWALS
 
-    event Withdrawal(uint64 indexed operator_revision);
+    event Withdrawal(uint64 indexed operator_revision, uint64 indexed value);
 
     function withdrawal_claim(address _operator, uint64 _operator_revision, bytes32 _confirmed_state)
             private pure returns(bytes32) {
@@ -85,7 +85,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
           consume_claim(claim);
 
           // Second: Emitting the event
-          emit Withdrawal(_operator_revision);
+          emit Withdrawal(_operator_revision, 1);
 
           // Third: Emitting the money
           msg.sender.transfer(_bond);
@@ -99,7 +99,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         consume_claim(withdrawal_claim(_operator, _ticket, _confirmed_state));
 
         // Log the withdrawal so future double-claim attempts can be duly rejected.
-        emit Withdrawal(_ticket);
+        emit Withdrawal(_ticket, 1);
 
         // NB: Always transfer money LAST!
         msg.sender.transfer(_value + _bond);

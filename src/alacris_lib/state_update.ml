@@ -57,16 +57,36 @@ let push_state_digest_exn (digest : Digest.t) (operator_revision : Revision.t) (
   | Some _receipt -> return digest
 
 
+let emit_withdrawal_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (digest : Digest.t) (bond : TokenAmount.t) : unit Lwt_exn.t =
+  Logging.log "emit_withdrawal_operation : beginning of operation";
+  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision bond digest in
+  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
+  let (value : TokenAmount.t) = TokenAmount.zero in
+  Logging.log "emit_withdrawal_operation : before make_pre_transaction";
+  Ethereum_user.make_pre_transaction ~sender:operator operation ?gas_limit:gas_limit_val value 
+  >>= fun x ->
+  Logging.log "emit_withdrawal_operation : before confirm_pre_transaction";
+  Ethereum_user.confirm_pre_transaction operator x
+  >>= fun (_tx, confirmation) ->
+  Logging.log "emit_withdrawal_operation : before eth_get_transaction_receipt";
+  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
+  >>= fun x ->
+  Logging.log "emit_withdrawal_operation : after eth_get_transaction_receipt";
+  match x with
+  | None -> bork "No tx receipt for contract creation"
+  | Some _receipt -> Lwt_exn.return ()
+  
+
+
+
+
+                       
+                       
 (* Eating the exception, very bad! But needed *)
 (*                   
 let push_state_digest (digest : Digest.t) : Digest.t Lwt.t =
   Lwt.bind (push_state_digest_exn digest) (fun (_val : Digest.t OrExn.t) -> Lwt.return digest)
  *)
-
-(* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
-let do_sleep_unix : unit -> unit Lwt_exn.t =
-  fun () -> 
-  Lwt.bind (Lwt_unix.sleep Side_chain_server_config.time_state_update_sec) (fun () -> return ())
 
 
     

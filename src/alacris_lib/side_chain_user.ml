@@ -17,7 +17,8 @@ open Side_chain_server_config
 open Ethereum_watch
 open Ethereum_json_rpc
 open Ethereum_abi
-
+open State_update
+   
 open Side_chain
 
 (** TODO: query the network, whatever, and find the fee schedule *)
@@ -39,15 +40,12 @@ let stub_confirmed_side_chain_state_digest = ref (State.digest Side_chain.State.
 let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
-let wait_for_operator_state_update (contract_address : Address.t) (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+let wait_for_contract_event (contract_address : Address.t) (revision : Revision.t) (validx : Revision.t)   : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "wait_for_operator_state_update, step 1";
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   let (topic_revision : Bytes.t) = encode_function_parameters [abi_revision revision] in
-  let (topics : Bytes.t list) = [topic_revision] in
-  (* bork "wait_for_operator_state_update not implemented yet"; bottom () *)
-  (* It will refer to ethereum_watch *)
-  (* Confirmation obtained from the side_chain by the operator by the yojson *)
-  (* THIS IS FAKE NEWS! *)
+  let (topic_value : Bytes.t) = encode_function_parameters [abi_revision Revision.zero] in
+  let (topics : Bytes.t option list) = [None; Some topic_revision; Some topic_value] in
   Logging.log "wait_for_operator_state_update, topic_revision=%s" (Bytes.to_string topic_revision);
   Logging.log "wait_for_operator_state_update, step 2";
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
@@ -61,6 +59,28 @@ let wait_for_operator_state_update (contract_address : Address.t) (revision : Re
       ; block_hash= Digest.zero })
 
 
+let wait_for_operator_state_update (contract_address : Address.t) (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  wait_for_contract_event contract_address revision Revision.zero
+
+let wait_for_withdrawal_event (contract_address : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
+  Lwt_exn.bind (wait_for_contract_event contract_address revision Revision.one) (fun _ -> Lwt_exn.return ())
+      
+
+
+let final_main_chain_operation (tc : TransactionCommitment.t) (operator : Address.t) : unit Lwt_exn.t =
+  match (tc.transaction.tx_request |> TransactionRequest.request).operation with
+  | Deposit _ -> Lwt_exn.return ()
+  | Payment _ -> Lwt_exn.return ()
+  | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+     Lwt_exn.bind (emit_withdrawal_operation tc.contract_address operator tc.operator_revision tc.state_digest withdrawal_amount)
+    (fun _ -> wait_for_withdrawal_event tc.contract_address tc.operator_revision)
+
+  
+(*
+let do_the_withdraw (value : TokenAmount.t) Lwt_exn.t =
+  
+ *)
+  
 let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =
   Lwt.return RxHeader.
                { operator
@@ -275,9 +295,7 @@ module TransactionTracker = struct
            | PostedToRegistry (tc : TransactionCommitment.t) ->
              Logging.log "side_chain_user: TrTracker, PostedToRegistry operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
-             (* TODO: add support for waiting for a state update from the operator 
-                (applies to all 3 operations) *)
-             (wait_for_operator_state_update tc.contract_address tc.operator_revision 
+             (wait_for_operator_state_update tc.contract_address tc.operator_revision
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
@@ -294,7 +312,8 @@ module TransactionTracker = struct
              Logging.log "side_chain_user: TrTracker, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
-             FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |> finalize)
+             Lwt.bind (final_main_chain_operation tc operator) (fun _ ->
+                 FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |> finalize))
         | Final x -> return x
       in key, loop state
   end

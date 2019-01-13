@@ -14,10 +14,10 @@ val main_chain_block_notification_stream :
     stream of notifications that a new block has been observed, based on polling
     geth every [delay] seconds, and starting with block [start] *)
 
-val retrieve_relevant_list_logs : float -> Address.t -> Bytes.t list -> LogObject.t list Lwt_exn.t
+val retrieve_relevant_list_logs : float -> Address.t -> Bytes.t option list -> LogObject.t list Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
     be only one matching entry *)
 
-val retrieve_relevant_single_logs : float -> Address.t -> Bytes.t list -> LogObject.t Lwt_exn.t
+val retrieve_relevant_single_logs : float -> Address.t -> Bytes.t option list -> LogObject.t Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
     be only one matching entry *)

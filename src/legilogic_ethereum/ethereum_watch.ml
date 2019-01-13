@@ -48,18 +48,12 @@ let main_chain_block_notification_stream
 (* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
 let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
 
-let topics_type_conversion (topics : Bytes.t list) : Bytes.t option list =
-  let (topics_opt : Bytes.t option list) = List.map (fun x -> Some x) topics in
-  List.cons None topics_opt
-
                                               
 (* Look for confirmed or not confirmed blocks. NEED TO ADD: NUMBER of confirmation *)
-let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Bytes.t list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
+let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Bytes.t option list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
   Lwt_exn.bind (eth_block_number ())
     (fun (to_block : Revision.t) ->
-      (*      let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address = (Some contract_address); topics=(Some topics); blockhash=None} in *)
-      (*      let (eth_object : EthObject.t) = {from_block=None; to_block=None; address = None; topics=(Some topics); blockhash=None} in *)
-      let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address =(Some contract_address); topics=(Some (topics_type_conversion topics)); blockhash=None} in
+      let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address =(Some contract_address); topics=(Some topics); blockhash=None} in
       Logging.log "retrieve_last_entries. Before call to eth_get_logs";
       Lwt_exn.bind (eth_get_logs eth_object)
         (fun (recLLO : EthListLogObjects.t) ->
@@ -67,7 +61,7 @@ let retrieve_last_entries (start_block : Revision.t) (contract_address : Address
           Lwt_exn.return (to_block,recLLO)))
 
 let retrieve_relevant_list_logs
-      (delay : float) (contract_address : Address.t) (topics : Bytes.t list) : LogObject.t list Lwt_exn.t =
+      (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t list Lwt_exn.t =
   let rec fct_downloading (start_block : Revision.t) : LogObject.t list Lwt_exn.t =
     Lwt_exn.bind (retrieve_last_entries start_block contract_address topics)
       (fun (x : (Revision.t * (LogObject.t list))) ->
@@ -83,7 +77,7 @@ let retrieve_relevant_list_logs
 
 
 let retrieve_relevant_single_logs
-      (delay : float) (contract_address : Address.t) (topics : Bytes.t list) : LogObject.t Lwt_exn.t =
+      (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t Lwt_exn.t =
   Lwt_exn.bind (retrieve_relevant_list_logs delay contract_address topics)
     (fun (llogs : LogObject.t list) ->
       let (len : int) = List.length llogs in
