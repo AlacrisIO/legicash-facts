@@ -48,13 +48,18 @@ let main_chain_block_notification_stream
 (* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
 let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
 
+let topics_type_conversion (topics : Bytes.t list) : Bytes.t option list =
+  let (topics_opt : Bytes.t option list) = List.map (fun x -> Some x) topics in
+  List.cons None topics_opt
+
+                                              
 (* Look for confirmed or not confirmed blocks. NEED TO ADD: NUMBER of confirmation *)
 let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Bytes.t list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
   Lwt_exn.bind (eth_block_number ())
     (fun (to_block : Revision.t) ->
       (*      let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address = (Some contract_address); topics=(Some topics); blockhash=None} in *)
       (*      let (eth_object : EthObject.t) = {from_block=None; to_block=None; address = None; topics=(Some topics); blockhash=None} in *)
-      let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address =(Some contract_address); topics=(Some topics); blockhash=None} in
+      let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address =(Some contract_address); topics=(Some (topics_type_conversion topics)); blockhash=None} in
       Logging.log "retrieve_last_entries. Before call to eth_get_logs";
       Lwt_exn.bind (eth_get_logs eth_object)
         (fun (recLLO : EthListLogObjects.t) ->

@@ -42,12 +42,13 @@ let get_keypair_of_address user =
 let wait_for_operator_state_update (contract_address : Address.t) (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "wait_for_operator_state_update, step 1";
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  let (_topic_revision : Bytes.t) = encode_function_parameters [abi_revision revision] in
-  let (topics : Bytes.t list) = [] in
+  let (topic_revision : Bytes.t) = encode_function_parameters [abi_revision revision] in
+  let (topics : Bytes.t list) = [topic_revision] in
   (* bork "wait_for_operator_state_update not implemented yet"; bottom () *)
   (* It will refer to ethereum_watch *)
   (* Confirmation obtained from the side_chain by the operator by the yojson *)
-    (* THIS IS FAKE NEWS! *)
+  (* THIS IS FAKE NEWS! *)
+  Logging.log "wait_for_operator_state_update, topic_revision=%s" (Bytes.to_string topic_revision);
   Logging.log "wait_for_operator_state_update, step 2";
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
   (fun (_lobj : LogObject.t) ->

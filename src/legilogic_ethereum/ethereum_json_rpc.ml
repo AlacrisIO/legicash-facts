@@ -163,7 +163,7 @@ module EthObject = struct
     { from_block: BlockParameter.t option [@key "fromBlock"]
     ; to_block: BlockParameter.t option [@key "toBlock"]
     ; address : Address.t option [@default None]
-    ; topics : Yojsoning.Bytes.t list option [@default None]
+    ; topics : Yojsoning.Bytes.t option list option [@default None]
     ; blockhash : Digest.t option [@default None]
     } [@@deriving yojson {strict = false}]
   include (YojsonPersistable (struct

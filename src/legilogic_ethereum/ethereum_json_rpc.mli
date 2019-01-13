@@ -99,7 +99,7 @@ module EthObject : sig
     { from_block: BlockParameter.t option [@key "fromBlock"] (* optinal. Value latest if absent *)
     ; to_block: BlockParameter.t option [@key "toBlock"] (* optinal. Value latest if absent *)
     ; address : Address.t option (* Contract address or list of addresses *)
-    ; topics : Bytes.t list option (* List of topics to search for *)
+    ; topics : Bytes.t option list option (* List of topics to search for *)
     ; blockhash : Digest.t option (* the block hash *)
     }
   include YojsonableS with type t := t
