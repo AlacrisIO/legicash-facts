@@ -226,7 +226,13 @@ reset:
 	$(HIDE) ./src/alacris_client/nginx/stop.sh 2> /dev/null || true
 	$(SHOW) " Removing all databases, preserving old logs if any"
 	$(HIDE) rm -rf _old_logs ; \
-	if [ -d _run/logs ] ; then mv _run/logs _old_logs ; fi ; \
+	if [ -d _run/logs ] ; then \
+	  mv _run/logs _old_logs ; \
+	fi ; \
+	if [ -d _ethereum/geth-data/logs ] ; then \
+	  mkdir -p _old_logs ; \
+	  mv _ethereum/geth-data/logs _old_logs/geth-data ; \
+	fi ; \
 	rm -rf _run _ethereum ; \
 	if [ -d _old_logs ] ; then mkdir _run ; mv _old_logs _run/old_logs ; fi
 
@@ -245,9 +251,10 @@ docker-pull: ## Pull Alacris prerequisites images
 	$(SHOW) " Pulling Alacris Docker images"
 	$(HIDE) docker/scripts/pull_images.sh
 
-docker-build-all: ## Build all or c=<name> containers in foreground
+## Build all containers in foreground (including build-prerequisites)
+docker-build-all:
 	$(SHOW) " Building Alacris Docker images"
-	$(SHOW) docker/scripts/build_all_images.sh
+	$(HIDE) docker/scripts/build_all_images.sh
 
 docker-build: ## Build all or c=<name> containers in foreground
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(c)

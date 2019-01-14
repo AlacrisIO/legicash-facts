@@ -14,16 +14,22 @@ run() {
 }
 
 echo "Building build prerequisite image"
-run docker build -t gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 -f containers/build-prerequisites/Dockerfile .
+run docker build -t gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 -f docker/containers/build-prerequisites/Dockerfile .
+
 echo "Building client runtime prerequisite image"
-run docker build -t gcr.io/legicash-demo-1950/legicash-demo/alacris_client_container:v1 -f containers/alacris_client_container/Dockerfile .
+run docker build -t gcr.io/legicash-demo-1950/legicash-demo/alacris_client_container:v1 -f docker/containers/alacris_client_container/Dockerfile .
+
 echo "Building side chain manager runtime prerequisite image"
-run docker build -t gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1 -f containers/alacris_side_chain_manager_container/Dockerfile .
+run docker build -t gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1 -f docker/containers/alacris_side_chain_manager_container/Dockerfile .
+
 echo "Cleanup of state and log directories"
-run rm -rf /tmp/legilogs
+[ -d /tmp/legilogs ] && run rm -rf /tmp/legilogs || true
+
 echo "Creating new log and state directories"
 run mkdir -p /tmp/legilogs/{alacris_client_db,alacris_server_db,ethereum_prefunder_db,_ethereum}
+
 echo "Seting permissions"
 run chmod -R a+rwX /tmp/legilogs
+
 echo "Building application images"
-run docker-compose build
+run docker-compose -f docker/docker-compose.yml build

@@ -14,25 +14,26 @@ and here are the basic ones we believe are really essential:
   4. Prove Fraud (Must illustrate interactive proof)
 
 These are advanced flows necessary for the M2 Feature Complete release:
+
   5. Forced transaction on main chain (necessary for repudiability, atomic transactions and layer 3 contracts)
   6. Atomic Cross-chain Settlement Flow (necessary to scale multi-side-chains)
-  7. Failed or Closed Facilitator Recovery (necessary for security that scales and is fair)
+  7. Failed or Closed Operator Recovery (necessary for security that scales and is fair)
   8. Mass Transfers(?) (necessary for security that scales?)
   9. Forced transaction on side chain (necessary for making repudiability scale)
-  10. Create Facilitator (very incomplete version for M1)
-  11. Update facilitator sidechain state + pay penalties (partial for M1)
-  12. Close facilitator (necessary for facilitators to get their money back)
+  10. Create Operator (very incomplete version for M1)
+  11. Update operator sidechain state + pay penalties (partial for M1)
+  12. Close operator (necessary for operators to get their money back)
   13. All fraud proofs (not just a few for demo)
 
 ## Basic Flows
 
 ### Deposit Money
 
-Actors: Alice (sender), Trent (facilitator)
+Actors: Alice (sender), Trent (operator)
 
 Preconditions:
 * Alice has an account on the main chain with balance X+F+R.
-* Trent already has an open contract as a facilitator on the main chain.
+* Trent already has an open contract as a operator on the main chain.
 * Alice has an account on Trent's side-chain with balance Y (0 if never used before).
 * Trent has an account for Alice with balance Y.
 
@@ -68,7 +69,7 @@ of adjusting the overall balance of the two-way peg.
 
 ### Payment Flow
 
-Actors: Alice (sender), Bob (recipient), Trent (facilitator).
+Actors: Alice (sender), Bob (recipient), Trent (operator).
 
 Preconditions:
 * Alice has an account on Trent's side-chain, with balance X=Y+F+R.
@@ -97,10 +98,10 @@ confirmation to be correct (which is expensive and must be done asynchronously).
 
 ### Withdraw Money
 
-Actors: Alice (sender), Trent (facilitator)
+Actors: Alice (sender), Trent (operator)
 
 Preconditions:
-* Trent already has an open contract as a facilitator on the main chain.
+* Trent already has an open contract as a operator on the main chain.
 * Alice has an account on Trent's side chain with balance X=Y+F+R.
 
 Postconditions:
@@ -146,9 +147,9 @@ Add complex claims.
 
 TODO: update these flows.
 
-### Cross-Facilitator Settlement Flow
+### Cross-Operator Settlement Flow
 
-Actors: Alice (sender), Bob (recipient), Trent (facilitator), Tara (facilitator).
+Actors: Alice (sender), Bob (recipient), Trent (operator), Tara (operator).
 
 Preconditions:
 * Alice has a voluntary account on Trent's side-chain with balance X+F+R.
@@ -186,12 +187,12 @@ If any of the steps before 12 (included) fails, the settlement is incomplete and
 Now, the adversarial exit flow HAS to take into account the potentially incomplete transactions!!!
 (True for *all* kinds of transactions.)
 
-NB: is it worth going more than 2 facilitators, in the style of the Lightning Network?
+NB: is it worth going more than 2 operators, in the style of the Lightning Network?
 
 
 ### Exit Settlement Flow
 
-Actors: Bob (recipient), Trent (facilitator)
+Actors: Bob (recipient), Trent (operator)
 
 Preconditions:
 * Bob has an account on Trent's side-chain with balance X+F+R.
@@ -212,7 +213,7 @@ If 5 didn't happen, Bob still can get her money back, which
 the adversarial exit thing must take into account.
 
 
-### Facilitator Invalidation Flow
+### Operator Invalidation Flow
 
 1. a. Trent posts invalid state update. Someone proves it in court.
    b. Trent times out.
@@ -226,7 +227,7 @@ the adversarial exit thing must take into account.
 
 ### Involuntary Transfer Assignment Flow
 
-Actors: Bob1..N (recipient), Trent (facilitator), Tara1..M (recipient facilitator)
+Actors: Bob1..N (recipient), Trent (operator), Tara1..M (recipient operator)
 
 Precondition:
 * Trent has been found invalid, and his final state has been determined.
@@ -235,13 +236,13 @@ Precondition:
   and/or let Bob1..N assign voluntary transfer status to a TaraK of their choice.
   [TODO: details for conflicts]
 2. At the end of the window, it's clear who transfers what where:
-  The first facilitator who posts to main chain a voluntary transfer request for a user wins it.
+  The first operator who posts to main chain a voluntary transfer request for a user wins it.
   For involuntary, a lottery is run based on whatever consensus data. [TODO: details]
 
 
 ### Mass Transfers
 
-Actors: Bob1..N (recipient), Trent (facilitator), Tara (recipient facilitator)
+Actors: Bob1..N (recipient), Trent (operator), Tara (recipient operator)
 
 Preconditions:
 * Bob1..N have chosen Tara or (if involuntary) been assigned Tara as exit person
@@ -357,16 +358,16 @@ as a way to compute proven-correct exit balances.
 If bad guys can win big by capturing the court registry, this will give them a big incentive to do so.
 Is there a good way to prevent the bad guys from winning more money than the authorized floating amount
 even if they capture the court registry?
-At the very least, can we ensure that those people who trusted an honest facilitator
-won't be defrauded if the facilitator remains honest in face of a captured court registry?
+At the very least, can we ensure that those people who trusted an honest operator
+won't be defrauded if the operator remains honest in face of a captured court registry?
 
 Ideas:
 
 1. Some privileged party can raise an alarm, at which point we're back to Plasma-style games.
-   Especially in a one-contract-per-facilitator setting, that could be the facilitator themselves.
+   Especially in a one-contract-per-operator setting, that could be the operator themselves.
    Of course, this only incentivizes the bad guys to capture that trusted party, first.
 2. Anyone can post a large amount of money as a bond and claim there is a problem with the court registry.
-   Optionally, the bond could be bought back by the facilitator, and an auction could occur between
+   Optionally, the bond could be bought back by the operator, and an auction could occur between
    those claiming the court registry was captured and those claiming it wasn't.
    At that point, we're back to Plasma-style games, and a vote by the depositors who recover their money
    concludes who does or doesn't get their bond back.
@@ -388,7 +389,7 @@ Ideas:
 5. The bad guys can play a game whereas they withhold blocks, but don't do anything bad yet.
    The good guys with a clue will can exit early, and the bad guys will let them,
    leaving the clueless victims without capital to defend them as the bad guys now do the actual attack.
-6. If the facilitator is honest but the court registry claims he's not by withholding signatures,
-   is there a way to survive in a one-contract-per-facilitator and/or ERC-20 world?
-   Without allowing a dishonest facilitator to spuriously cause a bank run situation?
+6. If the operator is honest but the court registry claims he's not by withholding signatures,
+   is there a way to survive in a one-contract-per-operator and/or ERC-20 world?
+   Without allowing a dishonest operator to spuriously cause a bank run situation?
 
