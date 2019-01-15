@@ -69,14 +69,19 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     function withdraw(address _operator, uint64 _operator_revision, uint _bond, bytes32 _confirmed_state)
             external {
+        emit Withdrawal(_operator_revision, 4);
         bytes32 claim = digest_claim(_operator, ClaimType.STATE_UPDATE, _operator_revision, _confirmed_state);
 
         // The first check. If the claim does not exist, nothing can be put as rejected.
-        require(is_claim_assigned(claim), "State has not been assigned");
+	if (is_claim_assigned(claim) == false) {
+          emit Withdrawal(_operator_revision, 3);
+	}
+//        require(is_claim_assigned(claim), "State has not been assigned");
 
         if (check_claim_validity(claim, _bond) == false) {
 	  // we fail the checks
 	  reject_claim(claim);
+
 	}
 	else {
 	  // we are in the right setup. Therefore proceeds

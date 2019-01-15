@@ -41,6 +41,7 @@ let deposit user (operator, amount) =
 
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
 let make_withdraw_call contract_address operator operator_revision bond confirmed_state =
+  Logging.log "Before creation of parameter for CallFunction make_withdraw_call";
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount bond

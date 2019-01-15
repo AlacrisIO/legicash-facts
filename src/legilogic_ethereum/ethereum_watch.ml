@@ -63,7 +63,8 @@ let retrieve_last_entries (start_block : Revision.t) (contract_address : Address
 let retrieve_relevant_list_logs
       (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t list Lwt_exn.t =
   let rec fct_downloading (start_block : Revision.t) : LogObject.t list Lwt_exn.t =
-    Lwt_exn.bind (retrieve_last_entries start_block contract_address topics)
+    let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in 
+    Lwt_exn.bind (retrieve_last_entries start_block_p_one contract_address topics)
       (fun (x : (Revision.t * (LogObject.t list))) ->
         let (x_to, x_llogs) = x in
         let (len : int) = List.length x_llogs in
