@@ -44,8 +44,8 @@ let wait_for_contract_event (contract_address : Address.t) (revision : Revision.
   Logging.log "wait_for_operator_state_update, step 1";
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   let (topic_revision : Bytes.t) = encode_function_parameters [abi_revision revision] in
-  let (_topic_value : Bytes.t) = encode_function_parameters [abi_revision validx] in
-  let (topics : Bytes.t option list) = [None; Some topic_revision; None] in
+  let (topic_value : Bytes.t) = encode_function_parameters [abi_revision validx] in
+  let (topics : Bytes.t option list) = [None; Some topic_revision; Some topic_value] in
   Logging.log "wait_for_operator_state_update, step 2";
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
   (fun (_lobj : LogObject.t) ->
