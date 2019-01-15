@@ -44,9 +44,8 @@ let wait_for_contract_event (contract_address : Address.t) (revision : Revision.
   Logging.log "wait_for_operator_state_update, step 1";
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   let (topic_revision : Bytes.t) = encode_function_parameters [abi_revision revision] in
-  let (topic_value : Bytes.t) = encode_function_parameters [abi_revision Revision.zero] in
+  let (topic_value : Bytes.t) = encode_function_parameters [abi_revision validx] in
   let (topics : Bytes.t option list) = [None; Some topic_revision; Some topic_value] in
-  Logging.log "wait_for_operator_state_update, topic_revision=%s" (Bytes.to_string topic_revision);
   Logging.log "wait_for_operator_state_update, step 2";
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
   (fun (_lobj : LogObject.t) ->
@@ -72,8 +71,11 @@ let final_main_chain_operation (tc : TransactionCommitment.t) (operator : Addres
   | Deposit _ -> Lwt_exn.return ()
   | Payment _ -> Lwt_exn.return ()
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+     Logging.log "Beginning of final_main_chain_operation";
      Lwt_exn.bind (emit_withdrawal_operation tc.contract_address operator tc.operator_revision tc.state_digest withdrawal_amount)
-    (fun _ -> wait_for_withdrawal_event tc.contract_address tc.operator_revision)
+       (fun _ ->
+         Logging.log "Before wait_for_withdrawal_event";
+         wait_for_withdrawal_event tc.contract_address tc.operator_revision)
 
   
 (*
@@ -245,7 +247,7 @@ module TransactionTracker = struct
           let open OngoingTransactionStatus in
           (match ongoing with
            | DepositWanted (({operator; deposit_amount} as deposit_wanted), deposit_fee) ->
-             Logging.log "side_chain_user: TrTracker, DepositWanted operation";
+             Logging.log "TR_LOOP, DepositWanted operation";
              let pre_transaction =
                TokenAmount.(add deposit_amount deposit_fee)
                |> Operator_contract.pre_deposit ~operator in
@@ -256,7 +258,7 @@ module TransactionTracker = struct
               | Ok (tracker_key, _, _) ->
                 DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
-             Logging.log "side_chain_user: TrTracker, DepositPosted operation";
+             Logging.log "TR_LOOP, DepositPosted operation";
              let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
              (promise >>= function
               | Failed (_, error) -> invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
@@ -264,7 +266,7 @@ module TransactionTracker = struct
                 DepositConfirmed (deposit_wanted, deposit_fee, transaction, confirmation) |> continue)
            | DepositConfirmed ({deposit_amount}, deposit_fee,
                                main_chain_deposit, main_chain_deposit_confirmation) ->
-             Logging.log "side_chain_user: TrTracker, DepositConfirmed operation";
+             Logging.log "TR_LOOP, DepositConfirmed operation";
              revision_generator () >>= fun (revision : Revision.t) ->
              (make_user_transaction_request (user : Address.t) (operator : Address.t) (revision : Revision.t)
                 (Deposit
@@ -276,7 +278,7 @@ module TransactionTracker = struct
               | Ok request -> Requested request |> continue
               | Error error -> invalidate ongoing error)
            | Requested request ->
-             Logging.log "side_chain_user: TrTracker, Requested operation";
+             Logging.log "TR_LOOP, Requested operation";
              (* TODO: handle retries. But it should be in the side_chain_operator *)
              (request
               |> Side_chain_client.post_user_transaction_request
@@ -289,11 +291,11 @@ module TransactionTracker = struct
                  Logging.log "side_chain_user: TrTracker, Error case";
                  invalidate ongoing error)
            | SignedByOperator (tc : TransactionCommitment.t) ->
-             Logging.log "side_chain_user: TrTracker, SignedByOperator operation";
+             Logging.log "TR_LOOP, SignedByOperator operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
            | PostedToRegistry (tc : TransactionCommitment.t) ->
-             Logging.log "side_chain_user: TrTracker, PostedToRegistry operation";
+             Logging.log "TR_LOOP, PostedToRegistry operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              (wait_for_operator_state_update tc.contract_address tc.operator_revision
               >>= function
@@ -303,13 +305,13 @@ module TransactionTracker = struct
                  | Withdrawal _ -> PostedToMainChain (tc, c) |> continue)
               | Error error -> invalidate ongoing error)
            | PostedToMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
-             Logging.log "side_chain_user: TrTracker, PostedToMainChain operation";
+             Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
              (* TODO: wait for confirmation on the main chain and handle lawsuits
                 Right now, no lawsuit *)
              ConfirmedOnMainChain (tc, confirmation) |> continue
            | ConfirmedOnMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
-             Logging.log "side_chain_user: TrTracker, ConfirmedOnMainChain operation";
+             Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
              Lwt.bind (final_main_chain_operation tc operator) (fun _ ->
