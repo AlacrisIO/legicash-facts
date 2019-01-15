@@ -41,7 +41,7 @@ let deposit user (operator, amount) =
 
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
 let make_withdraw_call contract_address operator operator_revision bond confirmed_state =
-  Logging.log "Before creation of parameter for CallFunction make_withdraw_call";
+  Logging.log "OPERATION: Before creation of parameter for CallFunction make_withdraw_call";
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount bond
@@ -56,7 +56,7 @@ let make_withdraw_call contract_address operator operator_revision bond confirme
 
  *)
 let make_state_update_call (state_digest : Digest.t) (operator_revision : Revision.t) (bond : TokenAmount.t) : Ethereum_chain.Operation.t =
-  Logging.log "Before creation of parameter for CallFunction make_state_update_call";
+  Logging.log "OPERATION: Before creation of parameter for CallFunction make_state_update_call";
   let (parameters : 'a list) = [ abi_digest state_digest
                                ; abi_revision operator_revision
                                ; abi_token_amount bond ] in

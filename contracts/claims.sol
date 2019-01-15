@@ -49,7 +49,7 @@ contract Claims {
 
     struct claim_info {
       int status;
-      int time;
+      uint time;
       uint bond;
     }
 
@@ -60,7 +60,7 @@ contract Claims {
      *
      * One challenge period is 2h, about 423 blocks at the expected rate of 1 block per 17 s.
      */
-    int constant internal challenge_period_in_seconds = 2 hours;
+    uint constant internal challenge_period_in_seconds = 2 hours;
 
     /** @dev expiry delay, in seconds.
      *
@@ -69,11 +69,11 @@ contract Claims {
      * TODO: Don't start actually using it until we have a good solution for verifying log entries,
      * thus allowing to prevent a replay of old claims with log entries rather than storage.
      */
-    int constant internal expiry_delay = 31 days;
+    uint constant internal expiry_delay = 31 days;
 
     /** True if a claim is still pending */
-    function is_claim_status_pending(int _status) internal view returns(bool) {
-        return _status > int(now);
+    function is_claim_status_pending(uint _status) internal view returns(bool) {
+        return _status > now;
     }
 
     /** Check that a claim is still pending */
@@ -83,8 +83,17 @@ contract Claims {
 
     /** True if a claim is accepted as valid */
     function get_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
-        return claim_status_complete[_claim].status == PENDING && claim_status_complete[_claim].time <= int(now);
+        return claim_status_complete[_claim].status == PENDING && claim_status_complete[_claim].time > now;
     }
+
+    function get_status(bytes32 _claim) internal view returns(int) {
+        return claim_status_complete[_claim].status;
+    }
+
+    function is_time_correct(bytes32 _claim) internal view returns(bool) {
+        return claim_status_complete[_claim].time > now;
+    }
+
 
     /** Check that a claim is accepted as valid */
     function require_claim_accepted(bytes32 _claim) internal view {
@@ -100,7 +109,8 @@ contract Claims {
      */
     function make_claim(bytes32 _claim, uint _bond) internal {
         require(claim_status_complete[_claim].status == 0, "claim state not assigned"); // The claim must not have been made before
-	int deadtime = int(now) + challenge_period_in_seconds; // Register the claim
+        uint deadtime = now + challenge_period_in_seconds; // Register the claim
+//        uint deadtime = now + 7200; // Register the claim
 	claim_status_complete[_claim] = claim_info(PENDING, deadtime, _bond);
     }
 
@@ -130,7 +140,7 @@ contract Claims {
 
     /** True if a claim was accepted but is now expired */
     function is_claim_status_expired(bytes32 _claim) internal view returns(bool) {
-        return claim_status_complete[_claim].status == PENDING && claim_status_complete[_claim].time <= int(now) - expiry_delay;
+        return claim_status_complete[_claim].status == PENDING && claim_status_complete[_claim].time <= now - expiry_delay;
     }
 
     /** Removal of complete entry */
