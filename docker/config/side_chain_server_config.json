@@ -1,9 +1,9 @@
 { "port" : 8095,
   "ethereum_parameter" : {
-      "minimal_number_block_for_confirmation" : 0,
-      "max_number_connection_geth" : 1,
+      "minimal_height_block_for_confirmation" : 0,
+      "max_connection_geth" : 1,
       "deposit_gas_limit" : 100000,
-      "time_state_update_sec" : 1800
+      "time_state_update_in_seconds" : 1800
   },
   "leveldb_parameter" : {
       "batch_timeout_trigger_in_seconds" : 0.01,
@@ -11,12 +11,14 @@
   },
   "sidechain_parameter" : {
       "num_timestamps" : 100000,
-      "delay_wait_ethereum_watch_in_seconds" : 1
+      "delay_wait_ethereum_watch_in_seconds" : 1,
+      "challenge_duration_in_seconds" : 7200
   },
   "fee_schedule_parameter" : {
       "deposit_fee" : "10000000000000",
       "withdrawal_fee" : "10000000000000",
       "per_account_limit" : "10000000000000000000",
-      "fee_per_billion" : "1000000"
+      "fee_per_billion" : "1000000",
+      "bond_value" : "1000000"
   }
 }

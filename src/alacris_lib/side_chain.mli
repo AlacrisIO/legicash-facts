@@ -339,8 +339,6 @@ exception Account_closed_or_nonexistent
 
 exception Invalid_confirmation
 
-val challenge_duration : Duration.t
-
 val one_billion_tokens : TokenAmount.t
 
 (**

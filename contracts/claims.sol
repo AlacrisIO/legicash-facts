@@ -45,22 +45,15 @@ contract Claims {
      */
     int constant REJECTED = 1; // claim rejected, was never true
     int constant CONSUMED = 2; // claim once accepted but now used up
-    int constant PENDING = 3; // it is a pending entry
+    int constant ACCEPTABLE = 3; // 3 or more means it's either valid or pending
 
-    struct claim_info {
-      int status;
-      uint time;
-      uint bond;
-    }
-
-    mapping(bytes32 => claim_info) public claim_status_complete;
-
+    mapping(bytes32 => int) public claim_status;
 
     /** @dev duration after a claim is made during which it can be challenged.
      *
      * One challenge period is 2h, about 423 blocks at the expected rate of 1 block per 17 s.
      */
-    uint constant internal challenge_period_in_seconds = 2 hours;
+    int constant internal challenge_period_in_seconds = 2 hours;
 
     /** @dev expiry delay, in seconds.
      *
@@ -69,84 +62,57 @@ contract Claims {
      * TODO: Don't start actually using it until we have a good solution for verifying log entries,
      * thus allowing to prevent a replay of old claims with log entries rather than storage.
      */
-    uint constant internal expiry_delay = 31 days;
+    int constant internal expiry_delay = 31 days;
 
     /** True if a claim is still pending */
-    function is_claim_status_pending(uint _status) internal view returns(bool) {
-        return _status > now;
+    function is_claim_status_pending(int _status) internal view returns(bool) {
+        return _status > int(now);
     }
 
     /** Check that a claim is still pending */
     function require_claim_pending(bytes32 _claim) internal view {
-        require(is_claim_status_pending(claim_status_complete[_claim].time), "pending status error");
+        require(is_claim_status_pending(claim_status[_claim]));
     }
 
     /** True if a claim is accepted as valid */
-    function get_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
-        return claim_status_complete[_claim].status == PENDING && claim_status_complete[_claim].time > now;
+    function is_claim_status_accepted(int _status) internal view returns(bool) {
+        return _status >= 3 && _status <= int(now);
     }
-
-    function get_status(bytes32 _claim) internal view returns(int) {
-        return claim_status_complete[_claim].status;
-    }
-
-    function is_time_correct(bytes32 _claim) internal view returns(bool) {
-        return claim_status_complete[_claim].time > now;
-    }
-
 
     /** Check that a claim is accepted as valid */
     function require_claim_accepted(bytes32 _claim) internal view {
-        require(get_claim_status_accepted(_claim), "claim is not accepted");
+        require(is_claim_status_accepted(claim_status[_claim]));
     }
-
-
 
     /**
      * Make a claim
      *
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
-    function make_claim(bytes32 _claim, uint _bond) internal {
-        require(claim_status_complete[_claim].status == 0, "claim state not assigned"); // The claim must not have been made before
-        uint deadtime = now + challenge_period_in_seconds; // Register the claim
-//        uint deadtime = now + 7200; // Register the claim
-	claim_status_complete[_claim] = claim_info(PENDING, deadtime, _bond);
+    function make_claim(bytes32 _claim) internal {
+        require(claim_status[_claim]==0); // The claim must not have been made before
+        claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
     }
-
-    /** Getting whether it is assigned */
-    function is_claim_assigned(bytes32 _claim)
-          internal view returns(bool) {
-        return claim_status_complete[_claim].status > 0;
-    }
-
-    /** Returning the bond value */
-    function get_bond_value(bytes32 _claim) internal view returns(uint) {
-        return claim_status_complete[_claim].bond;
-    }
-
-
 
     /** Reject a pending claim as invalid. */
     function reject_claim(bytes32 _claim) internal {
-        claim_status_complete[_claim].status = REJECTED;
+        require_claim_pending(_claim);
+        claim_status[_claim] = REJECTED;
     }
 
     /** Check that a claim is valid, then use it up. */
-    function consume_claim(bytes32 _claim) internal {
-        require_claim_accepted(_claim);
-        claim_status_complete[_claim].status = CONSUMED;
+    function consume_claim(bytes32 _claim) internal returns(bool) {
+        if (is_claim_status_accepted(claim_status[_claim]) == true) {
+	  return true;
+	}
+	else {
+          claim_status[_claim] = CONSUMED;
+	  return false;
+	}
     }
 
     /** True if a claim was accepted but is now expired */
-    function is_claim_status_expired(bytes32 _claim) internal view returns(bool) {
-        return claim_status_complete[_claim].status == PENDING && claim_status_complete[_claim].time <= now - expiry_delay;
+    function is_claim_status_expired(int _status) internal view returns(bool) {
+        return _status >= 3 && _status <= int(now) - expiry_delay;
     }
-
-    /** Removal of complete entry */
-    function expire_claim(bytes32 _claim) internal {
-    	require(is_claim_status_expired(_claim), "the state is not expired");
-	claim_status_complete[_claim] = claim_info(0, 0, 0);
-    }
-
 }

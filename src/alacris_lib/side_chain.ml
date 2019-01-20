@@ -508,9 +508,7 @@ exception Account_closed_or_nonexistent
 
 exception Invalid_confirmation
 
-let one_second = Duration.of_int 1000000000
-
-let challenge_duration = Duration.mul one_second (Duration.of_int 7200)
+(* let one_second = Duration.of_int 1000000000*)
 
 let one_billion_tokens = TokenAmount.of_int 1000000000
 

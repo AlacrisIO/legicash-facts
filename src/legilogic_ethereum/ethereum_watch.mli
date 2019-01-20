@@ -14,6 +14,9 @@ val main_chain_block_notification_stream :
     stream of notifications that a new block has been observed, based on polling
     geth every [delay] seconds, and starting with block [start] *)
 
+
+val sleep_delay_exn : float -> unit Lwt_exn.t
+  
 val retrieve_relevant_list_logs : float -> Address.t -> Bytes.t option list -> LogObject.t list Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
     be only one matching entry *)
@@ -21,3 +24,11 @@ val retrieve_relevant_list_logs : float -> Address.t -> Bytes.t option list -> L
 val retrieve_relevant_single_logs : float -> Address.t -> Bytes.t option list -> LogObject.t Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
     be only one matching entry *)
+
+
+
+val retrieve_last_entries_group : Revision.t -> Address.t -> Bytes.t option list list -> (Revision.t * (LogObject.t list list)) Lwt_exn.t
+
+val retrieve_relevant_list_logs_group : float -> Address.t -> Bytes.t option list list -> EthListLogObjects.t list Lwt_exn.t
+                                                                                         
+                                                                                   

@@ -466,7 +466,7 @@ let post_validated_transaction_request :
 
 let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * Digest.t) Lwt_exn.t =
   Logging.log "post_state_update_request, beginning of function";
-  let ((lneedupdate, bond, value) : (bool*TokenAmount.t*TokenAmount.t)) = post_state_update_needed_tr transreq in
+  let ((lneedupdate, _bond, value) : (bool*TokenAmount.t*TokenAmount.t)) = post_state_update_needed_tr transreq in
   Logging.log "post_state_update_request lneedupdate=%B" lneedupdate;
   if lneedupdate then
     let fct = simple_client inner_transaction_request_mailbox
@@ -478,7 +478,7 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
                     (fun (digest_rev) ->
                       let ((digest, operator_revision) : (Digest.t*Revision.t)) = digest_rev in
                       let (operator_revision_p1 : Revision.t) = Revision.(add operator_revision one) in (* It is a hack objectively *)
-                      push_state_digest_exn digest operator_revision_p1 bond value))
+                      push_state_digest_exn digest operator_revision_p1 value))
       (fun (x : Digest.t) -> Logging.log "Final return statement";
                              Lwt_exn.return (transreq, x))
   else

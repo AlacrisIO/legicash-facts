@@ -48,7 +48,6 @@ let main_chain_block_notification_stream
 (* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
 let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
 
-                                              
 (* Look for confirmed or not confirmed blocks. NEED TO ADD: NUMBER of confirmation *)
 let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Bytes.t option list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
   Lwt_exn.bind (eth_block_number ())
@@ -59,6 +58,8 @@ let retrieve_last_entries (start_block : Revision.t) (contract_address : Address
         (fun (recLLO : EthListLogObjects.t) ->
           Logging.log "retrieve_last_entries, After call to eth_get_logs";
           Lwt_exn.return (to_block,recLLO)))
+
+
 
 let retrieve_relevant_list_logs
       (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t list Lwt_exn.t =
@@ -75,7 +76,7 @@ let retrieve_relevant_list_logs
           Lwt_exn.return x_llogs
       )
   in fct_downloading !starting_watch_ref
-
+  
 
 let retrieve_relevant_single_logs
       (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t Lwt_exn.t =
@@ -88,6 +89,55 @@ let retrieve_relevant_single_logs
         Lwt_exn.return (List.hd llogs))
        
       
+
+  
+
+(* GROUP cases *)
+
+  
+(* The code below is objectively a hack. It is introduced since array data in LogObject is hard to understand *)
+let retrieve_last_entries_group (start_block : Revision.t) (contract_address : Address.t) (list_topics : Bytes.t option list list) : (Revision.t * (LogObject.t list list)) Lwt_exn.t =
+  let fct_single (to_block : Revision.t) (x_topic : Bytes.t option list) : EthListLogObjects.t Lwt_exn.t =
+    let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address =(Some contract_address); topics=(Some x_topic); blockhash=None} in
+    Logging.log "retrieve_last_entries. Before call to eth_get_logs";
+    eth_get_logs eth_object in
+  let fct (to_block : Revision.t) : EthListLogObjects.t list Lwt_exn.t =
+    Lwt_exn.list_map_s (fun (x_topic : Bytes.t option list) ->
+        fct_single to_block x_topic) list_topics in
+  Lwt_exn.bind (eth_block_number ())
+    (fun (to_block : Revision.t) ->
+      Lwt_exn.bind (fct to_block)
+        (fun (list_recLLO : EthListLogObjects.t list) ->
+          Logging.log "retrieve_last_entries, After call to eth_get_logs";
+          Lwt_exn.return (to_block,list_recLLO)))
+  
+
+let sum_int_list (x : int list) : int =
+  let (sum : int ref) = ref 0 in
+  List.iter (fun eterm -> sum := !sum + eterm) x;
+  !sum
+
+  
+let retrieve_relevant_list_logs_group (delay : float) (contract_address : Address.t) (list_topics : Bytes.t option list list) : EthListLogObjects.t list Lwt_exn.t =
+  let rec fct_downloading (start_block : Revision.t) : EthListLogObjects.t list Lwt_exn.t =
+    let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in 
+    Lwt_exn.bind (retrieve_last_entries_group start_block_p_one contract_address list_topics)
+      (fun (x : (Revision.t * (EthListLogObjects.t list))) ->
+        let (x_to, x_llogs_group) = x in
+        let (list_len : int list) = List.map (fun x -> List.length x) x_llogs_group in
+        let (sum_term : int) = sum_int_list list_len in 
+        starting_watch_ref := x_to;
+        if (sum_term == 0) then
+          Lwt_exn.bind (sleep_delay_exn delay) (fun () -> fct_downloading x_to)
+        else
+          Lwt_exn.return x_llogs_group
+      )
+  in fct_downloading !starting_watch_ref
+
+
+   
+
+   
 
    
 (* TODO: implement following operations:

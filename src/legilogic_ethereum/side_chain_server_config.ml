@@ -28,10 +28,10 @@ module Side_chain_server_config = struct
 
   
   type ethereum_parameter_config =
-    { minimal_number_block_for_confirmation : int
-    ; max_number_connection_geth : int
+    { minimal_height_block_for_confirmation : int
+    ; max_connection_geth : int
     ; deposit_gas_limit : int
-    ; time_state_update_sec : float
+    ; time_state_update_in_seconds : float
     }
   [@@deriving of_yojson]
 
@@ -44,6 +44,7 @@ module Side_chain_server_config = struct
   type sidechain_parameter_config =
     { num_timestamps : int
     ; delay_wait_ethereum_watch_in_seconds : float
+    ; challenge_duration_in_seconds : int
     }
   [@@deriving of_yojson]
 
@@ -52,6 +53,7 @@ module Side_chain_server_config = struct
     ; withdrawal_fee : string
     ; per_account_limit : string
     ; fee_per_billion : string
+    ; bond_value : string
     }
   [@@deriving of_yojson]
     
@@ -94,7 +96,7 @@ module Side_chain_server_config = struct
        
   let config = get_server_config()
 
-  let (minNbBlockConfirm : Revision.t) = Revision.of_int config.ethereum_parameter.minimal_number_block_for_confirmation
+  let (minNbBlockConfirm : Revision.t) = Revision.of_int config.ethereum_parameter.minimal_height_block_for_confirmation
 
   let (batch_timeout_trigger_in_seconds : float) = config.leveldb_parameter.batch_timeout_trigger_in_seconds
 
@@ -107,12 +109,17 @@ module Side_chain_server_config = struct
 
   let (deposit_gas_limit : TokenAmount.t) = TokenAmount.of_int 100000
                                            
-  let (time_state_update_sec : float) = config.ethereum_parameter.time_state_update_sec
+  let (time_state_update_sec : float) = config.ethereum_parameter.time_state_update_in_seconds
 
   let (num_timestamps : int) = config.sidechain_parameter.num_timestamps
 
   let (delay_wait_ethereum_watch_in_seconds : float) = config.sidechain_parameter.delay_wait_ethereum_watch_in_seconds
-                             
+
+  let (challenge_duration_in_seconds_i : int) = config.sidechain_parameter.challenge_duration_in_seconds
+
+  let (challenge_duration_in_seconds_f : float) = Float.of_int challenge_duration_in_seconds_i
+                                                
+
   (* Recommended default values:
      deposit_fee       = "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
      withdrawal_fee    = "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
@@ -127,8 +134,8 @@ module Side_chain_server_config = struct
   let (per_account_limit_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.per_account_limit
                                       
   let (fee_per_billion_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.fee_per_billion
-                                      
 
+  let (bond_value_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.bond_value
                              
 end
                           

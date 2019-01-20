@@ -206,6 +206,38 @@ module Lwt_exn = struct
   let (>>=|) x f = Lwt.bind x (function Ok v -> return v | Error _ -> f ())
   let list_iter_s f = of_lwt (Lwt_list.iter_s (run_lwt f))
   let list_iter_p f = of_lwt (Lwt_list.iter_p (run_lwt f))
+  let list_map_s (f : 'a -> 'b t) (elist : 'a list) : 'b list t =
+    Lwt.bind (Lwt_list.map_s f elist)
+      (fun (x_exn_list : 'b OrExn.t list) ->
+        let (test : bool) = List.exists (function
+                                | Error _ -> true
+                                | Ok _ -> false) x_exn_list in
+        match test with
+        | true -> Logging.log "error in list_map_s";
+                  return []
+        | false ->
+           let (x_list : 'b list) = List.map (function
+                                        | Ok x -> x
+                                        | _ -> bottom()) x_exn_list
+           in
+           return x_list)
+    
+  let list_map_p (f : 'a -> 'b t) (elist : 'a list) : 'b list t =
+    Lwt.bind (Lwt_list.map_p f elist)
+      (fun x_exn_list ->
+        let (test : bool) = List.exists (function
+                                | Error _ -> true
+                                | Ok _ -> false) x_exn_list in
+        match test with
+        | true -> Logging.log "error in list_map_p";
+                  return []
+        | false ->
+           let (x_list : 'b list) = List.map (function
+                                        | Ok x -> x
+                                        | _ -> bottom()) x_exn_list in
+           return x_list)
+
+                    
   let printf fmt =
     let (>>=) = Lwt.bind in
     Printf.ksprintf (fun x -> Lwt_io.(printf "%s" x >>= fun () -> flush stdout >>= return)) fmt
