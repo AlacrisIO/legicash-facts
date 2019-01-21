@@ -45,8 +45,10 @@ let get_keypair_of_address user =
   
 let wait_for_contract_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) (validx : Revision.t)   : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "wait_for_operator_state_update, step 1";
+  Logging.log "wait_for_operator_state_update, step 1.1 revision=%i validx=%i" (Revision.to_int revision) (Revision.to_int validx);
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); (topic_of_revision validx)] in
+  (*  let (topics : Bytes.t option list) = [None; None; (topic_of_revision revision); (topic_of_revision validx)] in*)
   Logging.log "wait_for_operator_state_update, step 2";
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
   (fun (_lobj : LogObject.t) ->

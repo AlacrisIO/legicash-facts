@@ -23,7 +23,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
-    event StateUpdate(address _operator, uint64 indexed _ticket, uint indexed _val);
+    event StateUpdate(address indexed _operator, uint64 indexed _ticket, uint indexed _val);
 
     // struct StateUpdateClaim {
     //     address _operator; // account of the operator making the claim for his side-chain
