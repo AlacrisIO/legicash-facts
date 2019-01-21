@@ -53,7 +53,7 @@ contract Claims {
      *
      * One challenge period is 2h, about 423 blocks at the expected rate of 1 block per 17 s.
      */
-    int constant internal challenge_period_in_seconds = 2 hours;
+    int constant internal challenge_period_in_seconds = 10;
 
     /** @dev expiry delay, in seconds.
      *

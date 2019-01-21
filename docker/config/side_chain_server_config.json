@@ -12,7 +12,7 @@
   "sidechain_parameter" : {
       "num_timestamps" : 100000,
       "delay_wait_ethereum_watch_in_seconds" : 1,
-      "challenge_duration_in_seconds" : 7200
+      "challenge_duration_in_seconds" : 10
   },
   "fee_schedule_parameter" : {
       "deposit_fee" : "10000000000000",
