@@ -89,28 +89,23 @@ let apply_main_chain_thread id : yojson =
 (* query operations *)
 
 let get_proof tx_revision =
-  Logging.log "actions : get_proof";
   UserQueryRequest.Get_proof { tx_revision }
   |> post_user_query_request
 
 let get_balance_on ~operator address =
-  Logging.log "actions : get_balance_on";
   ignore operator; (* TODO: refactor so it makes sense WTF? *)
   UserQueryRequest.Get_account_balance { address }
   |> post_user_query_request
 
 let get_status_on_trent_and_main_chain address =
-  Logging.log "actions : get_status_on_trent_and_main_chain";
   UserQueryRequest.Get_account_state { address }
   |> post_user_query_request
 
 let get_all_balances_on_trent () =
-  Logging.log "actions : get_all_balances_on_trent";
   UserQueryRequest.Get_account_balances
   |> post_user_query_request
 
 let get_recent_user_transactions_on_trent address maybe_limit =
-  Logging.log "actions : get_recent_user_transactions_on_trent";
   UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
   |> post_user_query_request
 
@@ -118,19 +113,15 @@ let get_recent_user_transactions_on_trent address maybe_limit =
 
 (* format deposit and withdrawal result *)
 let make_transaction_result (address : Address.t) (side_chain_tx_revision : Revision.t) (main_chain_confirmation : Ethereum_chain.Confirmation.t) : yojson OrExn.t Lwt.t =
-  Logging.log "actions : make_transaction_result";
   UserQueryRequest.Get_account_state { address }
   |> post_user_query_request
   >>= fun account_state_json ->
-  Logging.log "actions : Processing account_state_json";
   (* TODO: JSON to AccountState to JSON, is there a better way *)
   match AccountState.of_yojson (YoJson.member "account_state" account_state_json) with
   | Error _ ->
-     Logging.log "actions : make_transaction_result, Error case";
      error_json "Could not get account state for depositing or withdrawing user"
                 |> return
   | Ok account_state ->
-     Logging.log "actions : make_transaction_result, Ok case";
      let side_chain_account_state = account_state in
      let deposit_result = { side_chain_account_state
                           ; side_chain_tx_revision

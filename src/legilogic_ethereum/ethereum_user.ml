@@ -200,7 +200,6 @@ exception TransactionFailed of OngoingTransactionStatus.t * exn
 exception NonceTooLow
 
 let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmation.t t =
-  Logging.log "ethereum_user : check_confirmation_deep_enough";
   (*Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);*)
   eth_block_number ()
   >>= fun block_number ->
@@ -212,7 +211,6 @@ let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmatio
     fail Still_pending
 
 let check_confirmation_deep_enough_bool (confirmation : Confirmation.t) : bool Lwt_exn.t =
-  Logging.log "ethereum_user : check_confirmation_deep_enough";
   (*Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);*)
   eth_block_number ()
   >>= fun block_number ->
@@ -244,7 +242,6 @@ module NonceTracker = struct
     let make_default_state _ _ = None
     type t = (nonce_operation, Nonce.t) Lwter.arr
     let make_activity () address saving =
-      Logging.log "ethereum_user : make_activity";
       sequentialize
         (fun op state ->
            let reset () =
@@ -275,7 +272,6 @@ module NonceTracker = struct
 end
 
 let make_tx_header (sender, value, gas_limit) : TxHeader.t Lwt_exn.t =
-  Logging.log "ethereum_user : make_tx_header";
   (* TODO: get gas price and nonce from geth *)
   eth_gas_price () >>= fun gas_price ->
   of_lwt NonceTracker.next sender >>= fun nonce ->
@@ -286,7 +282,6 @@ exception Missing_password
 
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
-  Logging.log "ethereum_user : sign_transaction";
   let address = transaction.tx_header.sender in
   (try return (keypair_of_address address).password with
    | Not_found ->
@@ -298,7 +293,6 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
     from given address, with given operation, value and gas_limit *)
 let make_signed_transaction (sender : Address.t) (operation : Operation.t) (value : TokenAmount.t) (gas_limit : TokenAmount.t) : (Transaction.t * SignedTransaction.t) Lwt_exn.t =
-  Logging.log "ethereum_user : make_signed_transaction";
   make_tx_header (sender, value, gas_limit)
   >>= fun tx_header ->
   sign_transaction Transaction.{tx_header; operation}
@@ -312,7 +306,6 @@ let nonce_too_low address =
 
 let confirmed_or_nonce_too_low : Address.t -> (Digest.t, Confirmation.t) Lwt_exn.arr =
   fun sender hash ->
-  Logging.log "ethereum_user : confirmed_or_nonce_too_low";
   let open Lwter in
   Ethereum_json_rpc.eth_get_transaction_receipt hash
   >>= function
@@ -322,7 +315,6 @@ let confirmed_or_nonce_too_low : Address.t -> (Digest.t, Confirmation.t) Lwt_exn
 
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
-  Logging.log "ethereum_user : send_raw_transaction";
     (*Logging.log "send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);*)
     let open Lwter in
     match signed with
@@ -347,7 +339,6 @@ let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.
 let send_and_confirm_transaction :
   (Transaction.t * SignedTransaction.t, Confirmation.t) Lwt_exn.arr =
   fun (transaction, signed) ->
-  Logging.log "ethereum_user : send_and_confirm_transaction";
     (*Logging.log "Sending and confirming %s %s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);*)
     let sender = transaction.tx_header.sender in
     let hash = signed.SignedTransaction.tx.hash in
@@ -561,12 +552,10 @@ let transfer_tokens ~recipient value =
   PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=Side_chain_server_config.transfer_gas_limit}
 
 let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : TokenAmount.t) : PreTransaction.t Lwt_exn.t =
-  Logging.log "ethereum_user : make_pre_transaction";
   (match gas_limit with
    | Some x -> return x
    | None -> eth_estimate_gas (operation_to_parameters sender operation))
   >>= fun gas_limit ->
-  Logging.log "make_pre_transaction : gas_limit=%s" (TokenAmount.to_string gas_limit);
   return PreTransaction.{operation; value; gas_limit}
 
 let create_contract ~sender ~code ?gas_limit value =

@@ -98,7 +98,6 @@ let make_request : string -> ('a -> yojson) -> 'a -> request Lwt_exn.t =
     return {json_rpc_version;method_name;params;id}
 
 let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
-  Logging.log "json_rpc : decode_response";
   fun result_decoder request_id response ->
     let malformed_response exn = fail (Malformed_response (response, exn)) in
     let checking jsonrpc x id =
@@ -140,15 +139,12 @@ let json_rpc server method_name result_decoder param_encoder
     let headers = Cohttp.Header.add (Cohttp.Header.init ()) "Content-Type" "application/json" in
     catching_lwt (Client.post ~body ~headers) server
     >>= fun (resp, body) ->
-    Logging.log "post_thread : fun 1";
     let status = Response.status resp in
     (try ignore (Code.code_of_status status); return ()
      with _ -> fail (Bad_status status))
     >>= fun () ->
-    Logging.log "post_thread : fun 2";
     catching_lwt Cohttp_lwt.Body.to_string body
     >>= fun response_str ->
-    Logging.log "post_thread : fun 3";
     if log then
       Logging.log "Receiving rpc response from %s: %s" (Uri.to_string server) response_str;
     decode_response result_decoder request_id response_str

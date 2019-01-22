@@ -142,7 +142,6 @@ let check_cp (test: bool) (exngen: unit -> 'a) =
 let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
   let (test : bool Lwt_exn.t) = Ethereum_user.check_confirmation_deep_enough_bool confirmation in
   Lwt_exn.bind test (fun test ->
-      Logging.log "Passing transformation test=%B" test;
       if test then
         Lwt_exn.return true
       else
@@ -241,21 +240,15 @@ let validate_user_transaction_request :
                    (to_string (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
                                  one_billion_tokens)))
       | UserOperation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
-         Logging.log "validate_user_transaction_request, withdrawal, case 1";
         check (is_add_valid withdrawal_amount withdrawal_fee)
           (fun () ->
-            Logging.log "validate_user_transaction_request, withdrawal, exception 1: overflow";
             "Adding withdrawal amount and fee causes an overflow!")
         >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
             (fun () ->
-              Logging.log "validate_user_transaction_request, withdrawal, exception 2";
-              Logging.log "validate_user_transaction_request, Balance %s insufficient to cover withdrawal amount %s plus fee %s" (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee);
               Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
                 (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
         >>> check (is_forced || compare withdrawal_fee fee_schedule.withdrawal_fee >= 0)
               (fun () ->
-                Logging.log "validate_user_transaction_request, withdrawal, exception 3";
-                Logging.log "Insufficient withdrawal fee %s, requiring at least %s" (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee);
                 Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
                   (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
 
@@ -460,27 +453,25 @@ let post_validated_transaction_request :
       ( (TransactionRequest.t * Digest.t), (Transaction.t * Digest.t) * unit Lwt.t) Lwt_exn.arr =
   simple_client inner_transaction_request_mailbox
     (fun ((request, resolver) : ((TransactionRequest.t * Digest.t) * ((Transaction.t * Digest.t) * unit Lwt.t) or_exn Lwt.u)) ->
-      Logging.log "The post_validated_transaction_request lambda";
       `Confirm (request, resolver))
 
 
 let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * Digest.t) Lwt_exn.t =
   Logging.log "post_state_update_request, beginning of function";
   let ((lneedupdate, _bond, value) : (bool*TokenAmount.t*TokenAmount.t)) = post_state_update_needed_tr transreq in
-  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate;
+  (*  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate; *)
   if lneedupdate then
     let fct = simple_client inner_transaction_request_mailbox
                 (fun ((_request, digest_rev_resolver) : (TransactionRequest.t * (Digest.t*Revision.t) Lwt.u)) ->
                   Logging.log "The post_state_update_request lambda";
                   `GetCurrentDigest digest_rev_resolver) in
-    Logging.log "post_state_update_request, before simple_client and push function";
+    (*    Logging.log "post_state_update_request, before simple_client and push function"; *)
     Lwt_exn.bind (Lwt.bind (fct transreq)
                     (fun (digest_rev) ->
                       let ((digest, operator_revision) : (Digest.t*Revision.t)) = digest_rev in
                       let (operator_revision_p1 : Revision.t) = Revision.(add operator_revision one) in (* It is a hack objectively *)
                       push_state_digest_exn digest operator_revision_p1 value))
-      (fun (x : Digest.t) -> Logging.log "Final return statement";
-                             Lwt_exn.return (transreq, x))
+      (fun (x : Digest.t) -> Lwt_exn.return (transreq, x))
   else
     Lwt_exn.return (transreq, Digesting.null_digest)
   
@@ -505,7 +496,6 @@ let make_transaction_commitment : (Transaction.t * Digest.t) -> TransactionCommi
     let main_chain_transactions_posted = dv_digest main_chain_transactions_posted in
     let (contract_address : Address.t) = (get_contract_address ()) in
     let revision = transaction.tx_header.tx_revision in
-    Logging.log "make_transaction_commitment operator_revision=%i" (Revision.to_int operator_revision);
     match TransactionMap.Proof.get revision transactions with
     | Some tx_proof ->
       TransactionCommitment.
@@ -531,11 +521,9 @@ let process_user_transaction_request :
   >>> post_state_update_request
   >>> post_validated_transaction_request
   >>> fun ((transaction_dig, wait_for_commit) : ((Transaction.t * Digest.t) * unit Lwt.t)) : TransactionCommitment.t Lwt_exn.t ->
-  Logging.log "Before call to wait_for_commit";
   let open Lwt in
   wait_for_commit
   >>= fun () ->
-  Logging.log "Before call to make_transaction_commitment";
   make_transaction_commitment transaction_dig |> Lwt_exn.return
 
 
@@ -684,10 +672,8 @@ let inner_transaction_request_loop =
                 send ourselves a Flush message for this batch_id *)
              Lwt.async (fun () -> Lwt.join [previous;Lwt.pick [time_trigger_t; size_trigger_t]]
                                   >>= (fun () ->
-                          Logging.log "inner_transaction_request_loop, before flush operation";
                           Lwt_mvar.put inner_transaction_request_mailbox (`Flush batch_id)));
              let rec request_batch (operator_state : OperatorAsyncAction.state) (size : int) : (OperatorAsyncAction.state * int * unit Lwt.t) Lwt.t =
-               Logging.log "inner_transaction_request_loop, beginning of request_batch";
                (** The below mailbox is filled by post_validated_request, except for
                    the async line just preceding, whereby a `Flush message is sent. *)
                Lwt_mvar.take inner_transaction_request_mailbox
@@ -695,10 +681,8 @@ let inner_transaction_request_loop =
                | `Confirm ((request_signed_dig, continuation) : ((TransactionRequest.t * Digest.t) * ((Transaction.t * Digest.t) * unit Lwt.t) or_exn Lwt.u)) ->
                  Logging.log "inner_transaction_request_loop, CASE : Confirm";
                  let (request_signed, edig) = request_signed_dig in
-                 Logging.log "inner_transaction_request_loop, before process_validated_transaction_request";
                  process_validated_transaction_request request_signed operator_state
                  |> fun ((confirmation_or_exn, new_operator_state) : (Transaction.t OrExn.t * OperatorAsyncAction.state)) ->
-                 Logging.log "inner_transaction_request_loop, after process_validated_transaction_request";
                  operator_state_ref := new_operator_state;
                  (match confirmation_or_exn with
                   | Error e ->
@@ -709,7 +693,6 @@ let inner_transaction_request_loop =
                     Logging.log "inner_transaction_request_loop, Ok case";
                     Lwt.wakeup_later continuation (Ok ((confirmation, edig), batch_committed_t));
                     let new_size = increment_capped max_int size in
-                    Logging.log "inner_transaction_request_loop, new_size=%i batch_size_trigger_in_requests=%i" new_size Side_chain_server_config.batch_size_trigger_in_requests;
                     if new_size = Side_chain_server_config.batch_size_trigger_in_requests then
                       (* Flush the data after enough entries are written *)
                       Lwt.wakeup_later size_trigger_u ()
@@ -718,7 +701,6 @@ let inner_transaction_request_loop =
                       Lwt.async (fun () -> Lwt_unix.sleep Side_chain_server_config.batch_timeout_trigger_in_seconds
                                   >>= fun () -> Lwt.wakeup_later time_trigger_u ();
                                                 Lwt.return_unit);
-                    Logging.log "inner_transaction_request, After if/then/else";
                     request_batch new_operator_state new_size)
                | `GetCurrentDigest (digest_resolver : (Digest.t*Revision.t) Lwt.u) ->
                   Logging.log "inner_transaction_request, CASE : GetCurrentDigest";

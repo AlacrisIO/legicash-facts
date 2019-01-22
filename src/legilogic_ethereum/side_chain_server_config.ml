@@ -27,7 +27,7 @@ module Side_chain_server_config = struct
     address
 
   
-  type ethereum_parameter_config =
+  type ethereum_config_t =
     { minimal_height_block_for_confirmation : int
     ; max_connection_geth : int
     ; deposit_gas_limit : int
@@ -35,20 +35,20 @@ module Side_chain_server_config = struct
     }
   [@@deriving of_yojson]
 
-  type leveldb_parameter_config =
+  type leveldb_config_t =
     { batch_timeout_trigger_in_seconds : float
     ; batch_size_trigger_in_requests : int
     }
   [@@deriving of_yojson]
 
-  type sidechain_parameter_config =
+  type sidechain_config_t =
     { num_timestamps : int
     ; delay_wait_ethereum_watch_in_seconds : float
     ; challenge_duration_in_seconds : int
     }
   [@@deriving of_yojson]
 
-  type fee_schedule_parameter_config =
+  type fee_schedule_config_t =
     { deposit_fee : string
     ; withdrawal_fee : string
     ; per_account_limit : string
@@ -62,10 +62,10 @@ module Side_chain_server_config = struct
     
   type side_chain_server_config =
     { port : int
-    ; ethereum_parameter : ethereum_parameter_config
-    ; leveldb_parameter : leveldb_parameter_config
-    ; sidechain_parameter : sidechain_parameter_config
-    ; fee_schedule_parameter : fee_schedule_parameter_config
+    ; ethereum_config : ethereum_config_t
+    ; leveldb_config : leveldb_config_t
+    ; sidechain_config : sidechain_config_t
+    ; fee_schedule_config : fee_schedule_config_t
     }
   [@@deriving of_yojson]
 
@@ -96,26 +96,26 @@ module Side_chain_server_config = struct
        
   let config = get_server_config()
 
-  let (minNbBlockConfirm : Revision.t) = Revision.of_int config.ethereum_parameter.minimal_height_block_for_confirmation
+  let (minNbBlockConfirm : Revision.t) = Revision.of_int config.ethereum_config.minimal_height_block_for_confirmation
 
-  let (batch_timeout_trigger_in_seconds : float) = config.leveldb_parameter.batch_timeout_trigger_in_seconds
+  let (batch_timeout_trigger_in_seconds : float) = config.leveldb_config.batch_timeout_trigger_in_seconds
 
 
                                                  
-  let (batch_size_trigger_in_requests : int) = config.leveldb_parameter.batch_size_trigger_in_requests
+  let (batch_size_trigger_in_requests : int) = config.leveldb_config.batch_size_trigger_in_requests
 
   (** This is a hardcoded value in Ethereum so we cannot change it *)
   let (transfer_gas_limit : TokenAmount.t) = TokenAmount.of_int 21000
 
   let (deposit_gas_limit : TokenAmount.t) = TokenAmount.of_int 100000
                                            
-  let (time_state_update_sec : float) = config.ethereum_parameter.time_state_update_in_seconds
+  let (time_state_update_sec : float) = config.ethereum_config.time_state_update_in_seconds
 
-  let (num_timestamps : int) = config.sidechain_parameter.num_timestamps
+  let (num_timestamps : int) = config.sidechain_config.num_timestamps
 
-  let (delay_wait_ethereum_watch_in_seconds : float) = config.sidechain_parameter.delay_wait_ethereum_watch_in_seconds
+  let (delay_wait_ethereum_watch_in_seconds : float) = config.sidechain_config.delay_wait_ethereum_watch_in_seconds
 
-  let (challenge_duration_in_seconds_i : int) = config.sidechain_parameter.challenge_duration_in_seconds
+  let (challenge_duration_in_seconds_i : int) = config.sidechain_config.challenge_duration_in_seconds
 
   let (challenge_duration_in_seconds_f : float) = Float.of_int challenge_duration_in_seconds_i
                                                 
@@ -127,15 +127,15 @@ module Side_chain_server_config = struct
      fee_per_billion   = "1000000" } (* 1e6/1e9 = 1e-3 = .1%  *)
    *)
                              
-  let (deposit_fee_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.deposit_fee
+  let (deposit_fee_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.deposit_fee
                                       
-  let (withdrawal_fee_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.withdrawal_fee
+  let (withdrawal_fee_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.withdrawal_fee
                                       
-  let (per_account_limit_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.per_account_limit
+  let (per_account_limit_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.per_account_limit
                                       
-  let (fee_per_billion_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.fee_per_billion
+  let (fee_per_billion_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.fee_per_billion
 
-  let (bond_value_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_parameter.bond_value
+  let (bond_value_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.bond_value
                              
 end
                           

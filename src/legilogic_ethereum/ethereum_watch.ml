@@ -52,7 +52,12 @@ let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
 let retrieve_last_entries (start_block : Revision.t) (contract_address : Address.t) (topics : Bytes.t option list) : (Revision.t * (LogObject.t list)) Lwt_exn.t =
   Lwt_exn.bind (eth_block_number ())
     (fun (to_block : Revision.t) ->
-      let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address =(Some contract_address); topics=(Some topics); blockhash=None} in
+      let (eth_object : EthObject.t) = {
+          from_block=(Some (Block_number start_block));
+          to_block=(Some (Block_number to_block));
+          address =(Some contract_address);
+          topics=(Some topics);
+          blockhash=None} in
       Logging.log "retrieve_last_entries. Before call to eth_get_logs";
       Lwt_exn.bind (eth_get_logs eth_object)
         (fun (recLLO : EthListLogObjects.t) ->
@@ -98,7 +103,12 @@ let retrieve_relevant_single_logs
 (* The code below is objectively a hack. It is introduced since array data in LogObject is hard to understand *)
 let retrieve_last_entries_group (start_block : Revision.t) (contract_address : Address.t) (list_topics : Bytes.t option list list) : (Revision.t * (LogObject.t list list)) Lwt_exn.t =
   let fct_single (to_block : Revision.t) (x_topic : Bytes.t option list) : EthListLogObjects.t Lwt_exn.t =
-    let (eth_object : EthObject.t) = {from_block=(Some (Block_number start_block)); to_block=(Some (Block_number to_block)); address =(Some contract_address); topics=(Some x_topic); blockhash=None} in
+    let (eth_object : EthObject.t) = {
+        from_block=(Some (Block_number start_block));
+        to_block=(Some (Block_number to_block));
+        address =(Some contract_address);
+        topics=(Some x_topic);
+        blockhash=None} in
     Logging.log "retrieve_last_entries. Before call to eth_get_logs";
     eth_get_logs eth_object in
   let fct (to_block : Revision.t) : EthListLogObjects.t list Lwt_exn.t =

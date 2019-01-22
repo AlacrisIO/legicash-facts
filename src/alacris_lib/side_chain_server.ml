@@ -83,7 +83,6 @@ let sockaddr = Unix.(ADDR_INET (inet_addr_any, Side_chain_server_config.config.p
 
   
 let _ =
-  Logging.log "*** STARTING SIDE CHAIN SERVER tst, PLEASE WAIT ***";
   Lwt_exn.run
     (fun () ->
        of_lwt Db.open_connection "alacris_server_db"

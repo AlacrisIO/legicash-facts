@@ -44,15 +44,11 @@ let get_keypair_of_address user =
 
   
 let wait_for_contract_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) (validx : Revision.t)   : Ethereum_chain.Confirmation.t Lwt_exn.t =
-  Logging.log "wait_for_operator_state_update, step 1";
-  Logging.log "wait_for_operator_state_update, step 1.1 revision=%i validx=%i" (Revision.to_int revision) (Revision.to_int validx);
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); (topic_of_revision validx)] in
   (*  let (topics : Bytes.t option list) = [None; None; (topic_of_revision revision); (topic_of_revision validx)] in*)
-  Logging.log "wait_for_operator_state_update, step 2";
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
   (fun (_lobj : LogObject.t) ->
-  Logging.log "wait_for_operator_state_update, step 3";
   Lwt_exn.return
     Ethereum_chain.Confirmation.
       { transaction_hash= Digest.zero
@@ -74,10 +70,8 @@ let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : 
   | Deposit _ -> Lwt_exn.return ()
   | Payment _ -> Lwt_exn.return ()
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-     Logging.log "Beginning of final_main_chain_operation";
      Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.operator_revision withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
        (fun _ ->
-         Logging.log "Before wait_for_withdrawal_event";
          wait_for_withdrawal_event tc.contract_address operator tc.operator_revision)
 
   
@@ -442,7 +436,7 @@ let get_next_account_revision : Address.t -> unit -> UserState.t -> (Revision.t 
   fun operator () state ->
     let revision_lens = operator_lens operator |-- UserAccountState.lens_side_chain_revision in
     let (revision : Revision.t) = revision_lens.get state in
-    Logging.log "get_next_account_revision revision=%i" (Revision.to_int revision);
+    (*    Logging.log "get_next_account_revision revision=%i" (Revision.to_int revision);*)
     Lwt.return (revision, (state |> revision_lens.set Revision.(add one revision)))
 
 module User = struct

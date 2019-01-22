@@ -2,7 +2,6 @@
 ;; TODO: rename side_chain_* to alacris_*
 ;; TODO: make alacris_lib the code common to client and server only (mostly type definitions),
 ;; and move client and server code to their respective directories.
-;;  court_registry
 
 (env (dev (flags (:standard -w -39))))  ;; Unused rec flag
 

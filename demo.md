@@ -49,7 +49,7 @@ Steps:
 * Trent commits his side-chain (locally; TODO M2: remotely)
 * Trent signs a commitment to this and other transactions
 * Trent sends the commitment to Alice
-* Trent posts a state update to the main chain (TODO M1)
+* Trent posts a state update to the main chain
 
 At every step, Alice is guaranteed to have her money back even if Trent fails,
 though she may have to do force a transaction using another operator and/or on the main chain.
@@ -90,7 +90,7 @@ Steps:
 * Trent signs a commitment to this and other transactions
 * OPTIONAL: for expedited payments, Trent gets the commitment signed by two thirds of the MKB. (TODO M2)
 * Trent sends the commitment to Alice (with MKB signature if applicable), who can gives it to Bob.
-* Trent posts a state update to the main chain (TODO M1)
+* Trent posts a state update to the main chain
 
 STATUS: mostly done, except for the
 confirmation to be correct (which is expensive and must be done asynchronously).
@@ -115,8 +115,8 @@ Steps:
 * Trent commits his side-chain (locally; TODO M2: remotely)
 * Trent signs a commitment to this and other transactions
 * Trent sends the commitment to Alice
-* Trent posts a state update to the main chain (TODO M1)
-* Alice waits for the state update to be confirmed (TODO M1)
+* Trent posts a state update to the main chain
+* Alice waits for the state update to be confirmed
 * Alice posts a claim for the withdrawal on the main chain, referring to the state update and the ticket
 * Anyone can counter Alice's claim, during a challenge period.
 * IF the claim is complex (NB: hopefully, no need for it), then longer lawsuits may ensue
