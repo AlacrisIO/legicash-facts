@@ -78,10 +78,9 @@ let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (op
    We have Revision = UInt64
 
  *)
-let make_state_update_call (state_digest : Digest.t) (operator_revision : Revision.t) : Ethereum_chain.Operation.t =
+let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.t =
   Logging.log "OPERATION: Before creation of parameter for CallFunction make_state_update_call";
-  let (parameters : 'a list) = [ abi_revision operator_revision
-                               ; abi_digest state_digest ] in
+  let (parameters : 'a list) = [ abi_digest state_digest ] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 

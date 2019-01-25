@@ -103,7 +103,7 @@ type inner_transaction_request =
   [ validated_transaction_request
   | `Flush of int
   | `Committed of (State.t signed * unit Lwt.u)
-  | `GetCurrentDigest of ((Digest.t * Revision.t) Lwt.u) ]
+  | `GetCurrentDigest of (Digest.t Lwt.u) ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -462,15 +462,14 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
   (*  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate; *)
   if lneedupdate then
     let fct = simple_client inner_transaction_request_mailbox
-                (fun ((_request, digest_rev_resolver) : (TransactionRequest.t * (Digest.t*Revision.t) Lwt.u)) ->
+                (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
                   Logging.log "The post_state_update_request lambda";
-                  `GetCurrentDigest digest_rev_resolver) in
+                  `GetCurrentDigest digest_resolver) in
     (*    Logging.log "post_state_update_request, before simple_client and push function"; *)
     Lwt_exn.bind (Lwt.bind (fct transreq)
                     (fun (digest_rev) ->
-                      let ((digest, operator_revision) : (Digest.t*Revision.t)) = digest_rev in
-                      let (operator_revision_p1 : Revision.t) = Revision.(add operator_revision one) in (* It is a hack objectively *)
-                      push_state_digest_exn digest operator_revision_p1 value))
+                      let (digest : Digest.t) = digest_rev in
+                      push_state_digest_exn digest value))
       (fun (x : Digest.t) -> Lwt_exn.return (transreq, x))
   else
     Lwt_exn.return (transreq, Digesting.null_digest)
@@ -495,13 +494,14 @@ let make_transaction_commitment : (Transaction.t * Digest.t) -> TransactionCommi
     let signature = committed.signature in
     let main_chain_transactions_posted = dv_digest main_chain_transactions_posted in
     let (contract_address : Address.t) = (get_contract_address ()) in
-    let revision = transaction.tx_header.tx_revision in
-    match TransactionMap.Proof.get revision transactions with
+    let tx_revision = transaction.tx_header.tx_revision in
+    match TransactionMap.Proof.get tx_revision transactions with
     | Some tx_proof ->
       TransactionCommitment.
         { transaction; tx_proof; operator_revision; spending_limit;
-          accounts; main_chain_transactions_posted; signature; state_digest; contract_address }
-    | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x revision)
+          accounts; main_chain_transactions_posted; signature;
+          state_digest; contract_address }
+    | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x tx_revision)
 
 (* Process a user request, with a flag to specify whether it's a forced request
    (published on the main chain), in which case there are no fee amount minima.
@@ -702,10 +702,10 @@ let inner_transaction_request_loop =
                                   >>= fun () -> Lwt.wakeup_later time_trigger_u ();
                                                 Lwt.return_unit);
                     request_batch new_operator_state new_size)
-               | `GetCurrentDigest (digest_resolver : (Digest.t*Revision.t) Lwt.u) ->
+               | `GetCurrentDigest (digest_resolver : Digest.t Lwt.u) ->
                   Logging.log "inner_transaction_request, CASE : GetCurrentDigest";
                   (* Lwt.wakeup_later notify_batch_committed_u (); *)
-                  Lwt.wakeup_later digest_resolver ((State.digest !operator_state_ref.current), !operator_state_ref.current.operator_revision);
+                  Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
                   request_batch operator_state size
                (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
                | `Flush (id : int) ->

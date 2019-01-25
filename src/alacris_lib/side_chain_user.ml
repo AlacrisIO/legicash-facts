@@ -43,10 +43,9 @@ let get_keypair_of_address user =
 
 
   
-let wait_for_contract_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) (validx : Revision.t)   : Ethereum_chain.Confirmation.t Lwt_exn.t =
+let wait_for_contract_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t)   : Ethereum_chain.Confirmation.t Lwt_exn.t =
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); (topic_of_revision validx)] in
-  (*  let (topics : Bytes.t option list) = [None; None; (topic_of_revision revision); (topic_of_revision validx)] in*)
+  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision)] in
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
   (fun (_lobj : LogObject.t) ->
   Lwt_exn.return
@@ -58,10 +57,10 @@ let wait_for_contract_event (contract_address : Address.t) (operator : Address.t
 
 
 let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
-  wait_for_contract_event contract_address operator revision Revision.zero
+  wait_for_contract_event contract_address operator revision
 
 let wait_for_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
-  Lwt_exn.bind (wait_for_contract_event contract_address operator revision Revision.one) (fun _ -> Lwt_exn.return ())
+  Lwt_exn.bind (wait_for_contract_event contract_address operator revision) (fun _ -> Lwt_exn.return ())
       
 
 
@@ -70,13 +69,13 @@ let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : 
   | Deposit _ -> Lwt_exn.return ()
   | Payment _ -> Lwt_exn.return ()
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-     Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.operator_revision withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
+     Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
        (fun _ ->
          wait_for_withdrawal_event tc.contract_address operator tc.operator_revision)
 
   
 
-         
+
 
 let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.t) : unit Lwt_exn.t =
   let (first_part_withdraw_operation : TransactionCommitment.t -> Address.t -> unit Lwt_exn.t) =
@@ -86,13 +85,12 @@ let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.
     | Payment _ -> Lwt_exn.return ()
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
        Logging.log "Beginning of final_main_chain_operation";
-       Lwt_exn.bind (sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f) (fun () -> emit_withdraw_operation tc.contract_address operator tc.operator_revision withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest) in
+       Lwt_exn.bind (sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f) (fun () -> emit_withdraw_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest) in
   Lwt_exn.bind (first_part_withdraw_operation tc operator)
     (fun () ->
       let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-      let (topics2 : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision tc.operator_revision); (topic_of_amount (TokenAmount.of_int 2))] in
-      let (topics3 : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision tc.operator_revision); (topic_of_amount (TokenAmount.of_int 3))] in
-      let (list_topics : Bytes.t option list list) = [topics2; topics3] in 
+      let (topics2 : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision tc.operator_revision)] in
+      let (list_topics : Bytes.t option list list) = [topics2] in 
       let rec fct_get_correct_event unit : unit Lwt_exn.t =
         Lwt_exn.bind (retrieve_relevant_list_logs_group delay tc.contract_address list_topics)
           (fun x_llogs_group ->

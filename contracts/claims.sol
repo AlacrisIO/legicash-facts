@@ -101,14 +101,9 @@ contract Claims {
     }
 
     /** Check that a claim is valid, then use it up. */
-    function consume_claim(bytes32 _claim) internal returns(bool) {
-        if (is_claim_status_accepted(claim_status[_claim]) == true) {
-	  return true;
-	}
-	else {
-          claim_status[_claim] = CONSUMED;
-	  return false;
-	}
+    function consume_claim(bytes32 _claim) internal {
+        require_claim_accepted(_claim);
+        claim_status[_claim] = CONSUMED;
     }
 
     /** True if a claim was accepted but is now expired */

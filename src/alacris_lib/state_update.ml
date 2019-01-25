@@ -37,9 +37,9 @@ let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
    ---lack of gas 
    ---transaction not passed
  *)
-let push_state_digest_exn (digest : Digest.t) (operator_revision : Revision.t) (value : TokenAmount.t) : Digest.t Lwt_exn.t =
-  Logging.log "push_state_digest_exn : beginning of function operator_revision=%i" (Revision.to_int operator_revision);
-  let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest operator_revision in
+let push_state_digest_exn (digest : Digest.t) (value : TokenAmount.t) : Digest.t Lwt_exn.t =
+  Logging.log "push_state_digest_exn : beginning of function";
+  let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   Logging.log "push_state_digest_exn : before make_pre_transaction";
