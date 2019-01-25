@@ -45,8 +45,8 @@ services:
       context: ..
       dockerfile: docker/containers/alacris_client/Dockerfile
       args:
-        #branch: ${BRANCH}
-        frontend_branch: master
+        ENVIRONMENT: ${ENVIRONMENT:-dev}
+        FRONTEND_BRANCH: ${FRONTEND_BRANCH:-master}
     image: gcr.io/legicash-demo-1950/legicash-demo/alacris_client:${TAG:-v1.1}
     hostname: "alacris-client"
     container_name: "alacris-client"
