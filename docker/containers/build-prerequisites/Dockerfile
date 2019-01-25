@@ -70,7 +70,7 @@ RUN opam init -a --disable-sandboxing && \
     opam install -y \
     cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens leveldb \
     lwt lwt_ppx ppx_deriving ppx_deriving_yojson ppx_tools_versioned ppx_core \
-    ppx_driver ppx_inline_test secp256k1 yojson qcheck ; \
+    ppx_driver ppx_inline_test secp256k1 yojson qcheck bisect_ppx ; \
     :
 ENV PATH /home/appuser/.opam/${OCAML_VERSION}/bin:${PATH}
 
