@@ -18,7 +18,7 @@ services:
 
   alacris_side_chain_manager: # Legicash-facts side chain server
     build:
-      context: ../../legicash-facts
+      context: ..
       dockerfile: docker/containers/alacris_side_chain_manager/Dockerfile
   #    args:
   #      branch: ${BRANCH}
@@ -42,7 +42,7 @@ services:
 
   alacris_client: # Legicash-facts application, nginx and scgi/side chain client and frontend
     build:
-      context: ../../legicash-facts
+      context: ..
       dockerfile: docker/containers/alacris_client/Dockerfile
       args:
         #branch: ${BRANCH}
