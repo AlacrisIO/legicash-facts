@@ -44,6 +44,7 @@ let get_keypair_of_address user =
 
   
 let wait_for_contract_event (contract_address : Address.t) (topics : Bytes.t option list) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  Logging.log "Beginning of wait_for_contract_event";
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
   (fun (_lobj : LogObject.t) ->
@@ -56,10 +57,12 @@ let wait_for_contract_event (contract_address : Address.t) (topics : Bytes.t opt
 
 
 let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  Logging.log "Beginning of wait_for_operator_state_update";
   let (topics : Bytes.t option list) = [None; (topic_of_address operator)] in
   wait_for_contract_event contract_address topics
 
 let wait_for_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
+  Logging.log "Beginning of wait_for_winthdrawal_event";
   let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision)] in
   Lwt_exn.bind (wait_for_contract_event contract_address topics) (fun _ -> Lwt_exn.return ())
       
@@ -70,6 +73,7 @@ let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : 
   | Deposit _ -> Lwt_exn.return ()
   | Payment _ -> Lwt_exn.return ()
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+     Logging.log "Beginning of final_claim_withdrawal_operation";
      Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
        (fun _ ->
          wait_for_withdrawal_event tc.contract_address operator tc.operator_revision)
@@ -85,7 +89,7 @@ let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.
     | Deposit _ -> Lwt_exn.return ()
     | Payment _ -> Lwt_exn.return ()
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-       Logging.log "Beginning of final_main_chain_operation";
+       Logging.log "Beginning of final_withdraw_operation";
        Lwt_exn.bind (sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f) (fun () -> emit_withdraw_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest) in
   Lwt_exn.bind (first_part_withdraw_operation tc operator)
     (fun () ->
@@ -307,11 +311,11 @@ module TransactionTracker = struct
               |> Side_chain_client.post_user_transaction_request
               >>= function
               | Ok (tc : TransactionCommitment.t) ->
-                 Logging.log "side_chain_user: TrTracker, Ok case";
+                 Logging.log "Requested: side_chain_user: TrTracker, Ok case";
                  SignedByOperator tc |> continue
               | Error (error : exn) ->
-                 Logging.log "side_chain_user: exn=%s" (Printexc.to_string error);
-                 Logging.log "side_chain_user: TrTracker, Error case";
+                 Logging.log "Requested: side_chain_user: exn=%s" (Printexc.to_string error);
+                 Logging.log "Requested: side_chain_user: TrTracker, Error case";
                  invalidate ongoing error)
            | SignedByOperator (tc : TransactionCommitment.t) ->
              Logging.log "TR_LOOP, SignedByOperator operation";
@@ -323,10 +327,13 @@ module TransactionTracker = struct
              (wait_for_operator_state_update tc.contract_address operator
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
+                 Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
                  | Deposit _ | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
                  | Withdrawal _ -> PostedToMainChain (tc, c) |> continue)
-              | Error error -> invalidate ongoing error)
+              | Error error ->
+                 Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
+                 invalidate ongoing error)
            | PostedToMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
              Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
@@ -339,7 +346,8 @@ module TransactionTracker = struct
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
              Lwt.bind (final_withdraw_operation tc operator) (fun _ ->
-                 FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |> finalize))
+                 FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |>
+                   finalize))
         | Final x -> return x
       in key, loop state
   end
