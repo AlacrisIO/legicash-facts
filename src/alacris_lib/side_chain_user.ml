@@ -43,9 +43,8 @@ let get_keypair_of_address user =
 
 
   
-let wait_for_contract_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t)   : Ethereum_chain.Confirmation.t Lwt_exn.t =
+let wait_for_contract_event (contract_address : Address.t) (topics : Bytes.t option list) : Ethereum_chain.Confirmation.t Lwt_exn.t =
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision)] in
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
   (fun (_lobj : LogObject.t) ->
   Lwt_exn.return
@@ -56,11 +55,13 @@ let wait_for_contract_event (contract_address : Address.t) (operator : Address.t
       ; block_hash= Digest.zero })
 
 
-let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
-  wait_for_contract_event contract_address operator revision
+let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  let (topics : Bytes.t option list) = [None; (topic_of_address operator)] in
+  wait_for_contract_event contract_address topics
 
 let wait_for_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
-  Lwt_exn.bind (wait_for_contract_event contract_address operator revision) (fun _ -> Lwt_exn.return ())
+  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision)] in
+  Lwt_exn.bind (wait_for_contract_event contract_address topics) (fun _ -> Lwt_exn.return ())
       
 
 
@@ -319,7 +320,7 @@ module TransactionTracker = struct
            | PostedToRegistry (tc : TransactionCommitment.t) ->
              Logging.log "TR_LOOP, PostedToRegistry operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
-             (wait_for_operator_state_update tc.contract_address operator tc.operator_revision
+             (wait_for_operator_state_update tc.contract_address operator
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
