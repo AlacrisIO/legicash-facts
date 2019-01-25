@@ -203,9 +203,9 @@ $ make docker-start c=alacris_side_chain_manager
 ```
 
 ## alacris_client
-To build alacris client run the command:
+Alacris client image accepts 2 parameters. ENVIRONMENT to build for and FRONTEND_BRANCH. If none is set on CLI defaults are used. To build alacris client run the command:
 ```bash
-$ make docker-build c=alacris_client
+$ make docker-build c=alacris_client ENVIRONMENT=dev
 ```
 To start alacris client run the command:
 ```bash
