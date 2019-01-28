@@ -15,6 +15,8 @@ val topic_of_revision : Revision.t -> Bytes.t option
 
 val topic_of_amount : TokenAmount.t -> Bytes.t option
 
+val topic_of_hash : Digest.t -> Bytes.t option
+
    
 val set_contract_address : Address.t -> unit
 (** set the address of the contract on Ethereum

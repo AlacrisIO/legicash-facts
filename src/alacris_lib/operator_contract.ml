@@ -9,7 +9,7 @@ open Legilogic_ethereum
 open Ethereum_chain
 open Ethereum_abi
 open Side_chain_server_config
-
+open Digesting
 
 let topic_of_address (addr : Address.t) : Bytes.t option =
   Some (encode_function_parameters [abi_address addr])
@@ -19,6 +19,9 @@ let topic_of_revision (rev : Revision.t) : Bytes.t option =
 
 let topic_of_amount (amnt : TokenAmount.t) : Bytes.t option =
   Some (encode_function_parameters [abi_token_amount amnt])
+
+let topic_of_hash (hash : Digest.t) : Bytes.t option =
+  Some (encode_function_parameters [abi_digest hash])
 
 
    

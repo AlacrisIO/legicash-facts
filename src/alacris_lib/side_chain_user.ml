@@ -19,13 +19,23 @@ open Ethereum_json_rpc
 (* open Ethereum_abi *)
 open State_update
 open Operator_contract
-   
+open Digesting
+
 open Side_chain
 
 (** TODO: query the network, whatever, and find the fee schedule *)
 let get_operator_fee_schedule _operator_address =
   Lwt_exn.return initial_fee_schedule
 
+let (topic_of_state_update : Bytes.t option) = topic_of_hash (digest_of_string "StateUpdate(address)")
+
+let (topic_of_claim_withdrawal : Bytes.t option) = topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint,bytes32)")
+
+let (topic_of_withdraw : Bytes.t option) = topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint,uint,bytes32)")
+
+
+
+  
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
 
@@ -58,12 +68,12 @@ let wait_for_contract_event (contract_address : Address.t) (topics : Bytes.t opt
 
 let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "Beginning of wait_for_operator_state_update";
-  let (topics : Bytes.t option list) = [None; (topic_of_address operator)] in
+  let (topics : Bytes.t option list) = [topic_of_state_update; (topic_of_address operator)] in
   wait_for_contract_event contract_address topics
 
-let wait_for_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
-  Logging.log "Beginning of wait_for_winthdrawal_event";
-  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision)] in
+let wait_for_claim_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
+  Logging.log "Beginning of wait_for_claim_winthdrawal_event";
+  let (topics : Bytes.t option list) = [topic_of_claim_withdrawal; (topic_of_address operator); (topic_of_revision revision)] in
   Lwt_exn.bind (wait_for_contract_event contract_address topics) (fun _ -> Lwt_exn.return ())
       
 
@@ -76,7 +86,7 @@ let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : 
      Logging.log "Beginning of final_claim_withdrawal_operation";
      Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
        (fun _ ->
-         wait_for_withdrawal_event tc.contract_address operator tc.operator_revision)
+         wait_for_claim_withdrawal_event tc.contract_address operator tc.operator_revision)
 
   
 
@@ -94,7 +104,7 @@ let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.
   Lwt_exn.bind (first_part_withdraw_operation tc operator)
     (fun () ->
       let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-      let (topics2 : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision tc.operator_revision)] in
+      let (topics2 : Bytes.t option list) = [topic_of_withdraw; (topic_of_address operator); (topic_of_revision tc.operator_revision)] in
       let (list_topics : Bytes.t option list list) = [topics2] in 
       let rec fct_get_correct_event unit : unit Lwt_exn.t =
         Lwt_exn.bind (retrieve_relevant_list_logs_group delay tc.contract_address list_topics)
