@@ -16,20 +16,20 @@ RUN touch /root/.ssh/known_hosts
 RUN ssh-keyscan gitlab.com >> /root/.ssh/known_hosts
 
 # Set branch to build
-ARG frontend_branch
+ARG FRONTEND_BRANCH
+ARG ENVIRONMENT
 # Fetch Legicash frontend code
 #RUN git clone -b "${branch}" git@gitlab.com:legicash/legicash-demo-frontend.git /var/www/app
-RUN git clone -b "${frontend_branch}" git@gitlab.com:legicash/legicash-demo-frontend.git /var/www/app
+RUN git clone -b "${FRONTEND_BRANCH}" git@gitlab.com:legicash/legicash-demo-frontend.git /var/www/app
 
 # Change server url, for test
-#COPY files/conf/server_url.tsx /var/www/app/legicash-demo-frontend/src/server/server_url.tsx
-RUN echo "Building ${frontend_branch} branch of frontend"
+RUN echo "Building ${FRONTEND_BRANCH} branch of frontend"
 # Install
 RUN npm install --silent
 RUN npm install react-scripts -g --silent
 
 # Build
-RUN npm run build
+RUN npm run build:${ENVIRONMENT}
 
 # Base image
 FROM gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 as alacris_client_build
