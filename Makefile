@@ -75,7 +75,7 @@ $(BUILD_DIR)/$(ETHEREUM_PREFUNDER): $(ML_SOURCES)
 # logs deposits and withdrawals
 CONTRACT:=src/alacris_lib/operator_contract_binary.ml
 contract: $(CONTRACT)
-$(CONTRACT) : contracts/deposit-withdraw.sol $(wildcard contracts/*.sol)
+$(CONTRACT) : $(wildcard contracts/*.sol)
 	$(SHOW) "Compiling operator contract"
 	$(HIDE) cd contracts/ && solc --bin -o ../_build/contracts --overwrite court.sol
 	$(HIDE) awk '{ printf ("let contract_bytes = Legilogic_lib.Hex.parse_0x_bytes \"0x%s\"\n",$$1); }' < ./_build/contracts/Court.bin > $@.tmp && if cmp -s $@.tmp /dev/null ; then rm $@.tmp ; exit 1 ; else mv -f $@.tmp $@ ; fi
@@ -109,6 +109,15 @@ side_chain_client_test: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST)
 $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_TEST): src/alacris_client/side_chain_client_test.ml $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Alacris side_chain_client_test executable"
 	$(HIDE) dune build $(SIDE_CHAIN_CLIENT_TEST)
+
+SIDE_CHAIN_CLIENT_STRESS_TEST:=src/alacris_client/side_chain_client_stress_test.exe
+side_chain_client_stress_test: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_STRESS_TEST)
+$(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_STRESS_TEST): src/alacris_client/side_chain_client_stress_test.ml $(ML_SOURCES) $(CONTRACT)
+	$(SHOW) "Building Alacris side_chain_client_stress_test executable"
+	$(HIDE) dune build $(SIDE_CHAIN_CLIENT_STRESS_TEST)
+
+
+
 
 # You don't usually need to install using opam, but if you want to:
 install: $(ALACRIS_LIB)

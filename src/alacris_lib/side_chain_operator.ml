@@ -1,6 +1,7 @@
 (* WARNING: We use GLOBAL STATE for our mailboxes,
    so there's only one operator running in a given process.
-   I blame OCaml for lack of dynamic binding. Yay Common Lisp special variables and Scheme parameters! *)
+   I blame OCaml for lack of dynamic binding. 
+   Yay Common Lisp special variables and Scheme parameters! *)
 open Lens.Infix
 
 open Legilogic_lib
@@ -12,9 +13,12 @@ open Persisting
 open Signing
 open Types
 open Merkle_trie
+open State_update
 
 open Legilogic_ethereum
-
+open Side_chain_server_config
+open Operator_contract
+   
 open Side_chain
 
 exception Operator_not_found of string
@@ -69,7 +73,11 @@ end
    divide requests in multiple kinds:
  * user query, which looks at some existing account without modification
  * user transaction request, which modifies their account
- * system transaction, which e.g. posts
+ * system transaction, which e.g. posts a state update to the main chain
+   (Which all the time update the main chain.
+    We have a batch of operations to put to the main chain.)
+ 
+
 
    The side-chain has three different (kind of) states:
  * current, the operator's view of itself
@@ -89,12 +97,13 @@ module OperatorAsyncAction = AsyncAction(OperatorState)
 type account_lens = (OperatorState.t, AccountState.t) Lens.t
 
 type validated_transaction_request =
-  [ `Confirm of TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u ]
+  [ `Confirm of (TransactionRequest.t * Digest.t) * ((Transaction.t * Digest.t) * unit Lwt.t) or_exn Lwt.u ]
 
 type inner_transaction_request =
   [ validated_transaction_request
   | `Flush of int
-  | `Committed of (State.t signed * unit Lwt.u) ]
+  | `Committed of (State.t signed * unit Lwt.u)
+  | `GetCurrentDigest of (Digest.t Lwt.u) ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -109,32 +118,55 @@ let get_operator_state () : OperatorState.t =
   |> (function Some x -> x | None -> bork "Operator service not started")
   |> fun service -> !(service.state_ref)
 
-let operator_account_lens address =
+let operator_account_lens (address : Address.t) : account_lens =
   OperatorState.lens_current |-- State.lens_accounts
   |-- defaulting_lens (konstant AccountState.empty) (AccountMap.lens address)
 
-let signed_request_requester rx = rx.payload.UserTransactionRequest.rx_header.requester
+let signed_request_requester (rx : UserTransactionRequest.t signed) : Address.t =
+  rx.payload.UserTransactionRequest.rx_header.requester
 
 exception Malformed_request of string
 
+(*
+let check_cp (test: bool) (exngen: unit -> 'a) =
+  fun x ->
+  if test then Lwt_exn.return x
+  else Lwt_exn.fail (Malformed_request (exngen ())) 
+  
+let check_cp (test: bool) (exngen: unit -> 'a) =
+  fun x ->
+  if test then Lwt_exn.return x
+  else Lwt_exn.fail (Malformed_request (exngen ()))
+ *)
+
+let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
+  let (test : bool Lwt_exn.t) = Ethereum_user.check_confirmation_deep_enough_bool confirmation in
+  Lwt_exn.bind test (fun test ->
+      if test then
+        Lwt_exn.return true
+      else
+        Lwt_exn.fail (Malformed_request (exngen())))
+
+                             
+  
 (** Check that the request is basically well-formed, or else fail
     This function should include all checks that can be made without any non-local side-effect
     beside reading pure or monotonic data, which is allowed for now
     (but may later have to be split to another function).
     Thus, we can later parallelize this check.
     TODO: parallelize the signature checking in a C worker thread that lets us do additional OCaml work.
-*)
-
+    What means the "is_forced"
+ **)
 let validate_user_transaction_request :
   (UserTransactionRequest.t signed * bool, TransactionRequest.t) Lwt_exn.arr =
-  fun (signed_request, is_forced) ->
+  fun ((signed_request, is_forced) : (UserTransactionRequest.t signed * bool)) ->
     let {payload=UserTransactionRequest.{ rx_header={ requester; requester_revision }; operation }} =
       signed_request in
     let state = get_operator_state () in
     let AccountState.{balance; account_revision} = (operator_account_lens requester).get state in
     let OperatorState.{fee_schedule} = state in
     let open Lwt_exn in
-    let check test exngen =
+    let check (test: bool) (exngen: unit -> string) =
       fun x ->
         if test then return x
         else fail (Malformed_request (exngen ())) in
@@ -143,6 +175,7 @@ let validate_user_transaction_request :
            UNTIL WE IMPROVE THE SIDE CHAIN USER SOFTWARE
            TODO - Fix the side_chain_user and endpoints/actions code, then re-enable this check. *)
       let open Revision in
+      Logging.log "requester_revision=%i account_revision=%i" (Revision.to_int requester_revision) (Revision.to_int account_revision);
       check (requester_revision = (add account_revision one) || true) (* <-- TODO: REMOVE the || true *)
         (fun () ->
            Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
@@ -150,10 +183,9 @@ let validate_user_transaction_request :
       >>> check (is_signed_value_valid UserTransactionRequest.digest requester signed_request)
             (konstant "The signature for the request doesn't match the requester")
       (* TODO: check confirmed main & side chain state + validity window *)
-      >>> (* Check that the numbers add up: *)
-      let open TokenAmount in
+      >>> let open TokenAmount in
       match operation with
-      | Deposit
+      | UserOperation.Deposit
           { deposit_amount
           ; deposit_fee
           ; main_chain_deposit={tx_header= {value}} as main_chain_deposit
@@ -167,10 +199,14 @@ let validate_user_transaction_request :
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
         (* TODO: CHECK FROM THE CONFIRMATION THAT THE CORRECT PERSON DID THE DEPOSIT,
            AND/OR THAT IT   WAS TAGGED WITH THE CORRECT RECIPIENT. *)
+              (*        
+        >>> check_transaction_confirmation main_chain_deposit main_chain_deposit_confirmation
+              (fun () -> "The main chain deposit confirmation is invalid")
+               *)
         >>> check (Ethereum_chain.is_confirmation_valid
                      main_chain_deposit_confirmation main_chain_deposit)
               (fun () -> "The main chain deposit confirmation is invalid")
-      | Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
+      | UserOperation.Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
         check (payment_invoice.recipient != requester)
           (fun () -> "Recipient same as requester")
         >>> check (is_add_valid payment_invoice.amount payment_fee)
@@ -184,12 +220,14 @@ let validate_user_transaction_request :
               (fun () ->
                  Printf.sprintf "Payment amount %s is larger than authorized limit %s"
                    (to_string payment_invoice.amount) (to_string fee_schedule.per_account_limit))
+        (* Check for overflow *)
         >>> check (is_forced ||
                    is_mul_valid state.fee_schedule.fee_per_billion payment_invoice.amount)
               (fun () ->
                  Printf.sprintf
                    "Payment fee calculation overflows with amount %s, scheduled fee per billion %s"
                    (to_string payment_invoice.amount) (to_string fee_schedule.fee_per_billion))
+        (* Check that the payment fee is sufficient *)
         >>> check (is_forced ||
                    compare payment_fee
                      (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
@@ -201,16 +239,18 @@ let validate_user_transaction_request :
                    (to_string payment_fee)
                    (to_string (div (mul state.fee_schedule.fee_per_billion payment_invoice.amount)
                                  one_billion_tokens)))
-      | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+      | UserOperation.Withdrawal {withdrawal_amount; withdrawal_fee} ->
         check (is_add_valid withdrawal_amount withdrawal_fee)
-          (fun () -> "Adding withdrawal amount and fee causes an overflow!")
+          (fun () ->
+            "Adding withdrawal amount and fee causes an overflow!")
         >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
-              (fun () ->
-                 Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
-                   (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
+            (fun () ->
+              Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
+                (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
         >>> check (is_forced || compare withdrawal_fee fee_schedule.withdrawal_fee >= 0)
-              (fun () -> Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
-                           (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
+              (fun () ->
+                Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
+                  (to_string withdrawal_fee) (to_string fee_schedule.withdrawal_fee)))
 
 (** Add a transaction to the side_chain, given the [updated_limit] and the [tx_request].
     Don't do that until you've properly processed the transaction! *)
@@ -241,6 +281,7 @@ let _balance_at_revision : Address.t -> Revision.t -> State.t -> TokenAmount.t =
     ignore (address, revision, state);
     bottom ()
 
+(* TODO: Clearly this function returning zero is not what we want *)
 let compute_updated_limit :
   operator:Address.t -> previous_confirmed:State.t -> new_confirmed:Revision.t -> current:State.t
   -> TokenAmount.t =
@@ -358,7 +399,9 @@ let credit_balance (amount : TokenAmount.t) (account_address : Address.t)
     (Lens.modify (operator_account_lens account_address |-- AccountState.lens_balance)
        (TokenAmount.add amount))
 
-let debit_balance amount account_address =
+
+let debit_balance (amount : TokenAmount.t) (account_address : Address.t)
+  : ('a, 'a) OperatorAction.arr =
   let lens = operator_account_lens account_address |-- AccountState.lens_balance in
   decrement_state_tokens
     amount lens
@@ -368,7 +411,7 @@ let debit_balance amount account_address =
             (Address.to_0x account_address) (TokenAmount.to_string (lens.get state))
             (TokenAmount.to_string amount)))
 
-let accept_fee fee : ('a, 'a) OperatorAction.arr =
+let accept_fee (fee : TokenAmount.t) : ('a, 'a) OperatorAction.arr =
   fun x state -> credit_balance fee state.OperatorState.keypair.address x state
 
 (** compute the effects of a request on the account state *)
@@ -392,15 +435,45 @@ let effect_validated_user_transaction_request :
       debit_balance (TokenAmount.add withdrawal_amount withdrawal_fee) requester
       >>> accept_fee withdrawal_fee
 
+let post_state_update_needed_uo (useroper : UserOperation.t) : (bool * TokenAmount.t * TokenAmount.t) =
+  match useroper with
+  | Deposit _ -> (true, TokenAmount.zero, TokenAmount.zero)
+  | Payment _ -> (true, TokenAmount.zero, TokenAmount.zero)
+  | Withdrawal x -> (true, x.withdrawal_amount, (TokenAmount.add x.withdrawal_amount x.withdrawal_fee))
+
+let post_state_update_needed_tr (transreq : TransactionRequest.t) : (bool*TokenAmount.t*TokenAmount.t) =
+  match transreq with
+  | `AdminTransaction _ -> (false, TokenAmount.zero, TokenAmount.zero)
+  | `UserTransaction x -> post_state_update_needed_uo x.payload.operation
 
 (** TODO: have a server do all the effect_requests sequentially,
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
+(* let post_validated_transaction_request : TransactionRequest.t -> (Transaction.t * unit Lwt.t) Lwt_exn.t*)
 let post_validated_transaction_request :
-  ( TransactionRequest.t, Transaction.t * unit Lwt.t) Lwt_exn.arr =
-  simple_client
-    inner_transaction_request_mailbox
-    (fun (request, resolver) -> `Confirm (request, resolver))
+      ( (TransactionRequest.t * Digest.t), (Transaction.t * Digest.t) * unit Lwt.t) Lwt_exn.arr =
+  simple_client inner_transaction_request_mailbox
+    (fun ((request, resolver) : ((TransactionRequest.t * Digest.t) * ((Transaction.t * Digest.t) * unit Lwt.t) or_exn Lwt.u)) ->
+      `Confirm (request, resolver))
 
+
+let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * Digest.t) Lwt_exn.t =
+  Logging.log "post_state_update_request, beginning of function";
+  let ((lneedupdate, _bond, value) : (bool*TokenAmount.t*TokenAmount.t)) = post_state_update_needed_tr transreq in
+  (*  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate; *)
+  if lneedupdate then
+    let fct = simple_client inner_transaction_request_mailbox
+                (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
+                  Logging.log "The post_state_update_request lambda";
+                  `GetCurrentDigest digest_resolver) in
+    (*    Logging.log "post_state_update_request, before simple_client and push function"; *)
+    Lwt_exn.bind (Lwt.bind (fct transreq)
+                    (fun (digest_rev) ->
+                      let (digest : Digest.t) = digest_rev in
+                      push_state_digest_exn digest value))
+      (fun (x : Digest.t) -> Lwt_exn.return (transreq, x))
+  else
+    Lwt_exn.return (transreq, Digesting.null_digest)
+  
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
   function
   | `UserTransaction request ->
@@ -408,8 +481,9 @@ let process_validated_transaction_request : (TransactionRequest.t, Transaction.t
   | `AdminTransaction request ->
     process_admin_transaction_request request
 
-let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
-  fun transaction ->
+let make_transaction_commitment : (Transaction.t * Digest.t) -> TransactionCommitment.t =
+  fun transaction_dig ->
+    let (transaction, state_digest) = transaction_dig in
     let OperatorState.{committed} = get_operator_state () in
     let State.{ operator_revision
               ; spending_limit
@@ -419,13 +493,15 @@ let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
     let accounts = dv_digest accounts in
     let signature = committed.signature in
     let main_chain_transactions_posted = dv_digest main_chain_transactions_posted in
-    let revision = transaction.tx_header.tx_revision in
-    match TransactionMap.Proof.get revision transactions with
+    let (contract_address : Address.t) = (get_contract_address ()) in
+    let tx_revision = transaction.tx_header.tx_revision in
+    match TransactionMap.Proof.get tx_revision transactions with
     | Some tx_proof ->
       TransactionCommitment.
         { transaction; tx_proof; operator_revision; spending_limit;
-          accounts; main_chain_transactions_posted; signature }
-    | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x revision)
+          accounts; main_chain_transactions_posted; signature;
+          state_digest; contract_address }
+    | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x tx_revision)
 
 (* Process a user request, with a flag to specify whether it's a forced request
    (published on the main chain), in which case there are no fee amount minima.
@@ -438,18 +514,21 @@ let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
    this could be done in different threads or processes.
 *)
 let process_user_transaction_request :
-  (UserTransactionRequest.t signed * bool, TransactionCommitment.t) Lwt_exn.arr =
+      (UserTransactionRequest.t signed * bool, TransactionCommitment.t) Lwt_exn.arr =
+  Logging.log "Beginning of process_user_transaction_request";
   let open Lwt_exn in
   validate_user_transaction_request
+  >>> post_state_update_request
   >>> post_validated_transaction_request
-  >>> fun (transaction, wait_for_commit) ->
+  >>> fun ((transaction_dig, wait_for_commit) : ((Transaction.t * Digest.t) * unit Lwt.t)) : TransactionCommitment.t Lwt_exn.t ->
   let open Lwt in
   wait_for_commit
   >>= fun () ->
-  make_transaction_commitment transaction |> Lwt_exn.return
+  make_transaction_commitment transaction_dig |> Lwt_exn.return
 
-(** This is a placeholder until we separate client and server in separate processes *)
-let post_user_transaction_request request =
+
+let oper_post_user_transaction_request (request: UserTransactionRequest.t signed) : TransactionCommitment.t Lwt_exn.t =
+  Logging.log "passing through oper_post_user_transaction_request";
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =
@@ -529,7 +608,7 @@ let get_recent_transactions address maybe_limit operator_state =
   `List (List.map Transaction.to_yojson
            (TransactionMap.foldrk get_operation_for_address all_transactions (Revision.zero,[]) snd))
 
-let get_proof tx_revision (operator_state : OperatorState.t) =
+let get_2proof tx_revision (operator_state : OperatorState.t) =
   let transactions = operator_state.current.transactions in
   match TransactionMap.Proof.get tx_revision transactions with
   | None ->
@@ -552,78 +631,88 @@ let process_user_query_request request =
    | Get_recent_transactions { address; count } ->
      get_recent_transactions address count state |> return
    | Get_proof {tx_revision} ->
-     get_proof tx_revision state |> return)
+     get_2proof tx_revision state |> return)
 
-let post_user_query_request =
+let oper_post_user_query_request =
   (*stateless_parallelize*) process_user_query_request
 
 (** Take messages from the admin_query_request_mailbox, and process them (TODO: in parallel?) *)
 let process_admin_query_request = bottom
-let post_admin_query_request =
+
+let oper_post_admin_query_request =
   (*stateless_parallelize*) process_admin_query_request
+
 
 (** We assume that the operation will correctly apply:
     balances are sufficient for spending,
     deposits confirmation will check out,
     active revision will only increase, etc.
 *)
-
 let increment_capped max x =
   if x < max then x + 1 else max
 
-(* TODO: tweak these numbers later *)
-let batch_timeout_trigger_in_seconds = 0.01
-let batch_size_trigger_in_requests = 1000
-
 let inner_transaction_request_loop =
   let open Lwter in
-  fun operator_state_ref ->
+  fun (operator_state_ref : OperatorAsyncAction.state ref) ->
     return (!operator_state_ref, 0, Lwt.return_unit)
     >>= forever
-          (fun (operator_state, batch_id, previous) ->
+          (fun ((operator_state, batch_id, previous) : (OperatorAsyncAction.state * int * unit Lwt.t)) ->
+            Logging.log "inner_transaction_request_loop, beginning of lambda";
              (* The promise sent back to requesters, that they have to wait on
                 for their confirmation's batch to have been committed,
                 and our private resolver for this batch. *)
-             let (batch_committed, notify_batch_committed) = Lwt.task () in
+             let ((batch_committed_t, notify_batch_committed_u) : (unit Lwt.t * unit Lwt.u)) = Lwt.task () in
              (* An internal promise to detect if and when we trigger the batch based on
                 a timeout having been passed since the earliest unprocessed commit request. *)
-             let (time_triggered, time_trigger) = Lwt.task () in
+             let ((time_trigger_t, time_trigger_u) : (unit Lwt.t * unit Lwt.u)) = Lwt.task () in
              (* An internal promise to detect if and when we trigger the batch based on
                 the size of the batch becoming too long. *)
-             let (size_triggered, size_trigger) = Lwt.task () in
+             let ((size_trigger_t, size_trigger_u) : (unit Lwt.t * unit Lwt.u)) = Lwt.task () in
              (* When we are ready and either trigger criterion is met,
                 send ourselves a Flush message for this batch_id *)
-             Lwt.async (fun () -> Lwt.join [previous;Lwt.pick [time_triggered; size_triggered]]
-                         >>= (fun () -> Lwt_mvar.put inner_transaction_request_mailbox (`Flush batch_id)));
-             let rec request_batch operator_state size =
+             Lwt.async (fun () -> Lwt.join [previous;Lwt.pick [time_trigger_t; size_trigger_t]]
+                                  >>= (fun () ->
+                          Lwt_mvar.put inner_transaction_request_mailbox (`Flush batch_id)));
+             let rec request_batch (operator_state : OperatorAsyncAction.state) (size : int) : (OperatorAsyncAction.state * int * unit Lwt.t) Lwt.t =
                (** The below mailbox is filled by post_validated_request, except for
                    the async line just preceding, whereby a `Flush message is sent. *)
                Lwt_mvar.take inner_transaction_request_mailbox
                >>= function
-               | `Confirm (request_signed, continuation) ->
+               | `Confirm ((request_signed_dig, continuation) : ((TransactionRequest.t * Digest.t) * ((Transaction.t * Digest.t) * unit Lwt.t) or_exn Lwt.u)) ->
+                 Logging.log "inner_transaction_request_loop, CASE : Confirm";
+                 let (request_signed, edig) = request_signed_dig in
                  process_validated_transaction_request request_signed operator_state
-                 |> fun (confirmation_or_exn, new_operator_state) ->
+                 |> fun ((confirmation_or_exn, new_operator_state) : (Transaction.t OrExn.t * OperatorAsyncAction.state)) ->
                  operator_state_ref := new_operator_state;
                  (match confirmation_or_exn with
                   | Error e ->
+                    Logging.log "inner_transaction_request_loop, error case";
                     Lwt.wakeup_later continuation (Error e);
                     request_batch new_operator_state size
                   | Ok confirmation ->
-                    Lwt.wakeup_later continuation (Ok (confirmation, batch_committed));
+                    Logging.log "inner_transaction_request_loop, Ok case";
+                    Lwt.wakeup_later continuation (Ok ((confirmation, edig), batch_committed_t));
                     let new_size = increment_capped max_int size in
-                    if new_size = batch_size_trigger_in_requests then
+                    if new_size = Side_chain_server_config.batch_size_trigger_in_requests then
                       (* Flush the data after enough entries are written *)
-                      Lwt.wakeup_later size_trigger ()
+                      Lwt.wakeup_later size_trigger_u ()
                     else if new_size = 1 then
                       (* Start a timeout to trigger flushing, but only after some entry is written *)
-                      Lwt.async (fun () -> Lwt_unix.sleep batch_timeout_trigger_in_seconds
-                                  >>= fun () -> Lwt.wakeup_later time_trigger ();
-                                  Lwt.return_unit);
+                      Lwt.async (fun () -> Lwt_unix.sleep Side_chain_server_config.batch_timeout_trigger_in_seconds
+                                  >>= fun () -> Lwt.wakeup_later time_trigger_u ();
+                                                Lwt.return_unit);
                     request_batch new_operator_state new_size)
-               | `Flush id ->
+               | `GetCurrentDigest (digest_resolver : Digest.t Lwt.u) ->
+                  Logging.log "inner_transaction_request, CASE : GetCurrentDigest";
+                  (* Lwt.wakeup_later notify_batch_committed_u (); *)
+                  Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
+                  request_batch operator_state size
+               (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
+               | `Flush (id : int) ->
+                 Logging.log "inner_transaction_request_loop, CASE : Flush";
                  assert (id = batch_id);
                  if size > 0 then
-                   (let (ready, notify_ready) = Lwt.task () in
+                   (let ((ready, notify_ready) : (unit Lwt.t * unit Lwt.u)) = Lwt.task () in
                     let signed_state =
                       SignedState.make operator_state.keypair operator_state.current in
                     let operator_state_to_save =
@@ -632,20 +721,22 @@ let inner_transaction_request_loop =
                       ready
                       >>= fun () ->
                       Lwt_mvar.put inner_transaction_request_mailbox
-                        (`Committed (signed_state, notify_batch_committed)));
+                        (`Committed (signed_state, notify_batch_committed_u)));
                     OperatorState.save operator_state_to_save
                     >>= fun () -> Db.async_commit notify_ready
-                    >>= fun () -> Lwt.return (operator_state, (batch_id + 1), batch_committed))
+                    >>= fun () -> Lwt.return (operator_state, (batch_id + 1), batch_committed_t))
                  else
-                   (Lwt.wakeup_later notify_batch_committed ();
-                    Lwt.return (operator_state, (batch_id + 1), batch_committed))
-               | `Committed (signed_state, previous_notify_batch_committed) ->
+                   (Lwt.wakeup_later notify_batch_committed_u ();
+                    Lwt.return (operator_state, (batch_id + 1), batch_committed_t))
+               | `Committed ((signed_state, previous_notify_batch_committed_u) : (State.t signed * unit Lwt.u)) ->
+                 Logging.log "inner_transaction_request_loop, CASE : Committed";
                  let new_operator_state =
                    OperatorState.lens_committed.set signed_state operator_state in
                  operator_state_ref := new_operator_state;
-                 Lwt.wakeup_later previous_notify_batch_committed ();
-                 request_batch new_operator_state size in
-             request_batch operator_state 0)
+                 Lwt.wakeup_later previous_notify_batch_committed_u ();
+                 request_batch new_operator_state size
+             in request_batch operator_state 0)
+
 
 let initial_side_chain_state =
   State.
@@ -664,6 +755,7 @@ let initial_operator_state address =
     ; fee_schedule= initial_fee_schedule }
 
 (* TODO: make it a PersistentActivity. *)
+(* TODO: don't create a new operator unless explicitly requested? *)
 let start_operator address =
   let open Lwt_exn in
   match !the_operator_service_ref with
@@ -677,17 +769,29 @@ let start_operator address =
         (Address.to_0x address) (Address.to_0x x.address)
   | None ->
     let operator_state =
+      (* TODO: don't create a new operator unless explicitly requested? *)
       try
         OperatorState.load address
-      with Not_found ->
-        (* TODO: don't create a new operator unless explicitly requested? *)
-        initial_operator_state address
+      with Not_found -> initial_operator_state address
     in
     let state_ref = ref operator_state in
     the_operator_service_ref := Some { address; state_ref };
     Lwt.async (const state_ref >>> inner_transaction_request_loop);
     Lwt_exn.return ()
 
+
+(* Need to create a thread, persistent activity
+   for the merging operation to the main chain.
+   ---Polled by the users for their transaction.
+   ---push transaction to the ethereum.
+   Advanced TODO: update as the auction plays out.
+ *)
+(*
+let lwt_for synchronizing 
+
+ *)
+
+    
 module Test = struct
   open Signing.Test
 

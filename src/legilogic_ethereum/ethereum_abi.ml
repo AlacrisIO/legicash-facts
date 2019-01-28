@@ -314,7 +314,7 @@ let abi_ufixed64 n num =
 let function_signature function_call =
   (* parameter list is shown as a tuple over the passed types *)
   let tys = List.map snd function_call.parameters in
-  let params = show_type_for_function_selector (Tuple tys) in
+  let (params : string) = show_type_for_function_selector (Tuple tys) in
   function_call.function_name ^ params
 
 let function_signature_hash = function_signature >> keccak256_string
@@ -452,11 +452,15 @@ let rec encode_abi_value v ty =
     bork "Value to be encoded: %s\nDoes not match its type: %s"
       (show_abi_value v) (show_abi_type ty)
 
+let encode_function_parameters parameters : Bytes.t =
+  let param_val, param_ty = abi_tuple_of_abi_values parameters in
+  encode_abi_value param_val param_ty
+  
+    
 (* an encoding of the function call is what we pass to Ethereum in a transaction *)
 let encode_function_call function_call =
-  let encoded_signature = encode_function_signature function_call |> Bytes.of_string in
-  let param_val, param_ty = abi_tuple_of_abi_values function_call.parameters in
-  let encoded_params = encode_abi_value param_val param_ty in
+  let (encoded_signature : Bytes.t) = encode_function_signature function_call |> Bytes.of_string in
+  let (encoded_params : Bytes.t) = encode_function_parameters function_call.parameters in
   Bytes.cat encoded_signature encoded_params
 
 module Test = struct

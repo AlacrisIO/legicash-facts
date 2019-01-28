@@ -1,8 +1,14 @@
-(* JSON RPC interface to Ethereum node
-   https://github.com/ethereum/wiki/wiki/JSON-RPC
-   https://github.com/ethereum/go-ethereum/wiki/Managing-your-accounts
-   https://ethereumbuilders.gitbooks.io/guide/content/en/ethereum_json_rpc.html
-   https://wiki.parity.io/JSONRPC
+(* JSON RPC interface to Ethereum node.
+   Classical reference (but with some errors):
+   --- eth_* functionality:
+     https://github.com/ethereum/wiki/wiki/JSON-RPC
+     https://ethereumbuilders.gitbooks.io/guide/content/en/ethereum_json_rpc.html
+     https://wiki.parity.io/JSONRPC
+   --- personal_* functionality:
+     https://github.com/ethereum/go-ethereum/wiki/Managing-your-accounts
+     https://github.com/ethereum/go-ethereum/wiki/Management-APIs
+   Other reference:
+   --- https://wiki.parity.io/JSONRPC
 *)
 open Legilogic_lib
 open Action
@@ -30,6 +36,16 @@ module BlockParameter : sig
   include PersistableS with type t := t
 end
 
+(*     
+(* A contract address or a list of address *)
+module ContractAoListA : sig
+  type t =
+    | Contract_address of Address.t
+    | List_addresses of Address.t list
+  include PersistableS with type t := t
+end
+ *)
+   
 module TransactionCondition : sig
   type t =
     | Block_number of Revision.t
@@ -77,6 +93,19 @@ module TransactionInformation : sig
   include YojsonableS with type t := t
 end
 
+(* Input fields for the eth_getLogs routine *)
+module EthObject : sig
+  type t =
+    { from_block: BlockParameter.t option [@key "fromBlock"] (* optional. Value latest if absent *)
+    ; to_block: BlockParameter.t option [@key "toBlock"] (* optional. Value latest if absent *)
+    ; address : Address.t option (* Contract address or list of addresses *)
+    ; topics : Bytes.t option list option (* List of topics to search for *)
+    ; blockhash : Digest.t option (* the block hash *)
+    }
+  include YojsonableS with type t := t
+end
+
+     
 val operation_to_parameters : Address.t -> Operation.t -> TransactionParameters.t
 val pre_transaction_to_parameters : Address.t -> PreTransaction.t -> TransactionParameters.t
 val transaction_to_parameters : Transaction.t -> TransactionParameters.t
@@ -123,6 +152,18 @@ module TransactionReceipt : sig
   include YojsonableS with type t := t
 end
 
+
+
+module EthListLogObjects : sig
+  type t = LogObject.t list (* The list of matching objects *)
+  include YojsonableS with type t := t
+end
+
+     
+
+
+
+     
 (** Make a call or transaction, which won’t be added to the blockchain and returns the used gas,
     which can be used for estimating the used gas. *)
 val eth_accounts :
@@ -173,6 +214,11 @@ val eth_send_raw_transaction :
   -> Data.t -> Digest.t Lwt_exn.t
 (** Send a raw transaction *)
 
+val eth_get_logs :
+  ?timeout:float -> ?log:bool
+  -> EthObject.t -> EthListLogObjects.t Lwt_exn.t
+(** Send a raw transaction *)
+
 val eth_send_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> Digest.t Lwt_exn.t
@@ -183,10 +229,13 @@ val eth_sign :
   -> Address.t * Data.t -> Data.t Lwt_exn.t
 (** Sign some data *)
 
+(* The corresponding operation is not existent in the official ethereum API. It is also not used.
+   Therefore outcommented. *)
 val eth_sign_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> SignedTransaction.t Lwt_exn.t
-(** Sign a transaction from an unlocked account *)
+(** Sign a transaction from an unlocked account **)
+
 
 (* https://github.com/ethereum/go-ethereum/wiki/Management-APIs *)
 

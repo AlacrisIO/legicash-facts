@@ -10,7 +10,7 @@ open Yojsoning
 val post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
 (** send user query to side chain over TCP/IP *)
 
-val post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
+(* val post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr *)
 (** send admin query to side chain over TCP/IP *)
 
 val post_user_transaction_request : (UserTransactionRequest.t signed, TransactionCommitment.t) Lwt_exn.arr

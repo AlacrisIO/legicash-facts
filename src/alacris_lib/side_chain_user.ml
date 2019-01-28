@@ -13,7 +13,13 @@ open Json_rpc
 open Trie
 
 open Legilogic_ethereum
-
+open Side_chain_server_config
+open Ethereum_watch
+open Ethereum_json_rpc
+(* open Ethereum_abi *)
+open State_update
+open Operator_contract
+   
 open Side_chain
 
 (** TODO: query the network, whatever, and find the fee schedule *)
@@ -35,19 +41,76 @@ let stub_confirmed_side_chain_state_digest = ref (State.digest Side_chain.State.
 let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
-(* TODO: ACTUALLY IMPLEMENT IT, MAYBE MOVE IT to side_chain.ml ? *)
-let wait_for_operator_state_update revision =
-  (*bork "wait_for_operator_state_update not implemented yet"; bottom ()*)
-  (* THIS IS FAKE NEWS! *)
+
+  
+let wait_for_contract_event (contract_address : Address.t) (topics : Bytes.t option list) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  Logging.log "Beginning of wait_for_contract_event";
+  let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
+  Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
+  (fun (_lobj : LogObject.t) ->
   Lwt_exn.return
     Ethereum_chain.Confirmation.
       { transaction_hash= Digest.zero
       ; transaction_index= Revision.zero
       ; block_number= Revision.zero
-      ; block_hash= Digest.zero }
+      ; block_hash= Digest.zero })
 
 
-let make_rx_header user operator revision =
+let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  Logging.log "Beginning of wait_for_operator_state_update";
+  let (topics : Bytes.t option list) = [None; (topic_of_address operator)] in
+  wait_for_contract_event contract_address topics
+
+let wait_for_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
+  Logging.log "Beginning of wait_for_winthdrawal_event";
+  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision)] in
+  Lwt_exn.bind (wait_for_contract_event contract_address topics) (fun _ -> Lwt_exn.return ())
+      
+
+
+let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : Address.t) : unit Lwt_exn.t =
+  match (tc.transaction.tx_request |> TransactionRequest.request).operation with
+  | Deposit _ -> Lwt_exn.return ()
+  | Payment _ -> Lwt_exn.return ()
+  | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+     Logging.log "Beginning of final_claim_withdrawal_operation";
+     Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
+       (fun _ ->
+         wait_for_withdrawal_event tc.contract_address operator tc.operator_revision)
+
+  
+
+
+
+let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.t) : unit Lwt_exn.t =
+  let (first_part_withdraw_operation : TransactionCommitment.t -> Address.t -> unit Lwt_exn.t) =
+    fun tc operator ->
+    match (tc.transaction.tx_request |> TransactionRequest.request).operation with
+    | Deposit _ -> Lwt_exn.return ()
+    | Payment _ -> Lwt_exn.return ()
+    | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+       Logging.log "Beginning of final_withdraw_operation";
+       Lwt_exn.bind (sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f) (fun () -> emit_withdraw_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest) in
+  Lwt_exn.bind (first_part_withdraw_operation tc operator)
+    (fun () ->
+      let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
+      let (topics2 : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision tc.operator_revision)] in
+      let (list_topics : Bytes.t option list list) = [topics2] in 
+      let rec fct_get_correct_event unit : unit Lwt_exn.t =
+        Lwt_exn.bind (retrieve_relevant_list_logs_group delay tc.contract_address list_topics)
+          (fun x_llogs_group ->
+            (*            let (len2 : int) = List.length (List.nth x_llogs_group 0) in*)
+            let (len3 : int) = List.length (List.nth x_llogs_group 1) in
+            if len3 > 0 then
+              Lwt_exn.return ()
+            else
+              Lwt_exn.bind (sleep_delay_exn delay) (fct_get_correct_event)
+          )
+      in fct_get_correct_event ()
+    )
+  
+  
+let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =
   Lwt.return RxHeader.
                { operator
                ; requester= user
@@ -59,7 +122,7 @@ let make_rx_header user operator revision =
                    !stub_confirmed_side_chain_state.operator_revision
                ; validity_within= default_validity_window }
 
-let make_user_transaction_request user operator revision operation =
+let make_user_transaction_request (user : Address.t) (operator : Address.t) (revision : Revision.t) (operation : UserOperation.t) : SignedUserTransactionRequest.t Lwt_exn.t =
   let open Lwt_exn in
   of_lwt (make_rx_header user operator) revision
   >>= fun rx_header ->
@@ -97,17 +160,18 @@ end
 
 module OngoingTransactionStatus = struct
   (* TODO: include a strong reference to the TransactionTracker, so it won't get garbage collected
-     at just the wrong moment; make sure it can properly be persisted. Sigh. *)
+     at just the wrong moment; make sure it can properly be persisted. Sigh.
+     Need to clarify this problem. *)
   [@@@warning "-39"]
   type t =
     | DepositWanted of DepositWanted.t * TokenAmount.t
     | DepositPosted of DepositWanted.t * TokenAmount.t * Ethereum_user.TransactionTracker.Key.t
     | DepositConfirmed of DepositWanted.t * TokenAmount.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
-    | Requested of UserTransactionRequest.t signed
-    | SignedByOperator of TransactionCommitment.t
-    | PostedToRegistry of TransactionCommitment.t
-    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | Requested of UserTransactionRequest.t signed (* for all operation *)
+    | SignedByOperator of TransactionCommitment.t (* for all operation *)
+    | PostedToRegistry of TransactionCommitment.t (* for all operation *)
+    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* for withdrawal only *)
+    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* for withdrawal only *)
   [@@deriving yojson]
   include (YojsonPersistable (struct
              type nonrec t = t
@@ -210,6 +274,7 @@ module TransactionTracker = struct
           let open OngoingTransactionStatus in
           (match ongoing with
            | DepositWanted (({operator; deposit_amount} as deposit_wanted), deposit_fee) ->
+             Logging.log "TR_LOOP, DepositWanted operation";
              let pre_transaction =
                TokenAmount.(add deposit_amount deposit_fee)
                |> Operator_contract.pre_deposit ~operator in
@@ -220,6 +285,7 @@ module TransactionTracker = struct
               | Ok (tracker_key, _, _) ->
                 DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
+             Logging.log "TR_LOOP, DepositPosted operation";
              let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
              (promise >>= function
               | Failed (_, error) -> invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
@@ -227,8 +293,9 @@ module TransactionTracker = struct
                 DepositConfirmed (deposit_wanted, deposit_fee, transaction, confirmation) |> continue)
            | DepositConfirmed ({deposit_amount}, deposit_fee,
                                main_chain_deposit, main_chain_deposit_confirmation) ->
-             revision_generator () >>= fun revision ->
-             (make_user_transaction_request user operator revision
+             Logging.log "TR_LOOP, DepositConfirmed operation";
+             revision_generator () >>= fun (revision : Revision.t) ->
+             (make_user_transaction_request (user : Address.t) (operator : Address.t) (revision : Revision.t)
                 (Deposit
                    { deposit_amount
                    ; deposit_fee
@@ -238,35 +305,51 @@ module TransactionTracker = struct
               | Ok request -> Requested request |> continue
               | Error error -> invalidate ongoing error)
            | Requested request ->
-             (* TODO: handle retries *)
+             Logging.log "TR_LOOP, Requested operation";
+             (* TODO: handle retries. But it should be in the side_chain_operator *)
              (request
               |> Side_chain_client.post_user_transaction_request
               >>= function
-              | Ok tc -> SignedByOperator tc |> continue
-              | Error error -> invalidate ongoing error)
-           | SignedByOperator tc ->
+              | Ok (tc : TransactionCommitment.t) ->
+                 Logging.log "Requested: side_chain_user: TrTracker, Ok case";
+                 SignedByOperator tc |> continue
+              | Error (error : exn) ->
+                 Logging.log "Requested: side_chain_user: exn=%s" (Printexc.to_string error);
+                 Logging.log "Requested: side_chain_user: TrTracker, Error case";
+                 invalidate ongoing error)
+           | SignedByOperator (tc : TransactionCommitment.t) ->
+             Logging.log "TR_LOOP, SignedByOperator operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
-           | PostedToRegistry tc ->
+           | PostedToRegistry (tc : TransactionCommitment.t) ->
+             Logging.log "TR_LOOP, PostedToRegistry operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
-             (* TODO: add support for waiting for a state update from the operator *)
-             (wait_for_operator_state_update tc.operator_revision
+             (wait_for_operator_state_update tc.contract_address operator
               >>= function
-              | Ok c ->
+              | Ok (c : Ethereum_chain.Confirmation.t) ->
+                 Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
                  | Deposit _ | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
                  | Withdrawal _ -> PostedToMainChain (tc, c) |> continue)
-              | Error error -> invalidate ongoing error)
-           | PostedToMainChain (tc, confirmation) ->
+              | Error error ->
+                 Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
+                 invalidate ongoing error)
+           | PostedToMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
+             Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
-             (*bottom ()*)
-             ConfirmedOnMainChain (tc, confirmation) |> continue
-           | ConfirmedOnMainChain (tc, confirmation) ->
+             (* TODO: wait for confirmation on the main chain and handle lawsuits
+                Right now, no lawsuit *)
+             Lwt.bind (final_claim_withdrawal_operation tc operator) (fun _ ->
+                 ConfirmedOnMainChain (tc, confirmation) |> continue)
+           | ConfirmedOnMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
+             Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
-             (*bottom ()*)
-             FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |> finalize)
-        | Final x -> return x in
-      key, loop state
+             (* TODO: post a transaction to actually get the money *)
+             Lwt.bind (final_withdraw_operation tc operator) (fun _ ->
+                 FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |>
+                   finalize))
+        | Final x -> return x
+      in key, loop state
   end
   include PersistentActivity(Base)
   module Key = Base.Key
@@ -355,10 +438,12 @@ let operator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
     defaulting_lens (konstant UserAccountState.empty)
       (UserAccountStateMap.lens operator)
 
+  
 let get_next_account_revision : Address.t -> unit -> UserState.t -> (Revision.t * UserState.t) Lwt.t =
   fun operator () state ->
     let revision_lens = operator_lens operator |-- UserAccountState.lens_side_chain_revision in
-    let revision = revision_lens.get state in
+    let (revision : Revision.t) = revision_lens.get state in
+    (*    Logging.log "get_next_account_revision revision=%i" (Revision.to_int revision);*)
     Lwt.return (revision, (state |> revision_lens.set Revision.(add one revision)))
 
 module User = struct
@@ -443,6 +528,7 @@ let get_user_address : (unit, Address.t) UserAsyncAction.arr =
 let direct_operation :
   Address.t -> (OperatorFeeSchedule.t -> UserOperation.t, TransactionTracker.t) UserAsyncAction.arr =
   fun operator make_operation ->
+    Logging.log "running direct_operation function";
     let open UserAsyncAction in
     of_lwt_exn get_operator_fee_schedule operator >>= fun fee_schedule ->
     let operation = make_operation fee_schedule in
@@ -453,14 +539,14 @@ let direct_operation :
     let status = OngoingTransactionStatus.Requested signed_request in
     add_ongoing_side_chain_transaction status
 
-let payment PaymentWanted.{operator; recipient; amount; memo; payment_expedited} =
+let payment PaymentWanted.{operator; recipient; amount; memo; payment_expedited} : TransactionTracker.t UserAsyncAction.t =
   direct_operation operator
     (fun fee_schedule ->
        let payment_invoice = Invoice.{recipient; amount; memo} in
        let payment_fee = payment_fee_for fee_schedule amount in
        UserOperation.Payment {payment_invoice; payment_fee; payment_expedited})
 
-let withdrawal WithdrawalWanted.{operator; withdrawal_amount} =
+let withdrawal WithdrawalWanted.{operator; withdrawal_amount} : TransactionTracker.t UserAsyncAction.t =
   direct_operation operator
     (fun fee_schedule ->
        let withdrawal_fee = withdrawal_fee_for fee_schedule withdrawal_amount in

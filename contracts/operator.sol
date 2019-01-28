@@ -23,14 +23,17 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
+    event StateUpdate(address indexed _operator);
+
     // struct StateUpdateClaim {
     //     address _operator; // account of the operator making the claim for his side-chain
     //     bytes32 _new_state; // new state of the side-chain
     // }
 
     /* TODO: include a bond with this and every claim */
-    function claim_state_update(bytes32 _new_state) public payable {
+    function claim_state_update(bytes32 _new_state) external payable {
         make_claim(keccak256(abi.encodePacked(ClaimType.STATE_UPDATE, msg.sender, _new_state)));
+	emit StateUpdate(msg.sender);
     }
 
     function operator_state(
@@ -80,14 +83,17 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     // from the structure of the contract itself.
     int maximum_withdrawal_challenge_gas = 100*1000;
 
+    event ClaimWithdrawal(address indexed _operator, uint64 indexed _ticket, uint _value, bytes32 _confirmed_state);
+
     function claim_withdrawal(address _operator, uint64 _ticket, uint _value, bytes32 _confirmed_state)
-            public payable {
+            external payable {
         require_bond(msg.value, maximum_withdrawal_challenge_gas);
         make_claim(withdrawal_claim(
             _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
+	emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state);
     }
 
-    event Withdrawal(address operator, uint64 ticket);
+    event Withdrawal(address indexed _operator, uint64 indexed _ticket, uint _value, uint _bond, bytes32 _confirmed_state);
 
     // Logging a Withdrawal event allows validators to reject double-withdrawal
     // without keeping the withdrawal claim alive indefinitely.
@@ -97,13 +103,13 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     }
 
     function withdraw(address _operator, uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
-            public {
+            external {
         // Consume a valid withdrawal claim.
         consume_claim(withdrawal_claim(
             _operator, msg.sender, _ticket, _value, _bond, _confirmed_state));
 
         // Log the withdrawal so future double-claim attempts can be duly rejected.
-        emit Withdrawal(_operator, _ticket);
+        emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
 
         // NB: Always transfer money LAST!
         // TODO: Should we allow a recipient different from the sender?

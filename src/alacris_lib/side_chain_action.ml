@@ -36,7 +36,7 @@ let check_side_chain_contract_created contract_address =
        (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
      fail Invalid_contract)
 
-let create_side_chain_contract installer_address =
+let create_side_chain_contract (installer_address : Address.t) : Address.t Lwt_exn.t =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
   Ethereum_user.create_contract ~sender:installer_address
     ~code:Operator_contract_binary.contract_bytes TokenAmount.zero
@@ -51,7 +51,8 @@ let create_side_chain_contract installer_address =
     |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
     >>= const contract_address
 
-let ensure_side_chain_contract_created installer_address =
+    
+let ensure_side_chain_contract_created (installer_address : Address.t) : Address.t Lwt_exn.t =
   Logging.log "Ensuring the contract is installed...";
   (match Db.get contract_address_key with
    | Some addr ->
@@ -80,7 +81,7 @@ module Test = struct
   let%test "deposit_and_payment_and_withdrawal" =
     Signing.Test.register_test_keypairs ();
     Side_chain_client.Test.post_user_transaction_request_hook :=
-      Side_chain_operator.post_user_transaction_request;
+      Side_chain_operator.oper_post_user_transaction_request;
     try
       Lwt_exn.run
         (fun () ->

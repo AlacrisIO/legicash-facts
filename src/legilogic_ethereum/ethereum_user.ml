@@ -13,7 +13,7 @@ open Trie
 
 open Ethereum_chain
 open Ethereum_json_rpc
-
+open Side_chain_server_config
 
 (* TODO: A much better state machine to get wanted transactions confirmed.
 
@@ -190,8 +190,10 @@ let confirmation_of_transaction_receipt =
     Confirmation.{transaction_hash; transaction_index; block_number; block_hash}
 
 (** Number of blocks required for a transaction to be considered confirmed *)
-(* TODO: for production, use 100, not 0 *)
-let block_depth_for_confirmation = Revision.of_int 0
+(* The value should be set in side_chain_server_config.json file. 
+   For production, use 100, not 0. Put it as configuration file on input *)
+(* let block_depth_for_confirmation = Revision.of_int 0 *)
+let block_depth_for_confirmation = Side_chain_server_config.minNbBlockConfirm
 
 exception Still_pending
 exception TransactionFailed of OngoingTransactionStatus.t * exn
@@ -208,6 +210,19 @@ let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmatio
   else
     fail Still_pending
 
+let check_confirmation_deep_enough_bool (confirmation : Confirmation.t) : bool Lwt_exn.t =
+  (*Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);*)
+  eth_block_number ()
+  >>= fun block_number ->
+  if Revision.(is_add_valid confirmation.block_number block_depth_for_confirmation
+               && compare block_number (add confirmation.block_number block_depth_for_confirmation)
+                  >= 0) then
+    return true
+  else
+    return false
+
+
+  
 type nonce_operation = Peek | Next | Reset [@@deriving yojson]
 
 module NonceTracker = struct
@@ -256,7 +271,7 @@ module NonceTracker = struct
   let next address = get () address Next
 end
 
-let make_tx_header (sender, value, gas_limit) =
+let make_tx_header (sender, value, gas_limit) : TxHeader.t Lwt_exn.t =
   (* TODO: get gas price and nonce from geth *)
   eth_gas_price () >>= fun gas_price ->
   of_lwt NonceTracker.next sender >>= fun nonce ->
@@ -267,20 +282,17 @@ exception Missing_password
 
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
-    let address = transaction.tx_header.sender in
-    (try return (keypair_of_address address).password with
-     | Not_found ->
-       Logging.log "Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
-       fail Missing_password)
-    >>= fun password -> personal_sign_transaction (transaction_to_parameters transaction, password)
-    >>= fun signed -> return (transaction, signed)
+  let address = transaction.tx_header.sender in
+  (try return (keypair_of_address address).password with
+   | Not_found ->
+      Logging.log "Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
+      fail Missing_password)
+  >>= fun password -> personal_sign_transaction (transaction_to_parameters transaction, password)
+  >>= fun signed -> return (transaction, signed)
 
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
     from given address, with given operation, value and gas_limit *)
-
-let make_signed_transaction : Address.t -> Operation.t -> TokenAmount.t -> TokenAmount.t ->
-                              (Transaction.t * SignedTransaction.t) Lwt_exn.t =
-  fun sender operation value gas_limit ->
+let make_signed_transaction (sender : Address.t) (operation : Operation.t) (value : TokenAmount.t) (gas_limit : TokenAmount.t) : (Transaction.t * SignedTransaction.t) Lwt_exn.t =
   make_tx_header (sender, value, gas_limit)
   >>= fun tx_header ->
   sign_transaction Transaction.{tx_header; operation}
@@ -294,12 +306,12 @@ let nonce_too_low address =
 
 let confirmed_or_nonce_too_low : Address.t -> (Digest.t, Confirmation.t) Lwt_exn.arr =
   fun sender hash ->
-    let open Lwter in
-    Ethereum_json_rpc.eth_get_transaction_receipt hash
-    >>= function
-    | Ok None -> nonce_too_low sender
-    | Ok (Some receipt) -> confirmation_of_transaction_receipt receipt |> Lwt_exn.return
-    | Error e -> Lwt_exn.fail e
+  let open Lwter in
+  Ethereum_json_rpc.eth_get_transaction_receipt hash
+  >>= function
+  | Ok None -> nonce_too_low sender
+  | Ok (Some receipt) -> confirmation_of_transaction_receipt receipt |> Lwt_exn.return
+  | Error e -> Lwt_exn.fail e
 
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
@@ -530,17 +542,16 @@ let check_transaction_confirmed :
     | FinalTransactionStatus.Confirmed (t, c) -> return (t, c)
     | FinalTransactionStatus.Failed (t, e) -> fail (TransactionFailed (t, e))
 
-let confirm_pre_transaction address =
+let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr = 
   issue_pre_transaction address
   >>> of_lwt track_transaction
   >>> check_transaction_confirmed
 
-let transfer_gas_limit = TokenAmount.of_int 21000
-
+(* Used only in tests *)
 let transfer_tokens ~recipient value =
-  PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=transfer_gas_limit}
+  PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=Side_chain_server_config.transfer_gas_limit}
 
-let make_pre_transaction ~sender operation ?gas_limit value =
+let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : TokenAmount.t) : PreTransaction.t Lwt_exn.t =
   (match gas_limit with
    | Some x -> return x
    | None -> eth_estimate_gas (operation_to_parameters sender operation))

@@ -77,4 +77,9 @@ let _ =
      >>> fun croesus ->
      Logging.log "Prefunded address %s" (nicknamed_string_of_address croesus);
      (* TODO: Fix race condition #7 and make sure it works with list_iter_p here and above. *)
+     (* There are several potential issues:
+        --- One is that the list_iter_p is used also in ensure_prefunded.
+        --- Another is that the limitation is in the calls to the ethereum blockchain and
+            that this part should be parallelized.
+      *)
      list_iter_p (ensure_prefunded croesus amount) (List.rev !args))

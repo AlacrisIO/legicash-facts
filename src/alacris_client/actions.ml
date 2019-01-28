@@ -10,6 +10,7 @@ open Legilogic_lib
 open Action
 open Lwt_exn
 open Yojsoning
+open Signing
 open Types
 open Json_rpc
 
@@ -19,6 +20,7 @@ open Alacris_lib
 open Side_chain
 open Side_chain_client
 open Side_chain_user
+open Side_chain_server_config
 
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
@@ -110,39 +112,39 @@ let get_recent_user_transactions_on_trent address maybe_limit =
 (* side-effecting operations *)
 
 (* format deposit and withdrawal result *)
-let make_transaction_result address tx_revision main_chain_confirmation =
+let make_transaction_result (address : Address.t) (side_chain_tx_revision : Revision.t) (main_chain_confirmation : Ethereum_chain.Confirmation.t) : yojson OrExn.t Lwt.t =
   UserQueryRequest.Get_account_state { address }
   |> post_user_query_request
   >>= fun account_state_json ->
   (* TODO: JSON to AccountState to JSON, is there a better way *)
   match AccountState.of_yojson (YoJson.member "account_state" account_state_json) with
-  | Error _ ->  error_json "Could not get account state for depositing or withdrawing user"
+  | Error _ ->
+     error_json "Could not get account state for depositing or withdrawing user"
                 |> return
   | Ok account_state ->
-    let side_chain_account_state = account_state in
-    let side_chain_tx_revision = tx_revision in
-    let deposit_result = { side_chain_account_state
-                         ; side_chain_tx_revision
-                         ; main_chain_confirmation } in
-    return (transaction_result_to_yojson deposit_result)
+     let side_chain_account_state = account_state in
+     let deposit_result = { side_chain_account_state
+                          ; side_chain_tx_revision
+                          ; main_chain_confirmation } in
+     return (transaction_result_to_yojson deposit_result)
 
-let schedule_transaction user transaction parameters =
+(* The type 'a is DepositWanted or WithdrawalWanted *)
+let schedule_transaction (user : Address.t) (transaction : 'a -> TransactionTracker.t UserAsyncAction.t) (parameters : 'a) : yojson =
   add_main_chain_thread
     (User.transaction user transaction parameters
      >>= fun (transaction_commitment, main_chain_confirmation) ->
      let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
      make_transaction_result user tx_revision main_chain_confirmation)
 
-let deposit_to ~operator user deposit_amount =
+let deposit_to ~operator (user : Address.t) (deposit_amount : TokenAmount.t) : yojson =
   schedule_transaction user deposit DepositWanted.{operator; deposit_amount}
 
-let withdrawal_from ~operator user withdrawal_amount =
+let withdrawal_from ~operator (user : Address.t) (withdrawal_amount : TokenAmount.t) : yojson =
   schedule_transaction user withdrawal WithdrawalWanted.{operator; withdrawal_amount}
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
-let num_timestamps = 100000
-let payment_timestamps = Array.make num_timestamps 0.0
+let payment_timestamps = Array.make Side_chain_server_config.num_timestamps 0.0
 
 (* offset where next timestamp goes *)
 let payment_timestamps_cursor = ref 0
@@ -151,7 +153,7 @@ let payment_timestamp () =
   payment_timestamps.(!payment_timestamps_cursor) <- Unix.gettimeofday ();
   incr payment_timestamps_cursor;
   (* wrap if needed *)
-  if !payment_timestamps_cursor >= num_timestamps then
+  if !payment_timestamps_cursor >= Side_chain_server_config.num_timestamps then
     payment_timestamps_cursor := 0
 
 (*TODO: move instrumentation to a proper place and leave it at that:
@@ -159,8 +161,9 @@ let payment_timestamp () =
   schedule_transaction sender payment
   PaymentWanted.{operator; recipient; amount; memo; payment_expedited= false } *)
 
-(* TODO: simplify this all away *)
-let payment_on ~operator sender recipient amount memo =
+(* TODO: simplify this all away. Problem is that schedule_transaction cannot be used
+   because two addresses are used. *)
+let payment_on ~operator (sender : Address.t) (recipient : Address.t) (amount : TokenAmount.t) (memo : string) : yojson =
   add_main_chain_thread
     (User.action sender payment
        PaymentWanted.{operator; recipient; amount; memo; payment_expedited= false }
@@ -174,8 +177,7 @@ let payment_on ~operator sender recipient amount memo =
 
 (* OLD RESPONSE. TODO: find out what the demo-frontend *really needs*
    (* remaining code is preparing response *)
-   let transaction = transaction_commitment.transaction in
-   let tx_revision = transaction.tx_header.tx_revision in
+   let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
    UserQueryRequest.Get_account_state { address = sender }
    |> post_user_query_request
    >>= fun sender_account_json ->
@@ -222,7 +224,7 @@ let get_transaction_rate_on_trent () =
   let current_cursor = !payment_timestamps_cursor in
   let last_cursor =
     if current_cursor = 0 then
-      num_timestamps - 1
+      Side_chain_server_config.num_timestamps - 1
     else
       current_cursor - 1
   in
@@ -235,7 +237,7 @@ let get_transaction_rate_on_trent () =
     else if payment_timestamps.(ndx) <= minute_ago then
       count
     else (* decrement, or wrap backwards *)
-      count_transactions (if ndx = 0 then num_timestamps - 1 else ndx - 1) (count + 1)
+      count_transactions (if ndx = 0 then Side_chain_server_config.num_timestamps - 1 else ndx - 1) (count + 1)
   in
   let raw_count = count_transactions last_cursor 0 in
   let transactions_per_second = raw_count / 60 in

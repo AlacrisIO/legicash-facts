@@ -282,7 +282,7 @@ let remove key =
   Remove key |> request
 
 let open_transaction () =
-  let (promise, resolver) = Lwt.task () in
+  let ((promise, resolver) : (transaction Lwt.t * transaction Lwt.u)) = Lwt.task () in
   Open_transaction resolver |> request
   >>= fun () -> promise
 

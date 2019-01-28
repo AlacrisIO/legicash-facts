@@ -306,7 +306,10 @@ module TransactionCommitment : sig
     ; spending_limit: TokenAmount.t (* From State.t *)
     ; accounts: Digest.t (* From State.t, digest only *)
     ; main_chain_transactions_posted: Digest.t (* From State.t, digest only *)
-    ; signature: signature } (* Signature of the digest of the state reconstituted from the above *)
+    ; signature: signature (* Signature of the digest of the state reconstituted from the above *)
+    ; state_digest: Digest.t (* Signature put in the state update *)
+    ; contract_address: Address.t (* contract address needed for accessing to data *)
+    }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
 end
@@ -335,8 +338,6 @@ exception Already_closed
 exception Account_closed_or_nonexistent
 
 exception Invalid_confirmation
-
-val challenge_duration : Duration.t
 
 val one_billion_tokens : TokenAmount.t
 

@@ -139,7 +139,6 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
   type key = Key.t
   type state = State.t
   type activity = t
-  open Lwter
   let table = Hashtbl.create 8 (* TODO: make it a weak reference table with Weak.create *)
   let db_key key = key_prefix ^ (Key.marshal_string key)
   let saving (db_key : string) (state : state) : state Lwt.t =

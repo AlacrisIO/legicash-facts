@@ -17,7 +17,7 @@ type address = Address.t
 (* Create context just once, because it's an expensive operation.
    This assumes single instantiation of this module in a single-threaded environment.
 *)
-let secp256k1_ctx = Secp256k1.Context.create [Sign; Verify]
+let (secp256k1_ctx : Secp256k1.Context.t) = Secp256k1.Context.create [Sign; Verify]
 
 let private_key_length = 32
 
@@ -28,7 +28,7 @@ let private_key_length = 32
 *)
 let public_key_length = 65
 
-let bytes_of_key key =
+let bytes_of_key (key : 'a Secp256k1.Key.t) : bytes =
   key |> Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx |> Cstruct.of_bigarray |> Cstruct.to_bytes
 
 module PublicKey = struct
@@ -129,7 +129,7 @@ module Keypair = struct
 end
 type keypair = Keypair.t
 
-
+(* Used only for tests *)
 let make_public_key public_key_string =
   let len = String.length public_key_string in
   if len <> public_key_length then
@@ -139,6 +139,7 @@ let make_public_key public_key_string =
   | Ok pk -> pk
   | Error msg -> bork "%s" msg
 
+(* Used only for tests *)
 let make_private_key private_key_string =
   let len = String.length private_key_string in
   if len <> private_key_length then
@@ -150,13 +151,14 @@ let make_private_key private_key_string =
 
 type 'a signed = {payload: 'a; signature: signature}
 
-
+(* Used only for tests *)
 let make_keypair private_key_string public_key_string password =
   let public_key = make_public_key public_key_string in
   let private_key = make_private_key private_key_string in
   let address = address_of_public_key public_key in
   Keypair.{address; public_key; private_key; password}
 
+(* Used only for tests *)
 let keypair_of_0x private_key_0x public_key_0x password =
   make_keypair (parse_0x_data private_key_0x) (parse_0x_data public_key_0x) password
 
@@ -211,10 +213,10 @@ let register_file_keypairs file =
   |> decode_keypairs
   |> List.iter (uncurry register_keypair)
 
-let addresses_with_registered_keypair () =
+let addresses_with_registered_keypair () : address list =
   Hashtbl.fold (fun k _ l -> k :: l) keypair_by_address []
 
-let nicknames_with_registered_keypair () =
+let nicknames_with_registered_keypair () : string list =
   addresses_with_registered_keypair ()
   |> List.map (get_nickname_of_address >> function Ok x -> [x] | Error _ -> [])
   |> List.flatten
@@ -222,14 +224,14 @@ let nicknames_with_registered_keypair () =
 (* convert OCaml string of suitable length (32 only?) to Secp256k1 msg format
    for strings representing hashes, the msg format is suitable for signing.
 *)
-let secp256k1_msg_of_string s =
+let secp256k1_msg_of_string (s : string) : Secp256k1.Sign.msg =
   let buffer = Cstruct.to_bigarray (Cstruct.of_string s) in
   match Secp256k1.Sign.msg_of_bytes buffer with
   | Some msg -> msg
   | None -> bork "Could not create SECP256K1.Sign.msg from string"
 
 (* convert a Digest.`t to a Secp256k1 msg representing the digest *)
-let secp256k1_msg_of_digest digest =
+let secp256k1_msg_of_digest (digest : Digest.t) : Secp256k1.Sign.msg =
   secp256k1_msg_of_string (Digest.to_big_endian_bits digest)
 
 (* digital signature is encrypted hash *)
@@ -264,7 +266,7 @@ let address_of_signature signature digest =
    |> Result.map (fun a -> Printf.printf "RECO sig %s digest %s -> addr %s\n%!" (signature |> string_of_signature |> unparse_hex_string) (Digest.to_hex_string digest) (Address.to_hex_string a) ; a) *)
 
 (* check validity of signature for data *)
-let is_signature_valid make_digest (address: Address.t) (signature: Signature.t) data =
+let is_signature_valid (make_digest : 'a->Digest.t) (address: Address.t) (signature: Signature.t) (data : 'a) : bool =
   match address_of_signature signature (make_digest data) with
   | Ok signer -> Address.equal signer address
   | Error _ -> false
@@ -273,7 +275,7 @@ let is_signature_valid make_digest (address: Address.t) (signature: Signature.t)
 let is_signed_value_valid make_digest address signed_value =
   is_signature_valid make_digest address signed_value.signature signed_value.payload
 
-let signed make_digest private_key data =
+let signed (make_digest : 'a->digest) (private_key : private_key) (data : 'a) : 'a signed =
   {payload= data; signature= make_signature make_digest private_key data}
 
 let marshal_signed marshal buffer {payload; signature} =
@@ -309,7 +311,7 @@ let signed_yojsoning yojsoning =
   { to_yojson= signed_to_yojson yojsoning.to_yojson
   ; of_yojson= signed_of_yojson yojsoning.of_yojson }
 
-let signed_of_digest digest kp = signed digest kp.Keypair.private_key
+let signed_of_digest (digest : 'a->digest) (kp : keypair) = signed digest kp.Keypair.private_key
 
 module type SignedS = sig
   type payload

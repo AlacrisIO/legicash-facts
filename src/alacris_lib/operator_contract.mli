@@ -9,6 +9,13 @@ open Legilogic_ethereum
 open Ethereum_chain
 
 
+val topic_of_address : Address.t -> Bytes.t option
+
+val topic_of_revision : Revision.t -> Bytes.t option
+
+val topic_of_amount : TokenAmount.t -> Bytes.t option
+
+   
 val set_contract_address : Address.t -> unit
 (** set the address of the contract on Ethereum
     TODO: use a fixed address, obviating this call (?) *)
@@ -23,7 +30,14 @@ val pre_deposit : operator:Address.t -> TokenAmount.t -> PreTransaction.t
 
 val deposit : Address.t -> (Address.t * TokenAmount.t, Transaction.t * Confirmation.t) Lwt_exn.arr
 
-val make_withdraw_call : Address.t -> Revision.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t
+val make_claim_withdrawal_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t
+
+
+val make_withdraw_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "withdraw" function of the operator contract
     arguments: operator address, bond amount, confirmed state
 *)
+
+val make_state_update_call : Digest.t -> Ethereum_chain.Operation.t
+(** Operator address, contract address, and the ethereum main chain *)
+(* TODO: signature from the smart court registry () *)

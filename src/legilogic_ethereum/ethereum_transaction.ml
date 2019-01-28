@@ -5,10 +5,13 @@ open Signing
 open Action
 open Lwt_exn
 open Json_rpc
-
+open Digesting
+   
 open Ethereum_chain
 
-(* TODO: when to return false vs raise an exception? Add timeout & log *)
+(* TODO: when to return false vs raise an exception? Add timeout & log
+   Used only by next routine transaction_execution_matches_transaction 
+   Which is used only for tests *)
 let transaction_executed transaction_hash =
   Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
   >>= fun info ->
@@ -16,7 +19,8 @@ let transaction_executed transaction_hash =
 
 
 (* TODO: factor this function into parsing a transaction and comparing transaction objects. *)
-let transaction_execution_matches_transaction transaction_hash (transaction: Transaction.t) =
+(* This function below is used only for tests (in ethereum_user) at present time *)
+let transaction_execution_matches_transaction (transaction_hash: digest) (transaction: Transaction.t) : bool Lwt_exn.t =
   transaction_executed transaction_hash
   >>= fun executed ->
   if not executed then
@@ -26,7 +30,8 @@ let transaction_execution_matches_transaction transaction_hash (transaction: Tra
     >>= fun info ->
     return
       (try
-         (* for all operations, check these fields *)
+         (* for all operations, check these fields.
+            Shall we add in the checks "&& info.hash = transaction_hash" ???  *)
          let tx_header = transaction.tx_header in
          info.from = Some tx_header.sender
          && info.nonce = tx_header.nonce
@@ -35,16 +40,14 @@ let transaction_execution_matches_transaction transaction_hash (transaction: Tra
          && TokenAmount.compare info.value tx_header.value = 0
          && (* operation-specific checks *)
          match transaction.operation with
-         | TransferTokens recipient_address ->
-           info.to_ = Some recipient_address
-         | CreateContract data ->
-           info.input = data
+         | TransferTokens recipient_address -> info.to_ = Some recipient_address
+         | CreateContract data -> info.input = data
          | CallFunction (contract_address, call_input) ->
-           info.to_ = Some contract_address
-           && info.input = call_input
+           info.to_ = Some contract_address && info.input = call_input
        with _ -> false)
 
 let ensure_private_key ?timeout ?log (keypair : Keypair.t) =
+  Logging.log "ethereum_transaction : ensure_private_key";
   (keypair.private_key, keypair.password)
   |> trying (Ethereum_json_rpc.personal_import_raw_key ?timeout ?log)
   >>= handling
@@ -75,6 +78,7 @@ let get_first_account =
 exception Bad_password
 
 let unlock_account ?(duration=5) address =
+  Logging.log "ethereum_transaction : unlock_account";
   catching_arr keypair_of_address address >>= fun keypair ->
   Logging.log "unlock_account %s" (Address.to_0x address);
   Ethereum_json_rpc.personal_unlock_account (address, keypair.password, Some duration)

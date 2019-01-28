@@ -294,6 +294,12 @@ module Lwt_exn : sig
   val list_iter_p : ('a -> unit t) -> 'a list -> unit t
   (** Kick off a thread with unit result for each element of the list, in parallel *)
 
+  val list_map_s : ('a -> 'b t) -> 'a list -> 'b list t
+  (** Kick off a thread with unit result for each element of the list, in series *)
+
+  val list_map_p : ('a -> 'b t) -> 'a list -> 'b list t
+  (** Kick off a thread with unit result for each element of the list, in parallel *)
+
   val printf : ('a, unit, string, unit t) format4 -> 'a
   (** Print to stdout via [Lwt_io], then flush *)
 

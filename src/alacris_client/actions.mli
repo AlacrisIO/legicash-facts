@@ -24,8 +24,9 @@ val get_proof : Revision.t -> yojson Lwt_exn.t
 val apply_main_chain_thread : int -> yojson
 (** view deposit/withdrawal thread result *)
 
+
 val deposit_to : operator:Address.t -> Address.t -> TokenAmount.t -> yojson
-(** user, number of tokens *)
+(** trent address, user address, number of tokens *)
 
 val withdrawal_from : operator:Address.t -> Address.t -> TokenAmount.t -> yojson
 (** trent address, user address, number of tokens *)

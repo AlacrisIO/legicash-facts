@@ -1,2 +1,24 @@
-{ "port" : 8095
+{ "port" : 8095,
+  "ethereum_config" : {
+      "minimal_height_block_for_confirmation" : 0,
+      "max_connection_geth" : 1,
+      "deposit_gas_limit" : 100000,
+      "time_state_update_in_seconds" : 1800
+  },
+  "leveldb_config" : {
+      "batch_timeout_trigger_in_seconds" : 0.01,
+      "batch_size_trigger_in_requests" : 1000
+  },
+  "sidechain_config" : {
+      "num_timestamps" : 100000,
+      "delay_wait_ethereum_watch_in_seconds" : 1,
+      "challenge_duration_in_seconds" : 10
+  },
+  "fee_schedule_config" : {
+      "deposit_fee" : "10000000000000",
+      "withdrawal_fee" : "10000000000000",
+      "per_account_limit" : "10000000000000000000",
+      "fee_per_billion" : "1000000",
+      "bond_value" : "1000000"
+  }
 }

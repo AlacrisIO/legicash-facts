@@ -442,6 +442,28 @@ module Test = struct
   let%test "nat_of_hex_string 007e2" =
     nat_of_hex_string "007e2" = Z.of_int 2018
 
+  let%test "lognot of UInt16 : 1" =
+    UInt16.lognot (UInt16.of_int 0) = UInt16.of_int 65535
+
+  (* The lognot operation for UInt16 is x-> 65535 - x *)
+  let%test "lognot of UInt16 : 2" =
+    UInt16.lognot (UInt16.of_int 20222) = UInt16.of_int 45313
+
+  (* The 40000 + 40000 is above 65535 and so it should fail *)
+  let%test "Check the is_add_valid operation" =
+    UInt16.is_add_valid (UInt16.of_int 40000) (UInt16.of_int 40000) = false
+
+  let%test "compare operation 1" =
+    UInt16.compare (UInt16.of_int 10) (UInt16.of_int 10) = 0
+
+  let%test "compare operation 2" =
+    UInt16.compare (UInt16.of_int 20) (UInt16.of_int 10) = 1
+    
+  let%test "compare operation 3" =
+    UInt16.compare (UInt16.of_int 10) (UInt16.of_int 20) = -1
+
+    
+    
   let%test "sized_nat_of_hex_string 18 007e2" =
     sized_nat_of_hex_string 18 "007e2" = Z.of_int 2018
 
