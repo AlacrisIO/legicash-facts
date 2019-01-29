@@ -29,9 +29,9 @@ let get_operator_fee_schedule _operator_address =
 
 let (topic_of_state_update : Bytes.t option) = topic_of_hash (digest_of_string "StateUpdate(address)")
 
-let (topic_of_claim_withdrawal : Bytes.t option) = topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint,bytes32)")
+let (topic_of_claim_withdrawal : Bytes.t option) = topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32)")
 
-let (topic_of_withdraw : Bytes.t option) = topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint,uint,bytes32)")
+let (topic_of_withdraw : Bytes.t option) = topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
 
 
 

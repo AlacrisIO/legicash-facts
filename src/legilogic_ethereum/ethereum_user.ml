@@ -556,6 +556,7 @@ let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : T
    | Some x -> return x
    | None -> eth_estimate_gas (operation_to_parameters sender operation))
   >>= fun gas_limit ->
+  Logging.log "make_pre_transaction gas_limit=%i" (TokenAmount.to_int gas_limit);
   return PreTransaction.{operation; value; gas_limit}
 
 let create_contract ~sender ~code ?gas_limit value =
