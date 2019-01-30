@@ -39,7 +39,7 @@ contract Bonds {
     /**
      * Require that the posted bond be sufficient to cover the gas required to challenge the claim.
      */
-    function require_bond(uint _bond, int _maximum_gas) internal pure {
-        require(_bond >= uint(minimum_bond(_maximum_gas)));
+    function is_bond_ok(uint _bond, int _maximum_gas) internal pure returns(bool) {
+        return _bond >= uint(minimum_bond(_maximum_gas));
     }
 }

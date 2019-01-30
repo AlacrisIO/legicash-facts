@@ -88,7 +88,6 @@ let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : 
        (fun _ ->
          wait_for_claim_withdrawal_event tc.contract_address operator tc.operator_revision)
 
-  
 
 
 
@@ -349,6 +348,8 @@ module TransactionTracker = struct
              (* Withdrawal that we're going to have to claim *)
              (* TODO: wait for confirmation on the main chain and handle lawsuits
                 Right now, no lawsuit *)
+
+             (*             Lwt.bind (final_main_chain_operation_old tc operator) (fun _ ->*)
              Lwt.bind (final_claim_withdrawal_operation tc operator) (fun _ ->
                  ConfirmedOnMainChain (tc, confirmation) |> continue)
            | ConfirmedOnMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->

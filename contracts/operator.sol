@@ -85,12 +85,15 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     event ClaimWithdrawal(address indexed _operator, uint64 indexed _ticket, uint _value, bytes32 _confirmed_state);
 
+
     function claim_withdrawal(address _operator, uint64 _ticket, uint _value, bytes32 _confirmed_state)
             external payable {
-        require_bond(msg.value, maximum_withdrawal_challenge_gas);
-        make_claim(withdrawal_claim(
-            _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
-	emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state);
+        bool val=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
+	if (val) {
+          make_claim(withdrawal_claim(
+              _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
+          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state);
+        }
     }
 
     event Withdrawal(address indexed _operator, uint64 indexed _ticket, uint _value, uint _bond, bytes32 _confirmed_state);
@@ -101,6 +104,8 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
             private pure returns(bytes32) {
         return digest_claim(_operator, ClaimType.WITHDRAWAL, bytes32(uint256(_ticket)));
     }
+
+
 
     function withdraw(address _operator, uint64 _ticket, uint _value, uint _bond, bytes32 _confirmed_state)
             external {

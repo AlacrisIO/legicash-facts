@@ -76,6 +76,7 @@ let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (op
   Operation.CallFunction (contract_address, call)
 
 
+
 (* calls the "claim_state_update" that calls "make_claim" that works with a mapping 
    from bytes32 to integers.
    We have Revision = UInt64
@@ -87,6 +88,18 @@ let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 
+
+let make_state_update_call_ca (contract_address : Address.t) (state_digest : Digest.t) : Ethereum_chain.Operation.t =
+  Logging.log "OPERATION: Before creation of parameter for CallFunction make_state_update_call";
+  let (parameters : 'a list) = [ abi_digest state_digest ] in
+  let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
+  Operation.CallFunction (contract_address, call)
+
+
+
+
+
+    
 
 (* TODO Add support for including a bond with the claim.
    Which routine to include? Bonds contains:
