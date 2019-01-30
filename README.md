@@ -102,6 +102,11 @@ you still need to add the proper opam incantation to your `.zshrc` (mutatis muta
 
     . ${HOME}/.opam/opam-init/init.zsh > /dev/null 2> /dev/null || true
 
+### Installing dependencies locally on Mac OS outside of Docker
+
+From within the repository, run the script:
+
+    ./scripts/install-mac-dependencies.sh
 
 ### Building the software
 
