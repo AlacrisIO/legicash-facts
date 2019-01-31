@@ -52,9 +52,17 @@ let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
 
-  
-let wait_for_contract_event (contract_address : Address.t) (topics : Bytes.t option list) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+
+let wait_for_contract_event_unit (contract_address : Address.t) (topics : Bytes.t option list) : unit Lwt_exn.t =
   Logging.log "Beginning of wait_for_contract_event";
+  let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
+  Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
+  (fun (_lobj : LogObject.t) ->
+  Lwt_exn.return ())
+
+
+let wait_for_contract_event_eth (contract_address : Address.t) (topics : Bytes.t option list) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  Logging.log "Beginning of wait_for_contract_event_eth";
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
   (fun (_lobj : LogObject.t) ->
@@ -69,15 +77,18 @@ let wait_for_contract_event (contract_address : Address.t) (topics : Bytes.t opt
 let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "Beginning of wait_for_operator_state_update";
   let (topics : Bytes.t option list) = [topic_of_state_update; (topic_of_address operator)] in
-  wait_for_contract_event contract_address topics
+  wait_for_contract_event_eth contract_address topics
 
+
+
+  
 let wait_for_claim_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
   Logging.log "Beginning of wait_for_claim_winthdrawal_event";
   (*  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); None] in *)
   (*  let (topics : Bytes.t option list) = [None; None; None; None] in *)
   (*  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); (topic_of_amount (TokenAmount.of_int 1))] in *)
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal; (topic_of_address operator); (topic_of_revision revision)] in
-  Lwt_exn.bind (wait_for_contract_event contract_address topics) (fun _ -> Lwt_exn.return ())
+  Lwt_exn.bind (wait_for_contract_event_eth contract_address topics) (fun _ -> Lwt_exn.return ())
       
 
 
@@ -105,21 +116,8 @@ let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.
        Lwt_exn.bind (sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f) (fun () -> emit_withdraw_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest) in
   Lwt_exn.bind (first_part_withdraw_operation tc operator)
     (fun () ->
-      let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-      let (topics2 : Bytes.t option list) = [topic_of_withdraw; (topic_of_address operator); (topic_of_revision tc.operator_revision)] in
-      let (list_topics : Bytes.t option list list) = [topics2] in 
-      let rec fct_get_correct_event unit : unit Lwt_exn.t =
-        Lwt_exn.bind (retrieve_relevant_list_logs_group delay tc.contract_address list_topics)
-          (fun x_llogs_group ->
-            (*            let (len2 : int) = List.length (List.nth x_llogs_group 0) in*)
-            let (len3 : int) = List.length (List.nth x_llogs_group 1) in
-            if len3 > 0 then
-              Lwt_exn.return ()
-            else
-              Lwt_exn.bind (sleep_delay_exn delay) (fct_get_correct_event)
-          )
-      in fct_get_correct_event ()
-    )
+      let (topics : Bytes.t option list) = [topic_of_withdraw; (topic_of_address operator); (topic_of_revision tc.tx_proof.key)] in
+      wait_for_contract_event_unit tc.contract_address topics)
   
   
 let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =
@@ -354,12 +352,14 @@ module TransactionTracker = struct
 
              (*             Lwt.bind (final_main_chain_operation_old tc operator) (fun _ ->*)
              Lwt.bind (final_claim_withdrawal_operation tc operator) (fun _ ->
+                 Logging.log "After final_claim_withdrawal_operation";
                  ConfirmedOnMainChain (tc, confirmation) |> continue)
            | ConfirmedOnMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
              Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
              Lwt.bind (final_withdraw_operation tc operator) (fun _ ->
+                 Logging.log "After final_withdraw_operation";
                  FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |>
                    finalize))
         | Final x -> return x
