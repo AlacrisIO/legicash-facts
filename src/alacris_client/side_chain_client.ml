@@ -101,6 +101,10 @@ let return_result id json_or_exn =
   | Error exn -> Printexc.to_string exn
                  |> error_response id
 
+let throw_if_err = function
+  | Ok d    -> Lwt.return d
+  | Error e -> raise e
+
 let trent_address = Signing.Test.trent_address
 
 let _ =
@@ -117,6 +121,7 @@ let _ =
     log "[\"REQUEST\", %d, %s]" id (Request.to_debug_string request);
     let uri = Request.path request in (* /api/somemethod *)
     let api_call = String.sub uri 5 (String.length uri - 5) in (* remove /api/ *)
+
     match Request.meth request with
     | `GET ->
       begin
@@ -158,67 +163,52 @@ let _ =
              bad_request_response id "Expected one parameter, id")
         | _ -> invalid_get_api_call id api_call
       end
+
     | `POST ->
       let json = yojson_of_string (Request.contents request) in
+
+      let (=->) deserialized f =
+        Logging.log "POST: %s" api_call;
+        let err500 m = internal_error_response id m in
+
+        match (deserialized json) with
+          | Error msg -> error_response id msg
+          | Ok d      ->
+              try f d >>= ok_json id
+              with | Lib.Internal_error msg -> err500 msg
+                   | exn                    -> err500 (Printexc.to_string exn)
+      in
+
       begin
         match api_call with
-        | "deposit" ->
-          Logging.log "POST: deposit";
-          let maybe_deposit = deposit_json_of_yojson json in
-          (match maybe_deposit with
-           | Ok deposit ->
-             (try
-                let result_json = deposit_to ~operator:trent_address deposit.address deposit.amount in
-                ok_json id result_json
-              with
-              | Lib.Internal_error msg -> internal_error_response id msg
-              | exn -> internal_error_response id (Printexc.to_string exn))
-           | Error msg -> error_response id msg)
-        | "withdrawal" ->
-          Logging.log "POST: withdrawal";
-          let maybe_withdrawal = withdrawal_json_of_yojson json in
-          (match maybe_withdrawal with
-           | Ok withdrawal ->
-             (try
-                let result_json = withdrawal_from ~operator:trent_address
-                                    withdrawal.address withdrawal.amount in
-                ok_json id result_json
-              with
-              | Lib.Internal_error msg -> internal_error_response id msg
-              | exn -> internal_error_response id (Printexc.to_string exn))
-           | Error msg -> error_response id msg)
-        | "sleep" ->
-          Logging.log "POST: sleep";
-          (try
-             Lwt_unix.sleep 1.0 >>= (fun () -> ok_json id (`Int 42))
-           with
-           | Lib.Internal_error msg -> internal_error_response id msg
-           | exn -> internal_error_response id (Printexc.to_string exn))
-        | "payment" ->
-          Logging.log "POST: payment";
-          let maybe_payment = payment_json_of_yojson json in
-          (match maybe_payment with
-           | Ok payment ->
-             (try
-                payment_on ~operator:trent_address
-                  payment.sender payment.recipient payment.amount "memo"
-                |> ok_json id
-              with
-              | Lib.Internal_error msg -> internal_error_response id msg
-              | exn -> internal_error_response id (Printexc.to_string exn))
-           | Error msg -> error_response id msg)
-        | "balance" ->
-          Logging.log "POST: balance";
-          let maybe_address = address_json_of_yojson json in
-          (match maybe_address with
-           | Ok address_record ->
-             (try
-                get_balance_on ~operator:trent_address address_record.address
-                >>= return_result id
-              with
-              | Lib.Internal_error msg -> internal_error_response id msg
-              | exn -> internal_error_response id (Printexc.to_string exn))
-           | Error msg -> error_response id msg)
+
+        | "deposit" -> deposit_json_of_yojson =-> fun d ->
+            Lwt.return @@ deposit_to ~operator:trent_address
+                                     d.address
+                                     d.amount
+
+        | "withdrawal" -> withdrawal_json_of_yojson =-> fun d ->
+            Lwt.return @@ withdrawal_from ~operator:trent_address
+                                          d.address
+                                          d.amount
+
+
+        | "payment" -> payment_json_of_yojson =-> fun d ->
+            Lwt.return @@ payment_on ~operator:trent_address
+                                     d.sender
+                                     d.recipient
+                                     d.amount
+                                     "memo"
+
+        | "balance" -> address_json_of_yojson =-> fun d ->
+            get_balance_on ~operator:trent_address
+                           d.address
+                >>= throw_if_err
+
+        | "status" -> address_json_of_yojson =-> fun d ->
+            get_status_on_trent_and_main_chain d.address
+                >>= throw_if_err
+
         | "recent_transactions" ->
           Logging.log "POST: recent_transactions";
           let maybe_limit_string = Request.param request "limit" in
@@ -244,14 +234,14 @@ let _ =
                  get_recent_user_transactions_on_trent address_record.address maybe_limit
                  >>= return_result id)
              | Error msg -> error_response id msg)
-        | "status" ->
-          Logging.log "POST: status";
-          let maybe_address = address_json_of_yojson json in
-          (match maybe_address with
-           | Ok { address } ->
-             get_status_on_trent_and_main_chain address
-             >>= return_result id
-           | Error msg -> error_response id msg)
+
+        | "sleep" ->
+          Logging.log "POST: sleep";
+          (try
+             Lwt_unix.sleep 1.0 >>= (fun () -> ok_json id (`Int 42))
+           with
+           | Lib.Internal_error msg -> internal_error_response id msg
+           | exn -> internal_error_response id (Printexc.to_string exn))
         | other_call -> invalid_post_api_call id other_call
       end
     (* neither GET nor POST *)
