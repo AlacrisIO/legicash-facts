@@ -15,6 +15,8 @@ val topic_of_revision : Revision.t -> Bytes.t option
 
 val topic_of_amount : TokenAmount.t -> Bytes.t option
 
+val topic_of_hash : Digest.t -> Bytes.t option
+
    
 val set_contract_address : Address.t -> unit
 (** set the address of the contract on Ethereum
@@ -38,6 +40,10 @@ val make_withdraw_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -
     arguments: operator address, bond amount, confirmed state
 *)
 
+  
 val make_state_update_call : Digest.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)
 (* TODO: signature from the smart court registry () *)
+
+val make_state_update_call_ca : Address.t -> Digest.t -> Ethereum_chain.Operation.t
+                                           

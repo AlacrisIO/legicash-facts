@@ -19,6 +19,6 @@
       "withdrawal_fee" : "10000000000000",
       "per_account_limit" : "10000000000000000000",
       "fee_per_billion" : "1000000",
-      "bond_value" : "1000000"
+      "bond_value" : "10000004"
   }
 }
