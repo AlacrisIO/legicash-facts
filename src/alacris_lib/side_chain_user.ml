@@ -73,6 +73,9 @@ let wait_for_operator_state_update (contract_address : Address.t) (operator : Ad
 
 let wait_for_claim_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
   Logging.log "Beginning of wait_for_claim_winthdrawal_event";
+  (*  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); None] in *)
+  (*  let (topics : Bytes.t option list) = [None; None; None; None] in *)
+  (*  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); (topic_of_amount (TokenAmount.of_int 1))] in *)
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal; (topic_of_address operator); (topic_of_revision revision)] in
   Lwt_exn.bind (wait_for_contract_event contract_address topics) (fun _ -> Lwt_exn.return ())
       
@@ -86,7 +89,7 @@ let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : 
      Logging.log "Beginning of final_claim_withdrawal_operation";
      Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
        (fun _ ->
-         wait_for_claim_withdrawal_event tc.contract_address operator tc.operator_revision)
+         wait_for_claim_withdrawal_event tc.contract_address operator tc.tx_proof.key)
 
 
 

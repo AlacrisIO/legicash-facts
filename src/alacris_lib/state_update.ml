@@ -20,9 +20,6 @@ type digest_entry =
 let init_state : unit -> digest_entry =
   fun () -> {revision = Revision.of_int 0; oper_digest = null_digest}
   
-
-
-
     
 let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
 
