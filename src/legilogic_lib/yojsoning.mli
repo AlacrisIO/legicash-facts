@@ -1,7 +1,7 @@
 (* TODO: combine the two sets of combinators for Yojsoning and Marshaling? *)
 open Lib
 
-type yojson = Yojson.Safe.json
+type yojson = Yojson.Safe.t
 val string_of_yojson : yojson -> string
 val yojson_of_string : string -> yojson
 
