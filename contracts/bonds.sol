@@ -21,8 +21,7 @@ contract Bonds {
         // a somewhat conservative value for May 2018 (when the median is about 10).
         // But NOT a future-proof value.
         // TODO: dynamic configuration? Migrate to a new contract before this gets too bad?
-//        return 100*1000*1000*1000 wei;
-        return 100;
+        return 100*1000*1000*1000 wei;
     }
 
     /**
