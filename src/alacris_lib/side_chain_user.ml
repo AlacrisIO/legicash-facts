@@ -27,7 +27,7 @@ open Side_chain
 let get_operator_fee_schedule _operator_address =
   Lwt_exn.return initial_fee_schedule
 
-let (topic_of_state_update : Bytes.t option) = topic_of_hash (digest_of_string "StateUpdate(address)")
+let (topic_of_state_update : Bytes.t option) = topic_of_hash (digest_of_string "StateUpdate(address,bytes32)")
 
 let (topic_of_claim_withdrawal : Bytes.t option) = topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32)")
 
