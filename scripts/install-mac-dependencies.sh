@@ -2,6 +2,11 @@
 
 # Magic Incantations for Installing Dependencies Locally on Mac OS
 
+# Dependency: go-ethereum
+
+brew tap ethereum/ethereum
+brew install ethereum
+
 # Dependency: secp256k1
 
 brew tap cuber/homebrew-libsecp256k1
