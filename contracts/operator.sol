@@ -23,7 +23,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
-    event StateUpdate(address indexed _operator);
+    event StateUpdate(address indexed _operator, bytes32 _confirmed_state);
 
     // struct StateUpdateClaim {
     //     address _operator; // account of the operator making the claim for his side-chain
@@ -33,7 +33,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state) external payable {
         make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
-	emit StateUpdate(msg.sender);
+	emit StateUpdate(msg.sender, _new_state);
     }
 
     function operator_state(
