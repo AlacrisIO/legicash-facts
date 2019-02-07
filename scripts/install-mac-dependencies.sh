@@ -8,7 +8,7 @@ brew tap cuber/homebrew-libsecp256k1
 brew install libsecp256k1
 opam install secp256k1
 
-# Dependency: scgi and
+# Dependency: scgi
 
 pushd "$(git rev-parse --show-toplevel)"
 mkdir -p dependencies/bikallem
