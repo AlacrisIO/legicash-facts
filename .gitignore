@@ -12,3 +12,4 @@ alacris.install
 src/alacris_lib/operator_contract_binary.ml
 foo
 dependencies/
+.DS_Store
