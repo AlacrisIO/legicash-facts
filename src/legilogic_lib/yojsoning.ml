@@ -1,6 +1,6 @@
 open Lib
 
-type yojson = Yojson.Safe.json
+type yojson = Yojson.Safe.t
 let string_of_yojson y = Yojson.Safe.to_string y
 let yojson_of_string s = Yojson.Safe.from_string s
 
