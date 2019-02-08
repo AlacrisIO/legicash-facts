@@ -98,7 +98,7 @@ let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : 
   | Payment _ -> Lwt_exn.return ()
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
      Logging.log "Beginning of final_claim_withdrawal_operation";
-     Logging.log "bond_value=%s" (TokenAmount.to_string Side_chain_server_config.bond_value_v);
+     (*     Logging.log "bond_value=%s" (TokenAmount.to_string Side_chain_server_config.bond_value_v); *)
      Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
        (fun _ ->
          wait_for_claim_withdrawal_event tc.contract_address operator tc.tx_proof.key)
