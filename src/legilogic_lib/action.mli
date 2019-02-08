@@ -74,8 +74,11 @@ module type ArrowS = sig
   (** Lift a function to an arrow which represents execution of that function *)
   val arr : ('i -> 'o) -> ('i, 'o) arr
 
-  (** Composition of arrows: Take output from first process, and feed it into
-      the second. *)
+  (** Composition of arrows:
+      Take output from first process, and feed it into the second.
+      NB: This is called >>> in Haskell's Control.Monad,
+      but is sometimes written >=> and called a "Kleisli fish".
+   *)
   val (>>>) : ('a, 'b) arr -> ('b, 'c) arr -> ('a, 'c) arr
 
   (** Process which does nothing but return a particular ['a] *)
