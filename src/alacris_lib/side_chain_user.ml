@@ -27,7 +27,7 @@ open Side_chain
 let get_operator_fee_schedule _operator_address =
   Lwt_exn.return initial_fee_schedule
 
-let (topic_of_state_update : Bytes.t option) = topic_of_hash (digest_of_string "StateUpdate(address)")
+let (topic_of_state_update : Bytes.t option) = topic_of_hash (digest_of_string "StateUpdate(address,bytes32)")
 
 let (topic_of_claim_withdrawal : Bytes.t option) = topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32)")
 
@@ -98,6 +98,7 @@ let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : 
   | Payment _ -> Lwt_exn.return ()
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
      Logging.log "Beginning of final_claim_withdrawal_operation";
+     (*     Logging.log "bond_value=%s" (TokenAmount.to_string Side_chain_server_config.bond_value_v); *)
      Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
        (fun _ ->
          wait_for_claim_withdrawal_event tc.contract_address operator tc.tx_proof.key)

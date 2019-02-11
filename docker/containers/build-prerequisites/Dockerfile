@@ -69,7 +69,7 @@ RUN opam init -a --disable-sandboxing && \
     opam switch create ${OCAML_VERSION} && \
     opam install -y \
     cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens leveldb \
-    lwt lwt_ppx ppx_deriving ppx_deriving_yojson ppx_tools_versioned ppx_core \
+    lwt lwt_ppx ppx_deriving ppx_tools_versioned ppx_core \
     ppx_driver ppx_inline_test secp256k1 yojson qcheck bisect_ppx ; \
     :
 ENV PATH /home/appuser/.opam/${OCAML_VERSION}/bin:${PATH}
@@ -80,3 +80,10 @@ RUN git clone https://github.com/bikallem/ocaml-scgi.git && \
     make && \
     opam pin -y add scgi . -n && \
     opam install scgi
+
+# Install ppx_deriving_yojson library in OPAM
+RUN git clone https://github.com/ocaml-ppx/ppx_deriving_yojson.git && \
+    cd ppx_deriving_yojson && \
+    make && \
+    opam pin -y add ppx_deriving_yojson . -n && \
+    opam install ppx_deriving_yojson

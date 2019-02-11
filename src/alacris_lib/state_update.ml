@@ -51,7 +51,6 @@ let push_state_digest_exn (digest : Digest.t) (value : TokenAmount.t) : Digest.t
 let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
-  (*  let (operation : Ethereum_chain.Operation.t) = make_state_update_call_ca contract_address digest in*)
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";

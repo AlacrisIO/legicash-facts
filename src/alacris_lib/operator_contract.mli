@@ -44,6 +44,4 @@ val make_withdraw_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -
 val make_state_update_call : Digest.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)
 (* TODO: signature from the smart court registry () *)
-
-val make_state_update_call_ca : Address.t -> Digest.t -> Ethereum_chain.Operation.t
                                            

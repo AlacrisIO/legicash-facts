@@ -3,6 +3,7 @@ open Types
 open Action
 open Signing
 open Ethereum_json_rpc
+open Ethereum_abi
    
 val main_chain_block_notification_stream :
   ?delay:float             (* Wait this long between polls of geth *)
@@ -16,11 +17,19 @@ val main_chain_block_notification_stream :
 
 
 val sleep_delay_exn : float -> unit Lwt_exn.t
-  
+
 val retrieve_relevant_list_logs : float -> Address.t -> Bytes.t option list -> LogObject.t list Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
     be only one matching entry *)
 
+
+val retrieve_relevant_list_logs_data : float -> Address.t -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t
+(** The computation of the list of logs that match the address and topics. There should
+    be only one matching entry *)
+
+
+
+  
 val retrieve_relevant_single_logs : float -> Address.t -> Bytes.t option list -> LogObject.t Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
     be only one matching entry *)

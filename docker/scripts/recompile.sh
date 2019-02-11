@@ -4,16 +4,21 @@ APP_DIR=/var/www/app/legicash-facts
 BUILD_DIR=/_build/default/src/
 DOCKER_IMAGE=gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1
 
+echo "Recompile step 1"
 # remove build_dir
 rm -rf _build
 # recompile app
 docker run --rm -i -w $APP_DIR -v $PWD:$APP_DIR -u $(id -u) $DOCKER_IMAGE /bin/bash -c "make run_ethereum_net; make toplevel; make test_hello test;"
 
+echo "Recompile step 2"
 # recompile app
 docker run --rm -i -w $APP_DIR -v $PWD:$APP_DIR -u $(id -u) $DOCKER_IMAGE make
 
+echo "Recompile step 3"
 # stop side chain manager
 docker exec alacris-side-chain-manager supervisorctl stop side-chain-server
+
+echo "Recompile step 4"
 # Copy new code to container
 docker cp ${PWD}$BUILD_DIR/alacris_lib/side_chain_server.exe alacris-client:$APP_DIR/_run/side_chain_server.exe
 # Clean side chain manager state
