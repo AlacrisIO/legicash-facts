@@ -173,6 +173,7 @@ run_ethereum_net :
 # 2- Fund test accounts on the private Ethereum network,
 # importantly including the operator's account
 fund_accounts : $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) force
+	$(HIDE) mkdir -p _run/logs
 	$(HIDE) $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) ./config/operator_keys.json ./config/demo-keys-small.json
 
 # 3- Run our server
