@@ -81,7 +81,10 @@ let rec is_valid_type = function
   | FixedDefault | UfixedDefault | BytesDynamic | String | Address | Function | Bool
   | UintDefault | IntDefault ->
     true
+    
 
+
+    
 (* must get this right for hash of signature to work *)
 let rec show_type_for_function_selector ty =
   if not (is_valid_type ty) then
@@ -130,6 +133,75 @@ let big_endian_bytes_of_nat xint_name num_bits z nat =
     bork "Value %s cannot be represented with type %s%d" (Z.to_string z) xint_name num_bits ;
   Bytes.of_string (big_endian_bits_of_nat num_bits nat)
 
+let uint_of_big_endian_bytes num_bits bytes =
+  if num_bits < 8 then
+    bork "num_bits = %d must be at least 8" num_bits ;
+  if num_bits mod 8 != 0 then
+    bork "num_bits = %d is not a multiple of 8" num_bits ;
+  if num_bits > 256 then
+    bork "num_bits = %d is too large" num_bits ;
+  nat_of_big_endian_bits num_bits (Bytes.to_string bytes)
+
+let abi_value_to_uintN n evalue =
+  match evalue with
+  | Uint_value x -> uint_of_big_endian_bytes n x
+  | _ -> bork "Wrong input type"
+  
+let abi_value_to_uint8 = abi_value_to_uintN 8
+
+let abi_value_to_uint16 = abi_value_to_uintN 16
+
+let abi_value_to_uint24 = abi_value_to_uintN 24
+
+let abi_value_to_uint32 = abi_value_to_uintN 32
+
+let abi_value_to_uint40 = abi_value_to_uintN 40
+
+let abi_value_to_uint48 = abi_value_to_uintN 48
+
+let abi_value_to_uint56 = abi_value_to_uintN 56
+
+let abi_value_to_uint64 = abi_value_to_uintN 64
+
+let abi_value_to_uint = abi_value_to_uintN 256
+
+(*
+let abi_value_to_intN n evalue =
+  Logging.log "abi_value_to_intN code has not been written down";
+  12389
+
+let abi_value_to_int8 = abi_value_to_intN 8
+
+let abi_value_to_int16 = abi_value_to_intN 16
+
+let abi_value_to_int24 = abi_value_to_intN 24
+
+let abi_value_to_int32 = abi_value_to_intN 32
+
+let abi_value_to_int40 = abi_value_to_intN 40
+
+let abi_value_to_int48 = abi_value_to_intN 48
+
+let abi_value_to_int56 = abi_value_to_intN 56
+
+let abi_value_to_int64 = abi_value_to_intN 64
+
+let abi_value_to_int = abi_value_to_intN 256
+ *)
+
+                      
+let abi_value_to_address evalue =
+  match evalue with
+  | Address_value x -> x
+  | _ -> bork "The input is not an address as required"
+
+let abi_value_to_bool evalue =
+  match evalue with
+  | Bool_value x -> x
+  | _ -> bork "The input is not a bool as required"
+  
+
+  
 let big_endian_bytes_of_uint num_bits nat =
   big_endian_bytes_of_nat "uint" num_bits nat nat
 
@@ -139,10 +211,10 @@ let big_endian_bytes_of_int num_bits z =
   big_endian_bytes_of_nat "int" num_bits z nat
 
 let abi_intN num_bits z =
-  Int_value (big_endian_bytes_of_int num_bits z), Int num_bits
+  (Int_value (big_endian_bytes_of_int num_bits z), Int num_bits)
 
 let abi_uintN num_bits nat =
-  Uint_value (big_endian_bytes_of_uint num_bits nat), Uint num_bits
+  (Uint_value (big_endian_bytes_of_uint num_bits nat), Uint num_bits)
 
 let abi_int8 = abi_intN 8
 
@@ -164,7 +236,7 @@ let abi_int64 = abi_intN 64
    don't use make... because bounds checks will fail,
    and any int can be represented in 256 bits
 *)
-let abi_int z = Int_value (big_endian_bytes_of_int 256 z), IntDefault
+let abi_int z = (Int_value (big_endian_bytes_of_int 256 z), IntDefault)
 
 let abi_uint8 = abi_uintN 8
 
@@ -186,7 +258,7 @@ let abi_uint64 = abi_uintN 64
    don't use make... because bounds checks will fail,
    and any int can be represented in 256 bits
 *)
-let abi_uint nat = Uint_value (big_endian_bytes_of_uint 256 nat), UintDefault
+let abi_uint nat = (Uint_value (big_endian_bytes_of_uint 256 nat), UintDefault)
 
 let abi_bytes bytes = (Bytes_value bytes, Bytes (Bytes.length bytes))
 
@@ -455,8 +527,73 @@ let rec encode_abi_value v ty =
 let encode_function_parameters parameters : Bytes.t =
   let param_val, param_ty = abi_tuple_of_abi_values parameters in
   encode_abi_value param_val param_ty
-  
-    
+
+let bytesZero (n : int) : Bytes.t =
+  match n with
+  | 16 -> big_endian_bytes_of_uint 16 (Nat.of_int 0)
+  | 64 -> big_endian_bytes_of_uint 64 (Nat.of_int 0)
+  | 256 -> big_endian_bytes_of_uint 256 (Nat.of_int 0)
+  | _ -> bork "missing code here"
+
+let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (abi_value*int) =
+  match etype with
+  | Uint m -> let bytes_zer = bytesZero m in
+              let bytes_len = Bytes.length bytes_zer in
+              if m / 8 != bytes_len then
+                bork "have type uint%d, got value with %d bytes" m bytes_len ;
+              let padding_len = 32 - bytes_len in
+              let padding = Bytes.make padding_len '\000' in
+              let start_padding_pos = init_pos in
+              let end_padding_pos = init_pos + padding_len in
+              let bytes_test = Bytes.sub data start_padding_pos end_padding_pos in
+              let start_ret_pos = init_pos + padding_len in
+              let end_ret_pos = init_pos + padding_len + bytes_len in
+              let bytes_ret = Bytes.sub data start_ret_pos end_ret_pos in
+              if (bytes_test != padding) then
+                bork "error in the operation. It should be zero";
+              let next_pos = end_ret_pos in
+              (Uint_value bytes_ret, next_pos)
+  | Address -> let bytes = Ethereum_util.bytes_of_address Address.zero in 
+               let bytes_len = Bytes.length bytes in
+               let start_pos = init_pos in
+               let end_pos = init_pos + bytes_len in
+               let data_sub = Bytes.sub data start_pos end_pos in
+               let addr = Ethereum_util.address_of_bytes data_sub in
+               (Address_value addr, end_pos)
+  | Bytes m -> let padding_len = 32 - m in
+               let padding = Bytes.make padding_len '\000' in
+               let start_ret_pos = init_pos in
+               let end_ret_pos = init_pos + m in
+               let bytes_ret = Bytes.sub data start_ret_pos end_ret_pos in
+               let start_padding_pos = init_pos + m in
+               let end_padding_pos = init_pos + 32 in
+               let bytes_padding = Bytes.sub data start_padding_pos end_padding_pos in
+               if (bytes_padding != padding) then
+                 bork "error in the operation. It should be zero";
+               (Bytes_value bytes_ret, end_padding_pos)
+  | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
+            let bytes_val_zero = big_endian_bytes_of_uint 8 Nat.zero in
+            let len = Bytes.length bytes_val_one in
+            let start_pos = init_pos in
+            let end_pos = init_pos + len in
+            let data_sub = Bytes.sub data start_pos end_pos in
+            if (bytes_val_one != data_sub) && (bytes_val_zero != data_sub) then
+              bork "Error of running";
+            let eval = if data_sub == bytes_val_one then true else false in
+            (Bool_value eval, end_pos)
+  | _ -> bork "Missing code for this specific type"
+
+let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
+  let (pos : int ref) = ref 0 in
+  let (list_ret: abi_value list) = List.map (fun etype ->
+      let (abi_val, next_pos) = decode_individual_data data !pos etype in
+      pos := next_pos;
+      abi_val) list_type in
+  if (!pos != 0) then
+    bork "The data array size does not match";
+  list_ret
+
+       
 (* an encoding of the function call is what we pass to Ethereum in a transaction *)
 let encode_function_call function_call =
   let (encoded_signature : Bytes.t) = encode_function_signature function_call |> Bytes.of_string in

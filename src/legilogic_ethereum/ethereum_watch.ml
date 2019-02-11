@@ -4,7 +4,7 @@ open Types
 open Action
 open Signing
 open Ethereum_json_rpc
-
+open Ethereum_abi
 
 let starting_watch_ref : (Revision.t ref) = ref Revision.zero
    
@@ -66,8 +66,13 @@ let retrieve_last_entries (start_block : Revision.t) (contract_address : Address
 
 
 
+
+
+  
+
 let retrieve_relevant_list_logs
       (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t list Lwt_exn.t =
+  (*  starting_watch_ref := (Revision.of_int 0); *)
   let rec fct_downloading (start_block : Revision.t) : LogObject.t list Lwt_exn.t =
     let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in 
     Lwt_exn.bind (retrieve_last_entries start_block_p_one contract_address topics)
@@ -81,7 +86,54 @@ let retrieve_relevant_list_logs
           Lwt_exn.return x_llogs
       )
   in fct_downloading !starting_watch_ref
-  
+
+
+let is_matching_data (x_data : abi_value list) (x_data_filter: abi_value option list) : bool =
+  let len1 = List.length x_data in
+  let len2 = List.length x_data_filter in
+  if (len1 != len2) then
+    bork "We should have len1 = len2";
+  let is_ok_ent (x: abi_value) (x_filter: abi_value option) : bool =
+    match (x_filter) with
+    | None -> true
+    | Some x_filt_val -> x_filt_val == x in
+  let list_bool = List.init len1 (fun i ->
+    let x_filter = List.nth x_data_filter i in
+    let x = List.nth x_data i in
+    is_ok_ent x x_filter) in
+  let test = List.exists (fun eval -> eval == false) list_bool in
+  if test then
+    false
+  else
+    true
+    
+
+
+let retrieve_relevant_list_logs_data
+      (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) (list_data_type : abi_type list) (data_value_search : abi_value option list)  : (LogObject.t * (abi_value list)) list Lwt_exn.t =
+  (*  starting_watch_ref := (Revision.of_int 0); *)
+  let rec fct_downloading (start_block : Revision.t) : (LogObject.t * (abi_value list)) list Lwt_exn.t =
+    let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in 
+    Lwt_exn.bind (retrieve_last_entries start_block_p_one contract_address topics)
+      (fun (x : (Revision.t * (LogObject.t list))) ->
+        let (x_to, x_llogs) = x in
+        starting_watch_ref := x_to;
+        let x_llogs_filt = List.filter (fun (e_log : LogObject.t) ->
+                               let list_value = decode_data e_log.data list_data_type in
+                               is_matching_data list_value data_value_search) x_llogs in
+        let x_llogs_ret = List.map (fun (e_log : LogObject.t) ->
+                              let list_value = decode_data e_log.data list_data_type in
+                              (e_log, list_value)) x_llogs_filt in
+        let (len : int) = List.length x_llogs_ret in
+        if (len == 0) then
+          Lwt_exn.bind (sleep_delay_exn delay) (fun () -> fct_downloading x_to)
+        else
+          Lwt_exn.return x_llogs_ret
+      )
+  in fct_downloading !starting_watch_ref
+
+
+   
 
 let retrieve_relevant_single_logs
       (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t Lwt_exn.t =

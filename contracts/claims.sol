@@ -75,14 +75,19 @@ contract Claims {
     }
 
     /** True if a claim is accepted as valid */
-    function is_claim_status_accepted(int _status) internal view returns(bool) {
+    function is_status_accepted(int _status) internal view returns(bool) {
         return _status >= 3 && _status <= int(now);
+    }
+
+    function is_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
+      return is_status_accepted(claim_status[_claim]);
     }
 
     /** Check that a claim is accepted as valid */
     function require_claim_accepted(bytes32 _claim) internal view {
-        require(is_claim_status_accepted(claim_status[_claim]));
+        require(is_claim_status_accepted(_claim));
     }
+
 
     /**
      * Make a claim
@@ -100,11 +105,19 @@ contract Claims {
         claim_status[_claim] = REJECTED;
     }
 
+    function set_claim_consumed(bytes32 _claim) internal {
+        claim_status[_claim] = CONSUMED;
+    }
+
+
     /** Check that a claim is valid, then use it up. */
     function consume_claim(bytes32 _claim) internal {
         require_claim_accepted(_claim);
-        claim_status[_claim] = CONSUMED;
+	set_claim_consumed(_claim);
     }
+
+
+
 
     /** True if a claim was accepted but is now expired */
     function is_claim_status_expired(int _status) internal view returns(bool) {

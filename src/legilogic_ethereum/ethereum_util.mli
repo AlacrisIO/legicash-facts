@@ -7,6 +7,9 @@ open Signing
 (** Convert address to bytes *)
 val bytes_of_address : Address.t -> Bytes.t
 
+(** Convert bytes to address *)
+val address_of_bytes : Bytes.t -> Address.t
+  
 (** Convert address to Ethereum format hexadecimal, with checksum per EIP-55
     https://github.com/ethereum/EIPs/blob/master/EIPS/eip-55.md *)
 val hex_string_of_address_with_checksum : Address.t -> string
