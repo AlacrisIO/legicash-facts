@@ -203,7 +203,7 @@ module Test = struct
 
   let%test "empty_string_rlp" = encode_string "" = RlpEncoding (String.make 1 (Char.chr 0x80))
 
-  let%test "dog_string_rlp" = encode_string "dog" = RlpEncoding "Édog"
+  let%test "dog_string_rlp" = encode_string "dog" = RlpEncoding "\x83dog"
 
   (* from https://github.com/ethereum/tests/blob/develop/RLPTests/rlptest.json *)
   let%test "short_list_rlp" =
@@ -236,25 +236,25 @@ module Test = struct
     let cat_item = RlpItem "cat" in
     let dog_item = RlpItem "dog" in
     let items = RlpItems [cat_item; dog_item] in
-    rlp_encode_items items = RlpEncoding "»ÉcatÉdog"
+    rlp_encode_items items = RlpEncoding "\xc8\x83cat\x83dog"
 
   let%test "empty_list_rlp" =
     let empty_list = RlpItems [] in
-    rlp_encode_items empty_list = RlpEncoding "¿"
+    rlp_encode_items empty_list = RlpEncoding "\xc0"
 
   let%test "two_set_rlp" =
     let zero = RlpItems [] in
     let one = RlpItems [zero] in
     let two = RlpItems [zero; one; RlpItems [zero; one]] in
-    rlp_encode_items two = RlpEncoding "«¿¡¿√¿¡¿"
+    rlp_encode_items two = RlpEncoding "\xc7\xc0\xc1\xc0\xc3\xc0\xc1\xc0"
 
   let%test "fifteen_rlp" = encode_int 15 = RlpEncoding "\015"
 
-  let%test "kilo_rlp" = encode_int 1024 = RlpEncoding "Ç\004\000"
+  let%test "kilo_rlp" = encode_int 1024 = RlpEncoding "\x82\004\000"
 
   let%test "latin_rlp" =
     let s = "Lorem ipsum dolor sit amet, consectetur adipisicing elit" in
-    encode_string s = RlpEncoding ("∏8" ^ s)
+    encode_string s = RlpEncoding ("\xb88" ^ s)
 
   (* tests of int (not rlp) encoding / decoding *)
 
