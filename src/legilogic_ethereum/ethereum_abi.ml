@@ -200,7 +200,7 @@ let abi_value_to_bool evalue =
   | Bool_value x -> x
   | _ -> bork "The input is not a bool as required"
   
-
+       
   
 let big_endian_bytes_of_uint num_bits nat =
   big_endian_bytes_of_nat "uint" num_bits nat nat
@@ -254,6 +254,15 @@ let abi_uint56 = abi_uintN 56
 
 let abi_uint64 = abi_uintN 64
 
+
+
+let abi_value_from_uint64 (evalue : UInt64.t) : abi_value =
+  Uint_value (big_endian_bytes_of_uint 64 (UInt64.z_of evalue))
+
+let abi_value_from_revision (evalue : Revision.t) : abi_value =
+  Uint_value (big_endian_bytes_of_uint 64 (Revision.z_of evalue))
+
+               
 (* uint is synonym for uint256
    don't use make... because bounds checks will fail,
    and any int can be represented in 256 bits

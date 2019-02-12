@@ -27,6 +27,7 @@ val retrieve_relevant_list_logs_data : float -> Address.t -> Bytes.t option list
 (** The computation of the list of logs that match the address and topics. There should
     be only one matching entry *)
 
+val retrieve_relevant_single_logs_data : float -> Address.t -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
 
 
   

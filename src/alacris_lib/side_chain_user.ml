@@ -16,7 +16,7 @@ open Legilogic_ethereum
 open Side_chain_server_config
 open Ethereum_watch
 open Ethereum_json_rpc
-(* open Ethereum_abi *)
+open Ethereum_abi
 open State_update
 open Operator_contract
 open Digesting
@@ -64,7 +64,7 @@ let wait_for_contract_event_unit (contract_address : Address.t) (topics : Bytes.
 let wait_for_contract_event_eth (contract_address : Address.t) (topics : Bytes.t option list) (list_data_type: abi_type list) (data_value_search : abi_value option list) : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "Beginning of wait_for_contract_event_eth";
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics list_data_type data_value_search)
+  Lwt_exn.bind (retrieve_relevant_single_logs_data delay contract_address topics list_data_type data_value_search)
   (fun (_lobj : (LogObject.t * (abi_value list))) ->
   Lwt_exn.return
     Ethereum_chain.Confirmation.
@@ -90,10 +90,14 @@ let wait_for_claim_withdrawal_event (contract_address : Address.t) (operator : A
   (*  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); (topic_of_amount (TokenAmount.of_int 1))] in *)
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
   let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32] in
-  let (data_value_search : abi_value option list) = [Some (Address_value operator); Some (Uint_value (abi_uint64 revision)); None; None] in
+  let (data_value_search : abi_value option list) = [Some (Address_value operator);
+                                                     Some (abi_value_from_revision revision); None; None] in
   Lwt_exn.bind (wait_for_contract_event_eth contract_address topics list_data_type data_value_search)
     (fun _ -> Lwt_exn.return ())
       
+
+
+(*    Uint_value (abi_uint64 (Revision.z_of revision)));    *)
 
 
 let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : Address.t) : unit Lwt_exn.t =
@@ -123,7 +127,8 @@ let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.
     (fun () ->
       let (topics : Bytes.t option list) = [topic_of_withdraw; (topic_of_address operator); (topic_of_revision tc.tx_proof.key)] in
       let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Uint 256; Bytes 32] in
-      let (data_value_search : abi_value option list) = [Some (Address_value operator); Some (Uint_value (abi_uint64 tc.tx_proof.key)); None; None; None] in 
+      let (data_value_search : abi_value option list) =
+        [Some (Address_value operator); Some (abi_value_from_revision tc.tx_proof.key); None; None; None] in 
       wait_for_contract_event_unit tc.contract_address topics list_data_type data_value_search)
   
 let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =

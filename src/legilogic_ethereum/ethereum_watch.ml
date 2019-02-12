@@ -132,6 +132,15 @@ let retrieve_relevant_list_logs_data
       )
   in fct_downloading !starting_watch_ref
 
+let retrieve_relevant_single_logs_data
+      (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) (list_data_type : abi_type list) (data_value_search : abi_value option list) : (LogObject.t * (abi_value list)) Lwt_exn.t =
+  Lwt_exn.bind (retrieve_relevant_list_logs_data delay contract_address topics list_data_type data_value_search)
+    (fun (llogs : (LogObject.t * (abi_value list)) list) ->
+      let (len : int) = List.length llogs in
+      if len > 1 then
+        bork "The length should be exactly 1"
+      else
+	Lwt_exn.return (List.hd llogs))
 
    
 
