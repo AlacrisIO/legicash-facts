@@ -23,7 +23,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     // STATE UPDATE
 
-    event StateUpdate(address indexed _operator, bytes32 _confirmed_state);
+    event StateUpdate(address _operator, bytes32 _confirmed_state);
 
     // struct StateUpdateClaim {
     //     address _operator; // account of the operator making the claim for his side-chain
@@ -90,7 +90,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 //    event ClaimWithdrawal(address indexed _operator, uint64 indexed _ticket, uint256 indexed _validx);
 
 //    event ClaimWithdrawal(address indexed _operator, uint64 indexed _ticket, uint256 indexed _validx);
-    event ClaimWithdrawal(address indexed _operator, uint64 indexed _ticket, uint256 _value, bytes32 _confirmed_state);
+    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state);
 
     function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state)
             external payable {
@@ -102,7 +102,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         }
     }
 
-    event Withdrawal(address indexed _operator, uint64 indexed _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state);
+    event Withdrawal(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state);
 
     // Logging a Withdrawal event allows validators to reject double-withdrawal
     // without keeping the withdrawal claim alive indefinitely.

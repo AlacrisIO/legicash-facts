@@ -53,19 +53,19 @@ let get_keypair_of_address user =
 
 
 
-let wait_for_contract_event_unit (contract_address : Address.t) (topics : Bytes.t option list) : unit Lwt_exn.t =
+let wait_for_contract_event_unit (contract_address : Address.t) (topics : Bytes.t option list) (list_data_type: abi_type list) (data_value_search: abi_value option list) : unit Lwt_exn.t =
   Logging.log "Beginning of wait_for_contract_event";
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
-  (fun (_lobj : LogObject.t) ->
+  Lwt_exn.bind (retrieve_relevant_single_logs_data delay contract_address topics list_data_type data_value_search)
+  (fun (_lobj : (LogObject.t * (abi_value list))) ->
   Lwt_exn.return ())
 
 
-let wait_for_contract_event_eth (contract_address : Address.t) (topics : Bytes.t option list) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+let wait_for_contract_event_eth (contract_address : Address.t) (topics : Bytes.t option list) (list_data_type: abi_type list) (data_value_search : abi_value option list) : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "Beginning of wait_for_contract_event_eth";
   let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics)
-  (fun (_lobj : LogObject.t) ->
+  Lwt_exn.bind (retrieve_relevant_single_logs delay contract_address topics list_data_type data_value_search)
+  (fun (_lobj : (LogObject.t * (abi_value list))) ->
   Lwt_exn.return
     Ethereum_chain.Confirmation.
       { transaction_hash= Digest.zero
@@ -76,19 +76,23 @@ let wait_for_contract_event_eth (contract_address : Address.t) (topics : Bytes.t
 
 let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "Beginning of wait_for_operator_state_update";
-  let (topics : Bytes.t option list) = [topic_of_state_update; (topic_of_address operator)] in
-  wait_for_contract_event_eth contract_address topics
+  let (topics : Bytes.t option list) = [topic_of_state_update] in
+  let (list_data_type : abi_type list) = [Address; Bytes 32] in
+  let (data_value_search : abi_value option list) = [Some (Address_value operator); None] in 
+  wait_for_contract_event_eth contract_address topics list_data_type data_value_search
 
 
 
-  
 let wait_for_claim_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
   Logging.log "Beginning of wait_for_claim_winthdrawal_event";
   (*  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); None] in *)
   (*  let (topics : Bytes.t option list) = [None; None; None; None] in *)
   (*  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); (topic_of_amount (TokenAmount.of_int 1))] in *)
-  let (topics : Bytes.t option list) = [topic_of_claim_withdrawal; (topic_of_address operator); (topic_of_revision revision)] in
-  Lwt_exn.bind (wait_for_contract_event_eth contract_address topics) (fun _ -> Lwt_exn.return ())
+  let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
+  let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32] in
+  let (data_value_search : abi_value option list) = [Some (Address_value operator); Some (Uint_value (abi_uint64 revision)); None; None] in
+  Lwt_exn.bind (wait_for_contract_event_eth contract_address topics list_data_type data_value_search)
+    (fun _ -> Lwt_exn.return ())
       
 
 
@@ -118,8 +122,9 @@ let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.
   Lwt_exn.bind (first_part_withdraw_operation tc operator)
     (fun () ->
       let (topics : Bytes.t option list) = [topic_of_withdraw; (topic_of_address operator); (topic_of_revision tc.tx_proof.key)] in
-      wait_for_contract_event_unit tc.contract_address topics)
-  
+      let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Uint 256; Bytes 32] in
+      let (data_value_search : abi_value option list) = [Some (Address_value operator); Some (Uint_value (abi_uint64 tc.tx_proof.key)); None; None; None] in 
+      wait_for_contract_event_unit tc.contract_address topics list_data_type data_value_search)
   
 let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =
   Lwt.return RxHeader.
