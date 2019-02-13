@@ -576,9 +576,7 @@ let bytesZero (n : int) : Bytes.t =
 
 let get_individual_length (etype: abi_type) : int =
   match etype with
-  | Uint m -> let bytes_zer = bytesZero m in
-              let bytes_len = Bytes.length bytes_zer in
-              bytes_len
+  | Uint _m -> 32
   | Address -> let bytes = Ethereum_util.bytes_of_address Address.zero in 
                let bytes_len = Bytes.length bytes in
                bytes_len
@@ -609,7 +607,8 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
               let start_ret_pos = init_pos + padding_len in
               let end_ret_pos = init_pos + padding_len + bytes_len in
               let bytes_ret = Bytes.sub data start_ret_pos bytes_len in
-              if (bytes_test != padding) then
+              let test = Bytes.equal bytes_test padding in
+              if (test == false) then
                 bork "error in the operation. It should be zero";
               let next_pos = end_ret_pos in
               (Uint_value bytes_ret, next_pos)
