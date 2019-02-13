@@ -3,6 +3,7 @@ open Lib
 open Types
 open Action
 open Signing
+open Integer
 open Ethereum_json_rpc
 open Ethereum_abi
 
@@ -188,12 +189,6 @@ let retrieve_last_entries_group (start_block : Revision.t) (contract_address : A
           Logging.log "retrieve_last_entries_group. After call to eth_get_logs";
           Lwt_exn.return (to_block,list_recLLO)))
   
-
-let sum_int_list (x : int list) : int =
-  let (sum : int ref) = ref 0 in
-  List.iter (fun eterm -> sum := !sum + eterm) x;
-  !sum
-
   
 let retrieve_relevant_list_logs_group (delay : float) (contract_address : Address.t) (list_topics : Bytes.t option list list) : EthListLogObjects.t list Lwt_exn.t =
   let rec fct_downloading (start_block : Revision.t) : EthListLogObjects.t list Lwt_exn.t =

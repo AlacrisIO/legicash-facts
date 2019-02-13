@@ -544,8 +544,29 @@ let bytesZero (n : int) : Bytes.t =
   | 256 -> big_endian_bytes_of_uint 256 (Nat.of_int 0)
   | _ -> bork "missing code here"
 
+
+
+let get_individual_length (etype: abi_type) : int =
+  match etype with
+  | Uint m -> let bytes_zer = bytesZero m in
+              let bytes_len = Bytes.length bytes_zer in
+              bytes_len
+  | Address -> let bytes = Ethereum_util.bytes_of_address Address.zero in 
+               let bytes_len = Bytes.length bytes in
+               bytes_len
+  | Bytes m -> let padding_len = 32 - m in
+               if (padding_len < 0) then
+                 Logging.log "The array bytes is too long";
+               32
+  | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
+            let len = Bytes.length bytes_val_one in
+            len
+  | _ -> bork "Missing code for this specific type"
+  
+
+       
 let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (abi_value*int) =
-  Logging.log "Beginning of decode_individual_data";
+  Logging.log "Beginning of decode_individual_data init_pos=%i" init_pos;
   match etype with
   | Uint m -> let bytes_zer = bytesZero m in
               Logging.log "decode_individual_data, case 1";
@@ -573,7 +594,7 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
                let addr = Ethereum_util.address_of_bytes data_sub in
                (Address_value addr, end_pos)
   | Bytes m -> let padding_len = 32 - m in
-               Logging.log "decode_individual_data, case 3, step 1";
+               Logging.log "decode_individual_data, case 3, step 1, padding_len=%i" padding_len;
                let padding = Bytes.make padding_len '\000' in
                Logging.log "decode_individual_data, case 3, step 2 m=%i init_pos=%i" m init_pos;
                let start_ret_pos = init_pos in
@@ -582,14 +603,22 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
                Logging.log "decode_individual_data, case 3, step 4 state_ret_pos=%i end_ret_pos=%i" start_ret_pos end_ret_pos;
                let bytes_ret = Bytes.sub data start_ret_pos m in
                Logging.log "decode_individual_data, case 3, step 5";
-               let start_padding_pos = init_pos + m in
+               let start_padding_pos = end_ret_pos in
                Logging.log "decode_individual_data, case 3, step 6";
-               let end_padding_pos = init_pos + 32 in
-               Logging.log "decode_individual_data, case 3, step 7";
-               let bytes_padding = Bytes.sub data start_padding_pos 32 in
-               if (bytes_padding != padding) then
-                 bork "error in the operation. It should be zero";
-               Logging.log "decode_individual_data, case 3, step 8";
+               let end_padding_pos = end_ret_pos + padding_len in
+               Logging.log "decode_individual_data, case 3, step 7 start_padding_pos=%i" start_padding_pos;
+               let fct_check =
+                 if (padding_len>0) then
+                   let bytes_padding = Bytes.sub data start_padding_pos padding_len in
+                   if (bytes_padding != padding) then
+                     true
+                   else
+                     false
+                 else
+                   true
+               in
+               if (fct_check == false) then
+                 Logging.log "decode_individual_data, case 3, step 8";
                (Bytes_value bytes_ret, end_padding_pos)
   | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
             Logging.log "decode_individual_data, case 4";
@@ -604,16 +633,28 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
             (Bool_value eval, end_pos)
   | _ -> bork "Missing code for this specific type"
 
+
+  
+
+       
 let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
   let (total_len : int) = Bytes.length data in
-  Logging.log "decode_data, total_len=%i" total_len;
-  let (pos : int ref) = ref 0 in
+  let (list_size : int list) = List.map get_individual_length list_type in
+  let (sum_size : int) = sum_int_list list_size in
+  let (residue : int) = sum_size mod 32 in
+  let (offset : int) = if (residue >0) then
+                         32 - residue
+                       else
+                         0 in
+  Logging.log "decode_data, total_len=%i sum_size=%i offset=%i" total_len sum_size offset;
+  let (pos : int ref) = ref offset in
   let (list_ret: abi_value list) = List.map (fun etype ->
       Logging.log "decode_data, before call to decode_individual_data";
       let (abi_val, next_pos) = decode_individual_data data !pos etype in
-      Logging.log "decode_data, after call to decode_individual_data";
+      Logging.log "decode_data, after call to decode_individual_data next_pos=%i" next_pos;
       pos := next_pos;
       abi_val) list_type in
+  Logging.log "Now checking the length pos=%i total_len=%i" !pos total_len;
   if (!pos != total_len) then
     bork "The data array size does not match";
   list_ret
