@@ -694,14 +694,9 @@ let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
                     i) in
   let padding1 = Bytes.make offset '\000' in
   let padding2 = Bytes.sub data 0 offset in
-  let paddingval1 = Bytes.to_string padding1 in
-  let paddingval2 = Bytes.to_string padding2 in
-  let test = String.equal paddingval1 paddingval2 in
+  let test = Bytes.equal padding1 padding2 in
   Logging.log "test=%B" test;
-  Logging.log "paddingval 1=%s 2=%s" paddingval1 paddingval2;
-  if (paddingval1 != paddingval2) then
-    Logging.log "We should have paddingval1 = paddingval2";
-  if (padding1 != padding2) then
+  if (test == false) then
     Logging.log "We should have padding1 = padding2";
   let (pos : int ref) = ref offset in
   let (list_ret: abi_value list) = List.map (fun etype ->
@@ -712,7 +707,7 @@ let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
       abi_val) list_type in
   Logging.log "Now checking the length pos=%i total_len=%i" !pos total_len;
   if (!pos != total_len) then
-    bork "The data array size does not match";
+    Logging.log "The data array size does not match !pos=%i total_len=%i" (!pos) total_len;
   list_ret
 
        

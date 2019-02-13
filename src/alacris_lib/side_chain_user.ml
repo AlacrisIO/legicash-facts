@@ -125,7 +125,7 @@ let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.
        Lwt_exn.bind (sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f) (fun () -> emit_withdraw_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest) in
   Lwt_exn.bind (first_part_withdraw_operation tc operator)
     (fun () ->
-      let (topics : Bytes.t option list) = [topic_of_withdraw; (topic_of_address operator); (topic_of_revision tc.tx_proof.key)] in
+      let (topics : Bytes.t option list) = [topic_of_withdraw] in
       let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Uint 256; Bytes 32] in
       let (data_value_search : abi_value option list) =
         [Some (Address_value operator); Some (abi_value_from_revision tc.tx_proof.key); None; None; None] in 
