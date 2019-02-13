@@ -89,6 +89,7 @@ let retrieve_relevant_list_logs
   in fct_downloading !starting_watch_ref
 
 
+   
 let is_matching_data (x_data : abi_value list) (x_data_filter: abi_value option list) : bool =
   let len1 = List.length x_data in
   let len2 = List.length x_data_filter in
@@ -97,12 +98,15 @@ let is_matching_data (x_data : abi_value list) (x_data_filter: abi_value option 
   let is_ok_ent (x: abi_value) (x_filter: abi_value option) : bool =
     match (x_filter) with
     | None -> true
-    | Some x_filt_val -> x_filt_val == x in
+    | Some x_filt_val -> (equal x_filt_val x) in
   let list_bool = List.init len1 (fun i ->
     let x_filter = List.nth x_data_filter i in
     let x = List.nth x_data i in
-    is_ok_ent x x_filter) in
+    let (res : bool) = is_ok_ent x x_filter in
+    Logging.log "res=%B" res;
+    res) in
   let test = List.exists (fun eval -> eval == false) list_bool in
+  Logging.log "is_matching_data test=%B" test;
   if test then
     false
   else

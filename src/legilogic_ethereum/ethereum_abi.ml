@@ -7,6 +7,7 @@ open Integer
 open Digesting
 open Types
 open Signing
+open Yojsoning
 
 open Ethereum_chain
 
@@ -69,6 +70,33 @@ and abi_value =
   | Address_value of Address.t
 [@@deriving show]
 
+
+let equal (eval1 : abi_value) (eval2 : abi_value) : bool =
+  match eval1 with
+  | Uint_value x1 ->
+     (match eval2 with
+      | Uint_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Int_value x1 ->
+     (match eval2 with
+      | Int_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Bool_value x1 ->
+     (match eval2 with
+      | Bool_value x2 -> x1 == x2
+      | _ -> false)
+  | Address_value x1 ->
+     (match eval2 with
+      | Address_value x2 -> let str1 = Address.to_string x1 in
+                            let str2 = Address.to_string x2 in
+                            (String.equal str1 str2)
+      | _ -> false)
+  | Bytes_value x1 ->
+     (match eval2 with
+      | Bytes_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | _ -> bork "Missing code"
+                   
 (* are constraints on types fulfilled *)
 let rec is_valid_type = function
   | Uint m | Int m -> m mod 8 = 0 && 0 < m && m <= 256
@@ -586,12 +614,16 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
               let next_pos = end_ret_pos in
               (Uint_value bytes_ret, next_pos)
   | Address -> let bytes = Ethereum_util.bytes_of_address Address.zero in 
-               Logging.log "decode_individual_data, case 2";
+               Logging.log "decode_individual_data, case 2, step 1";
                let bytes_len = Bytes.length bytes in
+               Logging.log "decode_individual_data, case 2, step 2 bytes_len=%i" bytes_len;
                let start_pos = init_pos in
                let end_pos = init_pos + bytes_len in
+               Logging.log "decode_individual_data, case 2, step 3 start_pos=%i end_pos=%i" start_pos end_pos;
                let data_sub = Bytes.sub data start_pos bytes_len in
+               (* Logging.log "decode_individual_data, case 2, step 4 addr=%s" (Address.to_string addr);*)
                let addr = Ethereum_util.address_of_bytes data_sub in
+               Logging.log "decode_individual_data, case 2, step 4 addr=%s" (Address.to_string addr);
                (Address_value addr, end_pos)
   | Bytes m -> let padding_len = 32 - m in
                Logging.log "decode_individual_data, case 3, step 1, padding_len=%i" padding_len;
@@ -635,7 +667,17 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
 
 
   
+let transcrib_short_int (eval: int) : string =
+  let (lchar : string) = "0123456789abcdef" in
+  let val2 = eval mod 16 in
+  let val1 = (eval - val2) / 16 in
+  let str1 = String.sub lchar val1 1 in
+  let str2 = String.sub lchar val2 1 in
+  let (estr : string) = String.concat "" [str1; str2] in
+  estr
 
+
+       
        
 let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
   let (total_len : int) = Bytes.length data in
@@ -647,6 +689,21 @@ let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
                        else
                          0 in
   Logging.log "decode_data, total_len=%i sum_size=%i offset=%i" total_len sum_size offset;
+  let _l_data = List.init total_len (fun (i : int) ->
+                    let (eval : int) = Char.code (Bytes.get data i) in
+                    Logging.log "bytes=%i eval=%i str=%s" i eval (transcrib_short_int eval);
+                    i) in
+  let padding1 = Bytes.make offset '\000' in
+  let padding2 = Bytes.sub data 0 offset in
+  let paddingval1 = Bytes.to_string padding1 in
+  let paddingval2 = Bytes.to_string padding2 in
+  let test = String.equal paddingval1 paddingval2 in
+  Logging.log "test=%B" test;
+  Logging.log "paddingval 1=%s 2=%s" paddingval1 paddingval2;
+  if (paddingval1 != paddingval2) then
+    Logging.log "We should have paddingval1 = paddingval2";
+  if (padding1 != padding2) then
+    Logging.log "We should have padding1 = padding2";
   let (pos : int ref) = ref offset in
   let (list_ret: abi_value list) = List.map (fun etype ->
       Logging.log "decode_data, before call to decode_individual_data";
