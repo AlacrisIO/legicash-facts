@@ -595,7 +595,7 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
   Logging.log "Beginning of decode_individual_data init_pos=%i" init_pos;
   match etype with
   | Uint m -> let bytes_zer = bytesZero m in
-              Logging.log "decode_individual_data, case 1";
+              (*              Logging.log "decode_individual_data, case 1";*)
               let bytes_len = Bytes.length bytes_zer in
               if m / 8 != bytes_len then
                 bork "have type uint%d, got value with %d bytes" m bytes_len ;
@@ -613,31 +613,19 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
               let next_pos = end_ret_pos in
               (Uint_value bytes_ret, next_pos)
   | Address -> let bytes = Ethereum_util.bytes_of_address Address.zero in 
-               Logging.log "decode_individual_data, case 2, step 1";
                let bytes_len = Bytes.length bytes in
-               Logging.log "decode_individual_data, case 2, step 2 bytes_len=%i" bytes_len;
                let start_pos = init_pos in
                let end_pos = init_pos + bytes_len in
-               Logging.log "decode_individual_data, case 2, step 3 start_pos=%i end_pos=%i" start_pos end_pos;
                let data_sub = Bytes.sub data start_pos bytes_len in
-               (* Logging.log "decode_individual_data, case 2, step 4 addr=%s" (Address.to_string addr);*)
                let addr = Ethereum_util.address_of_bytes data_sub in
-               Logging.log "decode_individual_data, case 2, step 4 addr=%s" (Address.to_string addr);
                (Address_value addr, end_pos)
   | Bytes m -> let padding_len = 32 - m in
-               Logging.log "decode_individual_data, case 3, step 1, padding_len=%i" padding_len;
                let padding = Bytes.make padding_len '\000' in
-               Logging.log "decode_individual_data, case 3, step 2 m=%i init_pos=%i" m init_pos;
                let start_ret_pos = init_pos in
-               Logging.log "decode_individual_data, case 3, step 3";
                let end_ret_pos = init_pos + m in
-               Logging.log "decode_individual_data, case 3, step 4 state_ret_pos=%i end_ret_pos=%i" start_ret_pos end_ret_pos;
                let bytes_ret = Bytes.sub data start_ret_pos m in
-               Logging.log "decode_individual_data, case 3, step 5";
                let start_padding_pos = end_ret_pos in
-               Logging.log "decode_individual_data, case 3, step 6";
                let end_padding_pos = end_ret_pos + padding_len in
-               Logging.log "decode_individual_data, case 3, step 7 start_padding_pos=%i" start_padding_pos;
                let fct_check =
                  if (padding_len>0) then
                    let bytes_padding = Bytes.sub data start_padding_pos padding_len in
@@ -652,7 +640,6 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
                  Logging.log "decode_individual_data, case 3, step 8";
                (Bytes_value bytes_ret, end_padding_pos)
   | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
-            Logging.log "decode_individual_data, case 4";
             let bytes_val_zero = big_endian_bytes_of_uint 8 Nat.zero in
             let len = Bytes.length bytes_val_one in
             let start_pos = init_pos in
