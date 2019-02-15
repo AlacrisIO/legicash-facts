@@ -7,6 +7,7 @@ open Integer
 open Digesting
 open Types
 open Signing
+open Yojsoning
 
 open Ethereum_chain
 
@@ -69,6 +70,33 @@ and abi_value =
   | Address_value of Address.t
 [@@deriving show]
 
+
+let equal (eval1 : abi_value) (eval2 : abi_value) : bool =
+  match eval1 with
+  | Uint_value x1 ->
+     (match eval2 with
+      | Uint_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Int_value x1 ->
+     (match eval2 with
+      | Int_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Bool_value x1 ->
+     (match eval2 with
+      | Bool_value x2 -> x1 == x2
+      | _ -> false)
+  | Address_value x1 ->
+     (match eval2 with
+      | Address_value x2 -> let str1 = Address.to_string x1 in
+                            let str2 = Address.to_string x2 in
+                            (String.equal str1 str2)
+      | _ -> false)
+  | Bytes_value x1 ->
+     (match eval2 with
+      | Bytes_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | _ -> bork "Missing code"
+                   
 (* are constraints on types fulfilled *)
 let rec is_valid_type = function
   | Uint m | Int m -> m mod 8 = 0 && 0 < m && m <= 256
@@ -200,7 +228,7 @@ let abi_value_to_bool evalue =
   | Bool_value x -> x
   | _ -> bork "The input is not a bool as required"
   
-
+       
   
 let big_endian_bytes_of_uint num_bits nat =
   big_endian_bytes_of_nat "uint" num_bits nat nat
@@ -254,6 +282,15 @@ let abi_uint56 = abi_uintN 56
 
 let abi_uint64 = abi_uintN 64
 
+
+
+let abi_value_from_uint64 (evalue : UInt64.t) : abi_value =
+  Uint_value (big_endian_bytes_of_uint 64 (UInt64.z_of evalue))
+
+let abi_value_from_revision (evalue : Revision.t) : abi_value =
+  Uint_value (big_endian_bytes_of_uint 64 (Revision.z_of evalue))
+
+               
 (* uint is synonym for uint256
    don't use make... because bounds checks will fail,
    and any int can be represented in 256 bits
@@ -535,7 +572,25 @@ let bytesZero (n : int) : Bytes.t =
   | 256 -> big_endian_bytes_of_uint 256 (Nat.of_int 0)
   | _ -> bork "missing code here"
 
+
+
+let get_individual_length (etype: abi_type) : int =
+  match etype with
+  | Uint _m -> 32
+  | Address -> 32
+  | Bytes m -> let padding_len = 32 - m in
+               if (padding_len < 0) then
+                 Logging.log "The array bytes is too long";
+               32
+  | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
+            let len = Bytes.length bytes_val_one in
+            len
+  | _ -> bork "Missing code for this specific type"
+  
+
+       
 let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (abi_value*int) =
+  (*  Logging.log "Beginning of decode_individual_data init_pos=%i" init_pos;*)
   match etype with
   | Uint m -> let bytes_zer = bytesZero m in
               let bytes_len = Bytes.length bytes_zer in
@@ -544,53 +599,101 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
               let padding_len = 32 - bytes_len in
               let padding = Bytes.make padding_len '\000' in
               let start_padding_pos = init_pos in
-              let end_padding_pos = init_pos + padding_len in
-              let bytes_test = Bytes.sub data start_padding_pos end_padding_pos in
+              let _end_padding_pos = init_pos + padding_len in
+              let bytes_test = Bytes.sub data start_padding_pos padding_len in
               let start_ret_pos = init_pos + padding_len in
               let end_ret_pos = init_pos + padding_len + bytes_len in
-              let bytes_ret = Bytes.sub data start_ret_pos end_ret_pos in
-              if (bytes_test != padding) then
+              let bytes_ret = Bytes.sub data start_ret_pos bytes_len in
+              let test = Bytes.equal bytes_test padding in
+              if (test == false) then
                 bork "error in the operation. It should be zero";
               let next_pos = end_ret_pos in
               (Uint_value bytes_ret, next_pos)
   | Address -> let bytes = Ethereum_util.bytes_of_address Address.zero in 
                let bytes_len = Bytes.length bytes in
-               let start_pos = init_pos in
-               let end_pos = init_pos + bytes_len in
-               let data_sub = Bytes.sub data start_pos end_pos in
+               let padding_len = 32 - bytes_len in 
+               let start_pos = init_pos + padding_len in
+               let end_pos = init_pos + padding_len + bytes_len in
+               let data_sub = Bytes.sub data start_pos bytes_len in
                let addr = Ethereum_util.address_of_bytes data_sub in
                (Address_value addr, end_pos)
   | Bytes m -> let padding_len = 32 - m in
                let padding = Bytes.make padding_len '\000' in
                let start_ret_pos = init_pos in
                let end_ret_pos = init_pos + m in
-               let bytes_ret = Bytes.sub data start_ret_pos end_ret_pos in
-               let start_padding_pos = init_pos + m in
-               let end_padding_pos = init_pos + 32 in
-               let bytes_padding = Bytes.sub data start_padding_pos end_padding_pos in
-               if (bytes_padding != padding) then
-                 bork "error in the operation. It should be zero";
+               let bytes_ret = Bytes.sub data start_ret_pos m in
+               let start_padding_pos = end_ret_pos in
+               let end_padding_pos = end_ret_pos + padding_len in
+               let fct_check =
+                 if (padding_len>0) then
+                   let bytes_padding = Bytes.sub data start_padding_pos padding_len in
+                   if (bytes_padding != padding) then
+                     true
+                   else
+                     false
+                 else
+                   true
+               in
+               if (fct_check == false) then
+                 Logging.log "decode_individual_data, case 3, step 8";
                (Bytes_value bytes_ret, end_padding_pos)
   | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
             let bytes_val_zero = big_endian_bytes_of_uint 8 Nat.zero in
             let len = Bytes.length bytes_val_one in
             let start_pos = init_pos in
             let end_pos = init_pos + len in
-            let data_sub = Bytes.sub data start_pos end_pos in
+            let data_sub = Bytes.sub data start_pos len in
             if (bytes_val_one != data_sub) && (bytes_val_zero != data_sub) then
               bork "Error of running";
             let eval = if data_sub == bytes_val_one then true else false in
             (Bool_value eval, end_pos)
   | _ -> bork "Missing code for this specific type"
 
+
+  
+let transcrib_short_int (eval: int) : string =
+  let (lchar : string) = "0123456789abcdef" in
+  let val2 = eval mod 16 in
+  let val1 = (eval - val2) / 16 in
+  let str1 = String.sub lchar val1 1 in
+  let str2 = String.sub lchar val2 1 in
+  let (estr : string) = String.concat "" [str1; str2] in
+  estr
+
+
+       
+       
 let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
-  let (pos : int ref) = ref 0 in
+  let (total_len : int) = Bytes.length data in
+  let (list_size : int list) = List.map get_individual_length list_type in
+  let (sum_size : int) = sum_int_list list_size in
+  let (residue : int) = sum_size mod 32 in
+  let (offset : int) = if (residue >0) then
+                         32 - residue
+                       else
+                         0 in
+  (*  Logging.log "decode_data, total_len=%i sum_size=%i offset=%i" total_len sum_size offset;*)
+  (*
+  let _l_data = List.init total_len (fun (i : int) ->
+                    let (eval : int) = Char.code (Bytes.get data i) in
+                    Logging.log "bytes=%i eval=%i str=%s" i eval (transcrib_short_int eval);
+                    i) in *)
+  let padding1 = Bytes.make offset '\000' in
+  let padding2 = Bytes.sub data 0 offset in
+  let test = Bytes.equal padding1 padding2 in
+  (*  Logging.log "test=%B" test; *)
+  if (test == false) then
+    Logging.log "We should have padding1 = padding2";
+  let (pos : int ref) = ref offset in
   let (list_ret: abi_value list) = List.map (fun etype ->
+      (*      Logging.log "decode_data, before call to decode_individual_data"; *)
       let (abi_val, next_pos) = decode_individual_data data !pos etype in
+      (*      Logging.log "decode_data, after call to decode_individual_data next_pos=%i" next_pos;*)
       pos := next_pos;
       abi_val) list_type in
-  if (!pos != 0) then
-    bork "The data array size does not match";
+  (*  Logging.log "Now checking the length pos=%i total_len=%i" !pos total_len;*)
+  if (!pos != total_len) then
+    Logging.log "The data array size does not match !pos=%i total_len=%i" (!pos) total_len;
   list_ret
 
        
