@@ -250,6 +250,19 @@ thus, when there are many implementation strategies with various tradeoffs,
 programmers can specify which strategy they want to use,
 that they anticipate makes most sense in practice for the users.
 
+Primitives:
+```
+(define-refinement ...)
+```
+
+`define-refinement` links two programs
+(contained in some first-class notion of module or unit, to be identified),
+such that invocations to the abstract program will actually be implemented
+as invocations of the concrete one.
+Users who don't need to deal with the details of the concrete program
+will interact with the abstract program.
+
+
 ### Refinement Correctness (V2)
 
 When declaring a refinement, the program is only correct
@@ -528,6 +541,32 @@ from which interactive proofs of arbitrary depth can be extracted.
 Finitary fragments can be obtained by bounding the recursion depth
 (and possibly by using recursive zkSNARKs).
 
+### Homomorphic Encryption (V2)
+
+Thanks to our having a finitary computation fragment,
+we can add support for homomorphic encryption to compute functions in that fragment
+and verify arbitrary such computations with zkSNARKs or zkSTARKs, etc.
+
+### Secure Multiparty Computations (V2)
+
+Building homomorphic encryption,
+we will add in-language support for secure multiparty computations,
+wherein parties each may contribute encrypted data that others cannot decode,
+yet is used to compute a common encrypted result,
+from which in turn data fragments can be extracted that are either visible to all,
+or encrypted with the key of a particular participant.
+
+One typical example would be a card game where each participant secretly provides
+part of a randomness seed, and the homomorphic encryption then computes a encrypted deck of card,
+from which it extracts hands encrypted for each player,
+and an encrypted continuation for the players to be able to continue to play the game.
+Participants would thus be able to play Poker in a state channel,
+while an on-chain contract would make it possible to prevent any participant from stalling the game.
+
+Other uses might include coordinating complex auctions between distrustful parties
+that each have elaborate bidding strategies to which each participant is committed
+yet without revealing the strategy to other participants.
+
 ### Marshaling (V1)
 
 The language has a notion of some (all?) entities being marshalable into strings of bits (bytes?),
@@ -548,12 +587,20 @@ does indeed follow the semantics of the agreed-upon program.
 From the contract are automatically extracted at the same time:
 
 * the regular code that plays the game honestly for each party.
+
 * the vigilante code that monitors the blockchains for bad behavior.
+  (fact checker?)
+
 * the smart contract that holds participants accountable,
   with a judge verifying interactive proofs of claims of good or bad behavior.
+
+* the mutual knowledge registrar that enforces the integrity of the data
+
 * the smart lawyers that play the game of interactive proofs.
+
 * test cases that provide full code coverage for all the above.
-* the smart counsil code that can explain the current situation,
+
+* the smart counsel code that can explain the current situation,
   what are the current options that make sense,
   why some options don't make sense or are less advantageous, etc.
 
@@ -598,6 +645,12 @@ i.e. the 2/3 registrars with median price get paid what they asked,
 those at the extreme get paid less than the lowest of the previous.
 
 ### Benchmark Applications (V1, V2)
+
+To illustrate the DSL as well as to guide which precise primitives
+shall be part of the final version,
+we will write the following applications.
+We will start with just simplified variants of a couple of them,
+and will ramp up to more, more elaborate variants.
 
 * Fast payments (our current demo, productized).
   Start with phone-to-phone payments, then Point-of-Sale capability.
