@@ -108,3 +108,7 @@
 
 * Discipline for more robust programming
   [STAMPING ON EVENT-STREAM](https://www.hillelwayne.com/post/stamping-on-eventstream/)
+
+* Low-level Cryptographic protocols:
+  [Threshold-optimal DSA/ECDSA signatures and an application to Bitcoin wallet security](https://eprint.iacr.org/2016/013.pdf)
+
