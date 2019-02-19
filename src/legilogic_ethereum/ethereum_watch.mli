@@ -17,7 +17,10 @@ val main_chain_block_notification_stream :
 
 
 val sleep_delay_exn : float -> unit Lwt_exn.t
+(** This function allows to wait for a delay (in seconds) before continuing the computation.
+    It handles exceptions *)
 
+  
 val retrieve_relevant_list_logs : float -> Address.t -> Bytes.t option list -> LogObject.t list Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
     be only one matching entry *)
@@ -27,6 +30,7 @@ val retrieve_relevant_list_logs_data : float -> Address.t -> Bytes.t option list
 (** The computation of the list of logs that match the address and topics. There should
     be only one matching entry *)
 
+val retrieve_relevant_single_logs_data : float -> Address.t -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
 
 
   

@@ -169,6 +169,9 @@ module UIntZable (P: PreUIntZableS) : sig
   val size_in_bytes : int
 end
 
+val sum_int_list : int list -> int
+
+     
 (** convert a n-bit natural number to a big-endian string of bytes *)
 val big_endian_bits_of_nat : int -> Z.t -> string
 
@@ -213,3 +216,5 @@ val unary_pre_op_check : ('a -> 'b) -> ('a -> bool) ->
 val binary_pre_op_check : ('a -> 'b -> 'c) -> ('a -> 'b -> bool) ->
   string * string * ('a -> string) * ('b -> string) ->
   'a -> 'b -> 'c
+
+                

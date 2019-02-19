@@ -430,6 +430,13 @@ module UInt64 = struct
   include UIntZable (P)
 end
 
+let sum_int_list (x : int list) : int =
+  let (sum : int ref) = ref 0 in
+  List.iter (fun eterm -> sum := !sum + eterm) x;
+  !sum
+
+
+              
 module Test = struct
   let%test "hex_string_of_nat 18 2018" =
     hex_string_of_nat (Nat.of_z (Z.of_int 2018)) = "7e2"
