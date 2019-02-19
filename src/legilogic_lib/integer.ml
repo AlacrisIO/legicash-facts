@@ -320,6 +320,11 @@ module UInt128 = struct
   let yojsoning = yojsoning_map to_0x of_0x string_yojsoning
 end
 
+module UInt192 = struct
+  include UIntZ (struct let size_in_bits = 192 end)
+  let yojsoning = yojsoning_map to_0x of_0x string_yojsoning
+end
+
 module type PreUIntZableS = sig
   include Unsigned.S
   include PreUIntZS
@@ -429,7 +434,7 @@ module Test = struct
   let%test "hex_string_of_nat 18 2018" =
     hex_string_of_nat (Nat.of_z (Z.of_int 2018)) = "7e2"
 
-  let%test "hex_string_of_nat 18 2018" =
+  let%test "hex_string_of_sized_nat 18 2018" =
     hex_string_of_sized_nat 18 (Nat.of_z (Z.of_int 2018)) = "007e2"
 
   let%test "hex_string_of_nat 9 2018" =
@@ -458,12 +463,12 @@ module Test = struct
 
   let%test "compare operation 2" =
     UInt16.compare (UInt16.of_int 20) (UInt16.of_int 10) = 1
-    
+
   let%test "compare operation 3" =
     UInt16.compare (UInt16.of_int 10) (UInt16.of_int 20) = -1
 
-    
-    
+
+
   let%test "sized_nat_of_hex_string 18 007e2" =
     sized_nat_of_hex_string 18 "007e2" = Z.of_int 2018
 

@@ -35,19 +35,22 @@ let _ =
 
 (* TODO: use DepositWanted, WithdrawalWanted, PaymentWanted from side_chain_user, directly ? *)
 type deposit_json =
-  { address: Address.t
-  ; amount: TokenAmount.t
+  { address:      Address.t
+  ; amount:       TokenAmount.t
+  ; request_guid: RequestGuid.t
   } [@@deriving yojson]
 
 type withdrawal_json =
-  { address: Address.t
-  ; amount: TokenAmount.t
+  { address:      Address.t
+  ; amount:       TokenAmount.t
+  ; request_guid: RequestGuid.t
   } [@@deriving yojson]
 
 type payment_json =
-  { sender: Address.t
-  ; recipient: Address.t
-  ; amount: TokenAmount.t
+  { sender:       Address.t
+  ; recipient:    Address.t
+  ; amount:       TokenAmount.t
+  ; request_guid: RequestGuid.t
   } [@@deriving yojson]
 
 type address_json =
@@ -172,8 +175,13 @@ let _ =
         let err500 m = internal_error_response id m in
 
         match (deserialized json) with
-          | Error msg -> error_response id msg
-          | Ok d      ->
+          (* NB it's good security practice to prevent implementation details
+           * escaping in HTTP responses (such as in deserialization failures
+           * below), hence swallowing a useful `Error e`. Perhaps we should
+           * TODO capture in an error log (?)
+           *)
+          | Error _ -> bad_request_response id "Invalid request payload"
+          | Ok d    ->
               try f d >>= ok_json id
               with | Lib.Internal_error msg -> err500 msg
                    | exn                    -> err500 (Printexc.to_string exn)
@@ -184,17 +192,20 @@ let _ =
 
         | "deposit" -> deposit_json_of_yojson =-> fun d ->
             Lwt.return @@ deposit_to ~operator:trent_address
+                                     d.request_guid
                                      d.address
                                      d.amount
 
         | "withdrawal" -> withdrawal_json_of_yojson =-> fun d ->
             Lwt.return @@ withdrawal_from ~operator:trent_address
+                                          d.request_guid
                                           d.address
                                           d.amount
 
 
         | "payment" -> payment_json_of_yojson =-> fun d ->
             Lwt.return @@ payment_on ~operator:trent_address
+                                     d.request_guid
                                      d.sender
                                      d.recipient
                                      d.amount

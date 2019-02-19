@@ -98,7 +98,7 @@ module Test = struct
            (* 1- Test deposit *)
            let deposit_amount = TokenAmount.of_string "500000000000000000" in
            User.transaction alice_address deposit
-             DepositWanted.{operator; deposit_amount}
+             DepositWanted.{operator; deposit_amount; request_guid = Types.RequestGuid.nil () }
            >>= fun (_commitment, _confirmation) ->
            let alice_balance_after_deposit = get_alice_balance () in
            expect_equal "Alice balance after deposit" TokenAmount.to_string
@@ -126,7 +126,7 @@ module Test = struct
            (* 3- Test Withdrawal -- withdraw all that was deposited *)
            let withdrawal_amount = TokenAmount.sub payment_amount fee_schedule.withdrawal_fee in
            User.transaction bob_address withdrawal
-             WithdrawalWanted.{operator; withdrawal_amount}
+             WithdrawalWanted.{operator; withdrawal_amount; request_guid = Types.RequestGuid.nil () }
            >>= fun (_commitment, _confirmation) ->
            let bob_balance_after_withdrawal = get_bob_balance () in
            expect_equal "Bob balance after withdrawal" TokenAmount.to_string

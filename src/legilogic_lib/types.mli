@@ -23,6 +23,16 @@ module UInt64 : sig
   include PersistableS with type t := t
 end
 
+module UInt128 : sig
+  include module type of Integer.UInt128
+  include PersistableS with type t := t
+end
+
+module UInt192 : sig
+  include module type of Integer.UInt192
+  include PersistableS with type t := t
+end
+
 module Data160 : sig
   include module type of Integer.Data160
   include PersistableS with type t := t
@@ -123,3 +133,16 @@ module DigestValue (Value : PersistableS) : sig
   include PersistableS with type t := t
 end
 
+module RequestGuid : sig
+  type t = UInt128.t * UInt64.t * UInt64.t * UInt64.t * UInt192.t
+
+  type from_string_result =
+    | WellFormed of t
+    | Malformed  of string
+
+  val from_string : string -> from_string_result
+  val to_string   : t      -> string
+  val nil         : unit   -> t
+
+  include PersistableS with type t := t
+end

@@ -24,26 +24,28 @@ open Side_chain
 
 module DepositWanted : sig
   type t =
-    { operator: Address.t
-    ; deposit_amount: TokenAmount.t }
-  [@@deriving yojson]
+    { operator:       Address.t
+    ; deposit_amount: TokenAmount.t
+    ; request_guid:   RequestGuid.t
+    } [@@deriving yojson]
 end
 
 module PaymentWanted : sig
   type t =
-    { operator: Address.t
-    ; recipient: Address.t
-    ; amount: TokenAmount.t
-    ; memo: string
-    ; payment_expedited: bool }
-  [@@deriving yojson]
+    { operator:          Address.t
+    ; recipient:         Address.t
+    ; amount:            TokenAmount.t
+    ; memo:              string
+    ; payment_expedited: bool
+    } [@@deriving yojson]
 end
 
 module WithdrawalWanted : sig
   type t =
-    { operator: Address.t
-    ; withdrawal_amount: TokenAmount.t }
-  [@@deriving yojson]
+    { operator:          Address.t
+    ; withdrawal_amount: TokenAmount.t
+    ; request_guid:      RequestGuid.t
+    } [@@deriving yojson]
 end
 
 module OngoingTransactionStatus : sig
@@ -92,7 +94,11 @@ type revision_generator = (unit, Revision.t) Lwter.arr
 
 module TransactionTracker : sig
   module Key : sig
-    type t= { user : Address.t; operator : Address.t; revision : Revision.t }
+    type t = { user         : Address.t
+             ; operator     : Address.t
+             ; revision     : Revision.t
+             ; request_guid : RequestGuid.t
+             }
     include YojsonMarshalableS with type t := t
   end
   module State = TransactionStatus

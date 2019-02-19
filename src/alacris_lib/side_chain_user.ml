@@ -35,7 +35,7 @@ let (topic_of_withdraw : Bytes.t option) = topic_of_hash (digest_of_string "With
 
 
 
-  
+
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
 
@@ -81,7 +81,7 @@ let wait_for_operator_state_update (contract_address : Address.t) (operator : Ad
 
 
 
-  
+
 let wait_for_claim_withdrawal_event (contract_address : Address.t) (operator : Address.t) (revision : Revision.t) : unit Lwt_exn.t =
   Logging.log "Beginning of wait_for_claim_winthdrawal_event";
   (*  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); None] in *)
@@ -89,7 +89,7 @@ let wait_for_claim_withdrawal_event (contract_address : Address.t) (operator : A
   (*  let (topics : Bytes.t option list) = [None; (topic_of_address operator); (topic_of_revision revision); (topic_of_amount (TokenAmount.of_int 1))] in *)
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal; (topic_of_address operator); (topic_of_revision revision)] in
   Lwt_exn.bind (wait_for_contract_event_eth contract_address topics) (fun _ -> Lwt_exn.return ())
-      
+
 
 
 let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : Address.t) : unit Lwt_exn.t =
@@ -119,8 +119,8 @@ let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.
     (fun () ->
       let (topics : Bytes.t option list) = [topic_of_withdraw; (topic_of_address operator); (topic_of_revision tc.tx_proof.key)] in
       wait_for_contract_event_unit tc.contract_address topics)
-  
-  
+
+
 let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =
   Lwt.return RxHeader.
                { operator
@@ -145,28 +145,30 @@ let make_user_transaction_request (user : Address.t) (operator : Address.t) (rev
 module DepositWanted = struct
   [@@@warning "-39"]
   type t =
-    { operator: Address.t
-    ; deposit_amount: TokenAmount.t }
-  [@@deriving yojson]
+    { operator       : Address.t
+    ; deposit_amount : TokenAmount.t
+    ; request_guid   : RequestGuid.t
+    } [@@deriving yojson]
 end
 
 module PaymentWanted = struct
   [@@@warning "-39"]
   type t =
-    { operator: Address.t
-    ; recipient: Address.t
-    ; amount: TokenAmount.t
-    ; memo: string
-    ; payment_expedited: bool }
-  [@@deriving yojson]
+    { operator          : Address.t
+    ; recipient         : Address.t
+    ; amount            : TokenAmount.t
+    ; memo              : string
+    ; payment_expedited : bool
+    } [@@deriving yojson]
 end
 
 module WithdrawalWanted = struct
   [@@@warning "-39"]
   type t =
-    { operator: Address.t
-    ; withdrawal_amount: TokenAmount.t }
-  [@@deriving yojson]
+    { operator          : Address.t
+    ; withdrawal_amount : TokenAmount.t
+    ; request_guid      : RequestGuid.t
+    } [@@deriving yojson]
 end
 
 module OngoingTransactionStatus = struct
@@ -246,16 +248,22 @@ module TransactionTracker = struct
   module Base = struct
     module Key = struct
       [@@@warning "-39"]
-      type t= { user : Address.t; operator : Address.t; revision : Revision.t } [@@deriving yojson]
+      type t = { user         : Address.t
+               ; operator     : Address.t
+               ; revision     : Revision.t
+               ; request_guid : RequestGuid.t
+               } [@@deriving yojson]
+
       include (YojsonMarshalable(struct
-                 type nonrec t = t
-                 let yojsoning = {to_yojson;of_yojson}
-                 let marshaling = marshaling3
-                                    (fun {user;operator;revision} -> user,operator,revision)
-                                    (fun user operator revision -> {user;operator;revision})
-                                    Address.marshaling Address.marshaling Revision.marshaling
-               end): YojsonMarshalableS with type t := t)
+           type nonrec t = t
+           let yojsoning = {to_yojson;of_yojson}
+           let marshaling = marshaling4
+             (fun {user;operator;revision;request_guid} -> user,operator,revision,request_guid)
+             (fun  user operator revision request_guid -> {user;operator;revision;request_guid})
+             Address.marshaling Address.marshaling Revision.marshaling RequestGuid.marshaling
+         end): YojsonMarshalableS with type t := t)
     end
+
     type key = Key.t
     let key_prefix = "ALTT"
     type context = revision_generator
@@ -268,7 +276,7 @@ module TransactionTracker = struct
 
     open Lwter
     let make_activity revision_generator key saving state =
-      let Key.{user; operator; revision} = key in
+      let Key.{user; operator; revision; request_guid} = key in
       let rec update (status : TransactionStatus.t) =
         saving status >>= Db.committing >>= loop
       and continue (status : OngoingTransactionStatus.t) =
@@ -295,6 +303,7 @@ module TransactionTracker = struct
               | Error error -> invalidate ongoing error
               | Ok (tracker_key, _, _) ->
                 DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
+
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
              Logging.log "TR_LOOP, DepositPosted operation";
              let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
@@ -302,6 +311,7 @@ module TransactionTracker = struct
               | Failed (_, error) -> invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
               | Confirmed (transaction, confirmation) ->
                 DepositConfirmed (deposit_wanted, deposit_fee, transaction, confirmation) |> continue)
+
            | DepositConfirmed ({deposit_amount}, deposit_fee,
                                main_chain_deposit, main_chain_deposit_confirmation) ->
              Logging.log "TR_LOOP, DepositConfirmed operation";
@@ -315,6 +325,7 @@ module TransactionTracker = struct
               >>= function
               | Ok request -> Requested request |> continue
               | Error error -> invalidate ongoing error)
+
            | Requested request ->
              Logging.log "TR_LOOP, Requested operation";
              (* TODO: handle retries. But it should be in the side_chain_operator *)
@@ -328,10 +339,12 @@ module TransactionTracker = struct
                  Logging.log "Requested: side_chain_user: exn=%s" (Printexc.to_string error);
                  Logging.log "Requested: side_chain_user: TrTracker, Error case";
                  invalidate ongoing error)
+
            | SignedByOperator (tc : TransactionCommitment.t) ->
              Logging.log "TR_LOOP, SignedByOperator operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
+
            | PostedToRegistry (tc : TransactionCommitment.t) ->
              Logging.log "TR_LOOP, PostedToRegistry operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
@@ -345,6 +358,7 @@ module TransactionTracker = struct
               | Error error ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                  invalidate ongoing error)
+
            | PostedToMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
              Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
@@ -355,6 +369,7 @@ module TransactionTracker = struct
              Lwt.bind (final_claim_withdrawal_operation tc operator) (fun _ ->
                  Logging.log "After final_claim_withdrawal_operation";
                  ConfirmedOnMainChain (tc, confirmation) |> continue)
+
            | ConfirmedOnMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
              Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
@@ -453,7 +468,7 @@ let operator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
     defaulting_lens (konstant UserAccountState.empty)
       (UserAccountStateMap.lens operator)
 
-  
+
 let get_next_account_revision : Address.t -> unit -> UserState.t -> (Revision.t * UserState.t) Lwt.t =
   fun operator () state ->
     let revision_lens = operator_lens operator |-- UserAccountState.lens_side_chain_revision in
@@ -468,21 +483,28 @@ module User = struct
     module State = UserState
     type t = State.t SimpleActor.t
     type context = Key.t -> t (* The get function its own context to pass around! *)
+
     let make_default_state _context user =
-      UserState.
-        { address= user
-        ; operators= UserAccountStateMap.empty
-        ; notification_counter= Revision.zero
-        ; notifications= [] }
+      UserState.{ address              = user
+                ; operators            = UserAccountStateMap.empty
+                ; notification_counter = Revision.zero
+                ; notifications        = [] }
+
     let next_side_chain_revision user_actor user operator =
       SimpleActor.action (user_actor user) (get_next_account_revision operator)
+
     let resume_transactions user_actor user (state : State.t) =
       flip UserAccountStateMap.iter state.operators
         (fun operator account ->
            let revision_generator = next_side_chain_revision user_actor user operator in
            flip RevisionSet.iter account.ongoing_transactions
              (fun revision ->
-                TransactionTracker.get revision_generator {user; operator; revision} |> ignore))
+               TransactionTracker.get revision_generator { user
+                                                         ; operator
+                                                         ; revision
+                                                         ; request_guid = (RequestGuid.nil ())
+                                                         } |> ignore))
+
     let make_activity user_actor user saving state =
       let wrapper transform = Lwter.(transform >>> saving) in
       let actor = SimpleActor.make ~wrapper state in
@@ -511,8 +533,8 @@ let add_ongoing_side_chain_transaction :
     let revision = revision_lens.get user_state in
     let open Lwter in
     TransactionTracker.(make (User.make_tracker_context user operator)
-                          Key.{user; operator; revision}
-                          ((|>) (TransactionStatus.Ongoing transaction_status)))
+                             Key.{user; operator; revision; request_guid = (RequestGuid.nil ()) }
+                             ((|>) (TransactionStatus.Ongoing transaction_status)))
     >>= fun tracker ->
     UserAsyncAction.return tracker
       (user_state
@@ -529,12 +551,12 @@ let payment_fee_for OperatorFeeSchedule.{fee_per_billion} payment_amount =
 let withdrawal_fee_for OperatorFeeSchedule.{withdrawal_fee} _withdrawal_amount =
   withdrawal_fee
 
-let deposit DepositWanted.{operator; deposit_amount} =
+let deposit DepositWanted.{operator; deposit_amount; request_guid} =
   let open UserAsyncAction in
   of_lwt_exn get_operator_fee_schedule operator
   >>= fun fee_schedule ->
   let deposit_fee = deposit_fee_for fee_schedule deposit_amount in
-  let status = OngoingTransactionStatus.DepositWanted ({operator; deposit_amount}, deposit_fee) in
+  let status = OngoingTransactionStatus.DepositWanted ({operator; deposit_amount; request_guid}, deposit_fee) in
   add_ongoing_side_chain_transaction status
 
 let get_user_address : (unit, Address.t) UserAsyncAction.arr =

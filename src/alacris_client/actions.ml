@@ -51,18 +51,22 @@ let error_json fmt =
 let (id_to_thread_tbl : (int, yojson Lwt_exn.t) Hashtbl.t) = Hashtbl.create 1031
 
 (* add Lwt.t thread to table, return its id *)
-let add_main_chain_thread thread =
+let add_main_chain_thread request_guid thread =
   let thread_find_limit = 100000 in
   let rec find_thread_id n =
     if n > thread_find_limit then
-      Lib.bork "Can't find id for main chain thread"
+      Lib.bork "Can't find ID for main chain thread"
     else
       let id = Random.int 100000000 in
       if Hashtbl.mem id_to_thread_tbl id then
         find_thread_id (n + 1)
       else (
         Hashtbl.add id_to_thread_tbl id thread;
-        `Assoc [("result",`Assoc [("thread",`Int id)])])
+        let rg = RequestGuid.to_string request_guid in
+        (* TODO timestamp *)
+        `Assoc [("result", `Assoc [ ("thread",       `Int id)
+                                  ; ("request_guid", `String rg)
+                                  ])])
   in
   find_thread_id 0
 
@@ -112,35 +116,53 @@ let get_recent_user_transactions_on_trent address maybe_limit =
 (* side-effecting operations *)
 
 (* format deposit and withdrawal result *)
-let make_transaction_result (address : Address.t) (side_chain_tx_revision : Revision.t) (main_chain_confirmation : Ethereum_chain.Confirmation.t) : yojson OrExn.t Lwt.t =
+let make_transaction_result (address:                 Address.t)
+                            (side_chain_tx_revision:  Revision.t)
+                            (main_chain_confirmation: Ethereum_chain.Confirmation.t)
+                          : yojson OrExn.t Lwt.t =
   UserQueryRequest.Get_account_state { address }
-  |> post_user_query_request
-  >>= fun account_state_json ->
-  (* TODO: JSON to AccountState to JSON, is there a better way *)
-  match AccountState.of_yojson (YoJson.member "account_state" account_state_json) with
-  | Error _ ->
-     error_json "Could not get account state for depositing or withdrawing user"
-                |> return
-  | Ok account_state ->
-     let side_chain_account_state = account_state in
-     let deposit_result = { side_chain_account_state
-                          ; side_chain_tx_revision
-                          ; main_chain_confirmation } in
-     return (transaction_result_to_yojson deposit_result)
+    |> post_user_query_request
+    >>= fun account_state_json ->
+      (* TODO: JSON to AccountState to JSON, is there a better way *)
+      match AccountState.of_yojson (YoJson.member "account_state" account_state_json) with
+        | Error _ ->
+           error_json "Could not get account state for depositing or withdrawing user"
+                      |> return
+        | Ok account_state ->
+           let side_chain_account_state = account_state in
+           let deposit_result = { side_chain_account_state
+                                ; side_chain_tx_revision
+                                ; main_chain_confirmation
+                                } in
+           return (transaction_result_to_yojson deposit_result)
 
 (* The type 'a is DepositWanted or WithdrawalWanted *)
-let schedule_transaction (user : Address.t) (transaction : 'a -> TransactionTracker.t UserAsyncAction.t) (parameters : 'a) : yojson =
-  add_main_chain_thread
+let schedule_transaction (request_guid: RequestGuid.t)
+                         (user:         Address.t)
+                         (transaction:  'a -> TransactionTracker.t UserAsyncAction.t)
+                         (parameters:   'a)
+                       : yojson =
+  add_main_chain_thread request_guid
     (User.transaction user transaction parameters
      >>= fun (transaction_commitment, main_chain_confirmation) ->
-     let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
-     make_transaction_result user tx_revision main_chain_confirmation)
+       let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
+       make_transaction_result user tx_revision main_chain_confirmation)
 
-let deposit_to ~operator (user : Address.t) (deposit_amount : TokenAmount.t) : yojson =
-  schedule_transaction user deposit DepositWanted.{operator; deposit_amount}
+let deposit_to ~operator
+               request_guid
+               (user:           Address.t)
+               (deposit_amount: TokenAmount.t)
+             : yojson =
+  let ps = DepositWanted.{operator; deposit_amount; request_guid} in
+  schedule_transaction request_guid user deposit ps
 
-let withdrawal_from ~operator (user : Address.t) (withdrawal_amount : TokenAmount.t) : yojson =
-  schedule_transaction user withdrawal WithdrawalWanted.{operator; withdrawal_amount}
+let withdrawal_from ~operator
+                    request_guid
+                    (user:              Address.t)
+                    (withdrawal_amount: TokenAmount.t)
+                  : yojson =
+  let ps = WithdrawalWanted.{operator; withdrawal_amount; request_guid} in
+  schedule_transaction request_guid user withdrawal ps
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
@@ -163,10 +185,16 @@ let payment_timestamp () =
 
 (* TODO: simplify this all away. Problem is that schedule_transaction cannot be used
    because two addresses are used. *)
-let payment_on ~operator (sender : Address.t) (recipient : Address.t) (amount : TokenAmount.t) (memo : string) : yojson =
-  add_main_chain_thread
+let payment_on ~operator
+               request_guid
+               (sender:    Address.t)
+               (recipient: Address.t)
+               (amount:    TokenAmount.t)
+               (memo:      string)
+             : yojson =
+  add_main_chain_thread request_guid
     (User.action sender payment
-       PaymentWanted.{operator; recipient; amount; memo; payment_expedited= false }
+       PaymentWanted.{operator; recipient; amount; memo; payment_expedited=false }
      >>= fun (_key, tracker_promise) ->
      (* set timestamp, now that initial processing on Trent is done *)
      payment_timestamp ();

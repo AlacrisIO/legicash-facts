@@ -12,7 +12,7 @@ open Legilogic_ethereum
 open Side_chain
 open Side_chain_operator
 open Side_chain_server_config
-   
+
 let _ =
   Config.set_application_name "alacris"
 
@@ -81,7 +81,7 @@ let load_operator_state address =
 
 let sockaddr = Unix.(ADDR_INET (inet_addr_any, Side_chain_server_config.config.port))
 
-  
+
 let _ =
   Lwt_exn.run
     (fun () ->
