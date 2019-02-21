@@ -5,7 +5,7 @@
     https://github.com/ethereum/wiki/wiki/[English]-RLP
 *)
 
-type rlp_item = RlpItem of string | RlpItems of rlp_item list
+type rlp_item = Ppx_deriving_rlp_runtime.Rlp.rlp_item = RlpItem of string | RlpItems of rlp_item list
 
 type t
 

@@ -1,0 +1,6 @@
+(tests
+ (names ppx_deriving_rlp_test rlp_encode_test rlptest_json invalid_rlptest_json)
+ (libraries oUnit zarith yojson result)
+ (preprocess (pps ppx_deriving ppx_deriving.show ppx_deriving_rlp))
+ (flags (:standard -w -9-39-27-34-37)))
+

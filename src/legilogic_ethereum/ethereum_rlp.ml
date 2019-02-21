@@ -1,5 +1,5 @@
+open Ppx_deriving_rlp_runtime
 open Legilogic_lib
-open Lib
 open Hex
 open Digesting
 open Signing
@@ -15,57 +15,25 @@ open Ethereum_chain
    NB: This file is not currently used outside of ethereum_patricia_merkle.
  *)
 
-type rlp_item = RlpItem of string | RlpItems of rlp_item list
+type rlp_item = Rlp.rlp_item = RlpItem of string | RlpItems of rlp_item list
 
-type t = RlpEncoding of string [@@deriving show]
+type t = RlpEncoding of string
 
 (* convert number to string, used for
    - encoding lengths within RLP-encodings
    - encoding integers to string, which can then be RLP-encoded
 *)
 let encode_int_as_string n =
-  let rec loop n accum =
-    if n == 0 then
-      String.concat "" accum
-    else
-      loop (n / 0x100) (String.make 1 (Char.chr (n mod 0x100)) :: accum)
-  in
-  loop n []
+  Rlp_encode.encode_nat_as_string (Z.of_int n)
 
-(* encode length of string to prepend to RLP-encoding *)
-let encode_length len offset =
-  if len <= 55 then String.make 1 (Char.chr (len + offset))
-  else
-    let len_string = encode_int_as_string len in
-    let first_byte = String.make 1 (Char.chr (String.length len_string + offset + 55)) in
-    first_byte ^ len_string
+let encode data =
+  RlpEncoding (Rlp_encode.rlp_item_to_rlp data)
 
-let rec encode data =
-  match data with RlpItem _ -> rlp_encode_item data | RlpItems _ -> rlp_encode_items data
+let to_string (RlpEncoding s) = s
 
-and rlp_encode_item = function
-  | RlpItem item ->
-    let len = String.length item in
-    (* For a single byte whose value is in the [0x00, 0x7f] range, that byte is its own RLP encoding. *)
-    if len == 1 && Char.code item.[0] <= 0x7F then RlpEncoding item
-    else
-      let encoded_length = encode_length len 0x80 in
-      RlpEncoding (encoded_length ^ item)
-  | RlpItems _ -> bork "Expected single item to RLP-encode, got list of items"
+let encoded_string r = r |> encode |> to_string
 
-and rlp_encode_items = function
-  | RlpItem _ -> bork "Expected list of items to RLP-encode, got single item"
-  | RlpItems items ->
-    let encodings = List.map encoded_string items in
-    let merged_encodings = String.concat "" encodings in
-    let encoded_length = encode_length (String.length merged_encodings) 0xC0 in
-    RlpEncoding (encoded_length ^ merged_encodings)
-
-and to_string (RlpEncoding s) = s
-
-and encoded_string r = r |> encode |> to_string
-
-let encode_string s = rlp_encode_item (RlpItem s)
+let encode_string s = encode (RlpItem s)
 
 let encode_bytes bytes = encode_string (Bytes.to_string bytes)
 
@@ -73,73 +41,12 @@ let encode_int n = encode_string (encode_int_as_string n)
 
 (* decoding *)
 (* inverse of encode_int_as_string *)
-let rec decode_int_string n =
-  let len = String.length n in
-  if len = 0 then 0
-  else if len = 1 then Char.code n.[0]
-  else Char.code n.[len - 1] + (decode_int_string (String.sub n 0 (len - 1)) * 0x100)
-
-type rlp_length_bounds = {start: int; length: int}
-
-type rlp_decoded_length =
-  | RlpItemLengthDecoded of rlp_length_bounds
-  | RlpItemsLengthDecoded of rlp_length_bounds
-
-(* decode encoded length, determining whether we have an item or items *)
-let decode_length input offset =
-  let len = String.length input in
-  if offset >= len then bork "decode_length: empty input"
-  else
-    let prefix = Char.code input.[offset] in
-    if prefix <= 0x7F then RlpItemLengthDecoded {start= 0; length= 1}
-    else if prefix <= 0xB7 && len > prefix - 0x80 then
-      RlpItemLengthDecoded {start= 1; length= prefix - 0x80}
-    else if
-      prefix <= 0xbf
-      && len > prefix - 0xb7
-      && len > prefix - 0xB7 + decode_int_string (String.sub input (offset + 1) (prefix - 0xB7))
-    then
-      let len_of_strlen = prefix - 0xB7 in
-      let strlen = decode_int_string (String.sub input (offset + 1) len_of_strlen) in
-      RlpItemLengthDecoded {start= 1 + len_of_strlen; length= strlen}
-    else if prefix <= 0xF7 && len > prefix - 0xC0 then
-      RlpItemsLengthDecoded {start= 1; length= prefix - 0xC0}
-    else if
-      prefix <= 0xFF
-      && len > prefix - 0xF7
-      && len > prefix - 0xF7 + decode_int_string (String.sub input (offset + 1) (prefix - 0xF7))
-    then
-      let len_of_items_len = prefix - 0xF7 in
-      let items_len = decode_int_string (String.sub input (offset + 1) len_of_items_len) in
-      RlpItemsLengthDecoded {start= 1 + len_of_items_len; length= items_len}
-    else bork "decode_length: nonconforming RLP encoding"
+let decode_int_string n =
+  Z.to_int (Rlp_decode.decode_nat_of_string n)
 
 (* entry point for RLP decoding *)
-let decode (RlpEncoding s as encoding) =
-  let len = String.length s in
-  (* for string, return the decoded part paired with unconsumed part of the string *)
-  let rec decode_with_leftover offset =
-    if offset >= len then (RlpItem "", 0)
-    else
-      match decode_length s offset with
-      | RlpItemLengthDecoded {start; length} ->
-        (* prefix and data *)
-        (RlpItem (String.sub s (offset + start) length), offset + start + length)
-      | RlpItemsLengthDecoded {start; length} ->
-        let rec item_loop offs limit accum =
-          (* decode items until string consumed *)
-          if offs >= limit then List.rev accum
-          else
-            let item, new_offset = decode_with_leftover offs in
-            item_loop new_offset limit (item :: accum)
-        in
-        (* prefix and data for all items *)
-        let decoded_len = offset + start + length in
-        (RlpItems (item_loop (offset + start) decoded_len []), decoded_len)
-  in
-  let decoded, offset = decode_with_leftover 0 in
-  if offset >= len then decoded
-  else bork "For encoding: %s, got leftover data: %s" (show encoding) (String.sub s offset (len - offset))
+let decode (RlpEncoding s) =
+  Rlp_decode.rlp_item_of_rlp s
 
 (* convert transaction record to rlp_item suitable for encoding
    TODO: make that our marshaling strategy.
@@ -236,17 +143,17 @@ module Test = struct
     let cat_item = RlpItem "cat" in
     let dog_item = RlpItem "dog" in
     let items = RlpItems [cat_item; dog_item] in
-    rlp_encode_items items = RlpEncoding "\xc8\x83cat\x83dog"
+    encode items = RlpEncoding "\xc8\x83cat\x83dog"
 
   let%test "empty_list_rlp" =
     let empty_list = RlpItems [] in
-    rlp_encode_items empty_list = RlpEncoding "\xc0"
+    encode empty_list = RlpEncoding "\xc0"
 
   let%test "two_set_rlp" =
     let zero = RlpItems [] in
     let one = RlpItems [zero] in
     let two = RlpItems [zero; one; RlpItems [zero; one]] in
-    rlp_encode_items two = RlpEncoding "\xc7\xc0\xc1\xc0\xc3\xc0\xc1\xc0"
+    encode two = RlpEncoding "\xc7\xc0\xc1\xc0\xc3\xc0\xc1\xc0"
 
   let%test "fifteen_rlp" = encode_int 15 = RlpEncoding "\015"
 
