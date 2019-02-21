@@ -63,7 +63,7 @@ let rec rlp_item_marshal_rlp buffer rlp =
   match rlp with
   | RlpItem s  -> string_marshal_rlp buffer s
   | RlpItems l ->
-    let payload = Buffer.create 16 in 
+    let payload = Buffer.create 16 in
     List.iter (rlp_item_marshal_rlp payload) l;
     let n = Z.of_int (Buffer.length payload)
     in if n < Z.of_int 56
@@ -89,9 +89,9 @@ let nat_to_rlp n : string =
   let buffer = Buffer.create (length_of_length n + 2)
   in (nat_marshal_rlp buffer n;
       Buffer.contents buffer)
- 
+
 let rlp_item_to_rlp rlp : string =
   let buffer = Buffer.create 16
   in (rlp_item_marshal_rlp buffer rlp;
       Buffer.contents buffer)
- 
+

@@ -75,10 +75,10 @@ let test6 ctxt = check_loi_rlp ~ctxt
                                (Loicons { first = 1; rest = Loimt })
                                (RlpItems [RlpItem "\001"; RlpItems [RlpItem "\001"; RlpItem ""]])
                                "\xc4\001\xc2\001\x80"
-let test7 ctxt = check_loi_rlp ~ctxt 
+let test7 ctxt = check_loi_rlp ~ctxt
                                (Loicons { first = 3; rest = Loicons { first = 5; rest = Loicons { first = 8; rest = Loimt } } })
                                (RlpItems [RlpItem "\001"; RlpItems [RlpItem "\003";
-                                  RlpItems [RlpItem "\001"; RlpItems [RlpItem "\005"; 
+                                  RlpItems [RlpItem "\001"; RlpItems [RlpItem "\005";
                                     RlpItems [RlpItem "\001"; RlpItems [RlpItem "\008"; RlpItem ""]]]]]])
                                "\xcc\001\xca\003\xc8\001\xc6\005\xc4\001\xc2\008\x80"
 
@@ -91,22 +91,22 @@ let test_stmss1 ctxt = check_seq_tree_map_str_str_rlp ~ctxt
                          (StmLeaf "nemo")
                          (RlpItems [RlpItem ""; RlpItem "nemo"])
                          "\xc6\x80\x84nemo"
-let test_stmss2 ctxt = check_seq_tree_map_str_str_rlp ~ctxt 
+let test_stmss2 ctxt = check_seq_tree_map_str_str_rlp ~ctxt
                          (StmNode [("A", StmLeaf "apple");
                                    ("B", StmNode [("A", StmNode [("N", StmLeaf "banana");
                                                                  ("T", StmLeaf "batter")]);
                                                   ("U", StmLeaf "bubbly")]);
                                    ("C", StmLeaf "cheese")])
-                         (RlpItems 
+                         (RlpItems
                           [RlpItem "\001";
-                           RlpItems 
+                           RlpItems
                            [RlpItems [RlpItem "A"; RlpItems [RlpItem ""; RlpItem "apple"]];
-                            RlpItems [RlpItem "B"; 
+                            RlpItems [RlpItem "B";
                                       RlpItems
                                       [RlpItem "\001";
                                        RlpItems
-                                       [RlpItems [RlpItem "A"; 
-                                                  RlpItems 
+                                       [RlpItems [RlpItem "A";
+                                                  RlpItems
                                                   [RlpItem "\001";
                                                    RlpItems
                                                    [RlpItems [RlpItem "N"; RlpItems [RlpItem ""; RlpItem "banana"]];

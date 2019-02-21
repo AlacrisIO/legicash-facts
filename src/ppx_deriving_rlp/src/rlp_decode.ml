@@ -37,10 +37,10 @@ let rec unmarshal s offset limit =
   let first_char = s.[offset] in
   let first_byte = Char.code first_char in
   if first_byte < 0xc0
-  then 
+  then
     (* item *)
     (if first_byte < 0x80
-     then 
+     then
        (* 1 byte item *)
        (Rlp.RlpItem (String.make 1 first_char), offset + 1)
      else if first_byte < 0xb8
