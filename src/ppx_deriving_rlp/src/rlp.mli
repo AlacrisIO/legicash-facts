@@ -12,9 +12,9 @@ val rlp_item_to_rlp_item : rlp_item -> rlp_item
 exception Rlp_unmarshaling_error of string * int * string
 (* The three tuple values represent:
     * the message string
-    * the position within the input string 
+    * the position within the input string
     * the input string
-   
+
    This is meant to be used when the bytes cannot be parsed into
    a valid RLP tree. It should _not_ be used for when it is a valid
    RLP tree but some other type expected a tree of a certain shape.
@@ -27,7 +27,7 @@ exception Rlp_data_type_mismatch of string * rlp_item
 (* The two tuple values represent:
     * the message string
     * the input RLP tree
-   
+
    This is meant to be used when there is a valid RLP tree, but it
    doesn't match the data type that was expected.
    For example: the string "\x83abc" is valid RLP, but if you were

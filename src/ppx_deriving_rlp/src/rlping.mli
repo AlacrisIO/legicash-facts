@@ -4,7 +4,7 @@ type 'a of_rlp_item       = Rlp.rlp_item -> 'a
 type 'a of_rlp_item_opt   = Rlp.rlp_item -> 'a option
 
 type 'a to_rlp            = 'a -> string
-type 'a of_rlp            = string -> 'a 
+type 'a of_rlp            = string -> 'a
 type 'a of_rlp_opt        = string -> 'a option
 
 type 'a marshal_rlp       = Buffer.t -> 'a -> unit

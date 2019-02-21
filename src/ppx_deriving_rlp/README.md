@@ -31,8 +31,8 @@ Rlp.RlpItems
     Rlp.RlpItem "\001"]]
 # foo_of_rlp_item (Rlp.RlpItems
                     [Rlp.RlpItem "B";
-                     Rlp.RlpItems 
-                      [Rlp.RlpItem "\x40\x18\x00\x00\x00\x00\x00\x00"; 
+                     Rlp.RlpItems
+                      [Rlp.RlpItem "\x40\x18\x00\x00\x00\x00\x00\x00";
                        Rlp.RlpItem "\001"]]);;
 - : foo = B (6., true)
 ```

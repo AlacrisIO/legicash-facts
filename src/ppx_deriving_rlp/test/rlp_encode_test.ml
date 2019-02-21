@@ -6,7 +6,7 @@ open OUnit2
 
 let show_string s = "\"" ^ String.escaped s ^ "\""
 
-let check_rlp_str ~ctxt:ctxt rlp str = 
+let check_rlp_str ~ctxt:ctxt rlp str =
   (* assert_equal expected actual *)
   assert_equal ~ctxt ~printer:show_string str (rlp_item_to_rlp rlp);
   assert_equal ~ctxt ~printer:show_rlp_item rlp (rlp_item_of_rlp str)

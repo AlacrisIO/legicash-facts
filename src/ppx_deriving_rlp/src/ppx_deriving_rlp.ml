@@ -32,7 +32,7 @@ let lams = List.fold_right lam
 (* arrows : typ list -> typ -> typ *)
 let arrows = List.fold_right (Typ.arrow Nolabel)
 
-let turn_off_warning_this_match_case_is_unused = 
+let turn_off_warning_this_match_case_is_unused =
   ({loc = !default_loc; txt = "ocaml.warning"},
    PStr[Str.eval (Exp.constant (Const.string "-11"))])
 
@@ -50,7 +50,7 @@ let case_else_data_type_mismatch s =
                                (Some (Exp.tuple [Exp.constant (Const.string s); evar "v"]))])
 
 (* Show a string representation of a type for error messages *)
-let string_of_type core_type = 
+let string_of_type core_type =
   let bfr = Buffer.create 1 in
   let fmtr = Format.formatter_of_buffer bfr
   in Pprintast.core_type fmtr core_type;
@@ -222,12 +222,12 @@ let pat_rlp_items lst_pat   = Pat.construct (lid "Ppx_deriving_rlp_runtime.Rlp.R
 let pat_rlp_items_list pats = pat_rlp_items (plist pats)
 
 let exp_rlp_construct name maybe_exp =
-  match maybe_exp with 
+  match maybe_exp with
   | None     -> exp_rlp_item (str name)
   | Some exp -> exp_rlp_items_list [exp_rlp_item (str name); exp]
 
 let pat_rlp_construct name maybe_pat =
-  match maybe_pat with 
+  match maybe_pat with
   | None     -> pat_rlp_item (pstr name)
   | Some pat -> pat_rlp_items_list [pat_rlp_item (pstr name); pat]
 
@@ -304,9 +304,9 @@ and core_type_to_funs typ =
                                    lam (pvar "x")
                                     (Exp.match_
                                       ~attrs:[turn_off_warning_this_match_case_is_unused]
-                                      (evar "x") 
+                                      (evar "x")
                                       [Exp.case rlp_pat data_exp;
-                                       case_else_data_type_mismatch 
+                                       case_else_data_type_mismatch
                                          ("of_rlp_item: error parsing rlp data for type: " ^ string_of_type typ)]))
 
 
@@ -322,7 +322,7 @@ let record_fields_to_case flds tmp =
       Exp.record (zip2 lids data_exps) None,
       ctor_tup_args exp_rlp_items_list rlp_exps)
 
-let constructor_arguments_to_case pcd_args tmp = 
+let constructor_arguments_to_case pcd_args tmp =
   match pcd_args with
   | Pcstr_tuple tys ->
     let tmps = generate_temporaries tmp tys in
@@ -380,12 +380,12 @@ let type_decl_variants_to_funs name variants =
        (evar "x")
        (List.map case_data_to_rlp bidi_cases))),
    (lam (pvar "x")
-     (Exp.match_ 
+     (Exp.match_
        ~attrs:[turn_off_warning_this_match_case_is_unused]
        (evar "x")
        ((List.map case_rlp_to_data bidi_cases)
         @
-        [case_else_data_type_mismatch 
+        [case_else_data_type_mismatch
           ("of_rlp_item: error parsing rlp data for variant type:" ^ name)]))))
 
 (* Produces a tuple of the "to" function and the "of" function *)
@@ -394,7 +394,7 @@ let type_decl_manifest_to_funs manifest =
   | None    -> raise_errorf "ppx_deriving_rlp: cannot find definition for abstract type"
   | Some ty ->
     ((lam (pvar "x")
-       (Exp.match_ 
+       (Exp.match_
          (evar "x")
          [case_data_to_rlp (core_type_to_case ty "tmp")])),
      (lam (pvar "x")
@@ -413,7 +413,7 @@ let type_decl_manifest_to_funs manifest =
       `A of int` and `B of bool`
     - `type foo = { s : string; v : int }`
       the rhs_typ_kind is Ptype_record with fields `s : string` and
-      `v : int` 
+      `v : int`
   The manifest is the thing on the right hand side of the `=` sign
    for a type alias such as:
      - `type foo = int`
@@ -467,7 +467,7 @@ let str_of_type_rlp ~options ~path type_decl =
                    (Exp.try_
                      (exp_some (app (evar name.of_rlp)
                                     (List.map evar (param_of_rlp_names @ ["x"]))))
-                     (List.map catching [lid "Ppx_deriving_rlp_runtime.Rlp.Rlp_data_type_mismatch"; 
+                     (List.map catching [lid "Ppx_deriving_rlp_runtime.Rlp.Rlp_data_type_mismatch";
                                          lid "Ppx_deriving_rlp_runtime.Rlp.Rlp_unmarshaling_error"])));
     marshal_rlp = (lams (List.map pvar ["buffer"; "x"])
                     (app (Exp.ident (lid "Ppx_deriving_rlp_runtime.Rlp_encode.rlp_item_marshal_rlp"))
@@ -501,7 +501,7 @@ let str_of_type_rlp ~options ~path type_decl =
               None)
   }
   in
-  
+
   let make_op_binding name dir exp =
     Vb.mk (pvar name)
           (lams (List.map pvar (List.map (type_name_suffix dir) param_type_names))
@@ -526,21 +526,21 @@ let sig_of_type_rlp ~options ~path type_decl =
   ignore path;
   let name = rlp_op_map (fun s -> mangle_type_decl_suffix s type_decl) rlp_op_names
   in
-  
+
   let param_types = List.map (fun (t,_) -> t) type_decl.ptype_params in
   let type_defined = Typ.constr (str_to_lid type_decl.ptype_name) param_types
   and type_for_op op t = Typ.constr (lid ("Ppx_deriving_rlp_runtime.Rlping." ^ op)) [t] in
   let type_for = rlp_op_map type_for_op rlp_op_names
   and param_for = rlp_op_map type_for_op rlp_op_directions
   in
-  
+
   let make_op_decl name param_for type_for =
     Sig.value (Val.mk (mknoloc name)
                       (arrows (List.map param_for param_types) (type_for type_defined)))
   in
   let op_decls = rlp_op_map3 make_op_decl name param_for type_for
   in
-  
+
   (rlp_ops_to_list op_decls)
 
 (* --------------------------------- *)

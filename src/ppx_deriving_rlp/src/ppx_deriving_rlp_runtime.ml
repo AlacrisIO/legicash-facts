@@ -11,9 +11,9 @@ module Private = struct
   let marshal_of_to to_rlp_item =
     let marshal_rlp b v = Rlp_encode.rlp_item_marshal_rlp b (to_rlp_item v)
     in marshal_rlp
-    
+
   (* unmarshal_of_of : 'a of_rlp_item -> 'a unmarshal_rlp *)
-  let unmarshal_of_of of_rlp_item = 
+  let unmarshal_of_of of_rlp_item =
     let unmarshal_rlp i s = let (v,j) = Rlp_decode.rlp_item_unmarshal_rlp i s
                             in (of_rlp_item v, j)
     in unmarshal_rlp
