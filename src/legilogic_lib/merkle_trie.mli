@@ -36,6 +36,7 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
   : MerkleTrieTypeS with type key = Key.t
                      and type value = Value.t
+                     and type synth = Synth.t
 
 (** Signature for the merkle proof *)
 module type MerkleTrieProofS = sig
@@ -70,10 +71,13 @@ module type MerkleTrieS = sig
   module Synth : TrieSynthS with type t = unit and type key = key and type value = value
   (* Contains the logic for recursively computing merkle digest of tree: *)
   module SynthMerkle : TrieSynthMerkleS with type key = key and type value = value
-  module Type : TrieTypeS with type key = key and type value = value
+  module Type : TrieTypeS with type key = key
+                           and type value = value
+                           and type synth = Synth.t
   include TrieS
     with type key := key
      and type value := value
+     and type synth = Synth.t
      and type 'a wrap = 'a dv
   module Wrap : WrapS with type value = trie and type t = t
   include PersistableS
@@ -110,9 +114,12 @@ module type MerkleTrieSetS = sig
   type elt
   module M : MerkleTrieS with type key = elt and type value = unit
   module T : TrieS
-    with type key = elt and type value = unit
-                        and type synth = M.synth and type 'a wrap = 'a M.wrap
-                                                 and type trie = M.trie and type t = M.t
+    with type key = elt
+     and type value = unit
+     and type synth = M.synth
+     and type 'a wrap = 'a M.wrap
+     and type trie = M.trie
+     and type t = M.t
   include PersistableS with type t = T.t
   include Set.S with type elt := elt and type t := t
   module Proof : MerkleTrieSetProofS

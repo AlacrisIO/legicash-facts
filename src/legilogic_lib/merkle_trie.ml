@@ -88,10 +88,13 @@ module type MerkleTrieS = sig
      would only be over-written during intermediate states. *)
   module Synth : TrieSynthS with type t = unit and type key = key and type value = value
   module SynthMerkle : TrieSynthMerkleS with type key = key and type value = value
-  module Type : TrieTypeS with type key = key and type value = value
+  module Type : TrieTypeS with type key = key
+                           and type value = value
+                           and type synth = Synth.t
   include TrieS
     with type key := key
      and type value := value
+     and type synth = Synth.t
      and type 'a wrap = 'a dv
   module Wrap : WrapS with type value = trie and type t = t
   include PersistableS
