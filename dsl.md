@@ -328,7 +328,6 @@ Whatever hypotheses are made at each level of abstraction need to be made clearl
 to the security auditors who have to decide whether they make sense
 and apply to the real-life situations in which the programs will be deployed.
 
-
 ### Transactions (V1, V2)
 
 Transactions ensure that either all of a set of computations successfully succeed, or none of them.
@@ -349,8 +348,6 @@ Primitives:
 The options to `with-transaction` help specify what implementation strategies can be used
 to implement the transaction:
 acceptable delay to confirmation; acceptable compensation payment; acceptable validation networks.
-
-
 
 ### Automated Refinement (V1, V2)
 
@@ -413,6 +410,27 @@ For long term deadlines, the notion of wall clock maintained by the blockchain
 (when it does maintain one) is probably more precise and less susceptible to variation
 due to difficulty adjustment or protocol upgrades.
 The loose conversions between the many clocks must be handled explicitly by the logic.
+
+### Linear Logic (V2)
+
+Linear Logic very nicely models notions such as resources that must be preserved:
+non-fungible resources must at all time be owned by a unique owner;
+variables and data structure cells holding fungible resources
+cannot themselves be either introduced out of thin air or dropped,
+and the amounts they hold also cannot be arbitrarily modified, but
+have to be transfered from one variable to the other.
+
+Note that linear logic can also be expressed in the game semantics,
+allowing for interactive proofs of linear properties.
+This might be useful when verifying whether a protocol using linear logic was respected.
+Linear logic can also express various security properties that might matter
+in a distributed application.
+
+https://github.com/ppedrot/ll-coq
+https://github.com/hypotext/linear-logic
+http://www.cs.nuim.ie/~jpower/Research/LinearLogic/
+https://www.sciencedirect.com/science/article/pii/S157106611830080X
+http://gallais.github.io/proof-search-ILLWiL/pdf/lps.pdf
 
 ### Cryptography (V1)
 
