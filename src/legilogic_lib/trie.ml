@@ -618,10 +618,8 @@ module Trie
     | None -> t
     | Some h ->
       (match trie_height t with
-       | None -> (* t is empty, and it still returns empty *)
-         t
        | Some th when th < h ->
-       make_skip h (h - th) Key.zero t
+         make_skip h (h - th) Key.zero t
        | _ ->
          t)
 
