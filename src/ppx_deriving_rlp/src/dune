@@ -1,0 +1,18 @@
+(library
+ (name ppx_deriving_rlp_runtime)
+ (public_name ppx_deriving_rlp.runtime)
+ (synopsis "Runtime components of [@@deriving rlp]")
+ (modules ppx_deriving_rlp_runtime rlp rlping rlp_encode rlp_decode)
+ (libraries ppx_deriving ppx_deriving.runtime zarith result)
+ (preprocess (pps ppx_deriving ppx_deriving.show)))
+
+(library
+ (name ppx_deriving_rlp)
+ (public_name ppx_deriving_rlp)
+ (synopsis "[@@deriving rlp]")
+ (libraries ppx_deriving ppx_deriving.api
+            ppx_deriving_rlp_runtime)
+ (ppx_runtime_libraries ppx_deriving_rlp_runtime)
+ (modules ppx_deriving_rlp)
+ (kind ppx_deriver)
+ (flags (:standard -w -9)))
