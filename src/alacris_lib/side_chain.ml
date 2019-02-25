@@ -65,6 +65,11 @@ module UserOperation = struct
     | Withdrawal of withdrawal_details
   [@@deriving yojson]
 
+  let guid_and_utc = function
+    | Deposit    o -> (o.request_guid, o.requested_at)
+    | Payment    o -> (o.request_guid, o.requested_at)
+    | Withdrawal o -> (o.request_guid, o.requested_at)
+
   let operation_tag = function
     | Deposit    _ -> Side_chain_tag.deposit
     | Payment    _ -> Side_chain_tag.payment

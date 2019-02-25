@@ -224,11 +224,18 @@ module OngoingTransactionStatus = struct
            end) : (PersistableS with type t := t))
 
   let signed_request_opt : t -> UserTransactionRequest.t signed option = function
-    | DepositWanted _ | DepositPosted _ | DepositConfirmed _ -> None
+    | DepositWanted    _
+    | DepositPosted    _
+    | DepositConfirmed _
+      -> None
+
     | Requested signed_request -> Some signed_request
-    | SignedByOperator tc | PostedToRegistry tc
-    | PostedToMainChain (tc, _) | ConfirmedOnMainChain (tc, _) ->
-      tc.transaction.tx_request |> TransactionRequest.signed_request |> Option.return
+
+    | SignedByOperator     tc
+    | PostedToRegistry     tc
+    | PostedToMainChain    (tc, _)
+    | ConfirmedOnMainChain (tc, _)
+      -> tc.transaction.tx_request |> TransactionRequest.signed_request |> Option.return
 
   let signed_request = signed_request_opt >> Option.get
 
@@ -252,7 +259,9 @@ module OngoingTransactionStatus = struct
     | DepositConfirmed (w, _, _, _)
       -> (w.DepositWanted.request_guid, w.DepositWanted.requested_at)
 
-    | _ -> bork "Constructor must be one of `Deposit{Wanted|Posted|Confirmed}`"
+    | Requested s -> UserOperation.guid_and_utc s.payload.operation
+
+    | _ -> bork "Constructor must be one of: `Requested` or `Deposit{Wanted|Posted|Confirmed}`"
 end
 
 module FinalTransactionStatus = struct
@@ -669,9 +678,10 @@ let direct_operation :
     of_lwt_state (get_next_account_revision operator) () >>= fun revision ->
     get_user_address () >>= fun user ->
     of_lwt_exn (make_user_transaction_request user operator revision) operation
+
     >>= fun signed_request ->
-    let status = OngoingTransactionStatus.Requested signed_request in
-    add_ongoing_side_chain_transaction status
+      let status = OngoingTransactionStatus.Requested signed_request in
+      add_ongoing_side_chain_transaction status
 
 let payment PaymentWanted.{ operator
                           ; recipient

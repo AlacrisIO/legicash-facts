@@ -59,7 +59,10 @@ module UserOperation : sig
     | Deposit    of deposit_details
     | Payment    of payment_details
     | Withdrawal of withdrawal_details
-  (* TODO: do we need a two-phase send then receive (but only after settlement send was settled) for non-expedited payments? *)
+  (* TODO: do we need a two-phase send then receive (but only after settlement
+   * send was settled) for non-expedited payments? *)
+
+  val guid_and_utc : t -> RequestGuid.t * UtcTimestamp.t
 
   include PersistableS with type t := t
 end
