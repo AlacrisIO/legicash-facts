@@ -36,29 +36,23 @@ module UserOperation : sig
     ; deposit_fee:                     TokenAmount.t
     ; main_chain_deposit:              Ethereum_chain.Transaction.t
     ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
-    (*
     ; request_guid:                    RequestGuid.t
     ; requested_at:                    UtcTimestamp.t
-    *)
     } [@@deriving lens, yojson]
 
   type payment_details =
     { payment_invoice:   Invoice.t
     ; payment_fee:       TokenAmount.t
     ; payment_expedited: bool
-    (*
     ; request_guid:      RequestGuid.t
     ; requested_at:      UtcTimestamp.t
-    *)
     } [@@deriving lens, yojson]
 
   type withdrawal_details =
     { withdrawal_amount: TokenAmount.t
     ; withdrawal_fee:    TokenAmount.t
-    (*
     ; request_guid:      RequestGuid.t
     ; requested_at:      UtcTimestamp.t
-    *)
     } [@@deriving lens, yojson]
 
   type t =

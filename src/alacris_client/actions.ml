@@ -138,11 +138,12 @@ let make_transaction_result (request_guid:            RequestGuid.t)
 let schedule_transaction (request_guid: RequestGuid.t)
                          (user:         Address.t)
                          (transaction:  'a -> TransactionTracker.t UserAsyncAction.t)
-                         (parameters:   'a)
+                         (wanted:       UtcTimestamp.t -> 'a)
                        : yojson =
   let requested_at = UtcTimestamp.now () in
+
   add_main_chain_thread request_guid requested_at
-    (User.transaction user transaction parameters
+    (User.transaction user transaction (wanted requested_at)
      >>= fun (transaction_commitment, main_chain_confirmation) ->
        let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
        make_transaction_result request_guid
@@ -156,16 +157,16 @@ let deposit_to ~(operator:       Address.t)
                 (user:           Address.t)
                 (deposit_amount: TokenAmount.t)
               : yojson =
-  let ps = DepositWanted.{operator; deposit_amount; request_guid} in
-  schedule_transaction request_guid user deposit ps
+  schedule_transaction request_guid user deposit @@ fun requested_at ->
+    DepositWanted.{ operator; deposit_amount; request_guid; requested_at }
 
 let withdrawal_from ~(operator:          Address.t)
                      (request_guid:      RequestGuid.t)
                      (user:              Address.t)
                      (withdrawal_amount: TokenAmount.t)
                    : yojson =
-  let ps = WithdrawalWanted.{operator; withdrawal_amount; request_guid} in
-  schedule_transaction request_guid user withdrawal ps
+  schedule_transaction request_guid user withdrawal @@ fun requested_at ->
+    WithdrawalWanted.{ operator; withdrawal_amount; request_guid; requested_at }
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
@@ -195,14 +196,28 @@ let payment_on ~(operator:     Address.t)
                 (amount:       TokenAmount.t)
                 (memo:         string)
               : yojson =
+
   let requested_at = UtcTimestamp.now () in
-  add_main_chain_thread request_guid requested_at
-    (User.action sender payment
-       PaymentWanted.{operator; recipient; amount; memo; payment_expedited=false }
+
+  add_main_chain_thread
+    request_guid
+    requested_at
+    (User.action sender
+                 payment
+                 PaymentWanted.{ operator
+                               ; recipient
+                               ; amount
+                               ; memo
+                               ; payment_expedited = false
+                               ; request_guid
+                               ; requested_at
+                               }
+
      >>= fun (_key, tracker_promise) ->
        (* set timestamp, now that initial processing on Trent is done *)
        payment_timestamp ();
        TransactionTracker.wait tracker_promise
+
      >>= fun (transaction_commitment, main_chain_confirmation) ->
        let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
        make_transaction_result request_guid

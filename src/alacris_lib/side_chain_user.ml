@@ -159,29 +159,33 @@ let make_user_transaction_request (user : Address.t) (operator : Address.t) (rev
 module DepositWanted = struct
   [@@@warning "-39"]
   type t =
-    { operator       : Address.t
-    ; deposit_amount : TokenAmount.t
-    ; request_guid   : RequestGuid.t
+    { operator:       Address.t
+    ; deposit_amount: TokenAmount.t
+    ; request_guid:   RequestGuid.t
+    ; requested_at:   UtcTimestamp.t
     } [@@deriving yojson]
 end
 
 module PaymentWanted = struct
   [@@@warning "-39"]
   type t =
-    { operator          : Address.t
-    ; recipient         : Address.t
-    ; amount            : TokenAmount.t
-    ; memo              : string
-    ; payment_expedited : bool
+    { operator:          Address.t
+    ; recipient:         Address.t
+    ; amount:            TokenAmount.t
+    ; memo:              string
+    ; payment_expedited: bool
+    ; request_guid:      RequestGuid.t
+    ; requested_at:      UtcTimestamp.t
     } [@@deriving yojson]
 end
 
 module WithdrawalWanted = struct
   [@@@warning "-39"]
   type t =
-    { operator          : Address.t
-    ; withdrawal_amount : TokenAmount.t
-    ; request_guid      : RequestGuid.t
+    { operator:          Address.t
+    ; withdrawal_amount: TokenAmount.t
+    ; request_guid:      RequestGuid.t
+    ; requested_at:      UtcTimestamp.t
     } [@@deriving yojson]
 end
 
@@ -192,13 +196,26 @@ module OngoingTransactionStatus = struct
   [@@@warning "-39"]
   type t =
     | DepositWanted of DepositWanted.t * TokenAmount.t
-    | DepositPosted of DepositWanted.t * TokenAmount.t * Ethereum_user.TransactionTracker.Key.t
-    | DepositConfirmed of DepositWanted.t * TokenAmount.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
-    | Requested of UserTransactionRequest.t signed (* for all operation *)
-    | SignedByOperator of TransactionCommitment.t (* for all operation *)
-    | PostedToRegistry of TransactionCommitment.t (* for all operation *)
-    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* for withdrawal only *)
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* for withdrawal only *)
+
+    | DepositPosted
+      of DepositWanted.t
+       * TokenAmount.t
+       * Ethereum_user.TransactionTracker.Key.t
+
+    | DepositConfirmed
+      of DepositWanted.t
+       * TokenAmount.t
+       * Ethereum_chain.Transaction.t
+       * Ethereum_chain.Confirmation.t
+
+    (* for all operations *)
+    | Requested        of UserTransactionRequest.t signed
+    | SignedByOperator of TransactionCommitment.t
+    | PostedToRegistry of TransactionCommitment.t
+
+    (* for withdrawal only *)
+    | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
   [@@deriving yojson]
   include (YojsonPersistable (struct
              type nonrec t = t
@@ -214,9 +231,13 @@ module OngoingTransactionStatus = struct
   let request_opt : t -> UserTransactionRequest.t option =
     signed_request_opt >> Option.map (fun x -> x.payload)
   let request = request_opt >> Option.get
+
   let status_operator = function
-    | DepositWanted (w, _) | DepositPosted (w, _, _) | DepositConfirmed (w, _, _, _) ->
-      w.DepositWanted.operator
+    | DepositWanted    (w, _)
+    | DepositPosted    (w, _, _)
+    | DepositConfirmed (w, _, _, _)
+      -> w.DepositWanted.operator
+
     | x -> (request x).rx_header.operator
 end
 
@@ -262,19 +283,30 @@ module TransactionTracker = struct
   module Base = struct
     module Key = struct
       [@@@warning "-39"]
-      type t = { user         : Address.t
-               ; operator     : Address.t
-               ; revision     : Revision.t
-               ; request_guid : RequestGuid.t
+      type t = { user:         Address.t
+               ; operator:     Address.t
+               ; revision:     Revision.t
+               ; request_guid: RequestGuid.t
+               ; requested_at: UtcTimestamp.t
                } [@@deriving yojson]
 
       include (YojsonMarshalable(struct
            type nonrec t = t
-           let yojsoning = {to_yojson;of_yojson}
-           let marshaling = marshaling4
-             (fun {user;operator;revision;request_guid} -> user,operator,revision,request_guid)
-             (fun  user operator revision request_guid -> {user;operator;revision;request_guid})
-             Address.marshaling Address.marshaling Revision.marshaling RequestGuid.marshaling
+           let yojsoning = {to_yojson; of_yojson}
+
+           let marshaling = marshaling5
+             (fun { user; operator; revision; request_guid; requested_at } ->
+                    user, operator, revision, request_guid, requested_at)
+
+             (fun user  operator  revision  request_guid  requested_at ->
+                { user; operator; revision; request_guid; requested_at })
+
+             Address.marshaling
+             Address.marshaling
+             Revision.marshaling
+             RequestGuid.marshaling
+             UtcTimestamp.marshaling
+
          end): YojsonMarshalableS with type t := t)
     end
 
@@ -306,7 +338,12 @@ module TransactionTracker = struct
         | Ongoing ongoing ->
           let open OngoingTransactionStatus in
           (match ongoing with
-           | DepositWanted (({operator; deposit_amount} as deposit_wanted), deposit_fee) ->
+           | DepositWanted (({ operator
+                             ; deposit_amount
+                             ; request_guid
+                             ; requested_at
+                             } as deposit_wanted)
+                            , deposit_fee) ->
              Logging.log "TR_LOOP, DepositWanted operation";
              let pre_transaction =
                TokenAmount.(add deposit_amount deposit_fee)
@@ -314,9 +351,9 @@ module TransactionTracker = struct
              (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
              (Ethereum_user.add_ongoing_transaction user (Wanted pre_transaction)
               >>= function
-              | Error error -> invalidate ongoing error
-              | Ok (tracker_key, _, _) ->
-                DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
+                | Error error -> invalidate ongoing error
+                | Ok (tracker_key, _, _) ->
+                  DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
 
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
              Logging.log "TR_LOOP, DepositPosted operation";
@@ -326,19 +363,28 @@ module TransactionTracker = struct
               | Confirmed (transaction, confirmation) ->
                 DepositConfirmed (deposit_wanted, deposit_fee, transaction, confirmation) |> continue)
 
-           | DepositConfirmed ({deposit_amount}, deposit_fee,
-                               main_chain_deposit, main_chain_deposit_confirmation) ->
+           | DepositConfirmed ( { deposit_amount; request_guid; requested_at }
+                              , deposit_fee
+                              , main_chain_deposit
+                              , main_chain_deposit_confirmation
+                              ) ->
              Logging.log "TR_LOOP, DepositConfirmed operation";
-             revision_generator () >>= fun (revision : Revision.t) ->
-             (make_user_transaction_request (user : Address.t) (operator : Address.t) (revision : Revision.t)
-                (Deposit
-                   { deposit_amount
-                   ; deposit_fee
-                   ; main_chain_deposit
-                   ; main_chain_deposit_confirmation })
+             revision_generator ()
+             >>= fun (revision : Revision.t) ->
+               (make_user_transaction_request
+                  (user:     Address.t)
+                  (operator: Address.t)
+                  (revision: Revision.t)
+                  (Deposit { deposit_amount
+                           ; deposit_fee
+                           ; main_chain_deposit
+                           ; main_chain_deposit_confirmation
+                           ; request_guid
+                           ; requested_at
+                           })
               >>= function
-              | Ok request -> Requested request |> continue
-              | Error error -> invalidate ongoing error)
+                | Ok request  -> Requested request |> continue
+                | Error error -> invalidate ongoing error)
 
            | Requested request ->
              Logging.log "TR_LOOP, Requested operation";
@@ -517,12 +563,13 @@ module User = struct
         (fun operator account ->
            let revision_generator = next_side_chain_revision user_actor user operator in
            flip RevisionSet.iter account.ongoing_transactions
-             (fun revision ->
-               TransactionTracker.get revision_generator { user
-                                                         ; operator
-                                                         ; revision
-                                                         ; request_guid = (RequestGuid.nil ())
-                                                         } |> ignore))
+             (fun revision -> TransactionTracker.get
+                revision_generator { user
+                                   ; operator
+                                   ; revision
+                                   ; request_guid = RequestGuid.nil  ()
+                                   ; requested_at = UtcTimestamp.now ()
+                                   } |> ignore))
 
     let make_activity user_actor user saving state =
       let wrapper transform = Lwter.(transform >>> saving) in
@@ -546,20 +593,29 @@ end
 let add_ongoing_side_chain_transaction :
   (OngoingTransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr =
   fun transaction_status user_state ->
-    let user = user_state.address in
-    let operator = transaction_status |> OngoingTransactionStatus.status_operator in
+    let user          = user_state.address in
+    let operator      = transaction_status |> OngoingTransactionStatus.status_operator in
     let revision_lens = (operator_lens operator |-- UserAccountState.lens_transaction_counter) in
-    let revision = revision_lens.get user_state in
+    let revision      = revision_lens.get user_state in
+
     let open Lwter in
-    TransactionTracker.(make (User.make_tracker_context user operator)
-                             Key.{user; operator; revision; request_guid = (RequestGuid.nil ()) }
-                             ((|>) (TransactionStatus.Ongoing transaction_status)))
+    TransactionTracker.(make
+      (User.make_tracker_context user operator)
+      Key.{ user
+          ; operator
+          ; revision
+          ; request_guid = RequestGuid.nil  ()
+          ; requested_at = UtcTimestamp.now ()
+          }
+      ((|>) (TransactionStatus.Ongoing transaction_status)))
+
     >>= fun tracker ->
-    UserAsyncAction.return tracker
-      (user_state
-       |> revision_lens.set Revision.(add one revision)
-       |> (operator_lens operator |-- UserAccountState.lens_ongoing_transactions
-           |-- RevisionSet.lens revision).set true)
+      UserAsyncAction.return
+        tracker
+        (user_state
+         |> revision_lens.set Revision.(add one revision)
+         |> (operator_lens operator |-- UserAccountState.lens_ongoing_transactions
+                                    |-- RevisionSet.lens revision).set true)
 
 let deposit_fee_for OperatorFeeSchedule.{deposit_fee} _deposit_amount =
   deposit_fee
@@ -570,13 +626,18 @@ let payment_fee_for OperatorFeeSchedule.{fee_per_billion} payment_amount =
 let withdrawal_fee_for OperatorFeeSchedule.{withdrawal_fee} _withdrawal_amount =
   withdrawal_fee
 
-let deposit DepositWanted.{operator; deposit_amount; request_guid} =
+let deposit DepositWanted.{operator; deposit_amount; request_guid; requested_at} =
   let open UserAsyncAction in
   of_lwt_exn get_operator_fee_schedule operator
   >>= fun fee_schedule ->
-  let deposit_fee = deposit_fee_for fee_schedule deposit_amount in
-  let status = OngoingTransactionStatus.DepositWanted ({operator; deposit_amount; request_guid}, deposit_fee) in
-  add_ongoing_side_chain_transaction status
+    let deposit_fee = deposit_fee_for fee_schedule deposit_amount in
+
+    let status = OngoingTransactionStatus.DepositWanted ({ operator
+                                                         ; deposit_amount
+                                                         ; request_guid
+                                                         ; requested_at
+                                                         }, deposit_fee) in
+    add_ongoing_side_chain_transaction status
 
 let get_user_address : (unit, Address.t) UserAsyncAction.arr =
   fun () user_state -> UserAsyncAction.return user_state.UserState.address user_state
@@ -595,18 +656,36 @@ let direct_operation :
     let status = OngoingTransactionStatus.Requested signed_request in
     add_ongoing_side_chain_transaction status
 
-let payment PaymentWanted.{operator; recipient; amount; memo; payment_expedited} : TransactionTracker.t UserAsyncAction.t =
-  direct_operation operator
-    (fun fee_schedule ->
-       let payment_invoice = Invoice.{recipient; amount; memo} in
-       let payment_fee = payment_fee_for fee_schedule amount in
-       UserOperation.Payment {payment_invoice; payment_fee; payment_expedited})
+let payment PaymentWanted.{ operator
+                          ; recipient
+                          ; amount
+                          ; memo
+                          ; payment_expedited
+                          ; request_guid
+                          ; requested_at
+                          } : TransactionTracker.t UserAsyncAction.t =
+  direct_operation operator (fun fee_schedule ->
+       let payment_invoice = Invoice.{recipient; amount; memo}
+       and payment_fee     = payment_fee_for fee_schedule amount
+       in UserOperation.Payment { payment_invoice
+                                ; payment_fee
+                                ; payment_expedited
+                                ; request_guid
+                                ; requested_at
+                                })
 
-let withdrawal WithdrawalWanted.{operator; withdrawal_amount} : TransactionTracker.t UserAsyncAction.t =
-  direct_operation operator
-    (fun fee_schedule ->
+let withdrawal WithdrawalWanted.{ operator
+                                ; withdrawal_amount
+                                ; request_guid
+                                ; requested_at
+                                } : TransactionTracker.t UserAsyncAction.t =
+  direct_operation operator (fun fee_schedule ->
        let withdrawal_fee = withdrawal_fee_for fee_schedule withdrawal_amount in
-       UserOperation.Withdrawal {withdrawal_amount; withdrawal_fee})
+       UserOperation.Withdrawal { withdrawal_amount
+                                ; withdrawal_fee
+                                ; request_guid
+                                ; requested_at
+                                })
 
 (*
    let remove_ongoing_transaction operator revision user_state =
