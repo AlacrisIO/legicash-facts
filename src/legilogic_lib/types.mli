@@ -62,7 +62,19 @@ end
 *)
 module Revision : UIntS
 
-module Timestamp : UIntS
+module UtcTimestamp : sig
+  (** UTC milliseconds from UNIX epoch - see:
+    * https://currentmillis.com
+    * https://en.wikipedia.org/wiki/Unix_time
+    * https://caml.inria.fr/pub/docs/manual-ocaml/libref/Unix.html
+    *
+    * Note we need to emit values that are easily shared with JavaScript:
+    * https://moment.github.io/luxon/docs/manual/parsing.html#unix-timestamps
+    *)
+  type t = UInt64.t
+  include module type of UInt64 with type t := UInt64.t
+  val now : unit -> t
+end
 
 (** duration in terms of nanoseconds, for use in timeouts. TODO: should the unit be consensus cycles instead? *)
 module Duration : UIntS

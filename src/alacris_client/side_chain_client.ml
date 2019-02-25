@@ -129,16 +129,18 @@ let _ =
     | `GET ->
       begin
         match api_call with
-          "balances" ->
-          Logging.log "GET: balances";
+        | "balances" ->
+          Logging.log "GET /api/balances";
           get_all_balances_on_trent ()
           >>= return_result id
+
         | "tps" ->
-          Logging.log "GET: tps";
+          Logging.log "GET /api/tps";
           get_transaction_rate_on_trent ()
           |> ok_json id
+
         | "proof" ->
-          Logging.log "GET: proof";
+          Logging.log "GET /api/proof";
           (match Request.param request "tx-revision" with
            | Some param -> (
                try
@@ -150,8 +152,9 @@ let _ =
                | exn ->
                  internal_error_response id (Printexc.to_string exn))
            | None -> bad_request_response id "Expected one parameter, tx-revision")
+
         | "thread" ->
-          Logging.log "GET: thread";
+          Logging.log "GET /api/thread";
           (match Request.param request "id" with
              Some param ->
              (try
@@ -171,9 +174,8 @@ let _ =
       let json = yojson_of_string (Request.contents request) in
 
       let (=->) deserialized f =
-        Logging.log "POST: %s" api_call;
+        Logging.log "POST /api/%s" api_call;
         let err500 m = internal_error_response id m in
-
         match (deserialized json) with
           (* NB it's good security practice to prevent implementation details
            * escaping in HTTP responses (such as in deserialization failures
@@ -221,9 +223,9 @@ let _ =
                 >>= throw_if_err
 
         | "recent_transactions" ->
-          Logging.log "POST: recent_transactions";
+          Logging.log "POST /api/recent_transactions";
           let maybe_limit_string = Request.param request "limit" in
-          let invalid_limit = Some (Revision.zero) in
+          let invalid_limit      = Some (Revision.zero) in
           let maybe_limit =
             match maybe_limit_string with
             | Some s ->
@@ -247,18 +249,20 @@ let _ =
              | Error msg -> error_response id msg)
 
         | "sleep" ->
-          Logging.log "POST: sleep";
+          Logging.log "POST /api/sleep";
           (try
              Lwt_unix.sleep 1.0 >>= (fun () -> ok_json id (`Int 42))
            with
            | Lib.Internal_error msg -> internal_error_response id msg
            | exn -> internal_error_response id (Printexc.to_string exn))
+
         | other_call -> invalid_post_api_call id other_call
       end
     (* neither GET nor POST *)
     | methodz -> bad_request_method id methodz
   in
   let _ = Server.handler_inet address port handle_request in
+
   (* run forever in Lwt monad *)
   Db.run ~db_name:"alacris_client_db"
     (fun () -> fst (Lwt.wait ()))

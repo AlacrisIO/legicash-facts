@@ -1,6 +1,6 @@
 (* WARNING: We use GLOBAL STATE for our mailboxes,
    so there's only one operator running in a given process.
-   I blame OCaml for lack of dynamic binding. 
+   I blame OCaml for lack of dynamic binding.
    Yay Common Lisp special variables and Scheme parameters! *)
 open Lens.Infix
 
@@ -18,10 +18,11 @@ open State_update
 open Legilogic_ethereum
 open Side_chain_server_config
 open Operator_contract
-   
+
 open Side_chain
 
 exception Operator_not_found of string
+exception Malformed_request  of string
 
 module OperatorState = struct
   [@warning "-39"]
@@ -76,7 +77,7 @@ end
  * system transaction, which e.g. posts a state update to the main chain
    (Which all the time update the main chain.
     We have a batch of operations to put to the main chain.)
- 
+
 
 
    The side-chain has three different (kind of) states:
@@ -125,20 +126,6 @@ let operator_account_lens (address : Address.t) : account_lens =
 let signed_request_requester (rx : UserTransactionRequest.t signed) : Address.t =
   rx.payload.UserTransactionRequest.rx_header.requester
 
-exception Malformed_request of string
-
-(*
-let check_cp (test: bool) (exngen: unit -> 'a) =
-  fun x ->
-  if test then Lwt_exn.return x
-  else Lwt_exn.fail (Malformed_request (exngen ())) 
-  
-let check_cp (test: bool) (exngen: unit -> 'a) =
-  fun x ->
-  if test then Lwt_exn.return x
-  else Lwt_exn.fail (Malformed_request (exngen ()))
- *)
-
 let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
   let (test : bool Lwt_exn.t) = Ethereum_user.check_confirmation_deep_enough_bool confirmation in
   Lwt_exn.bind test (fun test ->
@@ -147,8 +134,6 @@ let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation
       else
         Lwt_exn.fail (Malformed_request (exngen())))
 
-                             
-  
 (** Check that the request is basically well-formed, or else fail
     This function should include all checks that can be made without any non-local side-effect
     beside reading pure or monotonic data, which is allowed for now
@@ -199,7 +184,7 @@ let validate_user_transaction_request :
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
         (* TODO: CHECK FROM THE CONFIRMATION THAT THE CORRECT PERSON DID THE DEPOSIT,
            AND/OR THAT IT   WAS TAGGED WITH THE CORRECT RECIPIENT. *)
-              (*        
+              (*
         >>> check_transaction_confirmation main_chain_deposit main_chain_deposit_confirmation
               (fun () -> "The main chain deposit confirmation is invalid")
                *)
@@ -473,7 +458,7 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
       (fun (x : Digest.t) -> Lwt_exn.return (transreq, x))
   else
     Lwt_exn.return (transreq, Digesting.null_digest)
-  
+
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
   function
   | `UserTransaction request ->
@@ -786,12 +771,7 @@ let start_operator address =
    ---push transaction to the ethereum.
    Advanced TODO: update as the auction plays out.
  *)
-(*
-let lwt_for synchronizing 
 
- *)
-
-    
 module Test = struct
   open Signing.Test
 

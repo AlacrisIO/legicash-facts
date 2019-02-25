@@ -402,7 +402,12 @@ module TransactionTracker = struct
     let open Lwter in
     promise >>= function
     | FinalTransactionStatus.SettledOnMainChain (t, c) -> Lwt_exn.return (t, c)
-    | FinalTransactionStatus.Failed (o, e) -> Lwt_exn.fail (TransactionFailed (o, e))
+    | FinalTransactionStatus.Failed (o, e) ->
+        (match e with
+            | Side_chain_operator.Malformed_request r ->
+                Logging.log "Malformed request: %s" r
+            | _ -> ());
+        Lwt_exn.fail (TransactionFailed (o, e))
 end
 
 module UserAccountState = struct

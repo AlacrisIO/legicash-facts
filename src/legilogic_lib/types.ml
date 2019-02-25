@@ -28,7 +28,14 @@ module Digest  = DBInt(Digesting.Digest)
 
 module Revision  = UInt64
 module Duration  = UInt64
-module Timestamp = UInt64
+
+module UtcTimestamp = struct
+  include UInt64
+
+  let now = fun () -> 1000.0 *. Unix.gettimeofday ()
+    |> Int64.of_float
+    |> UInt64.of_int64
+end
 
 (** TODO: mechanism to forget old values? Or is GC enough? *)
 type +'a dv = {digest: Digest.t Lazy.t; value: 'a Lazy.t; mutable persisted: bool}

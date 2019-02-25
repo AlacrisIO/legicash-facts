@@ -32,23 +32,38 @@ end
 module UserOperation : sig
   [@warning "-39"]
   type deposit_details =
-    { deposit_amount: TokenAmount.t
-    ; deposit_fee: TokenAmount.t
-    ; main_chain_deposit: Ethereum_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t }
-  [@@deriving lens, yojson]
+    { deposit_amount:                  TokenAmount.t
+    ; deposit_fee:                     TokenAmount.t
+    ; main_chain_deposit:              Ethereum_chain.Transaction.t
+    ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
+    (*
+    ; request_guid:                    RequestGuid.t
+    ; requested_at:                    UtcTimestamp.t
+    *)
+    } [@@deriving lens, yojson]
 
   type payment_details =
-    {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
-  [@@deriving lens, yojson]
+    { payment_invoice:   Invoice.t
+    ; payment_fee:       TokenAmount.t
+    ; payment_expedited: bool
+    (*
+    ; request_guid:      RequestGuid.t
+    ; requested_at:      UtcTimestamp.t
+    *)
+    } [@@deriving lens, yojson]
 
   type withdrawal_details =
-    {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
-  [@@deriving lens, yojson]
+    { withdrawal_amount: TokenAmount.t
+    ; withdrawal_fee:    TokenAmount.t
+    (*
+    ; request_guid:      RequestGuid.t
+    ; requested_at:      UtcTimestamp.t
+    *)
+    } [@@deriving lens, yojson]
 
   type t =
-    | Deposit of deposit_details
-    | Payment of payment_details
+    | Deposit    of deposit_details
+    | Payment    of payment_details
     | Withdrawal of withdrawal_details
   (* TODO: do we need a two-phase send then receive (but only after settlement send was settled) for non-expedited payments? *)
 

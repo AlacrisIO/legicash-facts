@@ -5,7 +5,7 @@ open Marshaling
 
 (** TODO: before we go to production, robustify the shit out of all
     the type conversions, arithmetic operations, etc.,
-    least it be used as an attack surface.
+    lest it be used as an attack surface.
 *)
 
 (* Same as Unsigned.S from the integers library, minus the Infix module *)
