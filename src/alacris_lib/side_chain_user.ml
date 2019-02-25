@@ -217,19 +217,24 @@ module OngoingTransactionStatus = struct
     | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t
     | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
   [@@deriving yojson]
+
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
+
   let signed_request_opt : t -> UserTransactionRequest.t signed option = function
     | DepositWanted _ | DepositPosted _ | DepositConfirmed _ -> None
     | Requested signed_request -> Some signed_request
     | SignedByOperator tc | PostedToRegistry tc
     | PostedToMainChain (tc, _) | ConfirmedOnMainChain (tc, _) ->
       tc.transaction.tx_request |> TransactionRequest.signed_request |> Option.return
+
   let signed_request = signed_request_opt >> Option.get
+
   let request_opt : t -> UserTransactionRequest.t option =
     signed_request_opt >> Option.map (fun x -> x.payload)
+
   let request = request_opt >> Option.get
 
   let status_operator = function
@@ -239,6 +244,15 @@ module OngoingTransactionStatus = struct
       -> w.DepositWanted.operator
 
     | x -> (request x).rx_header.operator
+
+  let status_guid_and_utc = function
+    | DepositWanted (w, _) -> (w.request_guid, w.requested_at)
+
+    | DepositPosted    (w, _, _)
+    | DepositConfirmed (w, _, _, _)
+      -> (w.DepositWanted.request_guid, w.DepositWanted.requested_at)
+
+    | _ -> bork "Constructor must be one of `Deposit{Wanted|Posted|Confirmed}`"
 end
 
 module FinalTransactionStatus = struct
@@ -598,14 +612,17 @@ let add_ongoing_side_chain_transaction :
     let revision_lens = (operator_lens operator |-- UserAccountState.lens_transaction_counter) in
     let revision      = revision_lens.get user_state in
 
+    let (request_guid, requested_at) =
+      OngoingTransactionStatus.status_guid_and_utc transaction_status in
+
     let open Lwter in
     TransactionTracker.(make
       (User.make_tracker_context user operator)
       Key.{ user
           ; operator
           ; revision
-          ; request_guid = RequestGuid.nil  ()
-          ; requested_at = UtcTimestamp.now ()
+          ; request_guid
+          ; requested_at
           }
       ((|>) (TransactionStatus.Ongoing transaction_status)))
 
