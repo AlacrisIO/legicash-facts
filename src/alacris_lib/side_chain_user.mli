@@ -27,7 +27,7 @@ module DepositWanted : sig
     { operator:       Address.t
     ; deposit_amount: TokenAmount.t
     ; request_guid:   RequestGuid.t
-    ; requested_at:   UtcTimestamp.t
+    ; requested_at:   Timestamp.t
     } [@@deriving yojson]
 end
 
@@ -39,7 +39,7 @@ module PaymentWanted : sig
     ; memo:              string
     ; payment_expedited: bool
     ; request_guid:      RequestGuid.t
-    ; requested_at:      UtcTimestamp.t
+    ; requested_at:      Timestamp.t
     } [@@deriving yojson]
 end
 
@@ -48,7 +48,7 @@ module WithdrawalWanted : sig
     { operator:          Address.t
     ; withdrawal_amount: TokenAmount.t
     ; request_guid:      RequestGuid.t
-    ; requested_at:      UtcTimestamp.t
+    ; requested_at:      Timestamp.t
     } [@@deriving yojson]
 end
 
@@ -114,7 +114,7 @@ module TransactionTracker : sig
              ; operator:     Address.t
              ; revision:     Revision.t
              ; request_guid: RequestGuid.t
-             ; requested_at: UtcTimestamp.t
+             ; requested_at: Timestamp.t
              }
     include YojsonMarshalableS with type t := t
   end

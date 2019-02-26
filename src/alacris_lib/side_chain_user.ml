@@ -162,7 +162,7 @@ module DepositWanted = struct
     { operator:       Address.t
     ; deposit_amount: TokenAmount.t
     ; request_guid:   RequestGuid.t
-    ; requested_at:   UtcTimestamp.t
+    ; requested_at:   Timestamp.t
     } [@@deriving yojson]
 end
 
@@ -175,7 +175,7 @@ module PaymentWanted = struct
     ; memo:              string
     ; payment_expedited: bool
     ; request_guid:      RequestGuid.t
-    ; requested_at:      UtcTimestamp.t
+    ; requested_at:      Timestamp.t
     } [@@deriving yojson]
 end
 
@@ -185,7 +185,7 @@ module WithdrawalWanted = struct
     { operator:          Address.t
     ; withdrawal_amount: TokenAmount.t
     ; request_guid:      RequestGuid.t
-    ; requested_at:      UtcTimestamp.t
+    ; requested_at:      Timestamp.t
     } [@@deriving yojson]
 end
 
@@ -310,7 +310,7 @@ module TransactionTracker = struct
                ; operator:     Address.t
                ; revision:     Revision.t
                ; request_guid: RequestGuid.t
-               ; requested_at: UtcTimestamp.t
+               ; requested_at: Timestamp.t
                } [@@deriving yojson]
 
       include (YojsonMarshalable(struct
@@ -328,7 +328,7 @@ module TransactionTracker = struct
              Address.marshaling
              Revision.marshaling
              RequestGuid.marshaling
-             UtcTimestamp.marshaling
+             Timestamp.marshaling
 
          end): YojsonMarshalableS with type t := t)
     end
@@ -590,8 +590,8 @@ module User = struct
                 revision_generator { user
                                    ; operator
                                    ; revision
-                                   ; request_guid = RequestGuid.nil  ()
-                                   ; requested_at = UtcTimestamp.now ()
+                                   ; request_guid = RequestGuid.nil ()
+                                   ; requested_at = Timestamp.now   ()
                                    } |> ignore))
 
     let make_activity user_actor user saving state =

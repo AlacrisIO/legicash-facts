@@ -62,7 +62,7 @@ end
 *)
 module Revision : UIntS
 
-module UtcTimestamp : sig
+module Timestamp : sig
   (** UTC milliseconds from UNIX epoch - see:
     * https://currentmillis.com
     * https://en.wikipedia.org/wiki/Unix_time

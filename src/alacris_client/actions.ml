@@ -28,7 +28,7 @@ type transaction_result =
   ; side_chain_tx_revision:   Revision.t
   ; main_chain_confirmation:  Ethereum_chain.Confirmation.t
   ; request_guid:             RequestGuid.t
-  ; requested_at:             UtcTimestamp.t
+  ; requested_at:             Timestamp.t
   } [@@deriving to_yojson]
 
 type tps_result =
@@ -55,7 +55,7 @@ let add_main_chain_thread request_guid requested_at thread =
       else (
         Hashtbl.add id_to_thread_tbl id thread;
         let rg = RequestGuid.to_string request_guid
-        and ra = UtcTimestamp.to_0x    requested_at
+        and ra = Timestamp.to_0x       requested_at
         in
         `Assoc [("result", `Assoc [ ("thread",       `Int id)
                                   ; ("request_guid", `String rg)
@@ -111,7 +111,7 @@ let get_recent_user_transactions_on_trent address maybe_limit =
 
 (* format deposit and withdrawal result *)
 let make_transaction_result (request_guid:            RequestGuid.t)
-                            (requested_at:            UtcTimestamp.t)
+                            (requested_at:            Timestamp.t)
                             (address:                 Address.t)
                             (side_chain_tx_revision:  Revision.t)
                             (main_chain_confirmation: Ethereum_chain.Confirmation.t)
@@ -138,9 +138,9 @@ let make_transaction_result (request_guid:            RequestGuid.t)
 let schedule_transaction (request_guid: RequestGuid.t)
                          (user:         Address.t)
                          (transaction:  'a -> TransactionTracker.t UserAsyncAction.t)
-                         (wanted:       UtcTimestamp.t -> 'a)
+                         (wanted:       Timestamp.t -> 'a)
                        : yojson =
-  let requested_at = UtcTimestamp.now () in
+  let requested_at = Timestamp.now () in
 
   add_main_chain_thread request_guid requested_at
     (User.transaction user transaction (wanted requested_at)
@@ -197,7 +197,7 @@ let payment_on ~(operator:     Address.t)
                 (memo:         string)
               : yojson =
 
-  let requested_at = UtcTimestamp.now () in
+  let requested_at = Timestamp.now () in
 
   add_main_chain_thread
     request_guid

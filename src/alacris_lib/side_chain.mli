@@ -37,7 +37,7 @@ module UserOperation : sig
     ; main_chain_deposit:              Ethereum_chain.Transaction.t
     ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
     ; request_guid:                    RequestGuid.t
-    ; requested_at:                    UtcTimestamp.t
+    ; requested_at:                    Timestamp.t
     } [@@deriving lens, yojson]
 
   type payment_details =
@@ -45,14 +45,14 @@ module UserOperation : sig
     ; payment_fee:       TokenAmount.t
     ; payment_expedited: bool
     ; request_guid:      RequestGuid.t
-    ; requested_at:      UtcTimestamp.t
+    ; requested_at:      Timestamp.t
     } [@@deriving lens, yojson]
 
   type withdrawal_details =
     { withdrawal_amount: TokenAmount.t
     ; withdrawal_fee:    TokenAmount.t
     ; request_guid:      RequestGuid.t
-    ; requested_at:      UtcTimestamp.t
+    ; requested_at:      Timestamp.t
     } [@@deriving lens, yojson]
 
   type t =
@@ -62,7 +62,7 @@ module UserOperation : sig
   (* TODO: do we need a two-phase send then receive (but only after settlement
    * send was settled) for non-expedited payments? *)
 
-  val guid_and_utc : t -> RequestGuid.t * UtcTimestamp.t
+  val guid_and_utc : t -> RequestGuid.t * Timestamp.t
 
   include PersistableS with type t := t
 end

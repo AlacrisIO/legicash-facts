@@ -41,7 +41,7 @@ module UserOperation = struct
     ; main_chain_deposit:              Ethereum_chain.Transaction.t
     ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
     ; request_guid:                    RequestGuid.t
-    ; requested_at:                    UtcTimestamp.t
+    ; requested_at:                    Timestamp.t
     } [@@deriving lens, yojson]
 
   type payment_details =
@@ -49,14 +49,14 @@ module UserOperation = struct
     ; payment_fee:       TokenAmount.t
     ; payment_expedited: bool
     ; request_guid:      RequestGuid.t
-    ; requested_at:      UtcTimestamp.t
+    ; requested_at:      Timestamp.t
     } [@@deriving lens, yojson]
 
   type withdrawal_details =
     { withdrawal_amount: TokenAmount.t
     ; withdrawal_fee:    TokenAmount.t
     ; request_guid:      RequestGuid.t
-    ; requested_at:      UtcTimestamp.t
+    ; requested_at:      Timestamp.t
     } [@@deriving lens, yojson]
 
   type t =
@@ -113,7 +113,7 @@ module UserOperation = struct
            Ethereum_chain.Transaction.marshaling
            Ethereum_chain.Confirmation.marshaling
            RequestGuid.marshaling
-           UtcTimestamp.marshaling
+           Timestamp.marshaling
 
        ; marshaling5
            (function | Payment { payment_invoice
@@ -145,7 +145,7 @@ module UserOperation = struct
            TokenAmount.marshaling
            bool_marshaling
            RequestGuid.marshaling
-           UtcTimestamp.marshaling
+           Timestamp.marshaling
 
        ; marshaling4
            (function | Withdrawal { withdrawal_amount
@@ -172,7 +172,7 @@ module UserOperation = struct
            TokenAmount.marshaling
            TokenAmount.marshaling
            RequestGuid.marshaling
-           UtcTimestamp.marshaling
+           Timestamp.marshaling
       |]
 
     let marshaling = marshaling_cases operation_tag

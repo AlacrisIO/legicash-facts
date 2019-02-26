@@ -29,7 +29,7 @@ module Digest  = DBInt(Digesting.Digest)
 module Revision  = UInt64
 module Duration  = UInt64
 
-module UtcTimestamp = struct
+module Timestamp = struct
   include UInt64
 
   let now = fun () -> 1000.0 *. Unix.gettimeofday ()

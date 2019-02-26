@@ -103,8 +103,8 @@ module Test = struct
              deposit
              DepositWanted.{ operator
                            ; deposit_amount
-                           ; request_guid = Types.RequestGuid.nil  ()
-                           ; requested_at = Types.UtcTimestamp.now ()
+                           ; request_guid = Types.RequestGuid.nil ()
+                           ; requested_at = Types.Timestamp.now   ()
                            }
 
            >>= fun (_commitment, _confirmation) ->
@@ -123,8 +123,8 @@ module Test = struct
                            ; amount            = payment_amount
                            ; memo              = "test"
                            ; payment_expedited = false
-                           ; request_guid      = Types.RequestGuid.nil  ()
-                           ; requested_at      = Types.UtcTimestamp.now ()
+                           ; request_guid      = Types.RequestGuid.nil ()
+                           ; requested_at      = Types.Timestamp.now   ()
                            }
 
            >>= fun (_commitment2, _confirmation2) ->
@@ -151,8 +151,8 @@ module Test = struct
              withdrawal
              WithdrawalWanted.{ operator
                               ; withdrawal_amount
-                              ; request_guid = Types.RequestGuid.nil  ()
-                              ; requested_at = Types.UtcTimestamp.now ()
+                              ; request_guid = Types.RequestGuid.nil ()
+                              ; requested_at = Types.Timestamp.now   ()
                               }
 
            >>= fun (_commitment, _confirmation) ->
