@@ -242,7 +242,9 @@ module String63 : YojsonMarshalableS with type t = string
 module String1G : YojsonMarshalableS with type t = string
 
 module Data : sig
-  include YojsonMarshalableS with type t = string
+  type t = string
+  [@@deriving rlp]
+  include YojsonMarshalableS with type t := t
   include ShowableS with type t := t
 end
 
