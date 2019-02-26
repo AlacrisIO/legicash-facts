@@ -24,7 +24,11 @@ val keypair : t
 
 val bad_tag_error : int -> Bytes.t -> 'a
 
-module UInt16int : YojsonMarshalableS with type t = int
+module UInt16int : sig
+  type t = int
+  [@@deriving rlp]
+  include YojsonMarshalableS with type t := int
+end
 
 val marshal_tagged : t -> 'a marshaler -> 'a marshaler
 val unmarshal_tagged : t -> 'a unmarshaler -> 'a unmarshaler

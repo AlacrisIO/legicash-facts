@@ -33,6 +33,9 @@ let bad_tag_error start bytes =
   raise (Unmarshaling_error ("bad tag", start, bytes))
 
 module UInt16int = struct
+  type t = int
+  [@@deriving rlp]
+
   module U = struct
     type t = int
     let verify x =
@@ -44,7 +47,8 @@ module UInt16int = struct
           | `Int x -> Ok (verify x)
           | _ -> Error "not a json Integer" }
   end
-  include YojsonMarshalable(U)
+
+  include (YojsonMarshalable(U) : YojsonMarshalableS with type t := t)
 end
 
 module Tag = struct
