@@ -8,6 +8,6 @@
   lib action config hex logging yojsoning json_rpc get_ip_address
   marshaling integer tag digesting db persisting types signing
   trie merkle_trie)
- (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx ppx_deriving_rlp))
  (libraries cohttp cohttp-lwt-unix cryptokit cstruct integers lens leveldb lwt lwt.unix ppx_deriving_yojson.runtime qcheck secp256k1 str threads yojson)
  (inline_tests))
