@@ -1070,13 +1070,12 @@ module Test = struct
     *)
   let (=:) a b = (a,b)
   let (=>) ((line, show), a) b =
-    if a = b
-    then true
-    else failwith
-          (Format.asprintf "Failure: %d\n  actual:   %s\n  expected: %s"
-                           line
-                           (show a)
-                           (show b))
+    a = b
+    || Printf.ksprintf failwith
+         "Failure: %d\n  actual:   %s\n  expected: %s"
+         line
+         (show a)
+         (show b)
 
   let [@warning "-32"] rec show_trie t = match Wrap.get t with
     | Empty ->
