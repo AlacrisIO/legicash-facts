@@ -116,7 +116,7 @@ module type TrieS = sig
     | SkipChild of {bits: key; length: int}
 
   (** Context for a step: where you are in the tree *)
-  type costep = { height: int ; index: key }
+  type costep = { height: int option; index: key }
 
   (** [costep] is the current location, given that we've followed the given
       [step]s from a wider trie. *)
@@ -164,12 +164,16 @@ module type TrieS = sig
      and type (+'a) step := 'a step
      and type (+'a) path := 'a path
 
-  val trie_height : t -> int
+  (** [trie_height t] returns None iff [t] is empty,
+      and otherwise returns [Some h] where 2^h
+      (or [1 lsl h]) is the width of [t]. *)
+  val trie_height : t -> int option
 
   (** [ensure_height h t] is a tree of height exactly [h] with the same
       mappings as [t], with a [Skip] of adequate length with bits [Key.zero]
-      if needed. *)
-  val ensure_height : int -> t -> t
+      if needed.
+      If [t] is empty, it still returns empty. *)
+  val ensure_height : int option -> t -> t
 
   (** Given two trees or possibly distinct heights, return a pair of trees of
       the same height as each other (being the max of the heights of the two

@@ -4,6 +4,11 @@ exception Not_implemented
 
 exception Internal_error of string
 
+let () = Printexc.register_printer
+           (function
+            | Internal_error s -> Some ("Internal_error: " ^ s)
+            | _                -> None)
+
 let bork fmt = Printf.ksprintf (fun x -> raise (Internal_error x)) fmt
 
 let bottom : 'a -> 'b = fun _ -> raise Not_implemented
