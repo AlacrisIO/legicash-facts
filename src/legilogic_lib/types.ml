@@ -107,7 +107,9 @@ module DigestValue (Value : PersistableS) = struct
 end
 
 module StringT = struct
-  include String
+  type t = string
+  [@@deriving rlp]
+  include (String : module type of String with type t := t)
   include (TrivialPersistable (String1G) : PersistableS with type t := t)
 end
 
@@ -118,6 +120,7 @@ end
 
 module Unit = struct
   type t = unit
+  [@@deriving rlp]
   module PrePersistable = struct
     type t = unit
     let marshaling = { marshal = (fun _buffer () -> ())

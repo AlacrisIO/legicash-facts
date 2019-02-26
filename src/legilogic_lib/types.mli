@@ -79,11 +79,17 @@ end
 (** duration in terms of nanoseconds, for use in timeouts. TODO: should the unit be consensus cycles instead? *)
 module Duration : UIntS
 
-module StringT : PersistableS with type t = string
+module StringT : sig
+  type t = string
+  [@@deriving rlp]
+  include PersistableS with type t := string
+end
 
 (* string as data to be printed as 0x strings in JSON *)
 module Data : sig
-  include PersistableS with type t = string
+  type t = string
+  [@@deriving rlp]
+  include PersistableS with type t := t
   include ShowableS with type t := t
 end
 
@@ -91,7 +97,9 @@ end
    type-system compatibility, e.g. you can have a tree with trivial leaves, to
    represent a set. *)
 module Unit : sig
-  include PersistableS with type t = unit
+  type t = unit
+  [@@deriving rlp]
+  include PersistableS with type t := unit
   include ShowableS with type t := unit
 end
 
