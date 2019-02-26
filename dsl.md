@@ -1,5 +1,7 @@
 # Design for the DSL
 
+[[_TOC_]]
+
 ## Overview of language features
 
 We aim at growing a language that allows developers to write
