@@ -1071,7 +1071,7 @@ module Test = struct
   let (=:) a b = (a,b)
   let (=>) ((line, show), a) b =
     a = b
-    || Printf.ksprintf failwith
+    || bork
          "Failure: %d\n  actual:   %s\n  expected: %s"
          line
          (show a)
