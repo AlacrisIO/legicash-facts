@@ -171,7 +171,7 @@ end
 
 val sum_int_list : int list -> int
 
-     
+
 (** convert a n-bit natural number to a big-endian string of bytes *)
 val big_endian_bits_of_nat : int -> Z.t -> string
 
@@ -217,4 +217,4 @@ val binary_pre_op_check : ('a -> 'b -> 'c) -> ('a -> 'b -> bool) ->
   string * string * ('a -> string) * ('b -> string) ->
   'a -> 'b -> 'c
 
-                
+

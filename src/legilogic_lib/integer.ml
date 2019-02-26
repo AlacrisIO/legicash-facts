@@ -431,7 +431,7 @@ let sum_int_list (x : int list) : int =
   !sum
 
 
-              
+
 module Test = struct
   let%test "hex_string_of_nat 18 2018" =
     hex_string_of_nat (Nat.of_z (Z.of_int 2018)) = "7e2"
@@ -465,12 +465,12 @@ module Test = struct
 
   let%test "compare operation 2" =
     UInt16.compare (UInt16.of_int 20) (UInt16.of_int 10) = 1
-    
+
   let%test "compare operation 3" =
     UInt16.compare (UInt16.of_int 10) (UInt16.of_int 20) = -1
 
-    
-    
+
+
   let%test "sized_nat_of_hex_string 18 007e2" =
     sized_nat_of_hex_string 18 "007e2" = Z.of_int 2018
 
