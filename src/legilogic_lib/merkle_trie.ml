@@ -202,9 +202,9 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
       iterate_over_tree
         ~recursek:(fun ~i ~tree:t ~k ->
           if not (dv_digest t = digest t) then
-            bork "Bad digest at key %s height %d digest=%s dv_digest=%s"
+            bork "Bad digest at key %s height %s digest=%s dv_digest=%s"
               (Key.to_0x i)
-              (trie_height t)
+              (match trie_height t with Some h -> string_of_int h | None -> "None")
               (Digest.to_0x (digest t))
               (Digest.to_0x (dv_digest t))
           else k())
@@ -316,7 +316,7 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
       (proof.leaf = SynthMerkle.leaf value)
       && (proof.trie = dv_digest mtrie)
       && (Key.compare key proof.key = 0)
-      && let path_d = {costep={index=proof.key;height=0};steps=proof.steps} in
+      && let path_d = {costep={index=proof.key;height=Some 0};steps=proof.steps} in
       (check_path_consistency path_d)
       && let (top_d, {height; index}) =
            path_apply
@@ -324,7 +324,7 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
              proof.leaf
              path_d in
       (proof.trie = top_d)
-      && (height >= Key.numbits proof.key)
+      && (height >= Some (Key.numbits proof.key))
       && (Key.sign index = 0)
 
     include (Yojsonable(struct

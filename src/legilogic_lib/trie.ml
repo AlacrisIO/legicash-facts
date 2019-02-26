@@ -114,7 +114,7 @@ module type TrieS = sig
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
 
-  type costep = { height: int ; index: key }
+  type costep = { height: int option; index: key }
 
   type (+'a) path = {costep: costep; steps: 'a step list}
 
@@ -138,8 +138,8 @@ module type TrieS = sig
      and type (+ 'a) step := 'a step
      and type (+'a) path := 'a path
 
-  val trie_height : t -> int
-  val ensure_height : int -> t -> t
+  val trie_height : t -> int option
+  val ensure_height : int option -> t -> t
   val ensure_same_height : t -> t -> t*t
   val get_synth : t -> synth
   val check_invariant : t -> bool
@@ -189,10 +189,10 @@ module Trie
   let trie_height =
     wrap_fun
       (function
-        | Empty -> -1
-        | Leaf _ -> 0
-        | Branch {height} -> height
-        | Skip {height} -> height)
+        | Empty -> None
+        | Leaf _ -> Some 0
+        | Branch {height} -> Some height
+        | Skip {height} -> Some height)
 
   let empty = Wrap.make Empty
 
@@ -210,10 +210,10 @@ module Trie
       (synth = Synth.branch height (get_synth left) (get_synth right)
        || bork "Bad branch synth")
       && (height > 0 || bork "Bad branch height")
-      && (height - 1 = trie_height left (* in particular, left isn't Empty *)
+      && (Some (height - 1) = trie_height left (* in particular, left isn't Empty *)
           || bork "Bad left height")
       && check_invariant left
-      && (height - 1 = trie_height right (* in particular, right isn't Empty *)
+      && (Some (height - 1) = trie_height right (* in particular, right isn't Empty *)
           || bork "Bad right height")
       && check_invariant right
     | Skip {child; bits; length; height; synth} ->
@@ -229,7 +229,7 @@ module Trie
           || bork "Skip bits longer than length")
       && (not (is_empty child)
           || bork "Skip child empty")
-      && (height - length = trie_height child (* in particular, child isn't Empty *)
+      && (Some (height - length) = trie_height child (* in particular, child isn't Empty *)
           || bork "Skip child height mismatch")
       && check_invariant child
 
@@ -240,10 +240,12 @@ module Trie
       bork "Invariant failed"
 
   let find_opt key trie =
-    let height = trie_height trie in
-    if Key.sign key < 0 || Key.numbits key > height then
+    match trie_height trie with
+    | None ->
       None
-    else
+    | Some height when Key.sign key < 0 || Key.numbits key > height ->
+      None
+    | Some height ->
       let rec f height =
         wrap_fun
           (function
@@ -316,10 +318,10 @@ module Trie
   let singleton key value = make_leaf (Key.numbits key) key value
 
   let add key value trie =
-    if is_empty trie then
+    match trie_height trie with
+    | None -> (* the trie is empty *)
       singleton key value
-    else
-      let height = trie_height trie in
+    | Some height ->
       let key_height = Key.numbits key in
       if key_height > height then
         make_branch key_height
@@ -377,7 +379,10 @@ module Trie
       | Skip {child; bits; length} ->
         r (height - length) child (fun t -> k (make_skip height length bits t))
     in
-    r (trie_height trie) trie make_head
+    match trie_height trie with
+    | None -> trie (* key was absent; return unchanged trie *)
+    | Some height ->
+      r height trie make_head
 
   (** Given a Skip at given height, with given length and bits,
       and given the index for the lowest binding it covers,
@@ -574,12 +579,23 @@ module Trie
     in
     prec Key.zero t
 
+  (** The [split] operation from [Lib.MapS].
+      [split k t] returns a triple [(l, data, r)], where
+      [l] is the map with all the bindings of [t] whose key
+      is strictly less than [k];
+      [r] is the map with all the bindings of [t] whose key
+      is strictly greater than [k];
+      [data] is [None] if [t] contains no binding for [k],
+      or [Some v] if [t] binds [v] to [k]. *)
   let split k t =
     if Key.sign k < 0 then
       (empty, None, t)
-    else if Key.numbits k > trie_height t then
+    else match trie_height t with
+    | None ->
       (t, None, empty)
-    else
+    | Some height when Key.numbits k > height ->
+      (t, None, empty)
+    | _ ->
       let rec srec index trie = match Wrap.get trie with
         | Empty -> (empty, None, empty)
         | Leaf {value} -> (empty, Some value, empty)
@@ -597,12 +613,15 @@ module Trie
       in
       srec Key.zero t
 
-  let ensure_height h t =
-    let th = trie_height t in
-    if th < h then
-      make_skip h (h - th) Key.zero t
-    else
-      t
+  let ensure_height ho t =
+    match ho with
+    | None -> t
+    | Some h ->
+      (match trie_height t with
+       | Some th when th < h ->
+         make_skip h (h - th) Key.zero t
+       | _ ->
+         t)
 
   let ensure_same_height ta tb =
     (ensure_height (trie_height tb) ta, ensure_height (trie_height ta) tb)
@@ -622,21 +641,28 @@ module Trie
     ; unstep_right=branch
     ; unstep_skip=skip }
 
-  type costep = { height: int ; index: key }
+  type costep = { height: int option; index: key }
 
+  (* The height must be Some, because this is only called
+     when the path is not empty, and an empty node should
+     always have an empty path. *)
   let step_apply unstep (trie, {height; index}) step =
-    match step with
-    | LeftBranch {right} ->
-      let h = height + 1 in
-      (unstep.unstep_left index h trie right, {height=h; index})
-    | RightBranch {left} ->
-      let h = height + 1 in
-      let i = Key.sub index (Key.shift_left Key.one height) in
-      (unstep.unstep_right i h left trie, {height=h; index=i})
-    | SkipChild {bits; length} ->
-      let h = height + length in
-      let i = Key.sub index (Key.extract index 0 h) in
-      (unstep.unstep_skip i h length bits trie, {height=h; index=i})
+    match height with
+    | None ->
+      bork "step_apply: height must be non-empty for a non-empty path"
+    | Some height ->
+      (match step with
+       | LeftBranch {right} ->
+         let h = height + 1 in
+         (unstep.unstep_left index h trie right, {height=Some h; index})
+       | RightBranch {left} ->
+         let h = height + 1 in
+         let i = Key.sub index (Key.shift_left Key.one height) in
+         (unstep.unstep_right i h left trie, {height=Some h; index=i})
+       | SkipChild {bits; length} ->
+         let h = height + length in
+         let i = Key.sub index (Key.extract index 0 h) in
+         (unstep.unstep_skip i h length bits trie, {height=Some h; index=i}))
 
   let step_map f = function
     | LeftBranch {right} -> LeftBranch {right= f right}
@@ -660,16 +686,22 @@ module Trie
   exception Inconsistent_path
 
   let check_path_consistency {costep={index;height};steps} =
-    Key.sign index >= 0 &&
-    let rec c height = function
-      | [] -> true
-      | step :: steps ->
-        (match step with
-         | LeftBranch _ -> not (Key.has_bit index height)
-         | RightBranch _ -> Key.has_bit index height
-         | SkipChild {bits; length} -> Key.equal bits (Key.extract index height length))
-        && c (height + step_length step) steps in
-    c height steps
+    match height with
+    | None ->
+      (* an empty node must only appear at the top level,
+         so the steps need to be empty *)
+      (match steps with [] -> true | _ -> false)
+    | Some height ->
+      Key.sign index >= 0 &&
+      let rec c height = function
+        | [] -> true
+        | step :: steps ->
+          (match step with
+           | LeftBranch _ -> not (Key.has_bit index height)
+           | RightBranch _ -> Key.has_bit index height
+           | SkipChild {bits; length} -> Key.equal bits (Key.extract index height length))
+          && c (height + step_length step) steps in
+      c height steps
 
   type zipper = t * (t path)
 
@@ -677,30 +709,40 @@ module Trie
 
   let unzip =
     let unstep = symmetric_unstep ~branch:(konstant make_branch) ~skip:(konstant make_skip) in
-    fun (t, path) -> fst (path_apply unstep t path)
+    fun (t, path) -> make_head (fst (path_apply unstep t path))
 
   let next (trie, path) = match (Wrap.get trie, path) with
     | (Empty, _up) -> []
     | (Leaf _, _up) -> []
-    | (Branch {left; right}, {costep={index; height}; steps}) ->
+    | (Branch {left; right}, {costep={index; height = Some height}; steps}) ->
       let height = height - 1 in
       let rindex = right_index index height in
-      [(left, {costep={index; height}; steps= LeftBranch {right} :: steps});
-       (right, {costep={index=rindex; height}; steps= RightBranch {left} :: steps})]
-    | (Skip {child; bits; length}, {costep={index; height}; steps}) ->
+      [(left, {costep={index; height = Some height}; steps= LeftBranch {right} :: steps});
+       (right, {costep={index=rindex; height = Some height}; steps= RightBranch {left} :: steps})]
+    | (Skip {child; bits; length}, {costep={index; height = Some height}; steps}) ->
       let index = skip_index index bits length height in
-      [(child, {costep={index; height=height-length}; steps= SkipChild {bits; length} :: steps})]
+      [(child, {costep={index; height = Some (height-length)}; steps= SkipChild {bits; length} :: steps})]
+    | _ ->
+      bork "next: the path is inconsistent with the trie"
 
   let find_path l t =
-    let h = trie_height t in
     if Key.sign l < 0 then
       bork "find_path negative index"
-    else
+    else match trie_height t with
+    | None ->
+      zip t
+    | Some h ->
       let height = Key.numbits l in
-      if Key.numbits l > h then
+      (* if l >= 2^h
+            numbits l >= numbits (2^h)
+            height >= h + 1
+            height > h *)
+      if height > h then
         let hh = height - 1 in
         let left = make_skip hh (hh-h) Key.zero t in
-        (empty, {costep={index=Key.shift_left Key.zero hh; height=hh}; steps=[RightBranch{left}]})
+        (empty,
+         {costep={index=Key.shift_left Key.one hh; height=Some hh};
+          steps=[RightBranch{left}]})
       else
         let rec f (trie, path) = match (Wrap.get trie, path) with
           | (Empty, _) -> (trie, path)
@@ -709,16 +751,16 @@ module Trie
             let child_height = height - length in
             if Key.equal bits (Key.extract l child_height length) then
               let index=skip_index index bits length height in
-              f (child, {costep={index;height=child_height};
+              f (child, {costep={index;height=Some child_height};
                          steps=SkipChild{bits; length}::steps})
             else (trie, path)
           | (Branch {left; right; height}, {costep={index}; steps}) ->
             let child_height = height - 1 in
             if Key.has_bit l child_height then
-              f (right, {costep={index= right_index index height; height=child_height};
+              f (right, {costep={index= right_index index height; height=Some child_height};
                          steps=RightBranch{left}::steps})
             else
-              f (left, {costep={index; height=child_height};
+              f (left, {costep={index; height=Some child_height};
                         steps=LeftBranch{right}::steps})
         in
         f (zip t)
@@ -726,10 +768,16 @@ module Trie
   (* update, using paths *)
   let update l f t =
     let (sub, up) = find_path l t in
-    let o = match Wrap.get t with Leaf {value} -> Some value | _ -> None in
+    let o = match Wrap.get sub with Leaf {value} -> Some value | _ -> None in
     let u = f o in
     if o = u then t else
-      let ll = Key.extract l 0 up.costep.height in
+      (* [ll] is the part of the key [l] that's valid
+         for the submap [sub] *)
+      let ll =
+        match up.costep.height with
+        | None -> l
+        | Some 0 -> Key.zero
+        | Some up_costep_height -> Key.extract l 0 up_costep_height in
       let newsub =
         match u with
         | None -> remove ll sub
@@ -1010,3 +1058,268 @@ end
 
 module RevisionSet = SimpleTrieSet (Revision)
 
+(* --------------------------------------------------------------- *)
+
+module Test = struct
+  module MyTrie = SimpleTrie (UInt16) (StringT)
+  open MyTrie
+
+  (** USAGE:
+      let%test _ = __LINE__ =: show =:
+        actual => expected
+    *)
+  let (=:) a b = (a,b)
+  let (=>) ((line, show), a) b =
+    a = b
+    || bork
+         "Failure: %d\n  actual:   %s\n  expected: %s"
+         line
+         (show a)
+         (show b)
+
+  let [@warning "-32"] rec show_trie t = match Wrap.get t with
+    | Empty ->
+      Printf.sprintf "Empty"
+    | Leaf {value} ->
+      Printf.sprintf "Leaf{value=%S}" value
+    | Branch {left; right; height} ->
+      Printf.sprintf "Branch{left=" ^
+      show_trie left ^ Printf.sprintf ";right=" ^
+      show_trie right ^ Printf.sprintf ";height=%d}" height
+    | Skip {height; length; bits; child} ->
+      Printf.sprintf
+       "Skip{height=%d;length=%d;bits=%s;child="
+        height length (UInt16.to_string bits) ^
+      show_trie child ^ Printf.sprintf "}"
+
+  let show t = show_trie t
+
+  let n = UInt16.of_int
+
+  let%test "{}" = __LINE__ =: show =: empty => Empty
+  let%test "{0}" = __LINE__ =: show =:
+    singleton (n 0) "a" => Leaf { value = "a"; synth = () }
+  let%test "{1}" = __LINE__ =: show =:
+    singleton (n 1) "b"
+    =>
+    Skip { height = 1;
+           bits = (n 1);
+           length = 1;
+           child = Leaf { value = "b"; synth = () };
+           synth = () }
+  let%test "{0, 1}" = __LINE__ =: show =:
+      (add (n 0) "a"
+        (add (n 1) "b" empty))
+      =>
+      Branch { height = 1;
+               left = Leaf { value = "a"; synth = () };
+               right = Leaf { value = "b"; synth = () };
+               synth = () }
+  let%test "{0, 1, 2, 3}" = __LINE__ =: show =:
+      (add (n 0) "a"
+        (add (n 1) "b"
+          (add (n 2) "c"
+            (add (n 3) "d" empty))))
+      =>
+      Branch
+       { height = 2;
+         left =
+         Branch { height = 1;
+                  left = Leaf { value = "a"; synth = () };
+                  right = Leaf { value = "b"; synth = () };
+                  synth = () };
+         right =
+         Branch { height = 1;
+                  left = Leaf { value = "c"; synth = () };
+                  right = Leaf { value = "d"; synth = () };
+                  synth = () };
+         synth = () }
+
+let%test "{0, 1, 3}" = __LINE__ =: show =:
+      (add (n 0) "a"
+        (add (n 1) "b"
+          (add (n 3) "d" empty)))
+      =>
+      Branch
+       { height = 2;
+         left =
+         Branch { height = 1;
+                  left = Leaf { value = "a"; synth = () };
+                  right = Leaf { value = "b"; synth = () };
+                  synth = () };
+         right =
+         Skip { height = 1;
+                bits = (n 1);
+                length = 1;
+                child = Leaf { value = "d"; synth = () };
+                synth = () };
+         synth = () }
+
+let%test "{0, 1, 2}" = __LINE__ =: show =:
+      (add (n 0) "a"
+        (add (n 1) "b"
+          (add (n 2) "c" empty)))
+      =>
+      Branch
+       { height = 2;
+         left =
+         Branch { height = 1;
+                  left = Leaf { value = "a"; synth = () };
+                  right = Leaf { value = "b"; synth = () };
+                  synth = () };
+         right =
+         Skip { height = 1;
+                bits = (n 0);
+                length = 1;
+                child = Leaf { value = "c"; synth = () };
+                synth = () };
+         synth = () }
+
+let%test "{1, 3}" = __LINE__ =: show =:
+      (add (n 1) "a"
+        (add (n 3) "c" empty))
+      =>
+      Branch
+       { height = 2;
+         left =
+         Skip { height = 1;
+                bits = (n 1);
+                length = 1;
+                child = Leaf { value = "a"; synth = () };
+                synth = () };
+         right =
+         Skip { height = 1;
+                bits = (n 1);
+                length = 1;
+                child = Leaf { value = "c"; synth = () };
+                synth = () };
+         synth = () }
+
+  (* ----------------------------------------- *)
+
+  let%test "find_path 100 singleton" =
+    let k = (n 100)
+    and v = "one hundred" in
+    let (focus, context) = find_path k (singleton k v) in
+    focus = Leaf { value = v; synth = Synth.leaf v } &&
+    check_path_consistency context &&
+    unzip (focus, context) = singleton k v
+
+  let%test "find_path 101 {100, 101, 102, 103}" =
+    let k = (n 101)
+    and v = "needle" in
+    let t = add (n 100) "hey"
+             (add k v
+               (add (n 102) "hay"
+                 (add (n 103) "haAAy" empty))) in
+    let (focus, context) = find_path k t in
+    focus = Leaf { value = v; synth = Synth.leaf v } &&
+    check_path_consistency context &&
+    unzip (focus, context) = t
+
+  (* This currently fails because:
+      - `find_path` calls `Z.shift_left` with invalid arguments *)
+  let%test "find_path 0 empty" =
+    let (focus, context) = find_path (n 0) empty in
+    focus = Empty &&
+    check_path_consistency context &&
+    unzip (focus, context) = empty
+
+  (* This currently fails because of at least two reasons:
+      - `check_path_consistency` returns false
+      - `unzip` raises an internal error about `UInt256.sub 0 1` *)
+  let%test "find_path 1 empty" =
+    let (focus, context) = find_path (n 1) empty in
+    focus = Empty &&
+    check_path_consistency context &&
+    unzip (focus, context) = empty
+
+  let%test "find_path 2 {1,3}" =
+    let t = (add (n 1) "a"
+              (add (n 3) "c" empty)) in
+    let (focus, context) = find_path (n 2) t in
+    focus
+      =
+      Skip { height = 1;
+             bits = (n 1);
+             length = 1;
+             child = Leaf { value = "c"; synth = () };
+             synth = () } &&
+    check_path_consistency context &&
+    unzip (focus, context) = t
+
+  let%test "find_path 2 {0, 1}" =
+    let t1 = (add (n 0) "a"
+               (add (n 1) "b" empty))
+    and t2 = (add (n 0) "a"
+               (add (n 1) "b"
+                 (add (n 2) "veni, vidi" empty))) in
+    let (sub, up) = find_path (n 2) t1 in
+    __LINE__ =: show =:
+      unzip (sub, up) => t1 &&
+    __LINE__ =: show =:
+      unzip (Skip { height = 1;
+                    length = 1;
+                    bits = UInt16.zero;
+                    child = Leaf { value = "veni, vidi"; synth = () };
+                    synth = () },
+             up)
+        =>
+        t2
+
+  let%test "update 21 (^'!') {13,21,34}" =
+    let t = (add (n 13) "a"
+              (add (n 21) "bee"
+                (add (n 34) "c" empty)))
+    and exclaim s = s ^ "!" in
+    __LINE__ =: show =:
+      update (n 21) (Option.map exclaim) t
+      =>
+      (add (n 13) "a"
+        (add (n 21) "bee!"
+          (add (n 34) "c" empty)))
+
+  let%test "update 21 toggle {13,21,34}" =
+    let t1 = (add (n 13) "a"
+               (add (n 21) "bee"
+                 (add (n 34) "c" empty)))
+    and t2 = (add (n 13) "a"
+               (add (n 34) "c" empty))
+    and toggle = function
+      | Some _ -> None
+      | None   -> Some "I'm back" in
+    __LINE__ =: show =:
+      update (n 21) toggle t1 => t2 &&
+    __LINE__ =: show =:
+      update (n 21) toggle t2
+      =>
+      (add (n 13) "a"
+        (add (n 21) "I'm back"
+          (add (n 34) "c" empty)))
+
+  let%test "update 1597 toggle {8, 13}" =
+    let t1 = (add (n 8) "a"
+               (add (n 13) "b" empty))
+    and t2 = (add (n 8) "a"
+               (add (n 13) "b"
+                 (add (n 1597) "veni, vidi" empty)))
+    and toggle = function
+      | Some _ -> None
+      | None   -> Some "veni, vidi" in
+    __LINE__ =: show =:
+      update (n 1597) toggle t1 => t2 &&
+    __LINE__ =: show =:
+      update (n 1597) toggle t2 => t1
+
+  let%test "update 1597 toggle {}" =
+    let t1 = empty
+    and t2 = singleton (n 1597) "veni, vidi"
+    and toggle = function
+      | Some _ -> None
+      | None   -> Some "veni, vidi" in
+    __LINE__ =: show =:
+      update (n 1597) toggle t1 => t2 &&
+    __LINE__ =: show =:
+      update (n 1597) toggle t2 => t1
+
+end
