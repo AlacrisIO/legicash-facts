@@ -23,6 +23,7 @@ val check_connection : unit -> unit
 
 (* User access primitives *)
 type ('key, 'value) kv = {key: 'key; value: 'value}
+[@@deriving rlp]
 
 val has_key : string -> bool
 (** Does the database have an entry with this key? *)
@@ -71,6 +72,7 @@ val commit_hook : string -> (unit -> unit Lwt.t) -> unit Lwt.t
     See commit for a note on post-commit actions in general. *)
 
 type transaction
+[@@derving rlp]
 
 val open_transaction : unit -> transaction Lwt.t
 (** Start a transaction. *)
