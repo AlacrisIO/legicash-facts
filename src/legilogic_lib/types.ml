@@ -205,7 +205,7 @@ module RequestGuid = struct
       | ss when List.length ss <> 5 -> Malformed s
       | ss                          -> make ss
 
-  let nil () =
+  let nil =
     (* Note that valid `UUIDv4`s will never result in this value since the 15th
      * character should always be "4". `nil` is useful for cases such as
      * testing or when composing "throwaway" records which must satisfy the

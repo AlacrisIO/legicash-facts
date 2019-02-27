@@ -590,8 +590,8 @@ module User = struct
                 revision_generator { user
                                    ; operator
                                    ; revision
-                                   ; request_guid = RequestGuid.nil ()
-                                   ; requested_at = Timestamp.now   ()
+                                   ; request_guid = RequestGuid.nil
+                                   ; requested_at = Timestamp.now ()
                                    } |> ignore))
 
     let make_activity user_actor user saving state =

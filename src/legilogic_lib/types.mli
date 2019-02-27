@@ -154,7 +154,7 @@ module RequestGuid : sig
 
   val from_string : string -> from_string_result
   val to_string   : t      -> string
-  val nil         : unit   -> t
+  val nil         : t
 
   include PersistableS with type t := t
 end
