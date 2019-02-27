@@ -13,6 +13,7 @@ module Address = struct
   include (YojsonMarshalable(Data160) : YojsonMarshalableS with type t := t)
 end
 type address = Address.t
+[@@deriving rlp]
 
 (* Create context just once, because it's an expensive operation.
    This assumes single instantiation of this module in a single-threaded environment.

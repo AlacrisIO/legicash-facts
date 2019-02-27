@@ -10,10 +10,13 @@ open Action
 (** Address identifying a party (user, operator).
     Per Ethereum, use the low 160-bits of the Keccak256 digest of the party's public key *)
 module Address : sig
-  include UIntS
+  type t
+  [@@deriving rlp]
+  include UIntS with type t := t
   include PersistableS with type t := t
 end
 type address = Address.t
+[@@deriving rlp]
 
 (** Public key in Secp256k1 public-key cryptography *)
 module PublicKey : sig
