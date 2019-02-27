@@ -11,6 +11,12 @@ module Private : sig
   val rlping_of_to_and_of : 'a to_rlp_item -> 'a of_rlp_item -> 'a rlping
 end
 
+(* Adapting Rlping from one type to another if they are isomorphic *)
+
+(** Given a type `a` which has rlping, and conversion functions
+    between `a` and `b`, produce the rlping for type `b` *)
+val rlping_by_isomorphism : ('a -> 'b) -> ('b -> 'a) -> 'a rlping -> 'b rlping
+
 (* unit / empty-tuple *)
 
 val unit_to_rlp_item   : unit to_rlp_item

@@ -41,6 +41,17 @@ end
 
 (* ------------------------------------------------------------------------- *)
 
+(* Adapting Rlping from one type to another if they are isomorphic *)
+
+(** Given a type `a` which has rlping, and conversion functions
+    between `a` and `b`, produce the rlping for type `b` *)
+let rlping_by_isomorphism a_to_b b_to_a a_rlping =
+  let a_to_rlp_item b = a_rlping.Rlping.to_rlp_item (b_to_a b)
+  and a_of_rlp_item a = (a_to_b (a_rlping.Rlping.of_rlp_item a)) in
+  Private.rlping_of_to_and_of a_to_rlp_item a_of_rlp_item
+
+(* ------------------------------------------------------------------------- *)
+
 (* unit / empty-tuple *)
 
 let unit_to_rlp_item () = Rlp.RlpItems []
@@ -91,12 +102,10 @@ let z_of_rlp = z_rlping.of_rlp
 let z_marshal_rlp = z_rlping.marshal_rlp
 let z_unmarshal_rlp = z_rlping.unmarshal_rlp
 
-let int_to_rlp_item i = z_to_rlp_item (Z.of_int i)
+let int_rlping = rlping_by_isomorphism Z.to_int Z.of_int z_rlping
 
-let int_of_rlp_item i = Z.to_int (z_of_rlp_item i)
-
-let int_rlping = Private.rlping_of_to_and_of int_to_rlp_item int_of_rlp_item
-
+let int_to_rlp_item = int_rlping.to_rlp_item
+let int_of_rlp_item = int_rlping.of_rlp_item
 let int_to_rlp = int_rlping.to_rlp
 let int_of_rlp = int_rlping.of_rlp
 let int_marshal_rlp = int_rlping.marshal_rlp
@@ -104,9 +113,12 @@ let int_unmarshal_rlp = int_rlping.unmarshal_rlp
 
 (* floats *)
 
-let float_to_rlp_item x = z_to_rlp_item (Z.of_int64 (Int64.bits_of_float x))
-let float_of_rlp_item x = Int64.float_of_bits (Z.to_int64 (z_of_rlp_item x))
-let float_rlping = Private.rlping_of_to_and_of float_to_rlp_item float_of_rlp_item
+let z_bits_of_float x = Z.of_int64 (Int64.bits_of_float x)
+let float_of_z_bits z = Int64.float_of_bits (Z.to_int64 z)
+
+let float_rlping = rlping_by_isomorphism float_of_z_bits z_bits_of_float z_rlping
+let float_to_rlp_item = float_rlping.to_rlp_item
+let float_of_rlp_item = float_rlping.of_rlp_item
 let float_to_rlp = float_rlping.to_rlp
 let float_of_rlp = float_rlping.of_rlp
 let float_marshal_rlp = float_rlping.marshal_rlp
