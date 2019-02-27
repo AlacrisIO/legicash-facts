@@ -41,14 +41,24 @@ end
 
 (* ------------------------------------------------------------------------- *)
 
+(* Rlping from to_rlp_item and of_rlp_item functions *)
+
+(** Given a type `a` which has pre_rlping, produce the full
+    rlping for it. *)
+let rlping : 'a Rlping.pre_rlping -> 'a Rlping.rlping =
+  fun pre ->
+    Private.rlping_of_to_and_of pre.to_rlp_item pre.of_rlp_item
+
+(* ------------------------------------------------------------------------- *)
+
 (* Adapting Rlping from one type to another if they are isomorphic *)
 
 (** Given a type `a` which has rlping, and conversion functions
     between `a` and `b`, produce the rlping for type `b` *)
 let rlping_by_isomorphism a_to_b b_to_a a_rlping =
-  let a_to_rlp_item b = a_rlping.Rlping.to_rlp_item (b_to_a b)
-  and a_of_rlp_item a = (a_to_b (a_rlping.Rlping.of_rlp_item a)) in
-  Private.rlping_of_to_and_of a_to_rlp_item a_of_rlp_item
+  let to_rlp_item b = a_rlping.Rlping.to_rlp_item (b_to_a b)
+  and of_rlp_item a = (a_to_b (a_rlping.Rlping.of_rlp_item a)) in
+  rlping { to_rlp_item; of_rlp_item }
 
 (* ------------------------------------------------------------------------- *)
 
@@ -57,7 +67,7 @@ let rlping_by_isomorphism a_to_b b_to_a a_rlping =
 let unit_to_rlp_item () = Rlp.RlpItems []
 let unit_of_rlp_item = function (Rlp.RlpItems []) -> ()
                               | v -> raise (Rlp.Rlp_data_type_mismatch ("unit_of_rlp_item: expected an empty RlpItems list", v))
-let unit_rlping = Private.rlping_of_to_and_of unit_to_rlp_item unit_of_rlp_item
+let unit_rlping = rlping { to_rlp_item = unit_to_rlp_item; of_rlp_item = unit_of_rlp_item }
 let unit_to_rlp = unit_rlping.to_rlp
 let unit_of_rlp = unit_rlping.of_rlp
 let unit_marshal_rlp = unit_rlping.marshal_rlp
@@ -68,7 +78,7 @@ let unit_unmarshal_rlp = unit_rlping.unmarshal_rlp
 let string_to_rlp_item s = Rlp.RlpItem s
 let string_of_rlp_item = function (Rlp.RlpItem s) -> s
                                 | v -> raise (Rlp.Rlp_data_type_mismatch ("string_of_rlp_item: expected an RlpItem", v))
-let string_rlping = Private.rlping_of_to_and_of string_to_rlp_item string_of_rlp_item
+let string_rlping = rlping { to_rlp_item = string_to_rlp_item; of_rlp_item = string_of_rlp_item }
 let string_to_rlp = string_rlping.to_rlp
 let string_of_rlp = string_rlping.of_rlp
 let string_marshal_rlp = string_rlping.marshal_rlp
@@ -95,7 +105,7 @@ let z_of_rlp_item i =
   | Rlp.RlpItems [Rlp.RlpItem s] -> Z.neg (Rlp_decode.decode_nat_of_string s)
   | v -> raise (Rlp.Rlp_data_type_mismatch ("invalid RLP int", v))
 
-let z_rlping = Private.rlping_of_to_and_of z_to_rlp_item z_of_rlp_item
+let z_rlping = rlping { to_rlp_item = z_to_rlp_item; of_rlp_item = z_of_rlp_item }
 
 let z_to_rlp = z_rlping.to_rlp
 let z_of_rlp = z_rlping.of_rlp
@@ -128,7 +138,7 @@ let float_unmarshal_rlp = float_rlping.unmarshal_rlp
 
 let bool_to_rlp_item b = int_to_rlp_item (if b then 1 else 0)
 let bool_of_rlp_item b = 0 <> (int_of_rlp_item b)
-let bool_rlping = Private.rlping_of_to_and_of bool_to_rlp_item bool_of_rlp_item
+let bool_rlping = rlping { to_rlp_item = bool_to_rlp_item; of_rlp_item = bool_of_rlp_item }
 let bool_to_rlp = bool_rlping.to_rlp
 let bool_of_rlp = bool_rlping.of_rlp
 let bool_marshal_rlp = bool_rlping.marshal_rlp
