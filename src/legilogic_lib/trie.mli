@@ -22,6 +22,7 @@ end
 module type TrieSynthS = sig
   include TreeSynthS
   type key
+  [@@deriving rlp]
   val skip : int -> int -> key -> t -> t
 end
 
@@ -41,6 +42,7 @@ end
 (* For a concrete usage of this, see [Merkle_trie.MerkleTrieType]. *)
 module type TrieTypeS = sig
   type key
+  [@@deriving rlp]
   (** Type of keys *)
 
   type value

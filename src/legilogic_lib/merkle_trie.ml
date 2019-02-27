@@ -32,6 +32,7 @@ end
 
 module TrieSynthMerkle (Key : UIntS) (Value : PersistableS) = struct
   type key = Key.t
+  [@@deriving rlp]
   type value = Value.t
   type t = digest
   let marshal_empty buffer _ =
@@ -75,6 +76,7 @@ end
 
 module type MerkleTrieS = sig
   type key
+  [@@deriving rlp]
   type value
   (* [Synth.t = unit] because we want to be able to use the [TrieS] tree-walking
      functionality for lazy DB access, here, without invoking its potentially
@@ -362,6 +364,7 @@ end
 
 module type MerkleTrieSetS = sig
   type elt
+  [@@deriving rlp]
   module M : MerkleTrieS with type key = elt and type value = unit
   module T : TrieS
     with type key = elt and type value = unit
@@ -377,7 +380,11 @@ end
 
 module MerkleTrieSet (Elt : UIntS) = struct
   module M = MerkleTrie (Elt) (Unit)
-  include TrieSet (Elt) (M)
+
+  type elt = Elt.t
+  [@@deriving rlp]
+
+  include (TrieSet (Elt) (M) : module type of (TrieSet (Elt) (M)) with type elt := Elt.t)
   include (M : PersistableS with type t := t)
 
   let trie_digest = M.trie_digest

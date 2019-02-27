@@ -24,11 +24,13 @@ end
 module type TrieSynthS = sig
   include TreeSynthS
   type key
+  [@@deriving rlp]
   val skip : int -> int -> key -> t -> t
 end
 
 module TrieSynthUnit (Key : UIntS) (Value : TypeS) = struct
   type key = Key.t
+  [@@deriving rlp]
   type value = Value.t
   type t = unit
   let empty = ()
@@ -39,6 +41,7 @@ end
 
 module TrieSynthCardinal (Key : UIntS) (Value : TypeS) = struct
   type key = Key.t
+  [@@deriving rlp]
   type value = Value.t
   type t = Z.t
   let empty = Z.zero
@@ -50,6 +53,7 @@ end
 module TrieSynthComputeSkip (Key : UIntS) (Synth: TreeSynthS) = struct
   include Synth
   type key = Key.t
+  [@@deriving rlp]
   let [@warning "-32"] skip height length bits synth =
     let rec c len synth =
       if len = length then synth else
@@ -64,6 +68,7 @@ end
 
 module type TrieTypeS = sig
   type key
+  [@@deriving rlp]
   type value
   type synth
   type +'a wrap
@@ -83,6 +88,7 @@ module TrieType
     (Key : UIntS) (Value : TypeS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   type key = Key.t
+  [@@deriving rlp]
   type value = Value.t
   type synth = Synth.t
   type +'a wrap = 'a WrapType.t

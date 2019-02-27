@@ -67,6 +67,7 @@ end
 (** Merkle Trie *)
 module type MerkleTrieS = sig
   type key
+  [@@deriving rlp]
   type value
   module Synth : TrieSynthS with type t = unit and type key = key and type value = value
   (* Contains the logic for recursively computing merkle digest of tree: *)
@@ -112,6 +113,7 @@ end
 (** Merkle tries where the only concern is membership, not tree location. *)
 module type MerkleTrieSetS = sig
   type elt
+  [@@deriving rlp]
   module M : MerkleTrieS with type key = elt and type value = unit
   module T : TrieS
     with type key = elt
