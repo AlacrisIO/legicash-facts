@@ -228,7 +228,7 @@ module AccountState : sig
     (* number of operations so far that concern this account.
        This both makes verification easier and prevents replay attacks
        like the equivalent Ethereum "nonce" *) }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
 
   (** Default (empty) state for a new operator *)

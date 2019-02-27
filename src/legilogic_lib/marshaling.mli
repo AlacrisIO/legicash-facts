@@ -18,6 +18,8 @@ type 'a unmarshaler = int -> Bytes.t -> 'a*int
 type 'a marshaling =
   { marshal: 'a marshaler; unmarshal: 'a unmarshaler }
 
+val marshaling_of_rlping : 'a rlping -> 'a marshaling
+
 (** A module containing the bare minimum methods from which to deduce all utility functions
     about marshaling. *)
 module type PreMarshalableS = sig
@@ -56,6 +58,8 @@ val unmarshal_string_of_unmarshal : 'a unmarshaler -> string -> 'a
 val char_marshaling : char marshaling
 
 val bool_marshaling : bool marshaling
+
+val string_marshaling : string marshaling
 
 val list_marshaling : 'a marshaling -> 'a list marshaling
 

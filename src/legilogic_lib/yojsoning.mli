@@ -79,7 +79,9 @@ val string_0x_yojsoning : string yojsoning
 val bytes_yojsoning : Bytes.t yojsoning
 
 module Bytes : sig
-  include module type of Bytes
+  type t = Bytes.t
+  [@@deriving rlp]
+  include module type of Bytes with type t := t
   include YojsonableS with type t := t
   include ShowableS with type t := t
 end

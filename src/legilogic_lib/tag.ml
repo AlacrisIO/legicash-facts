@@ -7,7 +7,6 @@
 open Lib
 open Yojsoning
 open Marshaling
-open Integer
 
 let base_trie = 0x40
 let empty = 0x40
@@ -40,7 +39,7 @@ module UInt16int = struct
     type t = int
     let verify x =
       if 0 <= x && x <= 0xFFFF then x else bork "bad UInt16int"
-    let marshaling = marshaling_map UInt16.of_int UInt16.to_int UInt16.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning =
       { to_yojson = (fun x -> `Int x)
       ; of_yojson = function
@@ -131,8 +130,8 @@ let result_marshaling mok merror =
 
 exception Server_error of string
 
-let marshal_exception = marshal_map Printexc.to_string String1G.marshal
-let unmarshal_exception = unmarshal_map (fun s -> Server_error s) String1G.unmarshal
+let marshal_exception = marshal_map Printexc.to_string string_marshaling.marshal
+let unmarshal_exception = unmarshal_map (fun s -> Server_error s) string_marshaling.unmarshal
 let exception_marshaling = {marshal=marshal_exception;unmarshal=unmarshal_exception}
 
 let marshal_result_or_exn m = marshal_result m marshal_exception

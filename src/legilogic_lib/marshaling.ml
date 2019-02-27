@@ -66,6 +66,8 @@ let char_marshaling = marshaling_of_rlping [%rlp: char]
 
 let bool_marshaling = marshaling_of_rlping [%rlp: bool]
 
+let string_marshaling = marshaling_of_rlping [%rlp: string]
+
 let marshal_not_implemented _buffer _x = bottom ()
 let unmarshal_not_implemented _start _bytes = bottom ()
 let marshaling_not_implemented = {marshal=marshal_not_implemented;unmarshal=unmarshal_not_implemented}
@@ -413,7 +415,7 @@ module Data = struct
   [@@deriving rlp]
   module P = struct
     type t = string
-    let marshaling = String1G.marshaling
+    let marshaling = string_marshaling
     let yojsoning = yojsoning_map Hex.unparse_0x_data Hex.parse_0x_data string_yojsoning
   end
   include (YojsonMarshalable(P) : YojsonMarshalableS with type t := t)
@@ -438,7 +440,7 @@ let list_marshaling m = {marshal=marshal_list m.marshal; unmarshal=unmarshal_lis
 let marshaling_of_yojsoning yojsoning =
   let to_yojson_string = to_yojson_string_of_to_yojson yojsoning.to_yojson in
   let of_yojson_string_exn = of_yojson_string_exn_of_of_yojson yojsoning.of_yojson in
-  marshaling_map to_yojson_string of_yojson_string_exn String1G.marshaling
+  marshaling_map to_yojson_string of_yojson_string_exn string_marshaling
 
 (** Object which can be marshaled based on json representation. Marshaled
     representation must fit in a gigabyte (!) *)

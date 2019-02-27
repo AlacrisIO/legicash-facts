@@ -1,4 +1,6 @@
 open Lib
+open Ppx_deriving_rlp_runtime
+open Rlping
 
 type yojson = Yojson.Safe.t
 let string_of_yojson y = Yojson.Safe.to_string y
@@ -151,8 +153,17 @@ let string_0x_yojsoning =
 let bytes_yojsoning =
   yojsoning_map Bytes.to_string Bytes.of_string string_0x_yojsoning
 
+let bytes_rlping =
+  rlping_by_isomorphism Bytes.of_string Bytes.to_string string_rlping
+
 module Bytes = struct
   include Bytes
+  let rlping = bytes_rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
   include (Yojsonable(struct
              type t = Bytes.t
              let yojsoning = bytes_yojsoning

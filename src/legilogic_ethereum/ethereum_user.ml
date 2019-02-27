@@ -365,14 +365,12 @@ module TransactionTracker = struct
     type context = unit
     module Key = struct
       [@@@warning "-39"]
-      type t= { user : Address.t; revision : Revision.t } [@@deriving yojson]
+      type t = { user : Address.t; revision : Revision.t }
+      [@@deriving yojson, rlp]
       include (YojsonMarshalable(struct
                  type nonrec t = t
                  let yojsoning = {to_yojson;of_yojson}
-                 let marshaling = marshaling2
-                                    (fun {user;revision} -> user,revision)
-                                    (fun user revision -> {user;revision})
-                                    Address.marshaling Revision.marshaling
+                 let marshaling = marshaling_of_rlping rlping
                end): YojsonMarshalableS with type t := t)
     end
     type key = Key.t

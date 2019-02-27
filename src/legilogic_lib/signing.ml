@@ -124,7 +124,10 @@ module Keypair = struct
         (marshaling4
            (fun {address; public_key; private_key; password} -> address, public_key, private_key, password)
            (fun address public_key private_key password -> {address; public_key; private_key; password})
-           Address.marshaling PublicKey.marshaling PrivateKey.marshaling String1G.marshaling)
+           Address.marshaling
+           PublicKey.marshaling
+           PrivateKey.marshaling
+           string_marshaling)
   end
   include (YojsonMarshalable(P) : YojsonMarshalableS with type t := t)
 end

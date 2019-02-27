@@ -17,14 +17,10 @@ module TokenAmount = Ethereum_chain.TokenAmount
 module Invoice = struct
   [@warning "-39"]
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: string}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling3
-        (fun {recipient; amount; memo} -> recipient, amount, memo)
-        (fun recipient amount memo -> {recipient; amount; memo})
-        Address.marshaling TokenAmount.marshaling String63.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -197,38 +193,10 @@ module RxHeader = struct
     ; confirmed_side_chain_state_digest: Digest.t
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
-  [@@deriving lens {prefix=true}, yojson]
+  [@@deriving lens {prefix=true}, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling8
-        (fun { operator
-             ; requester
-             ; requester_revision
-             ; confirmed_main_chain_state_digest
-             ; confirmed_main_chain_state_revision
-             ; confirmed_side_chain_state_digest
-             ; confirmed_side_chain_state_revision
-             ; validity_within } ->
-          operator, requester, requester_revision,
-          confirmed_main_chain_state_digest, confirmed_main_chain_state_revision,
-          confirmed_side_chain_state_digest, confirmed_side_chain_state_revision,
-          validity_within)
-        (fun operator requester requester_revision
-          confirmed_main_chain_state_digest confirmed_main_chain_state_revision
-          confirmed_side_chain_state_digest confirmed_side_chain_state_revision
-          validity_within ->
-          { operator
-          ; requester
-          ; requester_revision
-          ; confirmed_main_chain_state_digest
-          ; confirmed_main_chain_state_revision
-          ; confirmed_side_chain_state_digest
-          ; confirmed_side_chain_state_revision
-          ; validity_within })
-        Address.marshaling Address.marshaling Revision.marshaling
-        Digest.marshaling Revision.marshaling Digest.marshaling Revision.marshaling
-        Duration.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -259,14 +227,10 @@ module SignedUserTransactionRequest = Signed(UserTransactionRequest)
 module TxHeader = struct
   [@warning "-39"]
   type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling2
-        (fun {tx_revision; updated_limit} -> tx_revision, updated_limit)
-        (fun tx_revision updated_limit -> {tx_revision; updated_limit})
-        Revision.marshaling TokenAmount.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -278,15 +242,11 @@ module AdminTransactionRequest = struct
   [@warning "-39"]
   type t =
     | StateUpdate of Revision.t * Digest.t
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
-    let marshaling =
-      marshaling2
-        (function StateUpdate (r, d) -> r, d)
-        (fun r d -> StateUpdate (r, d))
-        Revision.marshaling Digest.marshaling
+    let marshaling = marshaling_of_rlping rlping
   end
   include (TrivialPersistable(P) : PersistableS with type t := t)
 end
@@ -429,14 +389,10 @@ end
 module AccountState = struct
   [@warning "-39"]
   type t = {balance: TokenAmount.t; account_revision: Revision.t}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling2
-        (fun {balance; account_revision} -> balance, account_revision)
-        (fun balance account_revision -> {balance; account_revision})
-        TokenAmount.marshaling Revision.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -510,16 +466,10 @@ module OperatorFeeSchedule = struct
     ; withdrawal_fee: TokenAmount.t
     ; per_account_limit: TokenAmount.t
     ; fee_per_billion: TokenAmount.t }
-  [@@deriving lens { prefix=true}, yojson]
+  [@@deriving lens { prefix=true}, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling4
-        (fun { deposit_fee ; withdrawal_fee ; per_account_limit ; fee_per_billion } ->
-           deposit_fee, withdrawal_fee, per_account_limit, fee_per_billion)
-        (fun deposit_fee withdrawal_fee per_account_limit fee_per_billion ->
-           { deposit_fee ; withdrawal_fee ; per_account_limit ; fee_per_billion })
-        TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
     let yojsoning = {to_yojson;of_yojson}

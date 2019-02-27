@@ -62,16 +62,10 @@ module Confirmation = struct
            ; transaction_index: Revision.t
            ; block_number: Revision.t
            ; block_hash: Digest.t }
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling4
-        (fun {transaction_hash; transaction_index; block_number; block_hash} ->
-           (transaction_hash, transaction_index, block_number, block_hash))
-        (fun transaction_hash transaction_index block_number block_hash ->
-           {transaction_hash; transaction_index; block_number; block_hash})
-        Digest.marshaling Revision.marshaling Revision.marshaling Digest.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson; of_yojson}
   end
   include (TrivialPersistable (PrePersistable) : (PersistableS with type t := t))
@@ -88,17 +82,10 @@ module TxHeader = struct
            ; gas_price: TokenAmount.t
            ; gas_limit: TokenAmount.t
            ; value: TokenAmount.t }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling5
-        (fun {sender; nonce; gas_price; gas_limit; value} ->
-           (sender, nonce, gas_price, gas_limit, value))
-        (fun sender nonce gas_price gas_limit value ->
-           {sender; nonce; gas_price; gas_limit; value})
-        Address.marshaling Nonce.marshaling
-        TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
@@ -114,7 +101,7 @@ module Operation = struct
     | TransferTokens of Address.t
     | CreateContract of Yojsoning.Bytes.t
     | CallFunction of Address.t * Yojsoning.Bytes.t
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
@@ -124,7 +111,7 @@ end
 module PreTransaction = struct
   [@warning "-39"]
   type t = {operation: Operation.t; value: TokenAmount.t; gas_limit: TokenAmount.t}
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
@@ -137,7 +124,7 @@ end
 module Transaction = struct
   [@warning "-39"]
   type t = {tx_header: TxHeader.t; operation: Operation.t}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
