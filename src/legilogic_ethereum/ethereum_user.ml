@@ -190,7 +190,7 @@ let confirmation_of_transaction_receipt =
     Confirmation.{transaction_hash; transaction_index; block_number; block_hash}
 
 (** Number of blocks required for a transaction to be considered confirmed *)
-(* The value should be set in side_chain_server_config.json file. 
+(* The value should be set in side_chain_server_config.json file.
    For production, use 100, not 0. Put it as configuration file on input *)
 (* let block_depth_for_confirmation = Revision.of_int 0 *)
 let block_depth_for_confirmation = Side_chain_server_config.minNbBlockConfirm
@@ -222,7 +222,7 @@ let check_confirmation_deep_enough_bool (confirmation : Confirmation.t) : bool L
     return false
 
 
-  
+
 type nonce_operation = Peek | Next | Reset [@@deriving yojson]
 
 module NonceTracker = struct
@@ -542,7 +542,7 @@ let check_transaction_confirmed :
     | FinalTransactionStatus.Confirmed (t, c) -> return (t, c)
     | FinalTransactionStatus.Failed (t, e) -> fail (TransactionFailed (t, e))
 
-let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr = 
+let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr =
   issue_pre_transaction address
   >>> of_lwt track_transaction
   >>> check_transaction_confirmed

@@ -35,7 +35,7 @@ let (topic_of_withdraw : Bytes.t option) = topic_of_hash (digest_of_string "With
 
 
 
-  
+
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
 
@@ -78,7 +78,7 @@ let wait_for_operator_state_update (contract_address : Address.t) (operator : Ad
   Logging.log "Beginning of wait_for_operator_state_update";
   let (topics : Bytes.t option list) = [topic_of_state_update] in
   let (list_data_type : abi_type list) = [Address; Bytes 32] in
-  let (data_value_search : abi_value option list) = [Some (Address_value operator); None] in 
+  let (data_value_search : abi_value option list) = [Some (Address_value operator); None] in
   wait_for_contract_event_eth contract_address topics list_data_type data_value_search
 
 
@@ -94,7 +94,7 @@ let wait_for_claim_withdrawal_event (contract_address : Address.t) (operator : A
                                                      Some (abi_value_from_revision revision); None; None] in
   Lwt_exn.bind (wait_for_contract_event_eth contract_address topics list_data_type data_value_search)
     (fun _ -> Lwt_exn.return ())
-      
+
 
 
 (*    Uint_value (abi_uint64 (Revision.z_of revision)));    *)
@@ -128,9 +128,9 @@ let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.
       let (topics : Bytes.t option list) = [topic_of_withdraw] in
       let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Uint 256; Bytes 32] in
       let (data_value_search : abi_value option list) =
-        [Some (Address_value operator); Some (abi_value_from_revision tc.tx_proof.key); None; None; None] in 
+        [Some (Address_value operator); Some (abi_value_from_revision tc.tx_proof.key); None; None; None] in
       wait_for_contract_event_unit tc.contract_address topics list_data_type data_value_search)
-  
+
 let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =
   Lwt.return RxHeader.
                { operator
@@ -463,7 +463,7 @@ let operator_lens : Address.t -> (UserState.t, UserAccountState.t) Lens.t =
     defaulting_lens (konstant UserAccountState.empty)
       (UserAccountStateMap.lens operator)
 
-  
+
 let get_next_account_revision : Address.t -> unit -> UserState.t -> (Revision.t * UserState.t) Lwt.t =
   fun operator () state ->
     let revision_lens = operator_lens operator |-- UserAccountState.lens_side_chain_revision in

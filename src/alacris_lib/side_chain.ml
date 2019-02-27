@@ -518,7 +518,7 @@ module SignaturePrefix = struct
 end
 
 (* 1 ether = 1e18 wei = 242 USD (as of 2018-09-23), with gas price of ~4.1 gwei *)
-(*                       
+(*
 let initial_fee_schedule =
   OperatorFeeSchedule.
     { deposit_fee= TokenAmount.of_string "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
@@ -526,7 +526,7 @@ let initial_fee_schedule =
     ; per_account_limit= TokenAmount.of_string "10000000000000000000" (* 1e19 wei = 10 ether ~= 2420 USD *)
     ; fee_per_billion= TokenAmount.of_string "1000000" } (* 1e6/1e9 = 1e-3 = .1% *)
  *)
-                       
+
 let initial_fee_schedule =
   OperatorFeeSchedule.
     { deposit_fee = Side_chain_server_config.deposit_fee_v
