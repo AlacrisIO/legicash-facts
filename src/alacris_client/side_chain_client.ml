@@ -104,6 +104,7 @@ let return_result id json_or_exn =
   | Error exn -> Printexc.to_string exn
                  |> error_response id
 
+(* TODO replace with `Lwt_exn.run_lwt` *)
 let throw_if_err = function
   | Ok d    -> Lwt.return d
   | Error e -> raise e
