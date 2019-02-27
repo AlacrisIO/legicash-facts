@@ -41,6 +41,16 @@ val string_marshal_rlp   : string marshal_rlp
 val string_unmarshal_rlp : string unmarshal_rlp
 val string_rlping        : string rlping
 
+(* chars *)
+
+val char_to_rlp_item   : char to_rlp_item
+val char_of_rlp_item   : char of_rlp_item
+val char_to_rlp        : char to_rlp
+val char_of_rlp        : char of_rlp
+val char_marshal_rlp   : char marshal_rlp
+val char_unmarshal_rlp : char unmarshal_rlp
+val char_rlping        : char rlping
+
 (* signed integers *)
 
 val z_to_rlp_item   : Z.t to_rlp_item

@@ -84,6 +84,17 @@ let string_of_rlp = string_rlping.of_rlp
 let string_marshal_rlp = string_rlping.marshal_rlp
 let string_unmarshal_rlp = string_rlping.unmarshal_rlp
 
+(* chars *)
+
+let char_to_rlp_item c = Rlp.RlpItem (String.make 1 c)
+let char_of_rlp_item = function (Rlp.RlpItem s) when String.length s = 1 -> s.[0]
+                              | v -> raise (Rlp.Rlp_data_type_mismatch ("char_of_rlp_item: expected an RlpItem of 1 byte", v))
+let char_rlping = rlping { to_rlp_item = char_to_rlp_item; of_rlp_item = char_of_rlp_item }
+let char_to_rlp = char_rlping.to_rlp
+let char_of_rlp = char_rlping.of_rlp
+let char_marshal_rlp = char_rlping.marshal_rlp
+let char_unmarshal_rlp = char_rlping.unmarshal_rlp
+
 (* signed integers *)
 
 (* Naturals (zero or positive) are encoded using an RlpItem

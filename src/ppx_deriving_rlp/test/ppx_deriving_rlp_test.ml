@@ -28,6 +28,7 @@ let check_float_rlp = check_convert_rlp [%rlp: float].to_rlp_item [%rlp: float].
 let check_alias_int_rlp = check_convert_rlp alias_int_to_rlp_item alias_int_of_rlp_item alias_int_marshal_rlp alias_int_unmarshal_rlp
 let check_alias_list_rlp = check_convert_rlp alias_list_to_rlp_item alias_list_of_rlp_item alias_list_marshal_rlp alias_list_unmarshal_rlp
 let check_alias_unit_rlp = check_convert_rlp alias_unit_to_rlp_item alias_unit_of_rlp_item alias_unit_marshal_rlp alias_unit_unmarshal_rlp
+let check_char_rlp = check_convert_rlp char_to_rlp_item char_of_rlp_item [%rlp: char].marshal_rlp [%rlp: char].unmarshal_rlp
 let check_foo_rlp = check_convert_rlp foo_to_rlp_item foo_of_rlp_item foo_marshal_rlp foo_unmarshal_rlp
 let check_loi_rlp = check_convert_rlp loi_to_rlp_item loi_of_rlp_item loi_marshal_rlp loi_unmarshal_rlp
 let check_wrapped_list1_rlp = check_convert_rlp wrapped_list1_to_rlp_item wrapped_list1_of_rlp_item wrapped_list1_marshal_rlp wrapped_list1_unmarshal_rlp
@@ -50,6 +51,11 @@ let test_int1 ctxt = check_alias_int_rlp ~ctxt 5 (RlpItem "\005") "\005"
 let test_int2 ctxt = check_alias_int_rlp ~ctxt (-10) (RlpItems [RlpItem "\010"]) "\xc1\010"
 let test_list2 ctxt = check_alias_list_rlp ~ctxt [6] (RlpItems [RlpItem "\006"]) "\xc1\006"
 let test_unit2 ctxt = check_alias_unit_rlp ~ctxt () (RlpItems []) "\xc0"
+
+let test_char1 ctxt = check_char_rlp ~ctxt 'a' (RlpItem "a") "\097"
+let test_char2 ctxt = check_char_rlp ~ctxt 'm' (RlpItem "m") "\109"
+let test_char3 ctxt = check_char_rlp ~ctxt 'X' (RlpItem "X") "\088"
+let test_char4 ctxt = check_char_rlp ~ctxt '\204' (RlpItem "\204") "\x81\204"
 
 let test_float1 ctxt = assert_equal ~ctxt ~printer:Rlp.show_rlp_item
                                     (RlpItem "\x3f\xf2\x49\x24\x92\x49\x24\x92")
@@ -257,6 +263,10 @@ let suite =
   "test_int2">:: test_int2;
   "test_list2">:: test_list2;
   "test_unit2">:: test_unit2;
+  "test_char1">:: test_char1;
+  "test_char2">:: test_char2;
+  "test_char3">:: test_char3;
+  "test_char4">:: test_char4;
   "test_float1">:: test_float1;
   "test_float2">:: test_float2;
   "test_float3">:: test_float3;
