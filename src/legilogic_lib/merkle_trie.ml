@@ -660,19 +660,19 @@ module Test = struct
 
   let proof_42_in_trie_100 =
     lazy (Proof.of_yojson_exn
-            (`Assoc [ ("key",`String "0x2a")
-                    ; ("trie",`String "0x1b0247d6f6ca6e1411806a9f74fc3d833916fdc2401ed161e6b5ce601ad84185")
-                    ; ("leaf", `String "0x70f3a8f4b17c16dfd0aed8dcb3f6b0d33e1052cf994f75e657d2d322a501bb50")
-                    ; ("steps",
-                       `List [ make_left_step "0x825549a7bd7501bb0ba616c4fc70cbbebefaea2d84f6b952fe398fda5d1462db"
-                             ; make_right_step "0xa56429299f24894faf768ae69ed9615c40ed65f30ed15c2e148501d1310903ec"
-                             ; make_left_step "0x346bfa238000fb06f04f4979b47486a4257d3259177782530fc26b353fbb81be"
-                             ; make_right_step "0x3ff5f6bd2d1bfc6b2abe7696903c496c5b42d9da98e0c338cac8f5c8a6beca64"
-                             ; make_left_step "0x0fd0e9496ba3fa5afb2293ca2531969c89ccb07b3cba20bdcdb6bdc14b92b590"
-                             ; make_right_step "0xb8f1bc4ef8830fee1b2c823f9c2c89846692a15152f7f5a8265238d19f9b7b0d"
-                             ; make_left_step "0xb914f8a6dda6b8a172da0361c6cb3e1c6d386629bdb76aae83d2d66bd374af6b"
-                             ])
-                    ]))
+           (Yojson.Safe.from_string
+            {jsonstring|
+            {"key":"0x2a",
+             "trie":"0x35d9b9738843cdb0dae99c374a68205a72b21313c01c3548faa2ce5c673e3124",
+             "leaf":"0x879e02d7e15eae2ee790f040f69ad702e271d97812856cf4ed6452ccace768fa",
+             "steps":[{"type":"Left","right":"0xf04a75b58add3c2f4aec3b1af868e30fbc6f44dfb51c362baf0b1f5df21dfba4"},
+                      {"type":"Right","left":"0xf436501c45ec9b9aaf54c6fc45c85568fce39dc332abf407b3cfb83a3f600ec5"},
+                      {"type":"Left","right":"0xe6751c9b722504f37bac491dc7bc508ab5bef5969ed8bda5b828d4db7c5e9b30"},
+                      {"type":"Right","left":"0xe0d8e221d212e018b68a41db8edbf34edaa3c4c43cefad01ee89cc5f2d17ae68"},
+                      {"type":"Left","right":"0x438678dd79f5a8215d2da2038b5286fd5cfe5efe2d11fcb2c90a0ecb5ad828b4"},
+                      {"type":"Right","left":"0x75ebb5b7cf9cfe4aa8df7d4919f68117ba47196034b91bba6937fbd3e289fdbf"},
+                      {"type":"Left","right":"0x6ff1d8fc43ab692944448190b52b462f0db8b537667bb4ec0b7c1ae4cab017b9"}]}
+            |jsonstring} ))
 
   let bad_proof = lazy (match force proof_42_in_trie_100 with
     | Proof.{ key ; trie ; leaf ; steps = [s1;s2;s3;s4;s5;s6;s7] } ->
