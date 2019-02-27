@@ -32,6 +32,11 @@ module Duration  = UInt64
 module Timestamp = struct
   include UInt64
 
+  (* TODO as of 2019-02-27:
+   * - Increase `Timestamp` precision from milliseconds to microseconds
+   *   https://gitlab.com/legicash/legicash-facts/issues/90
+   *)
+
   let now = fun () -> 1000.0 *. Unix.gettimeofday ()
     |> Int64.of_float
     |> UInt64.of_int64
@@ -154,6 +159,21 @@ module RequestGuid = struct
    *
    * See: https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_(random)
    * and: https://gitlab.com/legicash/legicash-demo-frontend/blob/6161bdd9/src/types/guid.tsx
+   *
+   * ---
+   * TODO as of 2019-02-27:
+   *
+   * - Replace 512bit `RequestGuid` encoding with 128bit
+   *   https://gitlab.com/legicash/legicash-facts/issues/88
+   *
+   * - Improve `RequestGuid` construction + validation
+   *   https://gitlab.com/legicash/legicash-facts/issues/84
+   *
+   * - DB read to prevent `RequestGuid` collisions
+   *   https://gitlab.com/legicash/legicash-facts/issues/83
+   *
+   * - Identify and leverage an existing OCaml UUID library that's solid or roll our own
+   *   https://gitlab.com/legicash/legicash-facts/issues/89
    *)
 
   type t = UInt128.t * UInt64.t * UInt64.t * UInt64.t * UInt192.t
