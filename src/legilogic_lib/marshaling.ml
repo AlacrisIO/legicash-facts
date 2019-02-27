@@ -1,5 +1,6 @@
 open Lib
 open Yojsoning
+open Ppx_deriving_rlp_runtime.Rlping
 
 exception Marshaling_error of string
 exception Unmarshaling_error of string*int*Bytes.t
@@ -7,6 +8,12 @@ exception Unmarshaling_error of string*int*Bytes.t
 type 'a marshaler = Buffer.t -> 'a -> unit
 type 'a unmarshaler = int -> Bytes.t -> 'a * int
 type 'a marshaling = {marshal: 'a marshaler; unmarshal: 'a unmarshaler}
+
+let marshaling_of_rlping : 'a rlping -> 'a marshaling =
+  fun { marshal_rlp; unmarshal_rlp; _ } ->
+    let marshal        = marshal_rlp
+    and unmarshal i bs = unmarshal_rlp i (Bytes.to_string bs) in
+    { marshal; unmarshal }
 
 let marshal_of_sized_string_of num_bytes string_of b x =
   let s = string_of x in
@@ -55,22 +62,9 @@ let unmarshal_map f (unmarshal : 'a unmarshaler) start bytes =
 let marshaling_map f g marshaling =
   {marshal=marshal_map f marshaling.marshal;unmarshal=unmarshal_map g marshaling.unmarshal}
 
-let marshal_char buffer ch = Buffer.add_char buffer ch
-let unmarshal_char start bytes = (Bytes.get bytes start, start + 1)
-let char_marshaling={marshal=marshal_char;unmarshal=unmarshal_char}
+let char_marshaling = marshaling_of_rlping [%rlp: char]
 
-let bool_of_char = function
-  | '\000' -> false
-  | '\001' -> true
-  | c -> bork "Bad bool char %c" c
-
-let char_of_bool = function
-  | false -> '\000'
-  | true -> '\001'
-
-let marshal_bool = marshal_map char_of_bool marshal_char
-let unmarshal_bool = unmarshal_map bool_of_char unmarshal_char
-let bool_marshaling={marshal=marshal_bool;unmarshal=unmarshal_bool}
+let bool_marshaling = marshaling_of_rlping [%rlp: bool]
 
 let marshal_not_implemented _buffer _x = bottom ()
 let unmarshal_not_implemented _start _bytes = bottom ()
@@ -265,6 +259,11 @@ module OCamlMarshaling (T: TypeS) = struct
         value, start + size }
 end
 
+module type RlpingS = sig
+  type t
+  val rlping : t rlping
+end
+
 module type PreYojsonMarshalableS = sig
   include PreMarshalableS
   include PreYojsonableS with type t := t
@@ -292,6 +291,14 @@ module YojsonMarshalable (P : PreYojsonMarshalableS) = struct
   include Marshalable(P)
   include (Yojsonable(P) : YojsonableS with type t := t)
 end
+
+module PreMarshalableOfRlp (R : RlpingS) : (PreMarshalableS with type t = R.t) = struct
+  type t = R.t
+  let marshaling = marshaling_of_rlping R.rlping
+end
+
+module MarshalableOfRlp (R : RlpingS) : (MarshalableS with type t = R.t) =
+  Marshalable(PreMarshalableOfRlp(R))
 
 module YojsonableOfMarshalable (M : MarshalableS) = struct
   include M

@@ -2,6 +2,7 @@
 
 open Lib
 open Yojsoning
+open Ppx_deriving_rlp_runtime.Rlping
 
 exception Marshaling_error of string
 exception Unmarshaling_error of string*int*Bytes.t
@@ -52,12 +53,8 @@ val unmarshal_bytes_of_unmarshal : 'a unmarshaler -> Bytes.t -> 'a
 val marshal_string_of_marshal : 'a marshaler -> 'a -> string
 val unmarshal_string_of_unmarshal : 'a unmarshaler -> string -> 'a
 
-val marshal_char : char marshaler
-val unmarshal_char : char unmarshaler
 val char_marshaling : char marshaling
 
-val marshal_bool : bool marshaler
-val unmarshal_bool : bool unmarshaler
 val bool_marshaling : bool marshaling
 
 val list_marshaling : 'a marshaling -> 'a list marshaling
@@ -178,6 +175,12 @@ val marshaling_not_implemented : 'a marshaling
 (** Do NOT use this module in production. Only for demos and temporary cut-throughs *)
 module OCamlMarshaling (T: TypeS) : PreMarshalableS with type t = T.t
 
+(** A type with RLP support *)
+module type RlpingS = sig
+  type t
+  val rlping : t rlping
+end
+
 (** Marshalable to binary, and (separately) convertible to json. *)
 module type PreYojsonMarshalableS = sig
   include PreMarshalableS
@@ -189,6 +192,9 @@ module type YojsonMarshalableS = sig
   include MarshalableS
   include YojsonableS with type t := t
 end
+
+(** Marshalable as RLP *)
+module MarshalableOfRlp (R : RlpingS) : (MarshalableS with type t = R.t)
 
 (** "Marshalable" *as* json. *)
 module MarshalableOfYojsonable (J : YojsonableS) : YojsonMarshalableS with type t = J.t
