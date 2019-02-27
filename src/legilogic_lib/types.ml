@@ -174,6 +174,9 @@ module RequestGuid = struct
    *
    * - Identify and leverage an existing OCaml UUID library that's solid or roll our own
    *   https://gitlab.com/legicash/legicash-facts/issues/89
+   *
+   * - Replace `from_string_result` with more idiomatic `(t, string) result`
+   *   https://gitlab.com/legicash/legicash-facts/issues/91
    *)
 
   type t = UInt128.t * UInt64.t * UInt64.t * UInt64.t * UInt192.t
