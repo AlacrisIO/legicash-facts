@@ -42,8 +42,13 @@ end
 
 module Operation : sig
  type t =
+   (* TransferTokens where this Address is the recipient *)
    | TransferTokens of Address.t
+   (* CreateContract where the Bytes is the code for the contract *)
    | CreateContract of Bytes.t
+   (* CallFunction where the Address is the address of the function/contract being called and
+      where Bytes are the bytes to be sent in the blockchain transaction representing the hash
+      of the signature of the combination of the function name and paramters *)
    | CallFunction of Address.t * Bytes.t
  include PersistableS with type t := t
 end
