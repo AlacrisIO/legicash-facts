@@ -116,6 +116,7 @@ module type TrieS = sig
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
+  [@@deriving rlp]
 
   (** Context for a step: where you are in the tree *)
   type costep = { height: int option; index: key }

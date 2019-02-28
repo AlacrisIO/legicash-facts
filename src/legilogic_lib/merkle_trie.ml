@@ -287,16 +287,11 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
       ; trie : Digest.t
       ; leaf : Digest.t
       ; steps : (Digest.t step) list }
-    [@@deriving yojson]
+    [@@deriving yojson, rlp]
 
     module PrePersistable = struct
       type nonrec t = t
-      let marshaling =
-        marshaling4
-          (fun { key; trie; leaf; steps } -> key, trie, leaf, steps)
-          (fun key trie leaf steps -> { key; trie; leaf; steps })
-          Key.marshaling Digest.marshaling Digest.marshaling
-          (list_marshaling (step_marshaling Digest.marshaling))
+      let marshaling = marshaling_of_rlping rlping
       let yojsoning = {to_yojson;of_yojson}
     end
     include (TrivialPersistable (PrePersistable) : PersistableS with type t := t)

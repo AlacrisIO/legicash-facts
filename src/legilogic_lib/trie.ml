@@ -119,6 +119,7 @@ module type TrieS = sig
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
+  [@@deriving rlp]
 
   type costep = { height: int option; index: key }
 
@@ -636,6 +637,7 @@ module Trie
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
+  [@@deriving rlp]
 
   type ('trunk, 'branch) unstep =
     { unstep_left: key -> int -> 'trunk -> 'branch -> 'trunk
