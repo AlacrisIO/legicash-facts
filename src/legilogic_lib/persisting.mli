@@ -89,7 +89,7 @@ val persistent_actor_no_default_state : string -> ('key -> string) -> _ -> 'key 
 
 (** PersistentActivity
 
-    This module describe one or a set of persistent activities that each persist
+    This module describes one or a set of persistent activities that each persist
     their running state into the database.
 
     Each activity is parameterized by a [context] (ambient entry points, shared by all activities),

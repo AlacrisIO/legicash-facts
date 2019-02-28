@@ -44,7 +44,7 @@ let marshal_string_of_marshal marshal x =
 
 let unmarshal_string_of_unmarshal unmarshal (x : string) =
   unmarshal_bytes_of_unmarshal unmarshal (Bytes.of_string x)
-      
+
 
 let marshal_string_of_any value = Marshal.to_string value [Marshal.Compat_32]
 

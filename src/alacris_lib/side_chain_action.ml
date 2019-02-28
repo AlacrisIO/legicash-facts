@@ -51,7 +51,7 @@ let create_side_chain_contract (installer_address : Address.t) : Address.t Lwt_e
     |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
     >>= const contract_address
 
-    
+
 let ensure_side_chain_contract_created (installer_address : Address.t) : Address.t Lwt_exn.t =
   Logging.log "Ensuring the contract is installed...";
   (match Db.get contract_address_key with
@@ -89,49 +89,77 @@ module Test = struct
            get_prefunded_address () >>= fun prefunded_address ->
            ensure_side_chain_contract_created prefunded_address >>= fun contract_address ->
            Logging.log "Contract address: %s" (Address.to_0x contract_address); return ()
+
            >>= fund_accounts >>= fun () ->
-           let operator = trent_address in
-           start_operator operator >>= fun () ->
-           let initial_alice_balance = get_alice_balance () in
-           let initial_bob_balance = get_bob_balance () in
+             let operator = trent_address in
+             start_operator operator >>= fun () ->
+             let initial_alice_balance = get_alice_balance () in
+             let initial_bob_balance = get_bob_balance () in
 
            (* 1- Test deposit *)
            let deposit_amount = TokenAmount.of_string "500000000000000000" in
-           User.transaction alice_address deposit
-             DepositWanted.{operator; deposit_amount}
+           User.transaction
+             alice_address
+             deposit
+             DepositWanted.{ operator
+                           ; deposit_amount
+                           ; request_guid = Types.RequestGuid.nil
+                           ; requested_at = Types.Timestamp.now ()
+                           }
+
            >>= fun (_commitment, _confirmation) ->
-           let alice_balance_after_deposit = get_alice_balance () in
-           expect_equal "Alice balance after deposit" TokenAmount.to_string
-             alice_balance_after_deposit
-             (TokenAmount.add initial_alice_balance deposit_amount);
+             let alice_balance_after_deposit = get_alice_balance () in
+             expect_equal "Alice balance after deposit" TokenAmount.to_string
+               alice_balance_after_deposit
+               (TokenAmount.add initial_alice_balance deposit_amount);
 
            (* 2- Test payment *)
            let payment_amount = TokenAmount.of_string "170000000000000000" in
-           User.transaction alice_address payment
-             PaymentWanted.{operator ; recipient= bob_address ; amount= payment_amount
-                           ; memo="test" ; payment_expedited= false}
+           User.transaction
+             alice_address
+             payment
+             PaymentWanted.{ operator
+                           ; recipient         = bob_address
+                           ; amount            = payment_amount
+                           ; memo              = "test"
+                           ; payment_expedited = false
+                           ; request_guid      = Types.RequestGuid.nil
+                           ; requested_at      = Types.Timestamp.now ()
+                           }
+
            >>= fun (_commitment2, _confirmation2) ->
-           let bob_balance_after_payment = get_bob_balance () in
-           expect_equal "Bob balance after payment" TokenAmount.to_string
-             bob_balance_after_payment
-             (TokenAmount.add initial_bob_balance payment_amount) ;
-           get_operator_fee_schedule trent_address
+             let bob_balance_after_payment = get_bob_balance () in
+             expect_equal "Bob balance after payment"
+                           TokenAmount.to_string
+                           bob_balance_after_payment
+                           (TokenAmount.add initial_bob_balance payment_amount);
+             get_operator_fee_schedule trent_address
+
            >>= fun fee_schedule ->
-           let payment_fee = payment_fee_for fee_schedule payment_amount in
-           let alice_balance_after_payment = get_alice_balance () in
-           expect_equal "Alice balance after payment" TokenAmount.to_string
-             alice_balance_after_payment
-             TokenAmount.(sub alice_balance_after_deposit (add payment_amount payment_fee));
+             let payment_fee = payment_fee_for fee_schedule payment_amount in
+             let alice_balance_after_payment = get_alice_balance () in
+             expect_equal "Alice balance after payment"
+                          TokenAmount.to_string
+                          alice_balance_after_payment
+                          TokenAmount.(sub alice_balance_after_deposit
+                                           (add payment_amount payment_fee));
 
            (* 3- Test Withdrawal -- withdraw all that was deposited *)
            let withdrawal_amount = TokenAmount.sub payment_amount fee_schedule.withdrawal_fee in
-           User.transaction bob_address withdrawal
-             WithdrawalWanted.{operator; withdrawal_amount}
+           User.transaction
+             bob_address
+             withdrawal
+             WithdrawalWanted.{ operator
+                              ; withdrawal_amount
+                              ; request_guid = Types.RequestGuid.nil
+                              ; requested_at = Types.Timestamp.now ()
+                              }
+
            >>= fun (_commitment, _confirmation) ->
-           let bob_balance_after_withdrawal = get_bob_balance () in
-           expect_equal "Bob balance after withdrawal" TokenAmount.to_string
-             bob_balance_after_withdrawal
-             initial_bob_balance;
+             let bob_balance_after_withdrawal = get_bob_balance () in
+             expect_equal "Bob balance after withdrawal" TokenAmount.to_string
+               bob_balance_after_withdrawal
+               initial_bob_balance;
            (* TODO: check main-chain balance, too! *)
 
            return true)
