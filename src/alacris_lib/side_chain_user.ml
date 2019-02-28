@@ -358,7 +358,7 @@ end
 
 module FinalTransactionStatus = struct
   type t =
-    | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | SettledOnMainChain of TransactionCommitment.t * Ethereum_json_rpc.TransactionReceipt.t
     | Failed of OngoingTransactionStatus.t * exn
   [@@deriving yojson]
   include (YojsonPersistable (struct
@@ -525,7 +525,7 @@ module TransactionTracker = struct
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              (wait_for_operator_state_update tc.contract_address operator
               >>= function
-              | Ok (c : Ethereum_chain.Confirmation.t) ->
+              | Ok (c : Ethereum_json_rpc.TransactionReceipt.t) ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
                  | Deposit _ | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
@@ -539,7 +539,7 @@ module TransactionTracker = struct
                                ) ->
              Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
-             (* TODO: wait for confirmation on the main chain and handle lawsuits
+             (* TODO: wait for receipt on the main chain and handle lawsuits
                 Right now, no lawsuit *)
 
              Lwt.bind (final_claim_withdrawal_operation tc operator) (fun _ ->
@@ -554,7 +554,7 @@ module TransactionTracker = struct
              (* TODO: post a transaction to actually get the money *)
              Lwt.bind (final_withdraw_operation tc operator) (fun _ ->
                  Logging.log "After final_withdraw_operation";
-                 FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |>
+                 FinalTransactionStatus.SettledOnMainChain (tc, receipt) |>
                    finalize))
 
         | Final x -> return x

@@ -174,7 +174,7 @@ let validate_user_transaction_request :
           { deposit_amount
           ; deposit_fee
           ; main_chain_deposit={tx_header= {value}} as main_chain_deposit
-          ; main_chain_deposit_confirmation } ->
+          ; main_chain_deposit_receipt } ->
         check (is_sum value deposit_amount deposit_fee)
           (fun () ->
              Printf.sprintf "Deposit amount %s and fee %s fail to add up to deposit value %s"
@@ -185,11 +185,11 @@ let validate_user_transaction_request :
         (* TODO: CHECK FROM THE CONFIRMATION THAT THE CORRECT PERSON DID THE DEPOSIT,
            AND/OR THAT IT   WAS TAGGED WITH THE CORRECT RECIPIENT. *)
               (*
-        >>> check_transaction_confirmation main_chain_deposit main_chain_deposit_confirmation
+        >>> check_transaction_receipt main_chain_deposit main_chain_deposit_receipt
               (fun () -> "The main chain deposit confirmation is invalid")
                *)
-        >>> check (Ethereum_chain.is_confirmation_valid
-                     main_chain_deposit_confirmation main_chain_deposit)
+        >>> check (Ethereum_transaction.is_receipt_successful
+                     main_chain_deposit_receipt main_chain_deposit)
               (fun () -> "The main chain deposit confirmation is invalid")
       | UserOperation.Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
         check (payment_invoice.recipient != requester)
@@ -786,7 +786,6 @@ let start_operator address =
    ---push transaction to the ethereum.
    Advanced TODO: update as the auction plays out.
  *)
-
 module Test = struct
   open Signing.Test
 

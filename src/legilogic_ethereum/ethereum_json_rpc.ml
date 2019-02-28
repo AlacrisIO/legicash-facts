@@ -225,8 +225,7 @@ module TransactionReceipt = struct
     ; gas_used: TokenAmount.t [@key "gasUsed"]
     ; logs: LogObject.t list
     ; logs_bloom: Bloom.t [@key "logsBloom"]
-    ; root: Digest.t option [@default None] [@default None]
-    ; status: TokenAmount.t option [@default None] [@default None]
+    ; status: TokenAmount.t
     ; transaction_hash: Digest.t [@key "transactionHash"]
     ; transaction_index: Revision.t [@key "transactionIndex"] }
   [@@deriving yojson {strict = false}]

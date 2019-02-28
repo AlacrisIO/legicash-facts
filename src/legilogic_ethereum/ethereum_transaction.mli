@@ -33,3 +33,4 @@ exception Bad_password
 val unlock_account : ?duration:int -> address -> unit Lwt_exn.t
 (** unlocks account for given duration (in seconds) on net *)
 
+val is_receipt_successful : Ethereum_json_rpc.TransactionReceipt.t -> Transaction.t -> bool

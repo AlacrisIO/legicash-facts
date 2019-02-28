@@ -86,7 +86,7 @@ end
 
 module FinalTransactionStatus : sig
   type t =
-    | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | SettledOnMainChain of TransactionCommitment.t * Ethereum_json_rpc.TransactionReceipt.t
     | Failed of OngoingTransactionStatus.t * exn
   include PersistableS with type t := t
   val signed_request_opt : t -> UserTransactionRequest.t signed option
@@ -124,7 +124,7 @@ module TransactionTracker : sig
      and type key = Key.t
      and type state = State.t
      and type t = Key.t * FinalTransactionStatus.t Lwt.t
-  val wait : FinalTransactionStatus.t Lwt.t -> (TransactionCommitment.t * Ethereum_chain.Confirmation.t) Lwt_exn.t
+  val wait : FinalTransactionStatus.t Lwt.t -> (TransactionCommitment.t * Ethereum_json_rpc.TransactionReceipt.t) Lwt_exn.t
 end
 
 (** private state a user keeps for his account with a operator *)
@@ -211,7 +211,7 @@ module User : sig
   val make_tracker_context : Address.t -> Address.t -> TransactionTracker.context
   val action : Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr
   val transaction : Address.t -> ('a, TransactionTracker.t) UserAsyncAction.arr
-    -> ('a, TransactionCommitment.t * Ethereum_chain.Confirmation.t) Lwt_exn.arr
+    -> ('a, TransactionCommitment.t * Ethereum_json_rpc.TransactionReceipt.t) Lwt_exn.arr
 end
 
 val get_operator_fee_schedule : (Address.t, OperatorFeeSchedule.t) Lwt_exn.arr
@@ -242,7 +242,7 @@ val payment : (PaymentWanted.t, TransactionTracker.t) UserAsyncAction.arr
 
 (*
    val push_side_chain_withdrawal_to_main_chain :
-   Address.t -> (Transaction.t, Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t) UserAsyncAction.arr
+   Address.t -> (Transaction.t, Ethereum_chain.Transaction.t * Ethereum_json_rpc.TransactionReceipt.t) UserAsyncAction.arr
    (** An withdrawal made on the side chain need a corresponding action on the main chain.
    Specifically, while deposit and payment side-chain transactions require no follow up
    (deposit does have pre-requisites, though), a withdrawal transaction requires

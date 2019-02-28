@@ -1,7 +1,6 @@
 (* TODO: rename this module to ethereum_chain or some such ? *)
 open Legilogic_lib
 open Yojsoning
-open Digesting
 open Signing
 open Persisting
 open Types
@@ -42,13 +41,11 @@ module TxHeader : sig
 end
 
 module Operation : sig
-  type t =
-    | TransferTokens of Address.t
-    (* recipient *)
-    | CreateContract of Bytes.t
-    (* code *)
-    | CallFunction of Address.t * Bytes.t
-  include PersistableS with type t := t
+ type t =
+   | TransferTokens of Address.t
+   | CreateContract of Bytes.t
+   | CallFunction of Address.t * Bytes.t
+ include PersistableS with type t := t
 end
 
 module PreTransaction : sig
@@ -62,19 +59,5 @@ module Transaction : sig
   include PersistableS with type t := t
   val pre_transaction: t -> PreTransaction.t
 end
-
-(** Confirmation of a transaction on the main chain
-    an old enough block on the main chain
-    TODO: maybe also include a path and/or merkle tree from there?
-*)
-module Confirmation : sig
-  type t = { transaction_hash: digest
-           ; transaction_index: Revision.t
-           ; block_number: Revision.t
-           ; block_hash: digest }
-  include PersistableS with type t := t
-end
-
-val is_confirmation_valid : Confirmation.t -> Transaction.t -> bool
 
 val genesis_state : State.t
