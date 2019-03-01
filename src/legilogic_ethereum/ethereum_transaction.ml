@@ -6,11 +6,11 @@ open Action
 open Lwt_exn
 open Json_rpc
 open Digesting
-   
+
 open Ethereum_chain
 
 (* TODO: when to return false vs raise an exception? Add timeout & log
-   Used only by next routine transaction_execution_matches_transaction 
+   Used only by next routine transaction_execution_matches_transaction
    Which is used only for tests *)
 let transaction_executed transaction_hash =
   Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash

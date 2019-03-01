@@ -24,7 +24,7 @@ let topic_of_hash (hash : Digest.t) : Bytes.t option =
   Some (encode_function_parameters [abi_digest hash])
 
 
-   
+
 let contract_address = ref Address.zero
 
 let set_contract_address address = contract_address := address
@@ -63,7 +63,7 @@ let make_claim_withdrawal_call (contract_address : Address.t) (operator : Addres
   let call = encode_function_call { function_name = "claim_withdrawal"; parameters } in
   Operation.CallFunction (contract_address, call)
 
-  
+
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
 let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (confirmed_state : Digest.t) : Ethereum_chain.Operation.t =
   Logging.log "OPERATION: Before creation of parameter for CallFunction make_withdraw_call";
@@ -77,7 +77,7 @@ let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (op
 
 
 
-(* calls the "claim_state_update" that calls "make_claim" that works with a mapping 
+(* calls the "claim_state_update" that calls "make_claim" that works with a mapping
    from bytes32 to integers.
    We have Revision = UInt64
 
@@ -93,7 +93,7 @@ let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.
 
 
 
-    
+
 
 (* TODO Add support for including a bond with the claim.
    Which routine to include? Bonds contains:
