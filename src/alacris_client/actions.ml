@@ -142,7 +142,9 @@ let schedule_transaction (request_guid: RequestGuid.t)
                        : yojson =
   let requested_at = Timestamp.now () in
 
-  add_main_chain_thread request_guid requested_at
+  add_main_chain_thread
+    request_guid
+    requested_at
     (User.transaction user transaction (wanted requested_at)
      >>= fun (transaction_commitment, main_chain_confirmation) ->
        let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
