@@ -1,4 +1,10 @@
-(* side_chain_server_config -- TCP/IP server to receive client requests *)
+(* side_chain_server_config -- configuration for the side_chain_server.
+   TODO:
+   * make the loading lazy, so we can link this library into some code
+     without requiring the configuration file to exist and be read.
+   * move this module to alacris_lib, it doesn't belong in legilogic_ethereum
+ *)
+
 
 open Legilogic_lib
 open Types
@@ -22,10 +28,9 @@ module Side_chain_server_config = struct
     |> OrString.get
     |> fun { nickname; keypair } ->
     let address = keypair.address in
-    Logging.log "Using operator keypair %S %s" nickname (Address.to_0x address);
+    (* Logging.log "Using operator keypair %S %s" nickname (Address.to_0x address);*)
     register_keypair nickname keypair;
     address
-
 
   type ethereum_config_t =
     { minimal_height_block_for_confirmation : int
@@ -53,9 +58,6 @@ module Side_chain_server_config = struct
     ; bond_value        : string
     } [@@deriving of_yojson]
 
-
-
-
   type side_chain_server_config =
     { port                : int
     ; ethereum_config     : ethereum_config_t
@@ -74,11 +76,7 @@ module Side_chain_server_config = struct
     | Ok config -> config
     | Error msg -> Lib.bork "Error loading side chain server configuration: %s" msg
 
-
   let the_server_config_ref : (side_chain_server_config option ref) = ref None
-
-
-
 
   let get_server_config : unit -> side_chain_server_config =
     fun () ->
@@ -89,7 +87,6 @@ module Side_chain_server_config = struct
        the_server_config_ref := Some the_config;
        the_config
 
-
   let config = get_server_config ()
 
   let (minNbBlockConfirm : Revision.t) = Revision.of_int
@@ -98,13 +95,8 @@ module Side_chain_server_config = struct
   let (batch_timeout_trigger_in_seconds : float) =
     config.leveldb_config.batch_timeout_trigger_in_seconds
 
-
-
   let (batch_size_trigger_in_requests : int) =
     config.leveldb_config.batch_size_trigger_in_requests
-
-  (** This is a hardcoded value in Ethereum so we cannot change it *)
-  let (transfer_gas_limit : TokenAmount.t) = TokenAmount.of_int 21000
 
   let (deposit_gas_limit : TokenAmount.t) = TokenAmount.of_int 100000
 
@@ -117,7 +109,6 @@ module Side_chain_server_config = struct
   let (challenge_duration_in_seconds_i : int) = config.sidechain_config.challenge_duration_in_seconds
 
   let (challenge_duration_in_seconds_f : float) = Float.of_int challenge_duration_in_seconds_i
-
 
   (* Recommended default values:
      deposit_fee       = "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)
