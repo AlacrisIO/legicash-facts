@@ -646,7 +646,8 @@ unmarshal : forall 'a . bytes -> 'a
 
 ### Contracts (V1)
 
-The language has a verifiable fragment, which has the full recursion and the encryption primitives.
+The language has a verifiable fragment, which has full recursion support
+and includes all the usual arithmetic and encryption primitives.
 It is possible to specify contracts as arbitrary predicates on the trace of execution;
 in particular, it is possible to specify that the behavior of an actor in each step of the trace
 does indeed follow the semantics of the agreed-upon program.
@@ -679,8 +680,9 @@ TODO: Primitives?
 
 ## Smart Contract Extraction (V1)
 
-We don't want to write the checking of Merkle proofs manually.
-What we will provide is a way to automatically "lift" a program `A->B`
+We don't want to write the checking of Merkle proofs manually:
+it's a tedious and error-prone task.
+Instead, we will provide is a way to automatically "lift" a program `A->B`
 into a "program with proof" `A*proof_of_A -> B*proof_of_B`,
 where this `*` is a dependent product and the proofs are Merkle proofs that can be verified
 by a smart contract, itself generated from the type description.
@@ -690,32 +692,52 @@ you'd lift the code of the `mem` function and the recursive function `find_opt` 
 and the lifted variant would return, with each frame of each function call along the way,
 would return all data necessary to constitute a verifiable Merkle proof.
 
-A naive implementation of the above lifting process is a good first step for our V1,
-but as our system improves, we will want several optimization for our V2
-to save on expensive data to send on-chain when partaking in interactive proofs:
+A simple implementation of the above lifting process is a good first step for our V1.
+First, we consider the case of an elementary-enough computation,
+where the existential parameters have somehow been determined on the client side,
+and we only need to feed them to the judge in a verifiable way.
+The elementary-enough computation deals with a small subset of the Directed-Acyclic-Graph (DAG)
+of data involved in the contract.
+When the computation parameters have been determined, the code that verifies their validity
+is run in the client in a special mode that records that DAG fragment as it goes.
+This same code was compiled in such a way that every time a DAG pointer is followed,
+the hash and corresponding value are added to the fragment-in-progress as a side-effect;
+when the evaluation completes, the fragment is finalized,
+and a serialized representation of the DAG can be produced.
+The code registered on the blockchain as "the contract", which acts as the judge for the case,
+can run essentially the same code as the client,
+except that it is instrumented to consume rather than produces the DAG fragment:
+is that in a first pass, the DAG fragment is reconstituted from the serialized representation;
+then the judge evaluates the function called with the specified parameters;
+if at any point, the evaluation tries to access data outside the reconstituted DAG fragment,
+the judge rejects the claim as invalid. If the claim is valid, either it wins the case,
+or it advances the argument such that it is now the other party's turn to make a counter-claim
+(that itself will have to be validated).
 
-  * When collecting data from a function call frame as part of the verifiable proof,
+In applications that build a side-chain, the above "elementary enough computations"
+can be seen as the microcode of a larger computation:
+the microcode specifies how to process a single step of the computation
+with local manipulations of the verifiable data structures;
+the verifiable data structures encode the macrocode, data heap, control stack...
+and execution trace of the computation with each verifiable step indexed in a patricia merkle trie.
+
+As we improve our system, we will want to elaborate how code gets compiled in our V2:
+
+  * When writing the application, it might not always be obvious how best to divide
+    the computation between microcode and macrocode.
+    Some of it can be automated, whereas some of it might be better left under the control
+    of the programmer via suitable annotations.
+    When collecting data from a function call frame as part of the verifiable execution trace,
     identify which of the data is easy and cheap to reconstitute from context
     from that is hard, expensive or impossible to reconstitute from context.
-    The easy part can be dropped from the proof object,
-    to be reconstituted from context when checking the proof.
-    Note that whether a proof is checked bottom-up or top-down may impact
+    The easy part can be dropped from the explicit trace object,
+    to be reconstituted from context when checking the trace.
+    Note that whether an execution trace is checked bottom-up or top-down may impact
     what is or isn't "easy" to recompute:
     for instance, checking a merkle tree bottom-up means we don't have to pass along
     the intermediate hashes as part of the proof.
     Ideally, those "cheap" things can be determined in a fully automatic fashion;
     if not, simple annotations will hopefully be enough to specify them.
-
-  * When checking a proof about a non-trivial graph of objects,
-    we might be able to save an appreciable constant factor in size and time
-    by expressing the proof in terms of that graph instead
-    of redundant tree traversals of the graph.
-    Then, a monadic transform of the previous code would accumulate the partial graph data
-    instead of the redundant trees; and when checking the proof, the graph would be reconstituted
-    from a simple graph-building language before relevant parts of its structure are checked.
-    Decoupling the verifiable marshaling and unmarshaling of the graph
-    from the logical specification of the graph property being verified
-    might even be a factoring that simplifies the code.
 
   * Instead of explicitly verifying properties of trees or graphs, private contracts may use
     zk-SNARKs to argue cases in such a way that the judge can indeed check who is right, yet
