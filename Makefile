@@ -30,7 +30,7 @@ all: build_all
 .PHONY: all build_all force \
 	legilogic_lib test_legilogic_lib \
 	legilogic_ethereum ethereum_prefunder test_legilogic_ethereum \
-	contract alacris_lib alacris_lib_test test_alacris_lib side_chain_server \
+	contract alacris_lib test_alacris_lib side_chain_server \
 	side_chain_client_lib test_alacris_client side_chain_client side_chain_client_test \
 	install uninstall \
 	toplevel repl test_hello test \
@@ -85,7 +85,7 @@ $(BUILD_DIR)/$(ALACRIS_LIB): $(ML_SOURCES) $(CONTRACT)
 	$(HIDE) dune build $(ALACRIS_LIB)
 
 SIDE_CHAIN_SERVER:=src/alacris_lib/side_chain_server.exe
-sidechain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
+side_chain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
 $(BUILD_DIR)/$(SIDE_CHAIN_SERVER): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Alacris side chain server executable"
 	$(HIDE) dune build $(SIDE_CHAIN_SERVER)
