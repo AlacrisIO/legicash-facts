@@ -1,4 +1,10 @@
-(* side_chain_server_config -- TCP/IP server to receive client requests *)
+(* side_chain_server_config -- configuration for the side_chain_server.
+   TODO:
+   * make the loading lazy, so we can link this library into some code
+     without requiring the configuration file to exist and be read.
+   * move this module to alacris_lib, it doesn't belong in legilogic_ethereum
+ *)
+
 
 open Legilogic_lib
 open Types
@@ -22,7 +28,7 @@ module Side_chain_server_config = struct
     |> OrString.get
     |> fun { nickname; keypair } ->
     let address = keypair.address in
-    Logging.log "Using operator keypair %S %s" nickname (Address.to_0x address);
+    (* Logging.log "Using operator keypair %S %s" nickname (Address.to_0x address);*)
     register_keypair nickname keypair;
     address
 
