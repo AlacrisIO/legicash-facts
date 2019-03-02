@@ -1,21 +1,34 @@
 # Design for the DSL
 
+[[_TOC_]]
+
 ## Overview of language features
 
 We aim at growing a language that allows developers to write
 distributed multi-party applications that can manage and trade assets
 in a way that is safe by construction while minimizing trust requirements between parties.
 
-The language can be seen to have the following features, extensions and restrictions:
+The general approach to growing the language will be as follows:
 
-  * The language starts with a distributed calculus:
+  * The language starts with the simplest constructs that make analyzing correctness possible
+    yet that allow to develop non-trivial applications.
+
+  * At some point, the language grows into a general-purpose distributed calculus:
     actors can send messages to other actors and receive messages from them.
-
-  * Arbitrary functional programming can be expressed,
+    In this arbitrary functional programming can be expressed,
     either on top of channel communication using CPS,
-    or more directly as more primitive functions,
-    though these might be restricted, e.g. to total primitive recursive functions
-    (which also makes embedding in Coq simpler).
+    or more directly as more primitive functions.
+
+  * However, for ease of reasoning, our DSL will explicitly various levels of language
+    that restrict the expressiveness of programs to stay within subsets that are tractable
+    to automatically analyze and prove correct:
+    finitary computations, primitive recursive functions,
+    computations that can use existing channels but not create new ones,
+    computations that satisfy some type restriction, including effect types or session types,
+    etc.
+
+To specifically support blockchain applications, the language will have
+the following features, extensions and restrictions:
 
   * Game Theory will model whether the interests of players are indeed aligned,
     and whether the game is safe to play for each player.
@@ -100,6 +113,11 @@ snd : {a, b: Type} a * b -> b
 
 In a more advanced variant (V1.5), structures with an arbitrary number of named fields,
 or sums with enumerated cases, are available.
+Also, code modules can be represented as such structures.
+
+TODO: figure out how type declarations inside modules are typed.
+OCaml style? Coq style with dependent types? Something in-between?
+An untyped second-class entity that is flattened out before typing?
 
 When defining a first-class virtual machine for the purpose of reflective verification or implementation,
 we shall reduce everything to [SKI combinators](https://en.wikipedia.org/wiki/SKI_combinator_calculus),
@@ -142,8 +160,13 @@ which is instantiated only once.
 
 Computations can be spawned in parallel:
 ```
-para : (a ==> b) * (a' ==> b') -> (a * a') ==> (b * b')
+par : (a ==> b) * (a' ==> b') -> (a * a') ==> (b * b')
 ```
+
+TODO: We want ways to restrict creation of channels, so as to simplify reasoning.
+Maybe an effect system can help?
+A more first-order approach, with a fixed (per-program) set of channels between actors?
+
 
 ### Game Theory (V2)
 
@@ -262,7 +285,6 @@ as invocations of the concrete one.
 Users who don't need to deal with the details of the concrete program
 will interact with the abstract program.
 
-
 ### Refinement Correctness (V2)
 
 When declaring a refinement, the program is only correct
@@ -307,6 +329,27 @@ When writing a refinement, hypotheses about the environment may be added or refi
 Whatever hypotheses are made at each level of abstraction need to be made clearly visible
 to the security auditors who have to decide whether they make sense
 and apply to the real-life situations in which the programs will be deployed.
+
+### Transactions (V1, V2)
+
+Transactions ensure that either all of a set of computations successfully succeed, or none of them.
+When refining transactions, the liveness property supposes all participants are honest,
+and the safety property ensure success or rollback per-user, i.e. for each user,
+his assets either reach the new state or remain at the same state.
+Moreover, the safety property may be up to:
+(1) some bounded amount of GAS to be paid, and
+(2) the user being paid damage compensation from some other party's collateral
+    that they prefer to some lost asset
+    (with a phantom transaction to virtually recover the lost asset from the compensation payment?)
+
+Primitives:
+```
+(with-transaction (options ...) body ...)
+```
+
+The options to `with-transaction` help specify what implementation strategies can be used
+to implement the transaction:
+acceptable delay to confirmation; acceptable compensation payment; acceptable validation networks.
 
 ### Automated Refinement (V1, V2)
 
@@ -369,6 +412,27 @@ For long term deadlines, the notion of wall clock maintained by the blockchain
 (when it does maintain one) is probably more precise and less susceptible to variation
 due to difficulty adjustment or protocol upgrades.
 The loose conversions between the many clocks must be handled explicitly by the logic.
+
+### Linear Logic (V2)
+
+Linear Logic very nicely models notions such as resources that must be preserved:
+non-fungible resources must at all time be owned by a unique owner;
+variables and data structure cells holding fungible resources
+cannot themselves be either introduced out of thin air or dropped,
+and the amounts they hold also cannot be arbitrarily modified, but
+have to be transfered from one variable to the other.
+
+Note that linear logic can also be expressed in the game semantics,
+allowing for interactive proofs of linear properties.
+This might be useful when verifying whether a protocol using linear logic was respected.
+Linear logic can also express various security properties that might matter
+in a distributed application.
+
+https://github.com/ppedrot/ll-coq
+https://github.com/hypotext/linear-logic
+http://www.cs.nuim.ie/~jpower/Research/LinearLogic/
+https://www.sciencedirect.com/science/article/pii/S157106611830080X
+http://gallais.github.io/proof-search-ILLWiL/pdf/lps.pdf
 
 ### Cryptography (V1)
 
@@ -567,6 +631,9 @@ Other uses might include coordinating complex auctions between distrustful parti
 that each have elaborate bidding strategies to which each participant is committed
 yet without revealing the strategy to other participants.
 
+TODO: see [David Evans' work](http://www.mightbeevil.org/) on secure multiparty computation,
+such as [Obliv-C](https://oblivc.org/).
+
 ### Marshaling (V1)
 
 The language has a notion of some (all?) entities being marshalable into strings of bits (bytes?),
@@ -579,10 +646,15 @@ unmarshal : forall 'a . bytes -> 'a
 
 ### Contracts (V1)
 
-The language has a verifiable fragment, which has the full recursion and the encryption primitives.
+The language has a verifiable fragment, which has full recursion support
+and includes all the usual arithmetic and encryption primitives.
 It is possible to specify contracts as arbitrary predicates on the trace of execution;
 in particular, it is possible to specify that the behavior of an actor in each step of the trace
 does indeed follow the semantics of the agreed-upon program.
+The contract clauses can be verified using interactive proofs on merklized data structures
+representing the computation its trace of execution including its a snapshot of its state at each step.
+For further privacy, the data can be encrypted and the final result computed using homomorphic encryption,
+so that observers can't know who's making what claim.
 
 From the contract are automatically extracted at the same time:
 
@@ -605,6 +677,83 @@ From the contract are automatically extracted at the same time:
   why some options don't make sense or are less advantageous, etc.
 
 TODO: Primitives?
+
+## Smart Contract Extraction (V1)
+
+We don't want to write the checking of Merkle proofs manually:
+it's a tedious and error-prone task.
+Instead, we will provide is a way to automatically "lift" a program `A->B`
+into a "program with proof" `A*proof_of_A -> B*proof_of_B`,
+where this `*` is a dependent product and the proofs are Merkle proofs that can be verified
+by a smart contract, itself generated from the type description.
+
+Thus, for a proof of membership or non-membership of an element in an OCaml trie,
+you'd lift the code of the `mem` function and the recursive function `find_opt` that it calls,
+and the lifted variant would return, with each frame of each function call along the way,
+would return all data necessary to constitute a verifiable Merkle proof.
+
+A simple implementation of the above lifting process is a good first step for our V1.
+First, we consider the case of an elementary-enough computation,
+where the existential parameters have somehow been determined on the client side,
+and we only need to feed them to the judge in a verifiable way.
+The elementary-enough computation deals with a small subset of the Directed-Acyclic-Graph (DAG)
+of data involved in the contract.
+When the computation parameters have been determined, the code that verifies their validity
+is run in the client in a special mode that records that DAG fragment as it goes.
+This same code was compiled in such a way that every time a DAG pointer is followed,
+the hash and corresponding value are added to the fragment-in-progress as a side-effect;
+when the evaluation completes, the fragment is finalized,
+and a serialized representation of the DAG can be produced.
+The code registered on the blockchain as "the contract", which acts as the judge for the case,
+can run essentially the same code as the client,
+except that it is instrumented to consume rather than produces the DAG fragment:
+is that in a first pass, the DAG fragment is reconstituted from the serialized representation;
+then the judge evaluates the function called with the specified parameters;
+if at any point, the evaluation tries to access data outside the reconstituted DAG fragment,
+the judge rejects the claim as invalid. If the claim is valid, either it wins the case,
+or it advances the argument such that it is now the other party's turn to make a counter-claim
+(that itself will have to be validated).
+
+In applications that build a side-chain, the above "elementary enough computations"
+can be seen as the microcode of a larger computation:
+the microcode specifies how to process a single step of the computation
+with local manipulations of the verifiable data structures;
+the verifiable data structures encode the macrocode, data heap, control stack...
+and execution trace of the computation with each verifiable step indexed in a patricia merkle trie.
+
+As we improve our system, we will want to elaborate how code gets compiled in our V2:
+
+  * When writing the application, it might not always be obvious how best to divide
+    the computation between microcode and macrocode.
+    Some of it can be automated, whereas some of it might be better left under the control
+    of the programmer via suitable annotations.
+    When collecting data from a function call frame as part of the verifiable execution trace,
+    identify which of the data is easy and cheap to reconstitute from context
+    from that is hard, expensive or impossible to reconstitute from context.
+    The easy part can be dropped from the explicit trace object,
+    to be reconstituted from context when checking the trace.
+    Note that whether an execution trace is checked bottom-up or top-down may impact
+    what is or isn't "easy" to recompute:
+    for instance, checking a merkle tree bottom-up means we don't have to pass along
+    the intermediate hashes as part of the proof.
+    Ideally, those "cheap" things can be determined in a fully automatic fashion;
+    if not, simple annotations will hopefully be enough to specify them.
+
+  * Instead of explicitly verifying properties of trees or graphs, private contracts may use
+    zk-SNARKs to argue cases in such a way that the judge can indeed check who is right, yet
+    without revealing any data to the public about the case being handled: even the input
+    data can be encrypted, with static keys for an argument between a small finite number of parties,
+    or with more expensive dynamic keys for an argument with a large number of parties.
+    Optimization would then be whatever reduces the size of the circuits involved in building
+    the (potentially recursive) zk-SNARKs.
+
+Note that given the definition for a function that is used in a contractual computation,
+we want to generate code both for the unlifted (regular) function *and*
+the lifted (proof-generating) function:
+for performance reasons, regular execution is what is usually used;
+the proof-generating variant is only called when an anomaly is detected
+by the vigilante running the regular variant,
+or when another party makes bogus claims that have to be disproven.
 
 ## Reflective evaluation (V2)
 
@@ -678,14 +827,15 @@ and will ramp up to more, more elaborate variants.
 
 ## Competition
 
-* [rholang](https://github.com/rchain/rchain/tree/master/rholang)
-  is the smart contract language for R-Chain.
-  It is a distributed calculus (distant descendant of the Pi-calculus),
-  with some reflective features and session typing.
-
 * [scilla](https://scilla-lang.org/)
   is the smart contract language for Zilliqa.
   It is embedded in Coq, and features total functions with eventual message sends.
+
+* [plutus](https://cardanodocs.com/technical/plutus/introduction/)
+  is the smart contract language for Cardano.
+  It is a richly statically typed functional language developed by IOHK.
+  It can use Haskell as a metalanguage to write applications
+  in which most of the application is run off-chain but some parts are run in a contract.
 
 * [pact](https://github.com/kadena-io/pact)
   is the smart contract language for Kadena.
@@ -693,11 +843,10 @@ and will ramp up to more, more elaborate variants.
   it features builtin key management, and each contract having a small relational database
   instead of some ad-hoc low-level storage.
 
-* [plutus](https://cardanodocs.com/technical/plutus/introduction/)
-  is the smart contract language for Cardano.
-  It is a richly statically typed functional language developed by IOHK.
-  It can use Haskell as a metalanguage to write applications
-  in which most of the application is run off-chain but some parts are run in a contract.
+* [rholang](https://github.com/rchain/rchain/tree/master/rholang)
+  is the smart contract language for R-Chain.
+  It is a distributed calculus (distant descendant of the Pi-calculus),
+  with some reflective features and session typing.
 
 * [solidity](https://solidity.readthedocs.io/)
   is the main smart contract language for Ethereum.
