@@ -16,7 +16,6 @@ open Legilogic_ethereum
 open Side_chain_server_config
 open Ethereum_watch
 open Ethereum_abi
-open State_update
 open Operator_contract
 open Digesting
 
@@ -117,6 +116,7 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
     (fun _ -> Lwt_exn.return ())
 
 let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+  let open Lwt_exn in
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
@@ -136,6 +136,7 @@ let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : A
   | Some _receipt -> Lwt_exn.return ()
 
 let emit_withdraw_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+  let open Lwt_exn in
   Logging.log "emit_withdraw_operation : beginning of operation";
   let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
