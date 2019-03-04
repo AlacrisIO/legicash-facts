@@ -119,7 +119,6 @@ let retrieve_relevant_list_logs_data (delay:             float)
   let open Lwt_exn in
 
   let rec fct_downloading start_block =
-    Logging.log "fct_downloading %s" (Revision.to_string start_block);
     retrieve_last_entries (Revision.add start_block Revision.one)
                           contract_address
                           topics
@@ -150,7 +149,6 @@ let retrieve_relevant_single_logs_data (delay:             float)
                                      : (LogObject.t * (abi_value list)) Lwt_exn.t =
   let open Lwt_exn in
 
-  Logging.log "before retrieve_relevant_list_logs_data";
   retrieve_relevant_list_logs_data
     delay
     contract_address
