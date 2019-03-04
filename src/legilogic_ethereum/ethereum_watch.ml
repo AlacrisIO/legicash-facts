@@ -127,7 +127,6 @@ let retrieve_relevant_list_logs_data (delay:             float)
       >>= fun (start_block', entries) ->
         starting_watch_ref := start_block';
 
-        Logging.log "before only_matches";
         let only_matches = flip List.filter entries @@ fun l ->
           is_matching_data (decode_data l.data list_data_type)
                            data_value_search

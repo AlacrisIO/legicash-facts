@@ -93,12 +93,16 @@ let wait_for_contract_event_eth (contract_address:  Address.t)
     }
 
 
-let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+let wait_for_operator_state_update (contract_address: Address.t)
+                                   (operator:         Address.t)
+                                 : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "Beginning of wait_for_operator_state_update";
-  let (topics : Bytes.t option list) = [topic_of_state_update] in
-  let (list_data_type : abi_type list) = [Address; Bytes 32] in
-  let (data_value_search : abi_value option list) = [Some (Address_value operator); None] in
-  wait_for_contract_event_eth contract_address topics list_data_type data_value_search
+
+  wait_for_contract_event_eth
+    contract_address
+    [topic_of_state_update]
+    [Address; Bytes 32]
+    [Some (Address_value operator); None]
 
 
 
@@ -145,13 +149,14 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
                            : unit Lwt_exn.t =
   let open Lwt_exn in
 
-  let await_then_emit =
+  let await_challenge_or_emit =
     match (tc.transaction.tx_request |> TransactionRequest.request).operation with
       | Deposit _ -> return ()
       | Payment _ -> return ()
       | Withdrawal {withdrawal_amount; withdrawal_fee} ->
          Logging.log "Beginning of final_withdraw_operation";
          sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
+           (* TODO actually accept challenges and handle accordingly *)
            >>= fun () -> emit_withdraw_operation
              tc.contract_address
              operator
@@ -160,8 +165,8 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
              Side_chain_server_config.bond_value_v
              tc.state_digest
 
-  in await_then_emit
-    >>= (fun () ->
+  in await_challenge_or_emit
+    >>= fun () ->
       let (data_value_search: abi_value option list) =
         [ Some (Address_value operator)
         ; Some (abi_value_from_revision tc.tx_proof.key)
@@ -173,7 +178,7 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
         tc.contract_address
         [topic_of_withdraw]
         [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
-        data_value_search)
+        data_value_search
 
 let make_rx_header (user:     Address.t)
                    (operator: Address.t)
@@ -503,7 +508,9 @@ module TransactionTracker = struct
                  Logging.log "After final_claim_withdrawal_operation";
                  ConfirmedOnMainChain (tc, confirmation) |> continue)
 
-           | ConfirmedOnMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
+           | ConfirmedOnMainChain ( (tc:           TransactionCommitment.t)
+                                  , (confirmation: Ethereum_chain.Confirmation.t)
+                                  ) ->
              Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
@@ -513,6 +520,7 @@ module TransactionTracker = struct
                    finalize))
 
         | Final x -> return x
+
       in key, loop state
   end
   include PersistentActivity(Base)
@@ -739,6 +747,7 @@ let direct_operation :
     >>= fun signed_request ->
       let status = OngoingTransactionStatus.Requested signed_request in
       add_ongoing_side_chain_transaction status
+
 
 let payment PaymentWanted.{ operator
                           ; recipient
