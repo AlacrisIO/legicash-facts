@@ -67,7 +67,7 @@ let wait_for_contract_event_unit (contract_address:  Address.t)
     list_data_type
     data_value_search
 
-  >>= fun _ -> return ()
+  >>= const () (* TODO: forgetting stuff suggests this one is not the primitive one. Or maybe it is? *)
 
 
 let wait_for_contract_event_eth (contract_address:  Address.t)
@@ -85,13 +85,13 @@ let wait_for_contract_event_eth (contract_address:  Address.t)
     list_data_type
     data_value_search
 
+  (* TODO: DRY with previous function. And the confirmation returned, if needed, should not be faked *)
   >>= fun _ -> return Ethereum_chain.Confirmation.
-    { transaction_hash  = Digest.zero
+    { transaction_hash  = Digest.zero (* NB: THIS IS FAKE. TODO: UNFAKE IT. *)
     ; transaction_index = Revision.zero
     ; block_number      = Revision.zero
     ; block_hash        = Digest.zero
     }
-
 
 let wait_for_operator_state_update (contract_address: Address.t)
                                    (operator:         Address.t)
@@ -103,8 +103,6 @@ let wait_for_operator_state_update (contract_address: Address.t)
     [topic_of_state_update]
     [Address; Bytes 32]
     [Some (Address_value operator); None]
-
-
 
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                     (operator:         Address.t)
@@ -118,7 +116,45 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   Lwt_exn.bind (wait_for_contract_event_eth contract_address topics list_data_type data_value_search)
     (fun _ -> Lwt_exn.return ())
 
+let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+  Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
+  let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
+  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
+  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
+  Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";
+  Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val bond
+  >>= fun x ->
+  Logging.log "emit_claim_withdrawal_operation : before confirm_pre_transaction";
+  Ethereum_user.confirm_pre_transaction operator x
+  >>= fun (_tx, confirmation) ->
+  Logging.log "emit_claim_withdrawal_operation : before eth_get_transaction_receipt";
+  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
+  >>= fun x ->
+  Logging.log "emit_claim_withdrawal_operation : after eth_get_transaction_receipt";
+  match x with
+  | None -> bork "No tx receipt for contract creation"
+  | Some _receipt -> Lwt_exn.return ()
 
+let emit_withdraw_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+  Logging.log "emit_withdraw_operation : beginning of operation";
+  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
+  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
+  let (value_send : TokenAmount.t) = TokenAmount.zero in
+  Logging.log "emit_withdraw_operation : before make_pre_transaction";
+  Ethereum_user.make_pre_transaction ~sender:operator operation ?gas_limit:gas_limit_val value_send
+  >>= fun x ->
+  Logging.log "emit_withdraw_operation : before confirm_pre_transaction";
+  Ethereum_user.confirm_pre_transaction operator x
+  >>= fun (_tx, confirmation) ->
+  Logging.log "emit_withdraw_operation : before eth_get_transaction_receipt";
+  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
+  >>= fun x ->
+  Logging.log "emit_withdraw_operation : after eth_get_transaction_receipt";
+  match x with
+  | None -> bork "No tx receipt for contract creation"
+  | Some _receipt -> Lwt_exn.return ()
+
+(* TODO: final_ is a bad name. Should be more like post_withdrawal_claim or just claim_withdrawal *)
 let final_claim_withdrawal_operation (tc:       TransactionCommitment.t)
                                      (operator: Address.t)
                                    : unit Lwt_exn.t =
@@ -143,7 +179,7 @@ let final_claim_withdrawal_operation (tc:       TransactionCommitment.t)
 
 
 
-
+(* TODO: should be more like post_withdrawal or execute_withdrawal *)
 let final_withdraw_operation (tc:       TransactionCommitment.t)
                              (operator: Address.t)
                            : unit Lwt_exn.t =
@@ -151,9 +187,9 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
 
   let await_challenge_or_emit =
     match (tc.transaction.tx_request |> TransactionRequest.request).operation with
-      | Deposit _ -> return ()
-      | Payment _ -> return ()
+      | Deposit _ | Payment _ -> return ()
       | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+         (* TODO: the challenge duration should be in BLOCKS, not in seconds *)
          Logging.log "Beginning of final_withdraw_operation";
          sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
            (* TODO actually accept challenges and handle accordingly *)
@@ -180,6 +216,7 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
         [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
         data_value_search
 
+(* TODO: unstub the stubs *)
 let make_rx_header (user:     Address.t)
                    (operator: Address.t)
                    (revision: Revision.t)
