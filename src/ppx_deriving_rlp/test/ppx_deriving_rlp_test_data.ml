@@ -13,6 +13,8 @@ type wrapped_list3 = { value: int list }
 [@@deriving rlp]
 
 
+(* Type aliases *)
+
 type alias_int = int
 [@@deriving rlp]
 
@@ -23,6 +25,21 @@ type alias_unit = unit
 [@@deriving rlp]
 
 
+(* Polymorphic variants *)
+
+type matter1 =
+  [ `Solid of string
+  | `Liquid of int
+  | `Gas of float ]
+[@@deriving rlp]
+
+type matter2 =
+  [ matter1
+  | `Plasma of char ]
+[@@deriving rlp]
+
+
+(* Type parameters *)
 
 type ('k, 'v) seq_tree_map = StmLeaf of 'v
                            | StmNode of ('k * (('k,'v) seq_tree_map)) list

@@ -265,6 +265,22 @@ let funs_case (to_rlp, of_rlp) tmp =
   and rlp_exp  = app to_rlp [evar tmp] in
   (data_pat, rlp_pat, data_exp, rlp_exp)
 
+(* Produces a tuple of the "to" function and the "of" function *)
+let cases_to_funs bidi_cases name =
+  ((lam (pvar "x")
+     (Exp.match_
+       (evar "x")
+       (List.map case_data_to_rlp bidi_cases))),
+   (lam (pvar "x")
+     (Exp.match_
+       ~attrs:[turn_off_warning_this_match_case_is_unused]
+       (evar "x")
+       ((List.map case_rlp_to_data bidi_cases)
+        @
+        [case_else_data_type_mismatch
+          ("of_rlp_item: error parsing rlp data for type: " ^ name)]))))
+
+
 
 let rec core_type_to_case typ tmp : bidirectional_case =
   let typ = Ppx_deriving.remove_pervasives ~deriver typ in
@@ -277,6 +293,7 @@ let rec core_type_to_case typ tmp : bidirectional_case =
   | Ptyp_constr (lid, args) -> let (tos, ofs) = unzip2 (List.map core_type_to_funs args)
                                in funs_case (app (Exp.ident (type_lid_to_rlp lid)) tos, app (Exp.ident (type_lid_of_rlp lid)) ofs) tmp
   | Ptyp_alias (ty, _name)  -> core_type_to_case ty tmp
+  | Ptyp_variant (fs, _, _) -> funs_case (poly_variants_to_funs fs typ (string_of_type typ)) tmp
   | Ptyp_arrow _            -> raise_errorf "cannot convert functions to RLP, given: %s" (string_of_type typ)
   | Ptyp_object _           -> raise_errorf "cannot convert objects to RLP (yet), given: %s" (string_of_type typ)
   | Ptyp_class _            -> raise_errorf "cannot convert classes to RLP (yet), given: %s" (string_of_type typ)
@@ -299,6 +316,7 @@ and core_type_to_funs typ =
   | Ptyp_constr (lid, [])   -> (Exp.ident (type_lid_to_rlp lid), Exp.ident (type_lid_of_rlp lid))
   | Ptyp_constr (lid, args) -> let (tos, ofs) = unzip2 (List.map core_type_to_funs args)
                                in (app (Exp.ident (type_lid_to_rlp lid)) tos, app (Exp.ident (type_lid_of_rlp lid)) ofs)
+  | Ptyp_variant (fs, _, _) -> poly_variants_to_funs fs typ (string_of_type typ)
   | _                       -> let (data_pat, rlp_pat, data_exp, rlp_exp) = core_type_to_case typ "tmp"
                                in (lam data_pat rlp_exp,
                                    lam (pvar "x")
@@ -310,6 +328,55 @@ and core_type_to_funs typ =
                                          ("of_rlp_item: error parsing rlp data for type: " ^ string_of_type typ)]))
 
 
+(* Produces a tuple of the "to" function and the "of" function *)
+and poly_variants_to_funs fields top_typ name =
+  let is_rtag = function Rtag _ -> true | Rinherit _ -> false in
+  let (rtags, rinherits) = List.partition is_rtag fields in
+  let tmps = generate_temporaries "x" rtags in
+  let rtag_cases = List.map2 poly_variant_rtag_to_case rtags tmps
+  and rinherit_cases = poly_variant_rinherits_to_cases rinherits top_typ "sup" in
+  cases_to_funs (rtag_cases @ rinherit_cases) name
+
+and poly_variant_rtag_to_case field tmp : bidirectional_case =
+  match field with
+  | Rtag (label, _, true (*empty*), []) ->
+    (Pat.variant label.txt None,
+     pat_rlp_construct label.txt None,
+     Exp.variant label.txt None,
+     exp_rlp_construct label.txt None)
+  | Rtag (label, _, false, [typ]) ->
+    let (data_pat, rlp_pat, data_exp, rlp_exp) = core_type_to_case typ tmp in
+    (Pat.variant label.txt (Some data_pat),
+     pat_rlp_construct label.txt (Some rlp_pat),
+     Exp.variant label.txt (Some data_exp),
+     exp_rlp_construct label.txt (Some rlp_exp))
+  | _ ->
+    raise_errorf "cannot convert polymorphic variant to RLP (yet)"
+
+and poly_variant_rinherits_to_cases rinherits top_typ tmp =
+  match rinherits with
+  | [] -> []
+  | [Rinherit ({ ptyp_desc = Ptyp_constr (tname, _) } as typ)] ->
+    let (data_pat, rlp_pat, data_exp, rlp_exp) = core_type_to_case typ tmp in
+    [(Pat.alias (Pat.type_ tname) (mknoloc tmp),
+      rlp_pat,
+      Exp.coerce data_exp None top_typ,
+      Exp.match_ (evar tmp) [Exp.case data_pat rlp_exp])]
+  | _ ->
+    (* TODO:
+       This is possible in theory, it would just require
+       generating a nested match expression such as this:
+       match (sup1_of_rlp_item_opt x) with
+       | Some y -> y
+       | None ->
+         (match (sup2_of_rlp_item_opt x) with
+          | Some y -> y
+          | None ->
+            (match (sup3_of_rlp_item_opt x) with
+             | Some y -> y
+             | None ->
+               raise Rlp_data_mismatch_error ...)) *)
+    raise_errorf "cannot convert polymorphic variant with multiple inheritance"
 
 
 let record_fields_to_case flds tmp =
@@ -362,48 +429,20 @@ let type_decl_variants_to_cases (variants : constructor_declaration list) tmp =
 (* Produces a tuple of the "to" function and the "of" function *)
 let type_decl_record_to_funs name fields =
   let bidi_case = type_decl_record_to_case fields "tmp" in
-  ((lam (pvar "x")
-     (Exp.match_ (evar "x") [case_data_to_rlp bidi_case])),
-   (lam (pvar "x")
-     (Exp.match_
-       ~attrs:[turn_off_warning_this_match_case_is_unused]
-       (evar "x")
-       [case_rlp_to_data bidi_case;
-        case_else_data_type_mismatch
-          ("of_rlp_item: error parsing rlp data for record type: " ^ name)])))
+  cases_to_funs [bidi_case] name
 
 (* Produces a tuple of the "to" function and the "of" function *)
 let type_decl_variants_to_funs name variants =
   let bidi_cases = type_decl_variants_to_cases variants "tmp" in
-  ((lam (pvar "x")
-     (Exp.match_
-       (evar "x")
-       (List.map case_data_to_rlp bidi_cases))),
-   (lam (pvar "x")
-     (Exp.match_
-       ~attrs:[turn_off_warning_this_match_case_is_unused]
-       (evar "x")
-       ((List.map case_rlp_to_data bidi_cases)
-        @
-        [case_else_data_type_mismatch
-          ("of_rlp_item: error parsing rlp data for variant type:" ^ name)]))))
+  cases_to_funs bidi_cases name
 
 (* Produces a tuple of the "to" function and the "of" function *)
 let type_decl_manifest_to_funs manifest =
   match manifest with
   | None    -> raise_errorf "ppx_deriving_rlp: cannot find definition for abstract type"
   | Some ty ->
-    ((lam (pvar "x")
-       (Exp.match_
-         (evar "x")
-         [case_data_to_rlp (core_type_to_case ty "tmp")])),
-     (lam (pvar "x")
-       (Exp.match_
-         ~attrs:[turn_off_warning_this_match_case_is_unused]
-         (evar "x")
-         [case_rlp_to_data (core_type_to_case ty "tmp");
-          case_else_data_type_mismatch
-            ("of_rlp_item: error parsing rlp data for type: " ^ string_of_type ty)])))
+    let bidi_case = core_type_to_case ty "tmp" in
+    cases_to_funs [bidi_case] (string_of_type ty)
 
 (* Produces a tuple of the "to" function and the "of" function
   The rhs_typ_kind contains either the variants or the record fields
