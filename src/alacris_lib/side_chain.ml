@@ -250,14 +250,10 @@ end
 module Transaction = struct
   [@warning "-39"]
   type t = {tx_header: TxHeader.t; tx_request: TransactionRequest.t}
-  [@@deriving lens { prefix=true }, yojson ]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling2
-        (fun {tx_header; tx_request} -> tx_header, tx_request)
-        (fun tx_header tx_request -> {tx_header; tx_request})
-        TxHeader.marshaling TransactionRequest.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies

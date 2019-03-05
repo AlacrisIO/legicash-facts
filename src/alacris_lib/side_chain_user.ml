@@ -403,25 +403,13 @@ module TransactionTracker = struct
                ; revision:     Revision.t
                ; request_guid: RequestGuid.t
                ; requested_at: Timestamp.t
-               } [@@deriving yojson]
+               }
+      [@@deriving yojson, rlp]
 
       include (YojsonMarshalable(struct
            type nonrec t = t
            let yojsoning = {to_yojson; of_yojson}
-
-           let marshaling = marshaling5
-             (fun { user; operator; revision; request_guid; requested_at } ->
-                    user, operator, revision, request_guid, requested_at)
-
-             (fun user  operator  revision  request_guid  requested_at ->
-                { user; operator; revision; request_guid; requested_at })
-
-             Address.marshaling
-             Address.marshaling
-             Revision.marshaling
-             RequestGuid.marshaling
-             Timestamp.marshaling
-
+           let marshaling = marshaling_of_rlping rlping
          end): YojsonMarshalableS with type t := t)
     end
 
