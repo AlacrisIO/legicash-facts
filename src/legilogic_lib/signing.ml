@@ -34,6 +34,8 @@ let public_key_length = 65
 let bytes_of_key (key : 'a Secp256k1.Key.t) : bytes =
   key |> Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx |> Cstruct.of_bigarray |> Cstruct.to_bytes
 
+let string_of_key key = Bytes.to_string (bytes_of_key key)
+
 module PublicKey = struct
   module P = struct
     type t = Secp256k1.Key.public Secp256k1.Key.t
@@ -46,12 +48,24 @@ module PublicKey = struct
       | Ok (key : t) -> key, start + public_key_length
       | Error s -> bork "Could not unmarshal public key: %s" s
     let marshaling = {marshal;unmarshal}
+
+    let of_string string =
+      let (v,_) = unmarshal 0 (Bytes.of_string string) in
+      v
+    let rlping = rlping_by_isomorphism of_string string_of_key string_rlping
   end
   include YojsonableOfPreMarshalable(P)
   let pp formatter x = Format.fprintf formatter "%s" (x |> marshal_string |> unparse_0x_data)
   let show x = Format.asprintf "%a" pp x
+  let rlping = P.rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
 end
 type public_key = PublicKey.t
+[@@deriving rlp]
 
 let address_of_public_key public_key =
   let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
@@ -75,10 +89,22 @@ module PrivateKey = struct
       | Ok key -> key, start + private_key_length
       | Error s -> bork "Could not unmarshal private key: %s" s
     let marshaling = {marshal;unmarshal}
+
+    let of_string string =
+      let (v,_) = unmarshal 0 (Bytes.of_string string) in
+      v
+    let rlping = rlping_by_isomorphism of_string string_of_key string_rlping
   end
   include YojsonableOfPreMarshalable(P)
+  let rlping = P.rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
 end
 type private_key = PrivateKey.t
+[@@deriving rlp]
 
 let string_of_signature signature =
   (* see https://bitcoin.stackexchange.com/questions/38351/ecdsa-v-r-s-what-is-v
@@ -126,7 +152,7 @@ module Keypair = struct
     ; public_key: PublicKey.t
     ; private_key: PrivateKey.t
     ; password: string }
-  [@@deriving lens {prefix=true}, yojson]
+  [@@deriving lens {prefix=true}, yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -143,6 +169,7 @@ module Keypair = struct
   include (YojsonMarshalable(P) : YojsonMarshalableS with type t := t)
 end
 type keypair = Keypair.t
+[@@deriving rlp]
 
 (* Used only for tests *)
 let make_public_key public_key_string =
