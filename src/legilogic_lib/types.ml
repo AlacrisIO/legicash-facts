@@ -185,6 +185,7 @@ module RequestGuid = struct
    *)
 
   type t = UInt128.t * UInt64.t * UInt64.t * UInt64.t * UInt192.t
+  [@@deriving rlp]
 
   type from_string_result =
     | WellFormed of t

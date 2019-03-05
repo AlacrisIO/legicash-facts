@@ -43,10 +43,16 @@ type keypair = Keypair.t
 
 (** Signature of a message per Secp256k1 public-key cryptography *)
 type signature
-module Signature : PersistableS with type t = signature
+[@@deriving rlp]
+module Signature : sig
+  type t = signature
+  [@@deriving rlp]
+  include PersistableS with type t := signature
+end
 
 (** Record of an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: signature}
+[@@deriving rlp]
 
 val signed_of_digest : ('a -> digest) -> keypair -> 'a -> 'a signed
 (** Make an ['a signed] record out of the 'a [digest] function, a [keypair] and the 'a payload *)

@@ -74,6 +74,7 @@ module Confirmation : sig
            ; transaction_index: Revision.t
            ; block_number: Revision.t
            ; block_hash: digest }
+  [@@deriving rlp]
   include PersistableS with type t := t
 end
 

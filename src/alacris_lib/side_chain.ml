@@ -38,7 +38,7 @@ module UserOperation = struct
     ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
     ; request_guid:                    RequestGuid.t
     ; requested_at:                    Timestamp.t
-    } [@@deriving lens, yojson]
+    } [@@deriving lens, yojson, rlp]
 
   type payment_details =
     { payment_invoice:   Invoice.t
@@ -46,20 +46,20 @@ module UserOperation = struct
     ; payment_expedited: bool
     ; request_guid:      RequestGuid.t
     ; requested_at:      Timestamp.t
-    } [@@deriving lens, yojson]
+    } [@@deriving lens, yojson, rlp]
 
   type withdrawal_details =
     { withdrawal_amount: TokenAmount.t
     ; withdrawal_fee:    TokenAmount.t
     ; request_guid:      RequestGuid.t
     ; requested_at:      Timestamp.t
-    } [@@deriving lens, yojson]
+    } [@@deriving lens, yojson, rlp]
 
   type t =
     | Deposit    of deposit_details
     | Payment    of payment_details
     | Withdrawal of withdrawal_details
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
 
   let guid_and_utc = function
     | Deposit    o -> (o.request_guid, o.requested_at)
@@ -73,110 +73,9 @@ module UserOperation = struct
 
   module PrePersistable = struct
     type nonrec t = t
-    let case_table =
-      [| marshaling6
-           (function | Deposit { deposit_amount
-                               ; deposit_fee
-                               ; main_chain_deposit
-                               ; main_chain_deposit_confirmation
-                               ; request_guid
-                               ; requested_at
-                               } -> ( deposit_amount
-                                    , deposit_fee
-                                    , main_chain_deposit
-                                    , main_chain_deposit_confirmation
-                                    , request_guid
-                                    , requested_at
-                                    )
-                     | _ -> bottom ())
-
-           (fun deposit_amount
-                deposit_fee
-                main_chain_deposit
-                main_chain_deposit_confirmation
-                request_guid
-                requested_at
-             -> Deposit { deposit_amount
-                        ; deposit_fee
-                        ; main_chain_deposit
-                        ; main_chain_deposit_confirmation
-                        ; request_guid
-                        ; requested_at
-                        })
-
-           TokenAmount.marshaling
-           TokenAmount.marshaling
-           Ethereum_chain.Transaction.marshaling
-           Ethereum_chain.Confirmation.marshaling
-           RequestGuid.marshaling
-           Timestamp.marshaling
-
-       ; marshaling5
-           (function | Payment { payment_invoice
-                               ; payment_fee
-                               ; payment_expedited
-                               ; request_guid
-                               ; requested_at
-                               } -> ( payment_invoice
-                                    , payment_fee
-                                    , payment_expedited
-                                    , request_guid
-                                    , requested_at
-                                    )
-                     | _ -> bottom ())
-
-           (fun payment_invoice
-                payment_fee
-                payment_expedited
-                request_guid
-                requested_at
-             -> Payment { payment_invoice
-                        ; payment_fee
-                        ; payment_expedited
-                        ; request_guid
-                        ; requested_at
-                        })
-
-           Invoice.marshaling
-           TokenAmount.marshaling
-           bool_marshaling
-           RequestGuid.marshaling
-           Timestamp.marshaling
-
-       ; marshaling4
-           (function | Withdrawal { withdrawal_amount
-                                  ; withdrawal_fee
-                                  ; request_guid
-                                  ; requested_at
-                                  } -> ( withdrawal_amount
-                                       , withdrawal_fee
-                                       , request_guid
-                                       , requested_at
-                                       )
-                     | _ -> bottom ())
-
-           (fun withdrawal_amount
-                withdrawal_fee
-                request_guid
-                requested_at
-             -> Withdrawal { withdrawal_amount
-                           ; withdrawal_fee
-                           ; request_guid
-                           ; requested_at
-                           })
-
-           TokenAmount.marshaling
-           TokenAmount.marshaling
-           RequestGuid.marshaling
-           Timestamp.marshaling
-      |]
-
-    let marshaling = marshaling_cases operation_tag
-                                      Side_chain_tag.base_operation
-                                      case_table
-
-    let yojsoning         = {to_yojson; of_yojson}
-    let make_persistent   = normal_persistent
+    let marshaling = marshaling_of_rlping rlping
+    let yojsoning = {to_yojson;of_yojson}
+    let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
   include (Persistable (PrePersistable) : (PersistableS with type t := t))

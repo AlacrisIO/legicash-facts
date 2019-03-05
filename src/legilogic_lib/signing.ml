@@ -7,6 +7,8 @@ open Digesting
 open Persisting
 open Types
 open Action
+open Ppx_deriving_rlp_runtime
+open Rlping
 
 module Address = struct
   include Data160
@@ -98,15 +100,24 @@ let signature_of_string string =
 
 module Signature = struct
   (* 8 bytes for the recovery id + 64 bytes for the signature proper *)
-  let width = 72
+  (* let width = 72 *)
   module P = struct
     type t = Secp256k1.Sign.recoverable Secp256k1.Sign.t
-    let marshaling = marshaling_sized_string width string_of_signature signature_of_string
+    let rlping = rlping_by_isomorphism signature_of_string string_of_signature string_rlping
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = yojsoning_map string_of_signature signature_of_string string_0x_yojsoning
   end
   include TrivialPersistable (P)
+
+  let rlping = P.rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
 end
 type signature = Signature.t
+[@@deriving rlp]
 
 module Keypair = struct
   [@warning "-39"]
@@ -154,6 +165,7 @@ let make_private_key private_key_string =
   | Error msg -> bork "%s" msg
 
 type 'a signed = {payload: 'a; signature: signature}
+[@@deriving rlp]
 
 (* Used only for tests *)
 let make_keypair private_key_string public_key_string password =
