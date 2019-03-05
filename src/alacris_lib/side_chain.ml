@@ -155,7 +155,7 @@ module UserQueryRequest = struct
     | Get_account_status      of {address: Address.t}
     | Get_recent_transactions of {address: Address.t; count: Revision.t option}
     | Get_proof               of {tx_revision: Revision.t}
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -168,7 +168,7 @@ module AdminQueryRequest = struct
   type t =
     | Get_all_balances
     | Get_transaction_rate
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -181,27 +181,11 @@ module TransactionRequest = struct
   type t =
     [ `UserTransaction of UserTransactionRequest.t signed
     | `AdminTransaction of AdminTransactionRequest.t ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
-    let marshal buffer = function
-      | `UserTransaction utrs ->
-        Tag.marshal buffer Side_chain_tag.user_transaction;
-        marshal_signed UserTransactionRequest.marshal buffer utrs
-      | `AdminTransaction x ->
-        Tag.marshal buffer Side_chain_tag.admin_transaction;
-        AdminTransactionRequest.marshal buffer x
-    let unmarshal start bytes =
-      let (tag, p) = Tag.unmarshal start bytes in
-      if tag = Side_chain_tag.user_transaction then
-        let (utrs, p) = unmarshal_signed UserTransactionRequest.unmarshal p bytes in
-        `UserTransaction utrs, p
-      else if tag = Side_chain_tag.admin_transaction then
-        let (x, p) = AdminTransactionRequest.unmarshal p bytes in
-        `AdminTransaction x, p
-      else raise (Unmarshaling_error ("bad tag", start, bytes))
-    let marshaling = {marshal;unmarshal}
+    let marshaling = marshaling_of_rlping rlping
   end
   include (TrivialPersistable(P) : PersistableS with type t := t)
   let signed_request = function
@@ -215,7 +199,7 @@ module Query = struct
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `AdminQuery of AdminQueryRequest.t ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -228,7 +212,7 @@ module UserRequest = struct
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -241,7 +225,7 @@ module AdminRequest = struct
   type t =
     [ `AdminQuery of UserQueryRequest.t
     | `AdminTransaction of AdminTransactionRequest.t ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -255,7 +239,7 @@ module ExternalRequest = struct
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed
     | `AdminQuery of AdminQueryRequest.t ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
