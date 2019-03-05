@@ -34,6 +34,8 @@ let check_loi_rlp = check_convert_rlp loi_to_rlp_item loi_of_rlp_item loi_marsha
 let check_wrapped_list1_rlp = check_convert_rlp wrapped_list1_to_rlp_item wrapped_list1_of_rlp_item wrapped_list1_marshal_rlp wrapped_list1_unmarshal_rlp
 let check_wrapped_list2_rlp = check_convert_rlp wrapped_list2_to_rlp_item wrapped_list2_of_rlp_item wrapped_list2_marshal_rlp wrapped_list2_unmarshal_rlp
 let check_wrapped_list3_rlp = check_convert_rlp wrapped_list3_to_rlp_item wrapped_list3_of_rlp_item wrapped_list3_marshal_rlp wrapped_list3_unmarshal_rlp
+let check_matter1_rlp = check_convert_rlp matter1_to_rlp_item matter1_of_rlp_item matter1_marshal_rlp matter1_unmarshal_rlp
+let check_matter2_rlp = check_convert_rlp matter2_to_rlp_item matter2_of_rlp_item matter2_marshal_rlp matter2_unmarshal_rlp
 let check_seq_tree_map_str_str_rlp = check_convert_rlp [%rlp: (string, string) seq_tree_map].to_rlp_item
                                                        [%rlp: (string, string) seq_tree_map].of_rlp_item
                                                        (seq_tree_map_marshal_rlp string_to_rlp_item string_to_rlp_item)
@@ -92,6 +94,29 @@ let test7 ctxt = check_loi_rlp ~ctxt
 let test8 ctxt = check_wrapped_list1_rlp ~ctxt (Wrap1 [1]) (RlpItems [RlpItem ""; RlpItems [RlpItem "\001"]]) "\xc3\x80\xc1\001"
 let test9 ctxt = check_wrapped_list2_rlp ~ctxt (Wrap2 { value = [1] }) (RlpItems [RlpItem ""; RlpItems [RlpItem "\001"]]) "\xc3\x80\xc1\001"
 let test10 ctxt = check_wrapped_list3_rlp ~ctxt ({ value = [1] }) (RlpItems [RlpItem "\001"]) "\xc1\001"
+
+let test11 ctxt = check_matter1_rlp ~ctxt
+                    (`Solid "ground")
+                    (RlpItems [RlpItem "Solid"; RlpItem "ground"])
+                    "\xcd\x85Solid\x86ground"
+let test12 ctxt = check_matter1_rlp ~ctxt
+                    (`Gas 22.414)
+                    (RlpItems [RlpItem "Gas"; RlpItem "@6i\251\231l\139D"])
+                    "\xcd\x83Gas\x88@6i\251\231l\139D"
+let test13 ctxt = check_matter2_rlp ~ctxt
+                    (`Liquid 6579)
+                    (RlpItems [RlpItem "Liquid"; RlpItem "\025\179"])
+                    "\xca\x86Liquid\x82\025\179"
+let test14 ctxt = check_matter2_rlp ~ctxt
+                    (`Plasma 'H')
+                    (RlpItems [RlpItem "Plasma"; RlpItem "H"])
+                    "\xc8\x86PlasmaH"
+let test15 ctxt = check_matter2_rlp ~ctxt
+                    (`Unknown)
+                    (RlpItem "Unknown")
+                    "\x87Unknown"
+
+
 
 let test_stmss1 ctxt = check_seq_tree_map_str_str_rlp ~ctxt
                          (StmLeaf "nemo")
@@ -278,6 +303,11 @@ let suite =
   "test8">:: test8;
   "test9">:: test9;
   "test10">:: test10;
+  "test11">:: test11;
+  "test12">:: test12;
+  "test13">:: test13;
+  "test14">:: test14;
+  "test15">:: test15;
   "test_stmss1">:: test_stmss1;
   "test_stmss2">:: test_stmss2;
   "test_t_alias1">:: test_t_alias1]

@@ -35,7 +35,8 @@ type matter1 =
 
 type matter2 =
   [ matter1
-  | `Plasma of char ]
+  | `Plasma of char
+  | `Unknown ]
 [@@deriving rlp]
 
 
