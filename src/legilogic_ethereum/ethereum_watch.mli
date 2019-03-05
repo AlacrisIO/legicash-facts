@@ -4,7 +4,7 @@ open Action
 open Signing
 open Ethereum_json_rpc
 open Ethereum_abi
-   
+
 val main_chain_block_notification_stream :
   ?delay:float             (* Wait this long between polls of geth *)
   -> ?start_block:Revision.t (* Don't report until this block number has passed. *)
@@ -15,33 +15,30 @@ val main_chain_block_notification_stream :
     stream of notifications that a new block has been observed, based on polling
     geth every [delay] seconds, and starting with block [start] *)
 
-
 val sleep_delay_exn : float -> unit Lwt_exn.t
 (** This function allows to wait for a delay (in seconds) before continuing the computation.
     It handles exceptions *)
 
-  
 val retrieve_relevant_list_logs : float -> Address.t -> Bytes.t option list -> LogObject.t list Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
-    be only one matching entry *)
-
+    be only one matching entry
+    TODO: named argument for the float. Better description of what the arguments are. *)
 
 val retrieve_relevant_list_logs_data : float -> Address.t -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
-    be only one matching entry *)
+    be only one matching entry.
+    TODO: named argument for the float. Better description of what the arguments are. *)
 
 val retrieve_relevant_single_logs_data : float -> Address.t -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
+(** TODO: named argument for the float. Better description of what the arguments are. *)
 
-
-  
 val retrieve_relevant_single_logs : float -> Address.t -> Bytes.t option list -> LogObject.t Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
-    be only one matching entry *)
-
-
+    be only one matching entry
+    TODO: named argument for the float. Better description of what the arguments are. *)
 
 val retrieve_last_entries_group : Revision.t -> Address.t -> Bytes.t option list list -> (Revision.t * (LogObject.t list list)) Lwt_exn.t
+(** TODO: named argument for the float. Better description of what the arguments are. *)
 
 val retrieve_relevant_list_logs_group : float -> Address.t -> Bytes.t option list list -> EthListLogObjects.t list Lwt_exn.t
-                                                                                         
-                                                                                   
+(** TODO: named argument for the float. Better description of what the arguments are. *)

@@ -82,9 +82,9 @@ module User : PersistentActivityS
    and type state = UserState.t
    and type t = UserState.t SimpleActor.t
 
+(* TODO: add some [unit Lwt.u] to persist a handle to the transaction
+   before to send any message on the network *)
 val add_ongoing_transaction : Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr
-
-
 
 val confirmation_of_transaction_receipt : TransactionReceipt.t -> Confirmation.t
 

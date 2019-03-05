@@ -15,9 +15,7 @@ open Trie
 open Legilogic_ethereum
 open Side_chain_server_config
 open Ethereum_watch
-open Ethereum_json_rpc
 open Ethereum_abi
-open State_update
 open Operator_contract
 open Digesting
 
@@ -27,14 +25,14 @@ open Side_chain
 let get_operator_fee_schedule _operator_address =
   Lwt_exn.return initial_fee_schedule
 
-let (topic_of_state_update : Bytes.t option) = topic_of_hash (digest_of_string "StateUpdate(address,bytes32)")
+let (topic_of_state_update: Bytes.t option) =
+  topic_of_hash (digest_of_string "StateUpdate(address,bytes32)")
 
-let (topic_of_claim_withdrawal : Bytes.t option) = topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32)")
+let (topic_of_claim_withdrawal: Bytes.t option) =
+  topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32)")
 
-let (topic_of_withdraw : Bytes.t option) = topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
-
-
-
+let (topic_of_withdraw: Bytes.t option) =
+  topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
@@ -58,11 +56,17 @@ let wait_for_contract_event_unit (contract_address:  Address.t)
                                  (list_data_type:    abi_type list)
                                  (data_value_search: abi_value option list)
                                : unit Lwt_exn.t =
+  let open Lwt_exn in
   Logging.log "Beginning of wait_for_contract_event";
-  let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  Lwt_exn.bind (retrieve_relevant_single_logs_data delay contract_address topics list_data_type data_value_search)
-  (fun (_lobj : (LogObject.t * (abi_value list))) ->
-  Lwt_exn.return ())
+
+  retrieve_relevant_single_logs_data
+    Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    contract_address
+    topics
+    list_data_type
+    data_value_search
+
+  >>= const () (* TODO: forgetting stuff suggests this one is not the primitive one. Or maybe it is? *)
 
 
 let wait_for_contract_event_eth (contract_address:  Address.t)
@@ -70,26 +74,34 @@ let wait_for_contract_event_eth (contract_address:  Address.t)
                                 (list_data_type:    abi_type list)
                                 (data_value_search: abi_value option list)
                               : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  let open Lwt_exn in
   Logging.log "Beginning of wait_for_contract_event_eth";
-  let (delay : float) = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  Lwt_exn.bind (retrieve_relevant_single_logs_data delay contract_address topics list_data_type data_value_search)
-  (fun (_lobj : (LogObject.t * (abi_value list))) ->
-  Lwt_exn.return
-    Ethereum_chain.Confirmation.
-      { transaction_hash= Digest.zero
-      ; transaction_index= Revision.zero
-      ; block_number= Revision.zero
-      ; block_hash= Digest.zero })
 
+  retrieve_relevant_single_logs_data
+    Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    contract_address
+    topics
+    list_data_type
+    data_value_search
 
-let wait_for_operator_state_update (contract_address : Address.t) (operator : Address.t) : Ethereum_chain.Confirmation.t Lwt_exn.t =
+  (* TODO: DRY with previous function. And the confirmation returned, if needed, should not be faked *)
+  >>= fun _ -> return Ethereum_chain.Confirmation.
+    { transaction_hash  = Digest.zero (* NB: THIS IS FAKE. TODO: UNFAKE IT. *)
+    ; transaction_index = Revision.zero
+    ; block_number      = Revision.zero
+    ; block_hash        = Digest.zero
+    }
+
+let wait_for_operator_state_update (contract_address: Address.t)
+                                   (operator:         Address.t)
+                                 : Ethereum_chain.Confirmation.t Lwt_exn.t =
   Logging.log "Beginning of wait_for_operator_state_update";
-  let (topics : Bytes.t option list) = [topic_of_state_update] in
-  let (list_data_type : abi_type list) = [Address; Bytes 32] in
-  let (data_value_search : abi_value option list) = [Some (Address_value operator); None] in
-  wait_for_contract_event_eth contract_address topics list_data_type data_value_search
 
-
+  wait_for_contract_event_eth
+    contract_address
+    [topic_of_state_update]
+    [Address; Bytes 32]
+    [Some (Address_value operator); None]
 
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                     (operator:         Address.t)
@@ -103,58 +115,138 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   Lwt_exn.bind (wait_for_contract_event_eth contract_address topics list_data_type data_value_search)
     (fun _ -> Lwt_exn.return ())
 
+let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+  let open Lwt_exn in
+  Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
+  let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
+  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
+  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
+  Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";
+  Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val bond
+  >>= fun x ->
+  Logging.log "emit_claim_withdrawal_operation : before confirm_pre_transaction";
+  Ethereum_user.confirm_pre_transaction operator x
+  >>= fun (_tx, confirmation) ->
+  Logging.log "emit_claim_withdrawal_operation : before eth_get_transaction_receipt";
+  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
+  >>= fun x ->
+  Logging.log "emit_claim_withdrawal_operation : after eth_get_transaction_receipt";
+  match x with
+  | None -> bork "No tx receipt for contract creation"
+  | Some _receipt -> Lwt_exn.return ()
 
-let final_claim_withdrawal_operation (tc : TransactionCommitment.t) (operator : Address.t) : unit Lwt_exn.t =
+let emit_withdraw_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+  let open Lwt_exn in
+  Logging.log "emit_withdraw_operation : beginning of operation";
+  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
+  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
+  let (value_send : TokenAmount.t) = TokenAmount.zero in
+  Logging.log "emit_withdraw_operation : before make_pre_transaction";
+  Ethereum_user.make_pre_transaction ~sender:operator operation ?gas_limit:gas_limit_val value_send
+  >>= fun x ->
+  Logging.log "emit_withdraw_operation : before confirm_pre_transaction";
+  Ethereum_user.confirm_pre_transaction operator x
+  >>= fun (_tx, confirmation) ->
+  Logging.log "emit_withdraw_operation : before eth_get_transaction_receipt";
+  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
+  >>= fun x ->
+  Logging.log "emit_withdraw_operation : after eth_get_transaction_receipt";
+  match x with
+  | None -> bork "No tx receipt for contract creation"
+  | Some _receipt -> Lwt_exn.return ()
+
+(* TODO: final_ is a bad name. Should be more like post_withdrawal_claim or just claim_withdrawal *)
+let final_claim_withdrawal_operation (tc:       TransactionCommitment.t)
+                                     (operator: Address.t)
+                                   : unit Lwt_exn.t =
+  let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
-  | Deposit _ -> Lwt_exn.return ()
-  | Payment _ -> Lwt_exn.return ()
-  | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-     Logging.log "Beginning of final_claim_withdrawal_operation";
-     (*     Logging.log "bond_value=%s" (TokenAmount.to_string Side_chain_server_config.bond_value_v); *)
-     Lwt_exn.bind (emit_claim_withdrawal_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest)
-       (fun _ ->
-         wait_for_claim_withdrawal_event tc.contract_address operator tc.tx_proof.key)
-
-
-
-
-let final_withdraw_operation (tc : TransactionCommitment.t) (operator : Address.t) : unit Lwt_exn.t =
-  let (first_part_withdraw_operation : TransactionCommitment.t -> Address.t -> unit Lwt_exn.t) =
-    fun tc operator ->
-    match (tc.transaction.tx_request |> TransactionRequest.request).operation with
-    | Deposit _ -> Lwt_exn.return ()
-    | Payment _ -> Lwt_exn.return ()
+    | Deposit _ -> return ()
+    | Payment _ -> return ()
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-       Logging.log "Beginning of final_withdraw_operation";
-       Lwt_exn.bind (sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f) (fun () -> emit_withdraw_operation tc.contract_address operator tc.tx_proof.key withdrawal_amount Side_chain_server_config.bond_value_v tc.state_digest) in
-  Lwt_exn.bind (first_part_withdraw_operation tc operator)
-    (fun () ->
-      let (topics : Bytes.t option list) = [topic_of_withdraw] in
-      let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Uint 256; Bytes 32] in
-      let (data_value_search : abi_value option list) =
-        [Some (Address_value operator); Some (abi_value_from_revision tc.tx_proof.key); None; None; None] in
-      wait_for_contract_event_unit tc.contract_address topics list_data_type data_value_search)
+        Logging.log "Beginning of final_claim_withdrawal_operation";
+        emit_claim_withdrawal_operation
+           tc.contract_address
+           operator
+           tc.tx_proof.key
+           withdrawal_amount
+           Side_chain_server_config.bond_value_v
+           tc.state_digest
 
-let make_rx_header (user : Address.t) (operator : Address.t) (revision : Revision.t) : RxHeader.t Lwt.t =
+        >>= fun _ -> wait_for_claim_withdrawal_event
+           tc.contract_address
+           operator
+           tc.tx_proof.key
+
+
+
+(* TODO: should be more like post_withdrawal or execute_withdrawal *)
+let final_withdraw_operation (tc:       TransactionCommitment.t)
+                             (operator: Address.t)
+                           : unit Lwt_exn.t =
+  let open Lwt_exn in
+
+  let await_challenge_or_emit =
+    match (tc.transaction.tx_request |> TransactionRequest.request).operation with
+      | Deposit _ | Payment _ -> return ()
+      | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+         (* TODO: the challenge duration should be in BLOCKS, not in seconds *)
+         Logging.log "Beginning of final_withdraw_operation";
+         sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
+           (* TODO actually accept challenges and handle accordingly *)
+           >>= fun () -> emit_withdraw_operation
+             tc.contract_address
+             operator
+             tc.tx_proof.key
+             withdrawal_amount
+             Side_chain_server_config.bond_value_v
+             tc.state_digest
+
+  in await_challenge_or_emit
+    >>= fun () ->
+      let (data_value_search: abi_value option list) =
+        [ Some (Address_value operator)
+        ; Some (abi_value_from_revision tc.tx_proof.key)
+        ; None
+        ; None
+        ; None
+        ]
+      in wait_for_contract_event_unit
+        tc.contract_address
+        [topic_of_withdraw]
+        [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
+        data_value_search
+
+(* TODO: unstub the stubs *)
+let make_rx_header (user:     Address.t)
+                   (operator: Address.t)
+                   (revision: Revision.t)
+                 : RxHeader.t Lwt.t =
   Lwt.return RxHeader.
-               { operator
-               ; requester= user
-               ; requester_revision= revision
-               ; confirmed_main_chain_state_digest= !stub_confirmed_main_chain_state_digest
-               ; confirmed_main_chain_state_revision= !stub_confirmed_main_chain_state.revision
-               ; confirmed_side_chain_state_digest= !stub_confirmed_side_chain_state_digest
-               ; confirmed_side_chain_state_revision=
-                   !stub_confirmed_side_chain_state.operator_revision
-               ; validity_within= default_validity_window }
+    { operator
+    ; requester                           = user
+    ; requester_revision                  = revision
+    ; confirmed_main_chain_state_digest   = !stub_confirmed_main_chain_state_digest
+    ; confirmed_main_chain_state_revision = !stub_confirmed_main_chain_state.revision
+    ; confirmed_side_chain_state_digest   = !stub_confirmed_side_chain_state_digest
+    ; confirmed_side_chain_state_revision = !stub_confirmed_side_chain_state.operator_revision
+    ; validity_within                     = default_validity_window
+    }
 
-let make_user_transaction_request (user : Address.t) (operator : Address.t) (revision : Revision.t) (operation : UserOperation.t) : SignedUserTransactionRequest.t Lwt_exn.t =
+let make_user_transaction_request (user:      Address.t)
+                                  (operator:  Address.t)
+                                  (revision:  Revision.t)
+                                  (operation: UserOperation.t)
+                                : SignedUserTransactionRequest.t Lwt_exn.t =
   let open Lwt_exn in
   of_lwt (make_rx_header user operator) revision
+
   >>= fun rx_header ->
-  let request = UserTransactionRequest.{rx_header; operation} in
-  get_keypair_of_address user
+    let request = UserTransactionRequest.{rx_header; operation} in
+    get_keypair_of_address user
+
   >>= fun keypair ->
-  SignedUserTransactionRequest.make keypair request |> return
+    SignedUserTransactionRequest.make keypair request |> return
 
 module DepositWanted = struct
   [@@@warning "-39"]
@@ -437,23 +529,26 @@ module TransactionTracker = struct
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
                  | Deposit _ | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
-                 | Withdrawal _ -> PostedToMainChain (tc, c) |> continue)
+                 | Withdrawal _          -> PostedToMainChain (tc, c) |> continue)
               | Error error ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                  invalidate ongoing error)
 
-           | PostedToMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
+           | PostedToMainChain ( (tc:           TransactionCommitment.t)
+                               , (confirmation: Ethereum_chain.Confirmation.t)
+                               ) ->
              Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
              (* TODO: wait for confirmation on the main chain and handle lawsuits
                 Right now, no lawsuit *)
 
-             (*             Lwt.bind (final_main_chain_operation_old tc operator) (fun _ ->*)
              Lwt.bind (final_claim_withdrawal_operation tc operator) (fun _ ->
                  Logging.log "After final_claim_withdrawal_operation";
                  ConfirmedOnMainChain (tc, confirmation) |> continue)
 
-           | ConfirmedOnMainChain ((tc : TransactionCommitment.t), (confirmation : Ethereum_chain.Confirmation.t)) ->
+           | ConfirmedOnMainChain ( (tc:           TransactionCommitment.t)
+                                  , (confirmation: Ethereum_chain.Confirmation.t)
+                                  ) ->
              Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
@@ -461,7 +556,9 @@ module TransactionTracker = struct
                  Logging.log "After final_withdraw_operation";
                  FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |>
                    finalize))
+
         | Final x -> return x
+
       in key, loop state
   end
   include PersistentActivity(Base)
@@ -673,15 +770,22 @@ let direct_operation :
   fun operator make_operation ->
     Logging.log "running direct_operation function";
     let open UserAsyncAction in
-    of_lwt_exn get_operator_fee_schedule operator >>= fun fee_schedule ->
-    let operation = make_operation fee_schedule in
-    of_lwt_state (get_next_account_revision operator) () >>= fun revision ->
-    get_user_address () >>= fun user ->
-    of_lwt_exn (make_user_transaction_request user operator revision) operation
+    of_lwt_exn get_operator_fee_schedule operator
+
+    >>= fun fee_schedule ->
+      let operation = make_operation fee_schedule in
+      of_lwt_state (get_next_account_revision operator) ()
+
+    >>= fun revision ->
+      get_user_address ()
+
+    >>= fun user ->
+      of_lwt_exn (make_user_transaction_request user operator revision) operation
 
     >>= fun signed_request ->
       let status = OngoingTransactionStatus.Requested signed_request in
       add_ongoing_side_chain_transaction status
+
 
 let payment PaymentWanted.{ operator
                           ; recipient
