@@ -73,6 +73,12 @@ module type PrePersistableS = sig
   include PrePersistableDependencyS with type t := t
 end
 
+module type PrePersistableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include PrePersistableS with type t := t
+end
+
 module type PersistableS = sig
   include PrePersistableS
   include MarshalableS with type t := t
@@ -96,6 +102,11 @@ module Persistable (P : PrePersistableS) = struct
   let save = save_of_dependency_walking dependency_walking
 end
 
+module PersistableRlp (P : PrePersistableRlpS) = struct
+  include P
+  include (Persistable(P) : PersistableS with type t := t)
+end
+
 module TrivialPersistable (P : PreYojsonMarshalableS) =
   Persistable(struct
     include P
@@ -105,7 +116,7 @@ module TrivialPersistable (P : PreYojsonMarshalableS) =
 
 module OCamlPersistable (T: TypeS) =
   TrivialPersistable(struct
-    module M = Marshalable(OCamlMarshaling (T))
+    module M = MarshalableRlp(OCamlMarshaling (T))
     include M
     include (YojsonableOfMarshalable(M) : YojsonableS with type t := t)
   end)

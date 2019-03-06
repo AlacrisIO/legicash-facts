@@ -56,13 +56,6 @@ let dv_of_digest unmarshal_string digest =
   { digest=lazy digest
   ; value=lazy (db_value_of_digest unmarshal_string digest)
   ; persisted=true }
-let dv_marshal buffer x =
-  marshal_map dv_digest Digest.marshal buffer x
-let dv_unmarshal unmarshal_string =
-  unmarshal_map (dv_of_digest unmarshal_string) Digest.unmarshal
-let dv_marshaling value_unmarshal_string =
-  { marshal= dv_marshal
-  ; unmarshal= dv_unmarshal value_unmarshal_string }
 
 (* TODO: This `dv` RLP marshaling forces both the value and the
          digest, and includes them both in the RLP representation.
@@ -102,8 +95,9 @@ end
 
 (* TODO: somehow replace the strong reference to the value by a weak reference once it's been persisted
    (and not merely scheduled for persistence as part of a transaction), so it may be garbage-collected. *)
-module DigestValue (Value : PersistableS) = struct
+module DigestValue (Value : PersistableRlpS) = struct
   type value = Value.t
+  [@@deriving rlp]
   type digest = Digest.t
   let get = dv_get
   let make = dv_make Value.digest
@@ -111,8 +105,8 @@ module DigestValue (Value : PersistableS) = struct
   (* let equal x y = Digest.equal (dv_digest x) (dv_digest y) (* Assume no hash collision *) *)
   module P = struct
       type t = value dv
-      let rlping = rlping_by_isomorphism of_digest dv_digest Digest.rlping
-      let marshaling = marshaling_map dv_digest of_digest Digest.marshaling
+      [@@deriving rlp]
+      let marshaling = marshaling_of_rlping rlping
       let yojsoning = yojsoning_map get make Value.yojsoning
       let walk_dependencies _methods context x =
         walk_dependency Value.dependency_walking context (dv_get x)

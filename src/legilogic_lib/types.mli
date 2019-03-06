@@ -2,6 +2,7 @@ open Lib
 open Marshaling
 open Digesting
 open Persisting
+open Ppx_deriving_rlp_runtime.Rlping
 
 module type UIntS = sig
   include Integer.UIntS
@@ -115,9 +116,10 @@ val dv_get : 'a dv -> 'a
 val dv_digest : 'a dv -> digest
 val dv_make : ('a -> digest) -> 'a -> 'a dv
 val dv_of_digest : (string -> 'a) -> digest -> 'a dv
-val dv_marshal : 'a dv marshaler
-val dv_unmarshal : (string -> 'a) -> 'a dv unmarshaler
-val dv_marshaling : (string -> 'a) -> 'a dv marshaling
+
+val dv_to_rlp_item : 'a to_rlp_item -> ('a dv) to_rlp_item
+val dv_of_rlp_item : 'a of_rlp_item -> ('a dv) of_rlp_item
+val dv_rlping      : 'a rlping -> ('a dv) rlping
 
 module type DigestValueBaseS = sig
   include WrapS
@@ -144,7 +146,7 @@ end
 
 (** Asynchronously digestible, content-addressed persistable values, with
     auto-generated methods. *)
-module DigestValue (Value : PersistableS) : sig
+module DigestValue (Value : PersistableRlpS) : sig
   type value = Value.t
   type digest = Digest.t
   type t = value dv

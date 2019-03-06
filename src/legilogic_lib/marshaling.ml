@@ -1,6 +1,7 @@
 open Lib
 open Yojsoning
-open Ppx_deriving_rlp_runtime.Rlping
+open Ppx_deriving_rlp_runtime
+open Rlping
 
 exception Marshaling_error of string
 exception Unmarshaling_error of string*int*Bytes.t
@@ -241,6 +242,12 @@ module type MarshalableS = sig
   val unmarshal_string: string -> t
 end
 
+module type MarshalableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include MarshalableS with type t := t
+end
+
 module Marshalable (P : PreMarshalableS) = struct
   include P
   let marshal = marshaling.marshal
@@ -249,6 +256,16 @@ module Marshalable (P : PreMarshalableS) = struct
   let unmarshal_bytes = unmarshal_bytes_of_unmarshal unmarshal
   let marshal_string = marshal_string_of_marshal marshal
   let unmarshal_string = unmarshal_string_of_unmarshal unmarshal
+end
+
+module MarshalableRlp (P : PreMarshalableS) = struct
+  include Marshalable(P)
+  let rlping = rlping_by_isomorphism unmarshal_string marshal_string string_rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
 end
 
 module OCamlMarshaling (T: TypeS) = struct
@@ -271,9 +288,21 @@ module type PreYojsonMarshalableS = sig
   include PreYojsonableS with type t := t
 end
 
+module type PreYojsonMarshalableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include PreYojsonMarshalableS with type t := t
+end
+
 module type YojsonMarshalableS = sig
   include MarshalableS
   include YojsonableS with type t := t
+end
+
+module type YojsonMarshalableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include YojsonMarshalableS with type t := t
 end
 
 let to_yojson_of_marshal_string marshal_string x =

@@ -40,9 +40,17 @@ module type MarshalableS = sig
   val unmarshal_string: string -> t
 end
 
+module type MarshalableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include MarshalableS with type t := t
+end
+
 (** Auto-generated methods for object which can be converted to and from binary
     representation *)
 module Marshalable (P : PreMarshalableS) : MarshalableS with type t = P.t
+
+module MarshalableRlp (P : PreMarshalableS) : MarshalableRlpS with type t = P.t
 
 val marshal_of_sized_string_of : int -> ('a -> string) -> 'a marshaler
 val unmarshal_of_sized_of_string : int -> (string -> 'a) -> 'a unmarshaler
@@ -191,10 +199,22 @@ module type PreYojsonMarshalableS = sig
   include PreYojsonableS with type t := t
 end
 
+module type PreYojsonMarshalableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include PreYojsonMarshalableS with type t := t
+end
+
 (** Marshalable to binary, and (separately) convertible to json. *)
 module type YojsonMarshalableS = sig
   include MarshalableS
   include YojsonableS with type t := t
+end
+
+module type YojsonMarshalableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include YojsonMarshalableS with type t := t
 end
 
 (** Marshalable as RLP *)

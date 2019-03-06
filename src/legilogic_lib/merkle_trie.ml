@@ -135,7 +135,8 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
 
   module PreTrie = struct
     type t = trie
-    let marshaling = marshaling_cases trie_tag Tag.base_trie marshaling_case_table
+    [@@deriving rlp]
+    let marshaling = marshaling_of_rlping rlping
     let make_persistent x y = normal_persistent x y
     let walk_dependencies _methods context = function
       | Leaf {value} ->
@@ -148,7 +149,7 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
         walk_dependency !t_dependency_walking context child
     let yojsoning = {to_yojson=bottom;of_yojson=bottom}
   end
-  module Trie = Persistable(PreTrie)
+  module Trie = PersistableRlp(PreTrie)
   module T = DigestValue(Trie)
 
   let _init = (* close the fixpoints *)
