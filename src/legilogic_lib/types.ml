@@ -69,16 +69,13 @@ let dv_marshaling value_unmarshal_string =
          Is this right? Or should it only include the digest,
          and use something like `dv_of_digest` in the unmarshaling? *)
 let (dv_to_rlp_item, dv_of_rlp_item, dv_rlping) =
-  let module Tup = struct
-    type 'a tup = (Digest.t * 'a)
-    [@@deriving rlp]
-    let dv_to_tup dv = (dv_digest dv, dv_get dv)
-    let dv_of_tup (d,v) = dv_make (fun _ -> d) v
-  end in
-  let open Tup in
-  let dv_to_rlp_item vto dv = (tup_to_rlp_item vto (dv_to_tup dv))
-  and dv_of_rlp_item vof it = (dv_of_tup (tup_of_rlp_item vof it))
-  and dv_rlping vrlp = rlping_by_isomorphism dv_of_tup dv_to_tup (tup_rlping vrlp) in
+  let dv_to_rlp_item _ x =
+    Digest.to_rlp_item (dv_digest x)
+  and dv_of_rlp_item vof it =
+    dv_of_digest (fun x -> vof (Rlp_decode.rlp_item_of_rlp x)) (Digest.of_rlp_item it) in
+  let dv_rlping vrlp =
+    rlping { to_rlp_item = dv_to_rlp_item vrlp.to_rlp_item;
+             of_rlp_item = dv_of_rlp_item vrlp.of_rlp_item } in
   (dv_to_rlp_item, dv_of_rlp_item, dv_rlping)
 
 
