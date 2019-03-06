@@ -2,6 +2,8 @@ open Lib
 open Yojsoning
 open Marshaling
 open Persisting
+open Ppx_deriving_rlp_runtime
+open Rlping
 
 module type UIntS = sig
   include Integer.UIntS
@@ -91,8 +93,9 @@ module DigestValue (Value : PersistableS) = struct
   let make = dv_make Value.digest
   let of_digest = dv_of_digest Value.unmarshal_string
   (* let equal x y = Digest.equal (dv_digest x) (dv_digest y) (* Assume no hash collision *) *)
-  include Persistable(struct
+  module P = struct
       type t = value dv
+      let rlping = rlping_by_isomorphism of_digest dv_digest Digest.rlping
       let marshaling = marshaling_map dv_digest of_digest Digest.marshaling
       let yojsoning = yojsoning_map get make Value.yojsoning
       let walk_dependencies _methods context x =
@@ -103,7 +106,15 @@ module DigestValue (Value : PersistableS) = struct
         else
           (dv.persisted <- true;
            Value.save (dv_get dv))
-    end)
+  end
+  include Persistable(P)
+
+  let rlping = P.rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
 end
 
 module StringT = struct
