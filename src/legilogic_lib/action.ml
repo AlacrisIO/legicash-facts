@@ -62,12 +62,14 @@ module Monad (M : MonadBaseS) = struct
 end
 
 module Identity = struct
+  type 'a t = 'a
+  [@@deriving rlp]
   module I = struct
     type 'a t = 'a
     let return = identity
     let bind = (|>)
   end
-  include Monad(I)
+  include (Monad(I) : MonadS with type 'a t := 'a t)
 end
 
 module type ErrorMonadS = sig

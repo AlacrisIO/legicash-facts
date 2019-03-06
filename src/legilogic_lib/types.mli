@@ -139,6 +139,7 @@ end
 (** Asynchronously digestible, content-addressed persistable values. *)
 module DigestValueType : sig
   type +'a t = 'a dv
+  [@@deriving rlp]
 end
 
 (** Asynchronously digestible, content-addressed persistable values, with

@@ -215,6 +215,7 @@ let string_reverse s =
 
 module type WrapTypeS = sig
   type +'a t
+  [@@deriving rlp]
 end
 
 module type WrapS = sig
@@ -226,6 +227,7 @@ end
 
 module IdWrapType = struct
   type +'a t = 'a
+  [@@deriving rlp]
 end
 
 module IdWrap (T: TypeS) = struct

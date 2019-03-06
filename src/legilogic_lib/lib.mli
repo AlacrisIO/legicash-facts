@@ -427,6 +427,7 @@ val string_reverse : string -> string
 
 module type WrapTypeS = sig
   type +'a t
+  [@@deriving rlp]
 end
 
 module type WrapS = sig

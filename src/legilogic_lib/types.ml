@@ -64,6 +64,24 @@ let dv_marshaling value_unmarshal_string =
   { marshal= dv_marshal
   ; unmarshal= dv_unmarshal value_unmarshal_string }
 
+(* TODO: This `dv` RLP marshaling forces both the value and the
+         digest, and includes them both in the RLP representation.
+         Is this right? Or should it only include the digest,
+         and use something like `dv_of_digest` in the unmarshaling? *)
+let (dv_to_rlp_item, dv_of_rlp_item, dv_rlping) =
+  let module Tup = struct
+    type 'a tup = (Digest.t * 'a)
+    [@@deriving rlp]
+    let dv_to_tup dv = (dv_digest dv, dv_get dv)
+    let dv_of_tup (d,v) = dv_make (fun _ -> d) v
+  end in
+  let open Tup in
+  let dv_to_rlp_item vto dv = (tup_to_rlp_item vto (dv_to_tup dv))
+  and dv_of_rlp_item vof it = (dv_of_tup (tup_of_rlp_item vof it))
+  and dv_rlping vrlp = rlping_by_isomorphism dv_of_tup dv_to_tup (tup_rlping vrlp) in
+  (dv_to_rlp_item, dv_of_rlp_item, dv_rlping)
+
+
 module type DigestValueBaseS = sig
   include WrapS
   type digest
@@ -82,6 +100,7 @@ end
 
 module DigestValueType = struct
   type +'a t = 'a dv
+  [@@deriving rlp]
 end
 
 (* TODO: somehow replace the strong reference to the value by a weak reference once it's been persisted
