@@ -55,6 +55,7 @@ module type MerkleTrieProofS = sig
     (** Hashes to pair with in the proof, and their locations *)
     ; steps : (Digest.t step) list
     }
+  [@@deriving rlp]
   (** [get k mt] is the proof that the object referenced in the db by k is in
       mt. *)
   val get : key -> mtrie -> t option
@@ -105,6 +106,7 @@ module type MerkleTrieSetProofS = sig
     { elt : elt
     ; trie : Digest.t
     ; steps : (Digest.t step) list }
+  [@@deriving rlp]
   val get : elt -> mts -> t option
   val check : t -> mts -> elt -> bool
   include YojsonableS with type t := t

@@ -34,14 +34,7 @@ module OperatorState = struct
 
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling4
-        (fun { keypair; committed; current ; fee_schedule } ->
-           keypair.address, committed, current, fee_schedule)
-        (fun address committed current fee_schedule ->
-           { keypair= keypair_of_address address; committed; current ; fee_schedule })
-        Address.marshaling (signed_marshaling State.marshaling)
-        State.marshaling OperatorFeeSchedule.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {committed; current} =
       let open Lwt in
       walk_dependency SignedState.dependency_walking context committed

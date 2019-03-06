@@ -298,24 +298,7 @@ module State = struct
 
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      (* TODO: add a big prefix for the signing? *)
-      marshaling_tagged Side_chain_tag.state
-        (marshaling5
-           (fun { operator_revision
-                ; spending_limit
-                ; accounts
-                ; transactions
-                ; main_chain_transactions_posted } ->
-             (operator_revision, spending_limit, accounts, transactions, main_chain_transactions_posted))
-           (fun operator_revision spending_limit accounts transactions main_chain_transactions_posted ->
-              { operator_revision
-              ; spending_limit
-              ; accounts
-              ; transactions
-              ; main_chain_transactions_posted })
-           Revision.marshaling TokenAmount.marshaling
-           AccountMap.marshaling TransactionMap.marshaling DigestSet.marshaling)
+    let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {accounts; transactions; main_chain_transactions_posted} =
       walk_dependency AccountMap.dependency_walking context accounts
       >>= (fun () -> walk_dependency TransactionMap.dependency_walking context transactions)
@@ -365,36 +348,10 @@ module TransactionCommitment = struct
     ; state_digest: Digest.t
     ; contract_address: Address.t
     }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling9
-        (fun { transaction
-             ; tx_proof
-             ; operator_revision
-             ; spending_limit
-             ; accounts
-             ; main_chain_transactions_posted
-             ; signature
-             ; state_digest
-             ; contract_address } ->
-          transaction, tx_proof, operator_revision, spending_limit,
-          accounts, main_chain_transactions_posted, signature, state_digest, contract_address)
-        (fun transaction tx_proof operator_revision spending_limit
-          accounts main_chain_transactions_posted signature state_digest contract_address ->
-          { transaction
-          ; tx_proof
-          ; operator_revision
-          ; spending_limit
-          ; accounts
-          ; main_chain_transactions_posted
-          ; signature
-          ; state_digest
-          ; contract_address })
-        Transaction.marshaling TransactionMap.Proof.marshaling Revision.marshaling
-        TokenAmount.marshaling Digest.marshaling Digest.marshaling Signature.marshaling
-        Digest.marshaling Address.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
   end
   include (TrivialPersistable (PrePersistable) : PersistableS with type t := t)

@@ -575,24 +575,7 @@ module UserAccountState = struct
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling5
-        (fun { is_operator_valid
-             ; confirmed_state
-             ; side_chain_revision
-             ; transaction_counter
-             ; ongoing_transactions } ->
-          is_operator_valid, confirmed_state, side_chain_revision,
-          transaction_counter, ongoing_transactions)
-        (fun is_operator_valid confirmed_state side_chain_revision
-          transaction_counter ongoing_transactions ->
-          { is_operator_valid
-          ; confirmed_state
-          ; side_chain_revision
-          ; transaction_counter
-          ; ongoing_transactions })
-        bool_marshaling AccountState.marshaling Revision.marshaling
-        Revision.marshaling RevisionSet.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}

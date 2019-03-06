@@ -71,6 +71,7 @@ module type MerkleTrieProofS = sig
     ; leaf : Digest.t
     ; steps : (Digest.t step) list
     }
+  [@@deriving rlp]
   val get : key -> mtrie -> t option
   val check : t -> mtrie -> key -> value -> bool
   include PersistableS with type t := t
@@ -354,6 +355,7 @@ module type MerkleTrieSetProofS = sig
     { elt : elt
     ; trie : Digest.t
     ; steps : (Digest.t step) list }
+  [@@deriving rlp]
   val get : elt -> mts -> t option
   val check : t -> mts -> elt -> bool
   include YojsonableS with type t := t
@@ -406,9 +408,11 @@ module MerkleTrieSet (Elt : UIntS) = struct
     type nonrec elt = elt
     type mts = t
     type 'a step = 'a T.step
+    [@@deriving rlp]
     type t = { elt : elt
              ; trie : Digest.t
              ; steps : (Digest.t step) list }
+    [@@deriving rlp]
     let get elt t =
       Option.map (fun M.Proof.{key; trie; steps} -> {elt=key; trie; steps}) (M.Proof.get elt t)
     let check {elt; trie; steps} t l =
