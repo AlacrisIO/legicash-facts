@@ -367,7 +367,7 @@ module type MerkleTrieSetS = sig
     with type key = elt and type value = unit
                         and type synth = M.synth and type 'a wrap = 'a M.wrap
                                                  and type trie = M.trie and type t = M.t
-  include PersistableS with type t = T.t
+  include PersistableRlpS with type t = T.t
   include Set.S with type elt := elt and type t := t
   module Proof : MerkleTrieSetProofS
     with type elt = elt and type mts = t and type 'a step = 'a T.step

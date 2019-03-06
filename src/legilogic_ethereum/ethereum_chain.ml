@@ -39,15 +39,11 @@ module AccountMap = MerkleTrie (Address) (TokenAmount)
 module State = struct
   (* TODO: have an actual model of the Ethereum main chain, marshaled the Ethereum way. *)
   type t = {revision: Revision.t; accounts: AccountMap.t}
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   module PrePersistable = struct
     module M = struct
       type nonrec t = t
-      let marshaling =
-        marshaling2
-          (fun {revision;accounts} -> (revision, accounts))
-          (fun revision accounts -> {revision; accounts})
-          Revision.marshaling AccountMap.marshaling
+      let marshaling = marshaling_of_rlping rlping
     end
     include YojsonableOfMarshalable(Marshalable(M))
     let make_persistent = normal_persistent

@@ -430,15 +430,8 @@ module UserState = struct
     { address: Address.t
     ; transaction_counter: Revision.t
     ; ongoing_transactions: RevisionSet.t }
-  [@@deriving lens { prefix=true }, yojson]
-  let marshaling =
-    marshaling3
-      (fun { address; transaction_counter; ongoing_transactions} ->
-         address, transaction_counter, RevisionSet.elements ongoing_transactions)
-      (fun address transaction_counter ongoing_transactions_keys ->
-         {address; transaction_counter;
-          ongoing_transactions= RevisionSet.of_list ongoing_transactions_keys})
-      Address.marshaling Revision.marshaling (list_marshaling Revision.marshaling)
+  [@@deriving lens { prefix=true }, yojson, rlp]
+  let marshaling = marshaling_of_rlping rlping
   include (TrivialPersistable (struct
              type nonrec t = t
              let marshaling = marshaling

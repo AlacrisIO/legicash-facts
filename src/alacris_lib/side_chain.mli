@@ -278,7 +278,7 @@ module State : sig
            ; accounts: AccountMap.t
            ; transactions: TransactionMap.t
            ; main_chain_transactions_posted: DigestSet.t }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
   val empty : t
 end
@@ -299,7 +299,7 @@ module OperatorFeeSchedule : sig
     ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
     ; fee_per_billion: TokenAmount.t
     (* function TokenAmount.t -> TokenAmount.t ? *) }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
 end
 

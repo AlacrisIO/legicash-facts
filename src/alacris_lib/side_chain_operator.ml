@@ -30,7 +30,7 @@ module OperatorState = struct
            ; committed: State.t signed
            ; current: State.t
            ; fee_schedule: OperatorFeeSchedule.t }
-  [@@deriving lens { prefix=true}, yojson]
+  [@@deriving lens { prefix=true}, yojson, rlp]
 
   module PrePersistable = struct
     type nonrec t = t

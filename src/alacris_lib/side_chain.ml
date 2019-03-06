@@ -294,7 +294,7 @@ module State = struct
            ; accounts: AccountMap.t
            ; transactions: TransactionMap.t
            ; main_chain_transactions_posted: DigestSet.t }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
 
   module PrePersistable = struct
     type nonrec t = t

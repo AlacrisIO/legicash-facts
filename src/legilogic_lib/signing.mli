@@ -36,10 +36,11 @@ module Keypair : sig
            ; public_key: PublicKey.t
            ; private_key: PrivateKey.t
            ; password: string } (* password to use for signing JSON RPC, until we get rid of it. *)
-  [@@deriving lens {prefix=true}]
+  [@@deriving lens {prefix=true}, rlp]
   include YojsonMarshalableS with type t := t
 end
 type keypair = Keypair.t
+[@@deriving rlp]
 
 (** Signature of a message per Secp256k1 public-key cryptography *)
 type signature

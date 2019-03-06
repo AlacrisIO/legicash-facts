@@ -615,17 +615,10 @@ module UserState = struct
     ; operators: UserAccountStateMap.t
     ; notification_counter: Revision.t
     ; notifications: (Revision.t * yojson) list }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling4
-        (fun { address; operators; notification_counter; notifications } ->
-           address, operators, notification_counter, notifications)
-        (fun address operators notification_counter notifications ->
-           { address; operators; notification_counter; notifications })
-        Address.marshaling UserAccountStateMap.marshaling Revision.marshaling
-        (list_marshaling (marshaling2 identity pair Revision.marshaling yojson_marshaling))
+    let marshaling = marshaling_of_rlping rlping
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
