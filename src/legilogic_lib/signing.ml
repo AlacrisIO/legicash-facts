@@ -156,15 +156,7 @@ module Keypair = struct
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
-    let marshaling =
-      marshaling_tagged Tag.keypair
-        (marshaling4
-           (fun {address; public_key; private_key; password} -> address, public_key, private_key, password)
-           (fun address public_key private_key password -> {address; public_key; private_key; password})
-           Address.marshaling
-           PublicKey.marshaling
-           PrivateKey.marshaling
-           string_marshaling)
+    let marshaling = marshaling_of_rlping rlping
   end
   include (YojsonMarshalable(P) : YojsonMarshalableS with type t := t)
 end
