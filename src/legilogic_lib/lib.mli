@@ -129,6 +129,11 @@ module type TypeS = sig
   type t
 end
 
+module type TypeRlpS = sig
+  type t
+  [@@deriving rlp]
+end
+
 (** Interface analogous to Map.S from the stdlib, but monomorphic in value *)
 module type MapS = sig
   type key
@@ -437,9 +442,19 @@ module type WrapS = sig
   val make : value -> t
 end
 
+module type WrapRlpS = sig
+  type t
+  [@@deriving rlp]
+  type value
+  [@@deriving rlp]
+  include WrapS with type t := t and type value := value
+end
+
 module IdWrapType : WrapTypeS with type +'a t = 'a
 
 module IdWrap (T: TypeS) : WrapS with type t = T.t and type value = T.t
+
+module IdWrapRlp (T: TypeRlpS) : WrapRlpS with type t = T.t and type value = T.t
 
 val the_global : 'a option ref -> (unit -> 'a) -> unit -> 'a
 

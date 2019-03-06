@@ -114,6 +114,11 @@ module type TypeS = sig
   type t
 end
 
+module type TypeRlpS = sig
+  type t
+  [@@deriving rlp]
+end
+
 module type MapS = sig
   type key
   type value
@@ -225,6 +230,14 @@ module type WrapS = sig
   val make : value -> t
 end
 
+module type WrapRlpS = sig
+  type t
+  [@@deriving rlp]
+  type value
+  [@@deriving rlp]
+  include WrapS with type t := t and type value := value
+end
+
 module IdWrapType = struct
   type +'a t = 'a
   [@@deriving rlp]
@@ -235,6 +248,14 @@ module IdWrap (T: TypeS) = struct
   type value = T.t
   let get = identity
   let make = identity
+end
+
+module IdWrapRlp (T: TypeRlpS) = struct
+  type t = T.t
+  [@@deriving rlp]
+  type value = T.t
+  [@@deriving rlp]
+  include (IdWrap (T) : WrapS with type t := t and type value := value)
 end
 
 let the_global ref maker =
