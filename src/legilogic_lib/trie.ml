@@ -15,7 +15,9 @@ open Types
 
 module type TreeSynthS = sig
   type value
+  [@@deriving rlp]
   type t
+  [@@deriving rlp]
   val empty : t
   val leaf : value -> t
   val branch : int -> t -> t -> t
@@ -28,22 +30,26 @@ module type TrieSynthS = sig
   val skip : int -> int -> key -> t -> t
 end
 
-module TrieSynthUnit (Key : UIntS) (Value : TypeS) = struct
+module TrieSynthUnit (Key : UIntS) (Value : TypeRlpS) = struct
   type key = Key.t
   [@@deriving rlp]
   type value = Value.t
+  [@@deriving rlp]
   type t = unit
+  [@@deriving rlp]
   let empty = ()
   let leaf _ = ()
   let branch _ _ _ = ()
   let skip _ _ _ _ = ()
 end
 
-module TrieSynthCardinal (Key : UIntS) (Value : TypeS) = struct
+module TrieSynthCardinal (Key : UIntS) (Value : TypeRlpS) = struct
   type key = Key.t
   [@@deriving rlp]
   type value = Value.t
+  [@@deriving rlp]
   type t = Z.t
+  [@@deriving rlp]
   let empty = Z.zero
   let leaf _ = Z.one
   let branch _ x y = Z.add x y
@@ -70,14 +76,18 @@ module type TrieTypeS = sig
   type key
   [@@deriving rlp]
   type value
+  [@@deriving rlp]
   type synth
+  [@@deriving rlp]
   type +'a wrap
+  [@@deriving rlp]
   type t = trie wrap
   and trie =
     | Empty
     | Leaf of {value: value; synth: synth}
     | Branch of {left: t; right: t; height: int; synth: synth}
     | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
+  [@@deriving rlp]
   val trie_synth : trie -> synth
   val trie_leaf : value -> trie
   val trie_branch : (t -> trie) -> int -> t -> t -> trie
@@ -85,19 +95,23 @@ module type TrieTypeS = sig
 end
 
 module TrieType
-    (Key : UIntS) (Value : TypeS) (WrapType : WrapTypeS)
+    (Key : UIntS) (Value : TypeRlpS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   type key = Key.t
   [@@deriving rlp]
   type value = Value.t
+  [@@deriving rlp]
   type synth = Synth.t
+  [@@deriving rlp]
   type +'a wrap = 'a WrapType.t
+  [@@deriving rlp]
   type t = trie wrap
   and trie =
     | Empty
     | Leaf of {value: value; synth: synth}
     | Branch of {left: t; right: t; height: int; synth: synth}
     | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
+  [@@deriving rlp]
   let trie_synth = function
     | Empty -> Synth.empty
     | Leaf {synth} -> synth
@@ -180,7 +194,7 @@ end
 (* TODO: an interface to nodes in batch that reduces the amount of unnecessary hashing?
    Or simply make hashing lazy? *)
 module Trie
-    (Key : UIntS) (Value : YojsonableS) (WrapType : WrapTypeS)
+    (Key : UIntS) (Value : YojsonableRlpS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
     (TrieType : TrieTypeS with type key = Key.t
                            and type value = Value.t
@@ -972,7 +986,9 @@ end
 module type TrieSetS = sig
   type elt
   module T : TrieS with type key = elt and type value = unit
-  include Set.S with type elt := elt and type t = T.t
+  type t = T.t
+  [@@deriving rlp]
+  include Set.S with type elt := elt and type t := T.t
   val lens : elt -> (t, bool) Lens.t
   include PersistableS with type t := t
 end
@@ -981,6 +997,7 @@ module TrieSet (Elt : UIntS) (T : TrieS with type key = Elt.t and type value = u
   module T = T
   type elt = Elt.t
   type t = T.t
+  [@@deriving rlp]
   let wrap f elt _ = f elt
   let empty = T.empty
   let is_empty = T.is_empty
@@ -1052,7 +1069,7 @@ end
 
 module type SimpleTrieS = TrieS with type 'a wrap = 'a and type synth = unit
 
-module SimpleTrie (Key : UIntS) (Value : YojsonableS) = struct
+module SimpleTrie (Key : UIntS) (Value : YojsonableRlpS) = struct
   module Synth = TrieSynthUnit (Key) (Value)
   module Type = TrieType (Key) (Value) (Identity) (TrieSynthUnit (Key) (Value))
   module Wrap = IdWrap (Type)

@@ -148,6 +148,7 @@ module DigestValue (Value : PersistableS) : sig
   type value = Value.t
   type digest = Digest.t
   type t = value dv
+  [@@deriving rlp]
   val get : t -> value
   val make : value -> t
   val of_digest : digest -> t

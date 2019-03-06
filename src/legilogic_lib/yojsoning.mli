@@ -70,6 +70,12 @@ module type YojsonableS = sig
   val of_yojson_string_exn : string -> t
 end
 
+module type YojsonableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include YojsonableS with type t := t
+end
+
 module Yojsonable (P : PreYojsonableS) : YojsonableS with type t = P.t
 
 module NotYojsonable (T : TypeS) : YojsonableS with type t = T.t

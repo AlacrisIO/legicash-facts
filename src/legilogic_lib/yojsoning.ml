@@ -128,6 +128,12 @@ module type YojsonableS = sig
   val of_yojson_string_exn : string -> t
 end
 
+module type YojsonableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include YojsonableS with type t := t
+end
+
 module Yojsonable (P : PreYojsonableS) = struct
   include P
   let to_yojson = yojsoning.to_yojson

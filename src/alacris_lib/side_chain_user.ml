@@ -572,7 +572,7 @@ module UserAccountState = struct
     ; side_chain_revision: Revision.t
     ; transaction_counter: Revision.t
     ; ongoing_transactions: RevisionSet.t }
-  [@@deriving lens { prefix=true }, yojson ]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
     let marshaling =

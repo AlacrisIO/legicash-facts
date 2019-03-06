@@ -30,11 +30,13 @@ module type TrieSynthMerkleS = sig
   val marshal_skip : (int*int*key*digest) marshaler
 end
 
-module TrieSynthMerkle (Key : UIntS) (Value : PersistableS) = struct
+module TrieSynthMerkle (Key : UIntS) (Value : PersistableRlpS) = struct
   type key = Key.t
   [@@deriving rlp]
   type value = Value.t
+  [@@deriving rlp]
   type t = digest
+  [@@deriving rlp]
   let marshal_empty buffer _ =
     Tag.marshal buffer Tag.empty
   let marshal_leaf buffer value =
@@ -115,7 +117,7 @@ module type MerkleTrieTypeS = sig
   module T : PersistableS with type t = t
 end
 
-module MerkleTrieType (Key : UIntS) (Value : PersistableS)
+module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   include TrieType (Key) (Value) (DigestValueType) (Synth)
 
@@ -181,7 +183,7 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableS)
   include (T : PersistableS with type t := t)
 end
 
-module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
+module MerkleTrie (Key : UIntS) (Value : PersistableRlpS) = struct
   module Synth = TrieSynthUnit (Key) (Value)
   module SynthMerkle = TrieSynthMerkle (Key) (Value)
   module Type = MerkleTrieType (Key) (Value) (Synth)

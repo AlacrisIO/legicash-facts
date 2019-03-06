@@ -70,6 +70,12 @@ module type PersistableS = sig
   val save : t -> unit Lwt.t
 end
 
+module type PersistableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include PersistableS with type t := t
+end
+
 val db_value_of_digest : (string -> 'a) -> digest -> 'a
 
 (** Auto-defined methods for content-addressed persistence *)

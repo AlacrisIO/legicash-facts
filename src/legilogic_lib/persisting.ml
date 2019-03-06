@@ -82,6 +82,12 @@ module type PersistableS = sig
   val save : t -> unit Lwt.t
 end
 
+module type PersistableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include PersistableS with type t := t
+end
+
 module Persistable (P : PrePersistableS) = struct
   include P
   include (Yojsonable(P) : YojsonableS with type t := t)

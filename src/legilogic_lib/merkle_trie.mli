@@ -18,7 +18,7 @@ end
 
 (** Persistable merkle tree. [Key]s are bit paths (right/left), [Value]s are the
     tree type. *)
-module TrieSynthMerkle (Key : UIntS) (Value : PersistableS)
+module TrieSynthMerkle (Key : UIntS) (Value : PersistableRlpS)
   : TrieSynthMerkleS with type key = Key.t
                       and type value = Value.t
 
@@ -32,7 +32,7 @@ end
 
 (** Persistable merkle tree with methods for recursive synthesization of node
     digests. *)
-module MerkleTrieType (Key : UIntS) (Value : PersistableS)
+module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
   : MerkleTrieTypeS with type key = Key.t
                      and type value = Value.t
@@ -93,7 +93,7 @@ module type MerkleTrieS = sig
     with type key = key and type value = value and type mtrie = t and type 'a step = 'a step
 end
 
-module MerkleTrie (Key : UIntS) (Value : PersistableS)
+module MerkleTrie (Key : UIntS) (Value : PersistableRlpS)
   : MerkleTrieS with type key = Key.t and type value = Value.t
 
 (** Proofs that [elt]s are members of tries [mts].  *)
