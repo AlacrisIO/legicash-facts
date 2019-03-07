@@ -70,7 +70,7 @@ module BlockParameter = struct
            end) : (PersistableS with type t := t))
 end
 
-(*                      
+(*
 module ContractAoListA = struct
   type t =
     | Contract_address of Address.t
@@ -88,9 +88,9 @@ module ContractAoListA = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
 end
- *)  
+ *)
 
-                      
+
 module TransactionCondition = struct
   type t =
     | Block_number of Revision.t
@@ -178,7 +178,7 @@ module EthCall
 
 
 
- *)               
+ *)
 module SignedTransaction = struct
   type t =
     { raw: Data.t
@@ -245,7 +245,7 @@ module EthListLogObjects = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
 end
-                          
+
 let operation_to_parameters (sender : Address.t) (operation : Operation.t) : TransactionParameters.t =
   let (to_, data) = match operation with
     | Operation.TransferTokens recipient -> (Some recipient, None)
@@ -254,7 +254,7 @@ let operation_to_parameters (sender : Address.t) (operation : Operation.t) : Tra
   TransactionParameters.
     { from= sender; to_; gas= None; gas_price = None; value = None; data ; nonce= None; condition= None }
 
-(* Unused function *)  
+(* Unused function *)
 let pre_transaction_to_parameters (sender : Address.t) PreTransaction.{operation; gas_limit; value} =
   {(operation_to_parameters sender operation) with gas = Some gas_limit; value = Some value}
 
@@ -285,19 +285,19 @@ let eth_get_balance =
     TokenAmount.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
 (** Returns the balance of the account of given address (and block) **)
-  
+
 let eth_get_code =
   ethereum_json_rpc "eth_getCode"
     Yojsoning.Bytes.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
 (** Returns the code of given address (and block) **)
-  
+
 let eth_get_transaction_by_hash =
   ethereum_json_rpc "eth_getTransactionByHash"
     TransactionInformation.of_yojson_exn
     (yojson_1arg Digest.to_yojson)
 (** Returns a transaction (big object) by the hash code **)
-  
+
 let eth_get_transaction_count =
   ethereum_json_rpc "eth_getTransactionCount"
     Nonce.of_yojson_exn
@@ -309,7 +309,7 @@ let eth_get_transaction_receipt =
     (option_of_yojson_exn TransactionReceipt.of_yojson_exn)
     (yojson_1arg Digest.to_yojson)
 (** Returns a receipt of transaction by transaction hash (not available if transaction still pending) **)
-  
+
 let eth_send_raw_transaction =
   ethereum_json_rpc "eth_sendRawTransaction"
     Digest.of_yojson_exn
@@ -341,7 +341,7 @@ let eth_sign_transaction =
   ethereum_json_rpc "eth_signTransaction"
     SignedTransaction.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
-  
+
 let eth_block_number =
   ethereum_json_rpc "eth_blockNumber"
     Revision.of_yojson_exn
@@ -351,9 +351,9 @@ let eth_block_number =
 let eth_call =
   ethereum_json_rpc "eth_call"
    *)
-  
 
-  
+
+
 (* Geth-specific methods, should only be used in tests *)
 
 let personal_import_raw_key =
