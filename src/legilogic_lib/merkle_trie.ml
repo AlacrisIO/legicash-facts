@@ -638,15 +638,15 @@ module Test = struct
            (Yojson.Safe.from_string
             {jsonstring|
             {"key":"0x2a",
-             "trie":"0x35d9b9738843cdb0dae99c374a68205a72b21313c01c3548faa2ce5c673e3124",
-             "leaf":"0x879e02d7e15eae2ee790f040f69ad702e271d97812856cf4ed6452ccace768fa",
-             "steps":[{"type":"Left","right":"0xf04a75b58add3c2f4aec3b1af868e30fbc6f44dfb51c362baf0b1f5df21dfba4"},
-                      {"type":"Right","left":"0xf436501c45ec9b9aaf54c6fc45c85568fce39dc332abf407b3cfb83a3f600ec5"},
-                      {"type":"Left","right":"0xe6751c9b722504f37bac491dc7bc508ab5bef5969ed8bda5b828d4db7c5e9b30"},
-                      {"type":"Right","left":"0xe0d8e221d212e018b68a41db8edbf34edaa3c4c43cefad01ee89cc5f2d17ae68"},
-                      {"type":"Left","right":"0x438678dd79f5a8215d2da2038b5286fd5cfe5efe2d11fcb2c90a0ecb5ad828b4"},
-                      {"type":"Right","left":"0x75ebb5b7cf9cfe4aa8df7d4919f68117ba47196034b91bba6937fbd3e289fdbf"},
-                      {"type":"Left","right":"0x6ff1d8fc43ab692944448190b52b462f0db8b537667bb4ec0b7c1ae4cab017b9"}]}
+             "trie":"0x05de65831a0132165e208cc75355719e8cf9b399e9d56f6fe395a57a8be1e5e6",
+             "leaf":"0x916ba345bf6feab74bf75d5830ada3bf426a8ec1388fcef4ea3608737eac671b",
+             "steps":[{"type":"Left","right":"0x064880959049e1ee770ac5669c3960ebe0121394b82966503f91439bc545caa4"},
+                      {"type":"Right","left":"0xb3d80cf4680db145cafc56adfda19cd3f745cdbd1d0294cffe7491cc49b54320"},
+                      {"type":"Left","right":"0xe48546b788ccbca97760865fe0e901fbc28ad8689cbdffadc9fe80d014207651"},
+                      {"type":"Right","left":"0xfaaea838f3c3dcb79244c307ba41e0cf36cfe8104895239bad3df50a041601bd"},
+                      {"type":"Left","right":"0xa7358ee547e1cf2ba6d90bddea49c1bfa44686c7a8103e4816794ebc23b365a5"},
+                      {"type":"Right","left":"0xd09db87e7553ac9ed1760c94ef8a5e2a85683051d6906c54fc603298357998a0"},
+                      {"type":"Left","right":"0xe6520b16a86ad925aacd94247978f64ebea0d7e6d530247dc612c7a3897d5eb1"}]}
             |jsonstring} ))
 
   let bad_proof = lazy (match force proof_42_in_trie_100 with
