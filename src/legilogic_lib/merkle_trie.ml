@@ -37,22 +37,23 @@ module TrieSynthMerkle (Key : UIntS) (Value : PersistableRlpS) = struct
   [@@deriving rlp]
   type t = digest
   [@@deriving rlp]
+  (** `item` is a private type to TrieSynthMerkle that's exactly like "trie",
+      except with digests wherever there would be recursive references. *)
+  type item =
+    | Empty
+    | Leaf of {value: value; synth: unit}
+    | Branch of {left: t; right: t; height: int; synth: unit}
+    | Skip of {child: t; bits: key; length: int; height: int; synth: unit}
+  [@@deriving rlp]
+  let synth = ()
   let marshal_empty buffer _ =
-    Tag.marshal buffer Tag.empty
+    item_marshal_rlp buffer Empty
   let marshal_leaf buffer value =
-    Tag.marshal buffer Tag.leaf;
-    Value.marshal buffer value
+    item_marshal_rlp buffer (Leaf { value; synth })
   let marshal_branch buffer (height, left, right) =
-    Tag.marshal buffer Tag.branch;
-    Tag.UInt16int.marshal buffer height;
-    Digest.marshal buffer left;
-    Digest.marshal buffer right
+    item_marshal_rlp buffer (Branch { height; left; right; synth })
   let marshal_skip buffer (height, length, bits, child) =
-    Tag.marshal buffer Tag.skip;
-    Tag.UInt16int.marshal buffer height;
-    Tag.UInt16int.marshal buffer length;
-    Key.marshal buffer bits;
-    Digest.marshal buffer child
+    item_marshal_rlp buffer (Skip { height; length; bits; child; synth })
 
   let empty = digest_of_marshal marshal_empty ()
   let leaf value = digest_of_marshal marshal_leaf value
