@@ -11,6 +11,7 @@ open Marshaling
 open Persisting
 open Action
 open Types
+open Ppx_deriving_rlp_runtime
 
 
 module type TreeSynthS = sig
@@ -1062,8 +1063,9 @@ module TrieSet (Elt : UIntS) (T : TrieS with type key = Elt.t and type value = u
 
   include (TrivialPersistable(struct
              type nonrec t = t
+             let rlping = rlping_by_isomorphism of_list elements [%rlp: Elt.t list]
              let yojsoning = yojsoning_map elements of_list (list_yojsoning Elt.yojsoning)
-             let marshaling = marshaling_map elements of_list (list_marshaling Elt.marshaling)
+             let marshaling = marshaling_of_rlping rlping
            end) : PersistableS with type t := t)
 end
 

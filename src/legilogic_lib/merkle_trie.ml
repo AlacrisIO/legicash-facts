@@ -130,7 +130,6 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
 
   (* Ugly: to achieve mutual definition between marshaling or trie and t,
      we side-effects that array to close the loop. *)
-  let marshaling_case_table = new_marshaling_cases 4
   let t_dependency_walking = ref dependency_walking_not_implemented
 
   module PreTrie = struct
@@ -153,33 +152,6 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
   module T = DigestValue(Trie)
 
   let _init = (* close the fixpoints *)
-    init_marshaling_cases Tag.base_trie marshaling_case_table
-      [(Tag.leaf,
-        marshaling_map
-          (function
-            | Leaf {value} -> value
-            | _ -> bottom ())
-          trie_leaf
-          Value.marshaling);
-       (Tag.branch,
-        marshaling3
-          (function
-            | Branch {left; right; height} -> (height, left, right)
-            | _ -> bottom ())
-          (trie_branch dv_get)
-          Tag.UInt16int.marshaling T.marshaling T.marshaling);
-       (Tag.skip,
-        marshaling4
-          (function
-            | Skip {height; length; bits; child} -> (height, length, bits, child)
-            | _ -> bottom ())
-          (trie_skip dv_get)
-          Tag.UInt16int.marshaling Tag.UInt16int.marshaling Key.marshaling T.marshaling);
-       (Tag.empty,
-        marshaling_map
-          (fun _ -> ())
-          (fun () -> Empty)
-          Unit.marshaling)];
     t_dependency_walking := T.dependency_walking
 
   include (T : PersistableS with type t := t)

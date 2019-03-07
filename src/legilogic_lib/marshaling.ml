@@ -445,7 +445,8 @@ let list_marshaling m = {marshal=marshal_list m.marshal; unmarshal=unmarshal_lis
 let marshaling_of_yojsoning yojsoning =
   let to_yojson_string = to_yojson_string_of_to_yojson yojsoning.to_yojson in
   let of_yojson_string_exn = of_yojson_string_exn_of_of_yojson yojsoning.of_yojson in
-  marshaling_map to_yojson_string of_yojson_string_exn string_marshaling
+  let rlping = rlping_by_isomorphism of_yojson_string_exn to_yojson_string string_rlping in
+  marshaling_of_rlping rlping
 
 (** Object which can be marshaled based on json representation. Marshaled
     representation must fit in a gigabyte (!) *)
