@@ -572,6 +572,11 @@ let get_account_balances (operator_state:OperatorState.t) =
    * TODO Right now, even after pre-funding, you get no data back from this
    * query unless a user has triggered a deposit/withdrawal from the UI; we
    * should be sending full+accurate user account states regardless
+   *
+   * TODO Remove/replace the Trent exclusion line; if we continue to exclude
+   * Trent then there should be a comment explaining why and the account's
+   * address should be taken from the operator state rather than a magic
+   * constant
    *)
   let open Lwt_exn in
   AccountMap.bindings operator_state.current.accounts
