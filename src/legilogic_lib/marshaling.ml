@@ -384,8 +384,8 @@ module Length63 = struct
   let check63 l =
     if l > 63 then bork "Invalid length %d (max 63)" l;
     l
-  let marshaling = marshaling_map
-                     (check63 >> Char.chr) (Char.code >> check63) char_marshaling
+  let rlping = rlping_by_isomorphism check63 check63 int_rlping
+  let marshaling = marshaling_of_rlping rlping
 end
 
 module String63 = StringL(Length63)
@@ -395,18 +395,8 @@ module Length64K = struct
   let check64K l =
     if l > 65535 then bork "Invalid length %d (max 65535)" l;
     l
-  let marshal buffer l =
-    check64K l |> ignore;
-    Buffer.add_char buffer (Char.chr (255 land (l lsr 8)));
-    Buffer.add_char buffer (Char.chr (255 land l))
-  let unmarshal start bytes =
-    if start + 2 > Bytes.length bytes then
-      raise (Unmarshaling_error ("not enough length to read a 16-bit integer", start, bytes))
-    else
-      let hi = Char.code (Bytes.get bytes start) in
-      let lo = Char.code (Bytes.get bytes (start + 1)) in
-      (hi lsl 8) + lo, start + 2
-  let marshaling = {marshal;unmarshal}
+  let rlping = rlping_by_isomorphism check64K check64K int_rlping
+  let marshaling = marshaling_of_rlping rlping
 end
 
 module String64K = StringL(Length64K)
@@ -414,26 +404,12 @@ module String64K = StringL(Length64K)
 (** Length which reliably fits in a native int, even on a 32-bit platform. *)
 module Length1G = struct
   let max_length = 1 lsl 30 - 1
-  let check_length l = if l > max_length then
-      bork "Invalid length %d (max %d)" l max_length
-  let marshal buffer len =
-    check_length len;
-    Buffer.add_char buffer (Char.chr (len lsr 24));
-    Buffer.add_char buffer (Char.chr (255 land (len lsr 16)));
-    Buffer.add_char buffer (Char.chr (255 land (len lsr 8)));
-    Buffer.add_char buffer (Char.chr (255 land len))
-  let unmarshal start bytes =
-    if start + 4 > Bytes.length bytes then
-      raise (Unmarshaling_error ("not enough length to read a 30-bit integer", start, bytes))
-    else
-      let hihi = Char.code (Bytes.get bytes start) in
-      let lohi = Char.code (Bytes.get bytes (start + 1)) in
-      let hilo = Char.code (Bytes.get bytes (start + 2)) in
-      let lolo = Char.code (Bytes.get bytes (start + 3)) in
-      if hihi > 63 then
-        raise (Unmarshaling_error ("invalid high byte for a 30-bit integer", start, bytes));
-      (hihi lsl 24) + (lohi lsl 16) + (hilo lsl 8) + lolo, start + 4
-  let marshaling = {marshal;unmarshal}
+  let check_length l =
+    if l > max_length then
+      bork "Invalid length %d (max %d)" l max_length;
+    l
+  let rlping = rlping_by_isomorphism check_length check_length int_rlping
+  let marshaling = marshaling_of_rlping rlping
 end
 
 (** Length-prefixed string where the length fits in 32 bits *)
@@ -454,10 +430,10 @@ end
 
 let marshal_list m buffer l =
   let len = List.length l in
-  Length1G.marshal buffer len;
+  Length1G.marshaling.marshal buffer len;
   List.iter (m buffer) l
 let unmarshal_list (u : 'a unmarshaler) start bytes =
-  let (len, p) = Length1G.unmarshal start bytes in
+  let (len, p) = Length1G.marshaling.unmarshal start bytes in
   let rec loop i start acc =
     if i = 0 then (List.rev acc, start) else
       let (v, p) = u start bytes in
