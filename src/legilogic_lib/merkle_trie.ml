@@ -224,35 +224,6 @@ module MerkleTrie (Key : UIntS) (Value : PersistableRlpS) = struct
 
   let step_of_yojson of_yojson = of_yojson_of_of_yojson_exn (step_of_yojson_exn (of_yojson_exn_of_of_yojson of_yojson))
 
-  let step_marshal marshal buffer = function
-    | LeftBranch {right} ->
-      Tag.marshal buffer Tag.left_branch;
-      marshal buffer right
-    | RightBranch {left} ->
-      Tag.marshal buffer Tag.right_branch;
-      marshal buffer left
-    | SkipChild {bits;length} ->
-      Tag.marshal buffer Tag.skip_child;
-      Key.marshal buffer bits;
-      Tag.UInt16int.marshal buffer length
-
-  let step_unmarshal unmarshal start bytes =
-    let (tag, p) = Tag.unmarshal start bytes in
-    if tag = Tag.left_branch then
-      let (right, p) = unmarshal p bytes in
-      LeftBranch { right }, p
-    else if tag = Tag.right_branch then
-      let (left, p) = unmarshal p bytes in
-      RightBranch { left }, p
-    else if tag = Tag.skip_child then
-      let bits, p = Key.unmarshal p bytes in
-      let length, p = Tag.UInt16int.unmarshal p bytes in
-      SkipChild { bits; length }, p
-    else Tag.bad_tag_error start bytes
-
-  let step_marshaling marshaling =
-    { marshal = step_marshal marshaling.marshal; unmarshal = step_unmarshal marshaling.unmarshal }
-
   module Proof = struct
     [@warning "-39"]
     type nonrec key = key

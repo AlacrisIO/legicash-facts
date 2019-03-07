@@ -233,9 +233,10 @@ module NonceTracker = struct
     type key = Key.t
     let key_prefix = "ETNT"
     module State = TrivialPersistable(struct
-        type t = Nonce.t option [@@deriving yojson]
+        type t = Nonce.t option
+        [@@deriving yojson, rlp]
         let yojsoning = {to_yojson;of_yojson}
-        let marshaling = option_marshaling Nonce.marshaling
+        let marshaling = marshaling_of_rlping rlping
       end)
     type state = State.t
     (* zero is often wrong, but just let it fail and resynchronize *)

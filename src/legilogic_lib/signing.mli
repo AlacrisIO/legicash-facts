@@ -142,14 +142,6 @@ val signature_vrs : signature -> string * string * string
 
 val signed : ('a -> digest) -> private_key -> 'a -> 'a signed
 
-(** marshaler for 'a signed, parameterized by the marshaler for the payload of type 'a *)
-val marshal_signed : 'a marshaler -> 'a signed marshaler
-
-(** unmarshaler for 'a signed, parameterized by the unmarshaler for the payload of type 'a *)
-val unmarshal_signed : 'a unmarshaler -> 'a signed unmarshaler
-
-val signed_marshaling : 'a marshaling -> 'a signed marshaling
-
 val signed_to_yojson : 'a to_yojson -> 'a signed to_yojson
 val signed_of_yojson : 'a of_yojson -> 'a signed of_yojson
 val signed_of_yojson_exn : 'a of_yojson_exn -> 'a signed of_yojson_exn
@@ -161,7 +153,7 @@ module type SignedS = sig
   val make : keypair -> payload -> t
 end
 
-module Signed (P : PersistableS) : SignedS with type payload = P.t
+module Signed (P : PersistableRlpS) : SignedS with type payload = P.t
 
 (* keys, address for tests, demos *)
 module Test : sig

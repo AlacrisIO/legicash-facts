@@ -321,10 +321,6 @@ let unmarshal_signed (unmarshal:'a unmarshaler) start bytes : 'a signed * int =
   let signature,final_offset = Signature.unmarshal payload_offset bytes in
   ({payload; signature}, final_offset)
 
-let signed_marshaling marshaling =
-  { marshal = marshal_signed marshaling.marshal
-  ; unmarshal = unmarshal_signed marshaling.unmarshal }
-
 let signed_to_yojson to_yojson { payload ; signature } =
   `Assoc [ ("payload", to_yojson payload)
          ; ("signature", Signature.to_yojson signature) ]
@@ -354,12 +350,13 @@ module type SignedS = sig
   val make : keypair -> payload -> t
 end
 
-module Signed (P : PersistableS) = struct
+module Signed (P : PersistableRlpS) = struct
   type payload = P.t
   module Pre = struct
     type t = payload signed
     let yojsoning = signed_yojsoning P.yojsoning
-    let marshaling = signed_marshaling P.marshaling
+    let rlping = signed_rlping P.rlping
+    let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context x =
       walk_dependency P.dependency_walking context x.payload
     let make_persistent = normal_persistent
