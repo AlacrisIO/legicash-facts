@@ -111,3 +111,10 @@ val option_marshal_rlp   : ('elem to_rlp_item) -> ('elem option) marshal_rlp
 val option_unmarshal_rlp : ('elem of_rlp_item) -> ('elem option) unmarshal_rlp
 val option_rlping        : ('elem rlping)      -> ('elem option) rlping
 
+(* results *)
+
+type ('a, 'b) result = ('a, 'b) Pervasives.result =
+  | Ok of 'a
+  | Error of 'b
+[@@deriving rlp]
+

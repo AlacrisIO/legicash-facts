@@ -134,3 +134,10 @@ let option_marshal_rlp (elem_to) = Private.marshal_of_to (option_to_rlp_item ele
 let option_unmarshal_rlp (elem_of) = Private.unmarshal_of_of (option_of_rlp_item elem_of)
 let option_rlping (elem_rlping) = Private.rlping_of_to_and_of (option_to_rlp_item elem_rlping.Rlping.to_rlp_item) (option_of_rlp_item elem_rlping.Rlping.of_rlp_item)
 
+(* results *)
+
+type ('a, 'b) result = ('a, 'b) Pervasives.result =
+  | Ok of 'a
+  | Error of 'b
+[@@deriving rlp]
+

@@ -124,7 +124,7 @@ let ctor_tup_args tuple args =
    module,  that are supported directly by functions in
    `ppx_deriving_rlp_runtime.ml`. *)
 let supported_pervasives_types =
-  ["unit"; "string"; "char"; "int"; "float"; "bool"; "list"; "option"]
+  ["unit"; "string"; "char"; "int"; "float"; "bool"; "list"; "option"; "result"]
 
 (* supported_module_t_types
    These are modules which provide types named "t", that are
