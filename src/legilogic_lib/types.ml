@@ -177,6 +177,8 @@ module RequestGuid = struct
    *
    * - Replace `from_string_result` with more idiomatic `(t, string) result`
    *   https://gitlab.com/legicash/legicash-facts/issues/91
+   *
+   * - Drop ad-hoc left padding when we move to 128bits
    *)
 
   type t = UInt128.t * UInt64.t * UInt64.t * UInt64.t * UInt192.t
@@ -186,11 +188,14 @@ module RequestGuid = struct
     | Malformed  of string
 
   let to_string (a, b, c, d, e) =
-    String.concat "-" [ UInt128.to_hex_string a
-                      ; UInt64.to_hex_string  b
-                      ; UInt64.to_hex_string  c
-                      ; UInt64.to_hex_string  d
-                      ; UInt192.to_hex_string e ]
+    let lpad n s =
+      (String.make (n - (String.length s)) '0') ^ s
+
+    in String.concat "-" [ lpad  8 @@ UInt128.to_hex_string a
+                         ; lpad  4 @@  UInt64.to_hex_string b
+                         ; lpad  4 @@  UInt64.to_hex_string c
+                         ; lpad  4 @@  UInt64.to_hex_string d
+                         ; lpad 12 @@ UInt192.to_hex_string e ]
 
   let from_string s =
     let make ss =
@@ -237,13 +242,13 @@ module RequestGuid = struct
 
   module Test = struct
     let%test "RequestGuid to/from_string survives round-trip" =
-      let good_guid = "fc0f69bb-5482-43ca-9f0b-f005f0bedc4c"
+      let good_guid = "fc0f69bb-0482-43ca-9f0b-0f05f0bedc4c"
       in match from_string good_guid with
         | WellFormed w -> to_string w = good_guid
         | _            -> false
 
     let%test "RequestGuid to/of_yojson survives round-trip" =
-      let good_guid = "fc0f69bb-5482-43ca-9f0b-f005f0bedc4c"
+      let good_guid = "fc0f69bb-0482-43ca-9f0b-0f05f0bedc4c"
       in match of_yojson (`String good_guid) with
         | Ok g -> to_yojson g = `String good_guid
         | _    -> false
