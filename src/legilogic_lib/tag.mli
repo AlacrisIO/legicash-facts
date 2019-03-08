@@ -62,9 +62,6 @@ val init_marshaling_cases : t -> 'a marshaling array -> (t * 'a marshaling) list
     binary representation of object. *)
 val option_marshaling : 'a marshaling -> 'a option marshaling
 
-exception Server_error of string
-(** exception that was marshaled on some server *)
-
 val exception_marshaling : exn marshaling
 
 val marshal_result : 'ok marshaler -> 'err marshaler -> ('ok, 'err) result marshaler

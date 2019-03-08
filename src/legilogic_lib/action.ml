@@ -1,6 +1,14 @@
 open Lib
+open Ppx_deriving_rlp_runtime
+
+exception Server_error of string
+
+let exn_to_rlp_item e = string_to_rlp_item (Printexc.to_string e)
+let exn_of_rlp_item i = Server_error (string_of_rlp_item i)
+let exn_rlping = rlping { to_rlp_item = exn_to_rlp_item; of_rlp_item = exn_of_rlp_item }
 
 type +'output or_exn = ('output, exn) result
+[@@deriving rlp]
 
 type (-'input, +'output, 'state) action = 'input -> 'state -> 'output * 'state
 

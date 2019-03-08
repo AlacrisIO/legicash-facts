@@ -128,12 +128,8 @@ let result_marshaling mok merror =
   { marshal=marshal_result mok.marshal merror.marshal
   ; unmarshal=unmarshal_result mok.unmarshal merror.unmarshal}
 
-exception Server_error of string
+let exception_marshaling = marshaling_of_rlping Action.exn_rlping
 
-let marshal_exception = marshal_map Printexc.to_string string_marshaling.marshal
-let unmarshal_exception = unmarshal_map (fun s -> Server_error s) string_marshaling.unmarshal
-let exception_marshaling = {marshal=marshal_exception;unmarshal=unmarshal_exception}
-
-let marshal_result_or_exn m = marshal_result m marshal_exception
-let unmarshal_result_or_exn u = unmarshal_result u unmarshal_exception
+let marshal_result_or_exn m = marshal_result m exception_marshaling.marshal
+let unmarshal_result_or_exn u = unmarshal_result u exception_marshaling.unmarshal
 let result_or_exn_marshaling m = result_marshaling m exception_marshaling
