@@ -26,7 +26,7 @@ open Side_chain_server_config
 type transaction_result =
   { side_chain_account_state: AccountState.t
   ; side_chain_tx_revision:   Revision.t
-  ; main_chain_confirmation:  Ethereum_chain.Confirmation.t
+  ; main_chain_receipt:       Ethereum_json_rpc.TransactionReceipt.t
   ; request_guid:             RequestGuid.t
   ; requested_at:             Timestamp.t
   } [@@deriving to_yojson]
@@ -114,7 +114,7 @@ let make_transaction_result (request_guid:            RequestGuid.t)
                             (requested_at:            Timestamp.t)
                             (address:                 Address.t)
                             (side_chain_tx_revision:  Revision.t)
-                            (main_chain_confirmation: Ethereum_chain.Confirmation.t)
+                            (main_chain_receipt: Ethereum_json_rpc.TransactionReceipt.t)
                           : yojson OrExn.t Lwt.t =
   UserQueryRequest.Get_account_state { address }
     |> post_user_query_request
@@ -128,7 +128,7 @@ let make_transaction_result (request_guid:            RequestGuid.t)
            let rec side_chain_account_state = account_state
            and r = { side_chain_account_state
                    ; side_chain_tx_revision
-                   ; main_chain_confirmation
+                   ; main_chain_receipt
                    ; request_guid
                    ; requested_at
                    }
@@ -146,13 +146,13 @@ let schedule_transaction (request_guid: RequestGuid.t)
     request_guid
     requested_at
     (User.transaction user transaction (wanted requested_at)
-     >>= fun (transaction_commitment, main_chain_confirmation) ->
+     >>= fun (transaction_commitment, main_chain_receipt) ->
        let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
        make_transaction_result request_guid
                                requested_at
                                user
                                tx_revision
-                               main_chain_confirmation)
+                               main_chain_receipt)
 
 let deposit_to ~(operator:       Address.t)
                 (request_guid:   RequestGuid.t)
@@ -220,13 +220,13 @@ let payment_on ~(operator:     Address.t)
        payment_timestamp ();
        TransactionTracker.wait tracker_promise
 
-     >>= fun (transaction_commitment, main_chain_confirmation) ->
+     >>= fun (transaction_commitment, main_chain_receipt) ->
        let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
        make_transaction_result request_guid
                                requested_at
                                sender
                                tx_revision
-                               main_chain_confirmation)
+                               main_chain_receipt)
 
 
 (* other actions, not involving posting to server mailbox *)

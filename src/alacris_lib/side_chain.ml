@@ -36,12 +36,12 @@ module UserOperation = struct
   [@warning "-39"]
 
   type deposit_details =
-    { deposit_amount:                  TokenAmount.t
-    ; deposit_fee:                     TokenAmount.t
-    ; main_chain_deposit:              Ethereum_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
-    ; request_guid:                    RequestGuid.t
-    ; requested_at:                    Timestamp.t
+    { deposit_amount:             TokenAmount.t
+    ; deposit_fee:                TokenAmount.t
+    ; main_chain_deposit:         Ethereum_chain.Transaction.t
+    ; main_chain_deposit_receipt: Ethereum_json_rpc.TransactionReceipt.t
+    ; request_guid:               RequestGuid.t
+    ; requested_at:               Timestamp.t
     } [@@deriving lens, yojson]
 
   type payment_details =
@@ -82,13 +82,13 @@ module UserOperation = struct
            (function | Deposit { deposit_amount
                                ; deposit_fee
                                ; main_chain_deposit
-                               ; main_chain_deposit_confirmation
+                               ; main_chain_deposit_receipt
                                ; request_guid
                                ; requested_at
                                } -> ( deposit_amount
                                     , deposit_fee
                                     , main_chain_deposit
-                                    , main_chain_deposit_confirmation
+                                    , main_chain_deposit_receipt
                                     , request_guid
                                     , requested_at
                                     )
@@ -97,13 +97,13 @@ module UserOperation = struct
            (fun deposit_amount
                 deposit_fee
                 main_chain_deposit
-                main_chain_deposit_confirmation
+                main_chain_deposit_receipt
                 request_guid
                 requested_at
              -> Deposit { deposit_amount
                         ; deposit_fee
                         ; main_chain_deposit
-                        ; main_chain_deposit_confirmation
+                        ; main_chain_deposit_receipt
                         ; request_guid
                         ; requested_at
                         })
@@ -111,7 +111,7 @@ module UserOperation = struct
            TokenAmount.marshaling
            TokenAmount.marshaling
            Ethereum_chain.Transaction.marshaling
-           Ethereum_chain.Confirmation.marshaling
+           Ethereum_json_rpc.TransactionReceipt.marshaling
            RequestGuid.marshaling
            Timestamp.marshaling
 

@@ -68,13 +68,13 @@ module OngoingTransactionStatus : sig
       of DepositWanted.t
        * TokenAmount.t
        * Ethereum_chain.Transaction.t
-       * Ethereum_chain.Confirmation.t
+       * Ethereum_json_rpc.TransactionReceipt.t
 
     | Requested            of UserTransactionRequest.t signed
     | SignedByOperator     of TransactionCommitment.t
     | PostedToRegistry     of TransactionCommitment.t
-    | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | PostedToMainChain    of TransactionCommitment.t * Ethereum_json_rpc.TransactionReceipt.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_json_rpc.TransactionReceipt.t
 
   include PersistableS with type t := t
 

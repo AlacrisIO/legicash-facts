@@ -126,8 +126,8 @@ let operator_account_lens (address : Address.t) : account_lens =
 let signed_request_requester (rx : UserTransactionRequest.t signed) : Address.t =
   rx.payload.UserTransactionRequest.rx_header.requester
 
-let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
-  let (test : bool Lwt_exn.t) = Ethereum_user.check_confirmation_deep_enough_bool confirmation in
+let _check_transaction_receipt (_transaction : Transaction.t) (receipt : Ethereum_json_rpc.TransactionReceipt.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
+  let (test : bool Lwt_exn.t) = Ethereum_user.check_receipt_sufficiently_confirmed_bool receipt in
   Lwt_exn.bind test (fun test ->
       if test then
         Lwt_exn.return true
@@ -190,7 +190,7 @@ let validate_user_transaction_request :
                *)
         >>> check (Ethereum_transaction.is_receipt_successful
                      main_chain_deposit_receipt main_chain_deposit)
-              (fun () -> "The main chain deposit confirmation is invalid")
+              (fun () -> "The main chain deposit receipt is invalid")
       | UserOperation.Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
         check (payment_invoice.recipient != requester)
           (fun () -> "Recipient same as requester")

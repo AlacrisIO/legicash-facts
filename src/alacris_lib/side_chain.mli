@@ -32,12 +32,12 @@ end
 module UserOperation : sig
   [@warning "-39"]
   type deposit_details =
-    { deposit_amount:                  TokenAmount.t
-    ; deposit_fee:                     TokenAmount.t
-    ; main_chain_deposit:              Ethereum_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
-    ; request_guid:                    RequestGuid.t
-    ; requested_at:                    Timestamp.t
+    { deposit_amount:             TokenAmount.t
+    ; deposit_fee:                TokenAmount.t
+    ; main_chain_deposit:         Ethereum_chain.Transaction.t
+    ; main_chain_deposit_receipt: Ethereum_json_rpc.TransactionReceipt.t
+    ; request_guid:               RequestGuid.t
+    ; requested_at:               Timestamp.t
     } [@@deriving lens, yojson]
 
   type payment_details =
