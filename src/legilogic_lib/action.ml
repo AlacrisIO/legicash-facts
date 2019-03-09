@@ -221,7 +221,7 @@ module Lwt_exn = struct
                                         | _ -> bottom()) x_exn_list
            in
            return x_list)
-    
+
   let list_map_p (f : 'a -> 'b t) (elist : 'a list) : 'b list t =
     Lwt.bind (Lwt_list.map_p f elist)
       (fun x_exn_list ->
@@ -237,7 +237,7 @@ module Lwt_exn = struct
                                         | _ -> bottom()) x_exn_list in
            return x_list)
 
-                    
+
   let printf fmt =
     let (>>=) = Lwt.bind in
     Printf.ksprintf (fun x -> Lwt_io.(printf "%s" x >>= fun () -> flush stdout >>= return)) fmt
