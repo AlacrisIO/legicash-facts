@@ -322,7 +322,7 @@ module TransactionCommitment : sig
     ; state_digest: Digest.t (* Signature put in the state update *)
     ; contract_address: Address.t (* contract address needed for accessing to data *)
     }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
 end
 
