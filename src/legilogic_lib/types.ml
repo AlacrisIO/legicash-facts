@@ -144,8 +144,7 @@ module Unit = struct
   [@@deriving rlp]
   module PrePersistable = struct
     type t = unit
-    let marshaling = { marshal = (fun _buffer () -> ())
-                     ; unmarshal = (fun start _bytes -> ((), start)) }
+    let marshaling = marshaling_of_rlping rlping
     let make_persistent = already_persistent
     let walk_dependencies = no_dependencies
     let yojsoning =
