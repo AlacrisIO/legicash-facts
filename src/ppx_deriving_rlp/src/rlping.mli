@@ -11,6 +11,9 @@ type 'a marshal_rlp       = Buffer.t -> 'a -> unit
 type 'a unmarshal_rlp     = int -> string -> ('a * int)
 type 'a unmarshal_rlp_opt = int -> string -> ('a * int) option
 
+type 'a pre_rlping = { to_rlp_item : 'a to_rlp_item;
+                       of_rlp_item : 'a of_rlp_item }
+
 type 'a rlping = { to_rlp_item       : 'a to_rlp_item;
                    of_rlp_item       : 'a of_rlp_item;
                    of_rlp_item_opt   : 'a of_rlp_item_opt;

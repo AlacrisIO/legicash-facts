@@ -152,7 +152,7 @@ end
     NOTE: We should not compute the transaction hash ourself.
     --- 1 : When we post, a hash is computed and returned.
         (It is in TransactionReceipt.transaction_hash) returned by eth_get_transaction_receipt.
-    --- 2 : When we query the client it returns a confirmation object telling whether the 
+    --- 2 : When we query the client it returns a confirmation object telling whether the
             transaction completed successfully.
     ---Therefore, this code below will never work.
 *)

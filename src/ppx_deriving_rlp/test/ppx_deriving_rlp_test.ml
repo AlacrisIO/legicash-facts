@@ -28,11 +28,14 @@ let check_float_rlp = check_convert_rlp [%rlp: float].to_rlp_item [%rlp: float].
 let check_alias_int_rlp = check_convert_rlp alias_int_to_rlp_item alias_int_of_rlp_item alias_int_marshal_rlp alias_int_unmarshal_rlp
 let check_alias_list_rlp = check_convert_rlp alias_list_to_rlp_item alias_list_of_rlp_item alias_list_marshal_rlp alias_list_unmarshal_rlp
 let check_alias_unit_rlp = check_convert_rlp alias_unit_to_rlp_item alias_unit_of_rlp_item alias_unit_marshal_rlp alias_unit_unmarshal_rlp
+let check_char_rlp = check_convert_rlp char_to_rlp_item char_of_rlp_item [%rlp: char].marshal_rlp [%rlp: char].unmarshal_rlp
 let check_foo_rlp = check_convert_rlp foo_to_rlp_item foo_of_rlp_item foo_marshal_rlp foo_unmarshal_rlp
 let check_loi_rlp = check_convert_rlp loi_to_rlp_item loi_of_rlp_item loi_marshal_rlp loi_unmarshal_rlp
 let check_wrapped_list1_rlp = check_convert_rlp wrapped_list1_to_rlp_item wrapped_list1_of_rlp_item wrapped_list1_marshal_rlp wrapped_list1_unmarshal_rlp
 let check_wrapped_list2_rlp = check_convert_rlp wrapped_list2_to_rlp_item wrapped_list2_of_rlp_item wrapped_list2_marshal_rlp wrapped_list2_unmarshal_rlp
 let check_wrapped_list3_rlp = check_convert_rlp wrapped_list3_to_rlp_item wrapped_list3_of_rlp_item wrapped_list3_marshal_rlp wrapped_list3_unmarshal_rlp
+let check_matter1_rlp = check_convert_rlp matter1_to_rlp_item matter1_of_rlp_item matter1_marshal_rlp matter1_unmarshal_rlp
+let check_matter2_rlp = check_convert_rlp matter2_to_rlp_item matter2_of_rlp_item matter2_marshal_rlp matter2_unmarshal_rlp
 let check_seq_tree_map_str_str_rlp = check_convert_rlp [%rlp: (string, string) seq_tree_map].to_rlp_item
                                                        [%rlp: (string, string) seq_tree_map].of_rlp_item
                                                        (seq_tree_map_marshal_rlp string_to_rlp_item string_to_rlp_item)
@@ -50,6 +53,11 @@ let test_int1 ctxt = check_alias_int_rlp ~ctxt 5 (RlpItem "\005") "\005"
 let test_int2 ctxt = check_alias_int_rlp ~ctxt (-10) (RlpItems [RlpItem "\010"]) "\xc1\010"
 let test_list2 ctxt = check_alias_list_rlp ~ctxt [6] (RlpItems [RlpItem "\006"]) "\xc1\006"
 let test_unit2 ctxt = check_alias_unit_rlp ~ctxt () (RlpItems []) "\xc0"
+
+let test_char1 ctxt = check_char_rlp ~ctxt 'a' (RlpItem "a") "\097"
+let test_char2 ctxt = check_char_rlp ~ctxt 'm' (RlpItem "m") "\109"
+let test_char3 ctxt = check_char_rlp ~ctxt 'X' (RlpItem "X") "\088"
+let test_char4 ctxt = check_char_rlp ~ctxt '\204' (RlpItem "\204") "\x81\204"
 
 let test_float1 ctxt = assert_equal ~ctxt ~printer:Rlp.show_rlp_item
                                     (RlpItem "\x3f\xf2\x49\x24\x92\x49\x24\x92")
@@ -86,6 +94,29 @@ let test7 ctxt = check_loi_rlp ~ctxt
 let test8 ctxt = check_wrapped_list1_rlp ~ctxt (Wrap1 [1]) (RlpItems [RlpItem ""; RlpItems [RlpItem "\001"]]) "\xc3\x80\xc1\001"
 let test9 ctxt = check_wrapped_list2_rlp ~ctxt (Wrap2 { value = [1] }) (RlpItems [RlpItem ""; RlpItems [RlpItem "\001"]]) "\xc3\x80\xc1\001"
 let test10 ctxt = check_wrapped_list3_rlp ~ctxt ({ value = [1] }) (RlpItems [RlpItem "\001"]) "\xc1\001"
+
+let test11 ctxt = check_matter1_rlp ~ctxt
+                    (`Solid "ground")
+                    (RlpItems [RlpItem "Solid"; RlpItem "ground"])
+                    "\xcd\x85Solid\x86ground"
+let test12 ctxt = check_matter1_rlp ~ctxt
+                    (`Gas 22.414)
+                    (RlpItems [RlpItem "Gas"; RlpItem "@6i\251\231l\139D"])
+                    "\xcd\x83Gas\x88@6i\251\231l\139D"
+let test13 ctxt = check_matter2_rlp ~ctxt
+                    (`Liquid 6579)
+                    (RlpItems [RlpItem "Liquid"; RlpItem "\025\179"])
+                    "\xca\x86Liquid\x82\025\179"
+let test14 ctxt = check_matter2_rlp ~ctxt
+                    (`Plasma 'H')
+                    (RlpItems [RlpItem "Plasma"; RlpItem "H"])
+                    "\xc8\x86PlasmaH"
+let test15 ctxt = check_matter2_rlp ~ctxt
+                    (`Unknown)
+                    (RlpItem "Unknown")
+                    "\x87Unknown"
+
+
 
 let test_stmss1 ctxt = check_seq_tree_map_str_str_rlp ~ctxt
                          (StmLeaf "nemo")
@@ -257,6 +288,10 @@ let suite =
   "test_int2">:: test_int2;
   "test_list2">:: test_list2;
   "test_unit2">:: test_unit2;
+  "test_char1">:: test_char1;
+  "test_char2">:: test_char2;
+  "test_char3">:: test_char3;
+  "test_char4">:: test_char4;
   "test_float1">:: test_float1;
   "test_float2">:: test_float2;
   "test_float3">:: test_float3;
@@ -268,6 +303,11 @@ let suite =
   "test8">:: test8;
   "test9">:: test9;
   "test10">:: test10;
+  "test11">:: test11;
+  "test12">:: test12;
+  "test13">:: test13;
+  "test14">:: test14;
+  "test15">:: test15;
   "test_stmss1">:: test_stmss1;
   "test_stmss2">:: test_stmss2;
   "test_t_alias1">:: test_t_alias1]
