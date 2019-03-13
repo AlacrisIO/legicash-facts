@@ -54,7 +54,8 @@ module TransactionCondition : sig
   include PersistableS with type t := t
 end
 
-(** Parameters for a transaction as per Ethereum JSON RPC interface *)
+(** Parameters for a transaction as per Ethereum JSON RPC interface for
+    eth_estimateGas, eth_sendTransaction, eth_signTransaction, personal_sign_transaction *)
 module TransactionParameters : sig
   type t =
     { from: Address.t (* 20 Bytes - The address the transaction is send from. *)
@@ -66,6 +67,9 @@ module TransactionParameters : sig
     ; nonce: Nonce.t option (* Integer of a nonce. This allows to overwrite your own pending transactions that use the same nonce. *)
     ; condition: TransactionCondition.t option } (* Conditional submission of the transaction. Can be either an integer block number { block: 1 } or UTC timestamp (in seconds) { time: 1491290692 } or null. *)
   include PersistableS with type t := t
+  val of_operation : Address.t -> Operation.t -> t
+  val of_pre_transaction : Address.t -> PreTransaction.t -> t
+  val of_transaction : Transaction.t -> t
 end
 
 (* Result of eth_getTransactionByHash *)
@@ -104,11 +108,6 @@ module EthObject : sig
     }
   include YojsonableS with type t := t
 end
-
-
-val operation_to_parameters : Address.t -> Operation.t -> TransactionParameters.t
-val pre_transaction_to_parameters : Address.t -> PreTransaction.t -> TransactionParameters.t
-val transaction_to_parameters : Transaction.t -> TransactionParameters.t
 
 (* Returned by eth_signTransaction *)
 module SignedTransaction : sig
@@ -167,6 +166,26 @@ val eth_block_number :
   -> unit -> Revision.t Lwt_exn.t
 (** Get the latest block number *)
 
+(** Parameters for eth_call as per Ethereum JSON RPC interface *)
+module CallParameters : sig
+  type t =
+    { from: Address.t (* 20 Bytes - The address the transaction is send from. *)
+    ; to_: Address.t option [@key "to"] (* 20 Bytes - The address the transaction is directed to. *)
+    ; gas: TokenAmount.t option (* Integer of the gas provided for the transaction execution. eth_call consumes zero gas, but this parameter may be needed by some executions. *)
+    ; gas_price: TokenAmount.t option [@key "gasPrice"] (* Integer of the gas price used for each paid gas. *)
+    ; value: TokenAmount.t option (* Integer of the value sent with this transaction. *)
+    ; data: Yojsoning.Bytes.t option } (* 4 byte hash of the method signature followed by encoded parameters. For details see Ethereum Contract ABI. *)
+  include PersistableS with type t := t
+  val of_operation : Address.t -> Operation.t -> t
+  val of_pre_transaction : Address.t -> PreTransaction.t -> t
+  val of_transaction : Transaction.t -> t
+end
+
+val eth_call :
+  ?timeout:float -> ?log:bool
+  -> CallParameters.t * BlockParameter.t -> Data.t Lwt_exn.t
+(** Get value computed by function at given block *)
+
 val eth_estimate_gas :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> TokenAmount.t Lwt_exn.t
@@ -221,8 +240,7 @@ val eth_sign :
   -> Address.t * Data.t -> Data.t Lwt_exn.t
 (** Sign some data *)
 
-(* The corresponding operation is not existent in the official ethereum API. It is also not used.
-   Therefore outcommented. *)
+(* This operation exists in the Parity wallet but not in geth, and we therefore don't use it. *)
 val eth_sign_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t -> SignedTransaction.t Lwt_exn.t

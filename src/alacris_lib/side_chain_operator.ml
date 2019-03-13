@@ -500,7 +500,7 @@ let make_transaction_commitment : (Transaction.t * Digest.t) -> TransactionCommi
 *)
 let process_user_transaction_request :
       (UserTransactionRequest.t signed * bool, TransactionCommitment.t) Lwt_exn.arr =
-  Logging.log "Beginning of process_user_transaction_request";
+  (*Logging.log "Beginning of process_user_transaction_request";*)
   let open Lwt_exn in
   validate_user_transaction_request
   >>> post_state_update_request

@@ -11,6 +11,20 @@ open Yojsoning
 
 open Ethereum_chain
 
+(* for CallFunction:
+
+address should be a valid contract address
+for testing, it's a dummy address
+
+the bytes are a 4-byte prefix of the Keccak256 hash of the encoding of a method
+signature, followed by the encoding of the method parameters, as described at:
+
+https://solidity.readthedocs.io/en/develop/abi-spec.html
+
+This data tells the EVM which method to call, with what arguments, in the contract
+
+in this test, we just use a dummy hash to represent all of that *)
+
 (* TODO: somehow work with our static types UInt256, UInt64, etc.? Maybe using GADTs somehow? *)
 
 type abi_type =
@@ -96,7 +110,7 @@ let equal (eval1 : abi_value) (eval2 : abi_value) : bool =
       | Bytes_value x2 -> (Bytes.equal x1 x2)
       | _ -> false)
   | _ -> bork "Missing code"
-                   
+
 (* are constraints on types fulfilled *)
 let rec is_valid_type = function
   | Uint m | Int m -> m mod 8 = 0 && 0 < m && m <= 256
@@ -109,10 +123,10 @@ let rec is_valid_type = function
   | FixedDefault | UfixedDefault | BytesDynamic | String | Address | Function | Bool
   | UintDefault | IntDefault ->
     true
-    
 
 
-    
+
+
 (* must get this right for hash of signature to work *)
 let rec show_type_for_function_selector ty =
   if not (is_valid_type ty) then
@@ -174,7 +188,7 @@ let abi_value_to_uintN n evalue =
   match evalue with
   | Uint_value x -> uint_of_big_endian_bytes n x
   | _ -> bork "Wrong input type"
-  
+
 let abi_value_to_uint8 = abi_value_to_uintN 8
 
 let abi_value_to_uint16 = abi_value_to_uintN 16
@@ -217,7 +231,7 @@ let abi_value_to_int64 = abi_value_to_intN 64
 let abi_value_to_int = abi_value_to_intN 256
  *)
 
-                      
+
 let abi_value_to_address evalue =
   match evalue with
   | Address_value x -> x
@@ -227,9 +241,7 @@ let abi_value_to_bool evalue =
   match evalue with
   | Bool_value x -> x
   | _ -> bork "The input is not a bool as required"
-  
-       
-  
+
 let big_endian_bytes_of_uint num_bits nat =
   big_endian_bytes_of_nat "uint" num_bits nat nat
 
@@ -290,7 +302,7 @@ let abi_value_from_uint64 (evalue : UInt64.t) : abi_value =
 let abi_value_from_revision (evalue : Revision.t) : abi_value =
   Uint_value (big_endian_bytes_of_uint 64 (Revision.z_of evalue))
 
-               
+
 (* uint is synonym for uint256
    don't use make... because bounds checks will fail,
    and any int can be represented in 256 bits
@@ -586,9 +598,9 @@ let get_individual_length (etype: abi_type) : int =
             let len = Bytes.length bytes_val_one in
             len
   | _ -> bork "Missing code for this specific type"
-  
 
-       
+
+
 let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (abi_value*int) =
   (*  Logging.log "Beginning of decode_individual_data init_pos=%i" init_pos;*)
   match etype with
@@ -609,9 +621,9 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
                 bork "error in the operation. It should be zero";
               let next_pos = end_ret_pos in
               (Uint_value bytes_ret, next_pos)
-  | Address -> let bytes = Ethereum_util.bytes_of_address Address.zero in 
+  | Address -> let bytes = Ethereum_util.bytes_of_address Address.zero in
                let bytes_len = Bytes.length bytes in
-               let padding_len = 32 - bytes_len in 
+               let padding_len = 32 - bytes_len in
                let start_pos = init_pos + padding_len in
                let end_pos = init_pos + padding_len + bytes_len in
                let data_sub = Bytes.sub data start_pos bytes_len in
@@ -650,7 +662,7 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
   | _ -> bork "Missing code for this specific type"
 
 
-  
+
 let transcrib_short_int (eval: int) : string =
   let (lchar : string) = "0123456789abcdef" in
   let val2 = eval mod 16 in
@@ -661,8 +673,8 @@ let transcrib_short_int (eval: int) : string =
   estr
 
 
-       
-       
+
+
 let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
   let (total_len : int) = Bytes.length data in
   let (list_size : int list) = List.map get_individual_length list_type in
@@ -696,7 +708,7 @@ let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
     Logging.log "The data array size does not match !pos=%i total_len=%i" (!pos) total_len;
   list_ret
 
-       
+
 (* an encoding of the function call is what we pass to Ethereum in a transaction *)
 let encode_function_call function_call =
   let (encoded_signature : Bytes.t) = encode_function_signature function_call |> Bytes.of_string in

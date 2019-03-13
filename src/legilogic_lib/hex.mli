@@ -14,13 +14,11 @@ val parse_hex_byte : string -> int -> int
 
 (** Parse a substring of hex digits starting at position pos and of length len
     as a string of 8-bit characters represented by those digits.
-    If the length is odd, then the first character is represented by a single digit.
-*)
+    If the length is odd, then the first character is represented by a single digit. *)
 val parse_hex_substring : string -> int -> int -> string
 
 (** Parse a string of hex digits as a string of 8-bit characters represented by those digits.
-    If the length is odd, then the first character is represented by a single digit.
-*)
+    If the length is odd, then the first character is represented by a single digit. *)
 val parse_hex_string : string -> string
 
 (** Parse a hex string of form "nn:nn:...:nn", where nn represents a char as a hex-digit pair *)

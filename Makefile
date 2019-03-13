@@ -59,7 +59,15 @@ $(BUILD_DIR)/$(LEGILOGIC_ETHEREUM): $(ML_SOURCES)
 	$(SHOW) "Building Legilogic ethereum support"
 	$(HIDE) dune build $(LEGILOGIC_ETHEREUM)
 
-test_legilogic_ethereum :
+# for the side_chain_client demo, this is a simplified contract that just
+# logs deposits and withdrawals
+ETHEREUM_TEST_CONTRACT:=_build/contracts/test/HelloWorld.bin
+ethereum_test_contract: $(ETHEREUM_TEST_CONTRACT)
+$(ETHEREUM_TEST_CONTRACT) : src/legilogic_ethereum/test_contract.sol
+	$(SHOW) "Compiling test ethereum contract"
+	$(HIDE) mkdir -p _build/contracts/test/ && solc --bin -o _build/contracts/test/ --overwrite src/legilogic_ethereum/test_contract.sol
+
+test_legilogic_ethereum : $(ETHEREUM_TEST_CONTRACT)
 	$(SHOW) "Testing legilogic_ethereum"
 	$(HIDE) dune runtest src/legilogic_ethereum
 
@@ -164,7 +172,7 @@ test_hello: toplevel $(ML_SOURCES) $(CONTRACT) force
 	$(HIDE) [ "$$(echo 'Printf.printf "%s" (Hex.parse_0x_data "0x48656c6c6f2c20776f726c64210a"); exit 0;;' | ./bin/legicaml -no-version -noprompt -noinit)" = "Hello, world!" ]
 
 ### Running unit tests
-test: $(ML_SOURCES) $(CONTRACT) force
+test: $(ML_SOURCES) $(CONTRACT) $(ETHEREUM_TEST_CONTRACT) force
 	$(SHOW) "Running Alacris tests"
 	$(HIDE) dune runtest --verbose -j 1
 #	$(HIDE) dune runtest -j 1

@@ -289,7 +289,8 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_
    | Not_found ->
       Logging.log "Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
       fail Missing_password)
-  >>= fun password -> personal_sign_transaction (transaction_to_parameters transaction, password)
+  >>= fun password ->
+  personal_sign_transaction (TransactionParameters.of_transaction transaction, password)
   >>= fun signed -> return (transaction, signed)
 
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
@@ -306,7 +307,7 @@ let nonce_too_low address =
   (* TODO: Send Notification to end-user via UI! *)
   Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
 
-let confirmed_or_nonce_too_low : Address.t -> (Digest.t, TransactionReceipt.t) Lwt_exn.arr =
+let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt_exn.arr =
   fun sender hash ->
   let open Lwter in
   Ethereum_json_rpc.eth_get_transaction_receipt hash
@@ -318,22 +319,21 @@ let confirmed_or_nonce_too_low : Address.t -> (Digest.t, TransactionReceipt.t) L
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
     (*Logging.log "send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);*)
-    let open Lwter in
     match signed with
     | SignedTransaction.{raw;tx={hash}} ->
-      (eth_send_raw_transaction raw
-       >>= function
-       | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
-         Lwt_exn.(confirmed_or_nonce_too_low sender hash >>= const hash)
-       | Error (Rpc_error {code= -32000; message})
-         when message = "known transaction: " ^ Digest.to_hex_string hash ->
-         Lwt_exn.return hash
-       | Error e -> Lwt_exn.fail e
-       | Ok transaction_hash ->
-         if transaction_hash = hash then
-           Lwt_exn.return hash
-         else
-           Lwt_exn.bork "eth_send_raw_transaction: invalid hash %s instead of %s" (Digest.to_0x transaction_hash) (Digest.to_0x hash))
+      Lwter.bind (eth_send_raw_transaction raw)
+        (function
+         | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
+            confirmed_or_known_issue sender hash >>= const hash
+         | Error (Rpc_error {code= -32000; message})
+              when message = "known transaction: " ^ Digest.to_hex_string hash ->
+            return hash
+         | Error e -> fail e
+         | Ok transaction_hash ->
+            if transaction_hash = hash then
+              return hash
+            else
+              bork "eth_send_raw_transaction: invalid hash %s instead of %s" (Digest.to_0x transaction_hash) (Digest.to_0x hash))
 
 (** Wait until a transaction has been confirmed by the main chain.
     TODO: understand why an error in a previous version of this code got eaten silently,
@@ -354,7 +354,7 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, Transac
         Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
         >>= fun sender_nonce ->
         if Nonce.(compare sender_nonce nonce > 0) then
-          confirmed_or_nonce_too_low sender hash
+          confirmed_or_known_issue sender hash
         else
           fail Still_pending
       | Some receipt -> check_transaction_receipt_status receipt)
@@ -559,7 +559,7 @@ let transfer_tokens ~recipient value =
 let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : TokenAmount.t) : PreTransaction.t Lwt_exn.t =
   (match gas_limit with
    | Some x -> return x
-   | None -> eth_estimate_gas (operation_to_parameters sender operation))
+   | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation))
   >>= fun gas_limit ->
   Logging.log "make_pre_transaction gas_limit=%i value=%i" (TokenAmount.to_int gas_limit) (TokenAmount.to_int value);
   let gas_limit_tenfold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
@@ -575,6 +575,7 @@ module Test = struct
   open Hex
   open Digesting
   open Signing.Test
+  open Ethereum_abi
 
   let prefunded_address_mutex = Lwt_mutex.create ()
   let prefunded_address = ref None
@@ -630,65 +631,64 @@ module Test = struct
     list_iter_s (ensure_test_account ?min_balance prefunded_address)
       [("Alice", alice_keys); ("Bob", bob_keys); ("Trent", trent_keys)]
 
-  let make_hello_call : Bytes.t =
-  let parameters = [ ] in
-    Ethereum_abi.encode_function_call { function_name = "printHello"; parameters }
+  (** Has a transaction given by a hash successfully executed,
+      and does the Ethereum network report information that match what we expected? *)
+  let check_transaction_execution (transaction_hash: digest) (transaction: Transaction.t) : bool Lwt_exn.t =
+    eth_get_transaction_receipt transaction_hash
+    >>= arr (function
+            | Some TransactionReceipt.{status} -> TokenAmount.sign status = 1
+            | _ -> false)
+    >>= fun executed ->
+    assert executed;
+    Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
+    >>= fun info ->
+    let tx_header = transaction.tx_header in
+    assert (info.from = Some tx_header.sender);
+    assert (info.nonce = tx_header.nonce);
+    assert (TokenAmount.compare info.gas tx_header.gas_limit <= 0);
+    assert (TokenAmount.compare info.gas_price tx_header.gas_price <= 0);
+    assert (TokenAmount.compare info.value tx_header.value = 0);
+    assert (match transaction.operation with (* operation-specific checks *)
+            | TransferTokens recipient_address -> info.to_ = Some recipient_address
+            | CreateContract data -> info.input = data
+            | CallFunction (contract_address, call_input) ->
+               info.to_ = Some contract_address && info.input = call_input) ;
+    return true
 
-  (* let make_num_call : Z.t -> Bytes.t =
-  fun num ->
-  let parameters = [ Ethereum_abi.abi_uint num ] in
-    Ethereum_abi.encode_function_call { function_name = "printHelloNum"; parameters } *)
-
-  (*let make_name_call : String.t -> Bytes.t =
-  fun name ->
-    let parameters = [ Ethereum_abi.abi_bytes_dynamic_of_string name ] in
-    Ethereum_abi.encode_function_call { function_name = "printHelloName"; parameters }*)
-
-  let%test "transfer-on-Ethereum-testnet" =
-    (Logging.log "\n    TEST: transfer-on-Ethereum-testnet!!\n";
+  let%test "Ethereum-testnet-transfer" =
+    Logging.log "\nTEST: Ethereum-testnet-transfer\n";
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         get_prefunded_address ()
-         >>= fun sender ->
-         Ethereum_json_rpc.personal_new_account ""
-         >>= fun recipient ->
-         (* we don't check opening balance, which may be too large to parse *)
-         let transfer_amount = 22 in
-         transfer_tokens ~recipient (TokenAmount.of_int transfer_amount)
-         |> confirm_pre_transaction sender
-         >>= fun (transaction, TransactionReceipt.{transaction_hash}) ->
-         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction))
+        of_lwt Db.open_connection "unit_test_db"
+        >>= fun () ->
+        get_prefunded_address ()
+        >>= fun croesus ->
+        transfer_tokens ~recipient:alice_address (TokenAmount.of_int 1000000000)
+        |> confirm_pre_transaction croesus
+        >>= fun (transaction, TransactionReceipt.{transaction_hash}) ->
+        check_transaction_execution transaction_hash transaction)
       ()
 
-    let%test "contract-success-on-Ethereum-testnet" =
-    (Logging.log "\n    TEST: contract-success-on-Ethereum-testnet!!\n";
-    Lwt_exn.run
-     (fun () ->
-        of_lwt Db.open_connection "unit_test_db"
-        >>= fun () ->
-        (* code is result of running "solc --bin contracts/hello.sol", and prepending "0x" *)
-        let code = parse_0x_bytes "0x608060405234801561001057600080fd5b506105c0806100206000396000f3fe608060405234801561001057600080fd5b506004361061005e576000357c0100000000000000000000000000000000000000000000000000000000900480634cfbbad114610063578063b874ee54146100a5578063cf2cc576146101d9575b600080fd5b61008f6004803603602081101561007957600080fd5b810190808035906020019092919050505061025c565b6040518082815260200191505060405180910390f35b61015e600480360360208110156100bb57600080fd5b81019080803590602001906401000000008111156100d857600080fd5b8201836020820111156100ea57600080fd5b8035906020019184600183028401116401000000008311171561010c57600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600081840152601f19601f820116905080830192505050505050509192919290505050610266565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561019e578082015181840152602081019050610183565b50505050905090810190601f1680156101cb5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6101e1610384565b6040518080602001828103825283818151815260200191508051906020019080838360005b83811015610221578082015181840152602081019050610206565b50505050905090810190601f16801561024e5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6000819050919050565b6060806102a86040805190810160405280600781526020017f48656c6c6f2c2000000000000000000000000000000000000000000000000000815250846103c1565b90507fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd9122816040518080602001828103825283818151815260200191508051906020019080838360005b8381101561030c5780820151818401526020810190506102f1565b50505050905090810190601f1680156103395780820380516001836020036101000a031916815260200191505b509250505060405180910390a16040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250915050919050565b60606040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250905090565b6060808390506060839050606081518351016040519080825280601f01601f1916602001820160405280156104055781602001600182028038833980820191505090505b5090506060819050600080905060008090505b85518110156104cb57858181518110151561042f57fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561048e57fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053508080600101915050610418565b5060008090505b84518110156105855784818151811015156104e957fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561054857fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a90535080806001019150506104d2565b5081955050505050509291505056fea165627a7a72305820680b62a73858bd94dd2dd59babe8e75f8752b58ecc1f9bc85c6e3563192755080029" in
-        get_prefunded_address ()
-        >>= fun sender ->
-        create_contract ~sender ~code ?gas_limit:None TokenAmount.zero
-        >>= (trying (confirm_pre_transaction sender)
-        >>> (function
-        | Ok _    -> Lwt_exn.return true
-        | Error _ -> Lwt_exn.return false))))
-    ()
+  let test_contract_code () =
+    "contracts/test/HelloWorld.bin"
+    |> Config.get_build_filename
+    |> read_file
+    |> parse_hex_string
+    |> Bytes.of_string
 
-  let%test "contract-failure-on-Ethereum-testnet" =
-    (Logging.log "\n    TEST: contract-failure-on-Ethereum-testnet!!\n";
+  let list_only_element = function
+    | [x] -> x
+    | _ -> Lib.bork "list isn't a singleton"
+
+  let%test "Ethereum-testnet-contract-failure" =
+    (Logging.log "\nTEST: contract-failure-on-Ethereum-testnet!!\n";
     Lwt_exn.run
      (fun () ->
         of_lwt Db.open_connection "unit_test_db"
         >>= fun () ->
-        (* code is result of running "solc --bin contracts/hello.sol", and prepending "0x" *)
-        let code = parse_0x_bytes "0x608060405234801561001057600080fd5b506105c0806100206000396000f3fe608060405234801561001057600080fd5b506004361061005e576000357c0100000000000000000000000000000000000000000000000000000000900480634cfbbad114610063578063b874ee54146100a5578063cf2cc576146101d9575b600080fd5b61008f6004803603602081101561007957600080fd5b810190808035906020019092919050505061025c565b6040518082815260200191505060405180910390f35b61015e600480360360208110156100bb57600080fd5b81019080803590602001906401000000008111156100d857600080fd5b8201836020820111156100ea57600080fd5b8035906020019184600183028401116401000000008311171561010c57600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600081840152601f19601f820116905080830192505050505050509192919290505050610266565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561019e578082015181840152602081019050610183565b50505050905090810190601f1680156101cb5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6101e1610384565b6040518080602001828103825283818151815260200191508051906020019080838360005b83811015610221578082015181840152602081019050610206565b50505050905090810190601f16801561024e5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6000819050919050565b6060806102a86040805190810160405280600781526020017f48656c6c6f2c2000000000000000000000000000000000000000000000000000815250846103c1565b90507fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd9122816040518080602001828103825283818151815260200191508051906020019080838360005b8381101561030c5780820151818401526020810190506102f1565b50505050905090810190601f1680156103395780820380516001836020036101000a031916815260200191505b509250505060405180910390a16040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250915050919050565b60606040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250905090565b6060808390506060839050606081518351016040519080825280601f01601f1916602001820160405280156104055781602001600182028038833980820191505090505b5090506060819050600080905060008090505b85518110156104cb57858181518110151561042f57fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561048e57fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053508080600101915050610418565b5060008090505b84518110156105855784818151811015156104e957fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561054857fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a90535080806001019150506104d2565b5081955050505050509291505056fea165627a7a72305820680b62a73858bd94dd2dd59babe8e75f8752b58ecc1f9bc85c6e3563192755080029" in
         get_prefunded_address ()
         >>= fun sender ->
+        let code = test_contract_code () in
         create_contract ~sender ~code
         (* Failure due to bogus gas_limit *)
         ~gas_limit:(TokenAmount.of_int 100000) TokenAmount.zero
@@ -700,262 +700,70 @@ module Test = struct
         | Error _ -> Lwt_exn.return false))))
     ()
 
-  let%test "create-contract-on-Ethereum-testnet" =
-    (Logging.log "\n    TEST: create-contract-on-Ethereum-testnet!!\n";
+  let%test "Ethereum-testnet-contract-success" =
+    Logging.log "\nTEST: contract-success-on-Ethereum-testnet!!\n";
+    Logging.log "SUBTEST: create the contract\n";
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         get_prefunded_address ()
-         >>= fun sender ->
-         let make_contract_of_len n =
-           (* NB: this contract is bogus enough that eth_estimate_gas yields bad answers.
-              TODO: Check whether the contract actually succeeds? *)
-           create_contract ~sender ~code:(Bytes.create n) TokenAmount.zero
-           >>= confirm_pre_transaction sender
-           >>= fun (tx, {transaction_hash}) ->
-           Ethereum_transaction.transaction_execution_matches_transaction transaction_hash tx in
-         list_map_s make_contract_of_len [128; 256; 512]
-         >>= arr (List.for_all identity)))
-      ()
-
-  let%test "call-contract-on-Ethereum-testnet" =
-    (Logging.log "\n    TEST: call-contract-on-Ethereum-testnet!!\n";
-    let open Ethereum_chain in
-    Lwt_exn.run
-      (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         get_prefunded_address ()
-         >>= fun sender ->
-         (* for CallFunction:
-
-            address should be a valid contract address
-            for testing, it's a dummy address
-
-            the bytes are a 4-byte prefix of the Keccak256 hash of the encoding of a method
-            signature, followed by the encoding of the method parameters, as described at:
-
-            https://solidity.readthedocs.io/en/develop/abi-spec.html
-
-            This data tells the EVM which method to call, with what arguments, in the contract
-
-            in this test, we just use a dummy hash to represent all of that
-         *)
-         let hashed = digest_of_string "some arbitrary string" in
-         call_function ~sender
-           ~contract:(Address.of_0x "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8")
-           ~call:(Bytes.of_string (Digest.to_big_endian_bits hashed))
-           TokenAmount.zero
-         >>= confirm_pre_transaction sender
-         >>= fun (transaction, TransactionReceipt.{transaction_hash}) ->
-         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction))
-      ()
-
-  let%test "create-and-call-hello-on-Ethereum-testnet" =
-    (Logging.log "\n    TEST: create-and-call-hello-on-Ethereum-testnet!!\n";
-    Lwt_exn.run
-     (fun () ->
         of_lwt Db.open_connection "unit_test_db"
         >>= fun () ->
-        (* code is result of running "solc --bin contracts/hello.sol", and prepending "0x" *)
-        let code = parse_0x_bytes "0x608060405234801561001057600080fd5b506105c0806100206000396000f3fe608060405234801561001057600080fd5b506004361061005e576000357c0100000000000000000000000000000000000000000000000000000000900480634cfbbad114610063578063b874ee54146100a5578063cf2cc576146101d9575b600080fd5b61008f6004803603602081101561007957600080fd5b810190808035906020019092919050505061025c565b6040518082815260200191505060405180910390f35b61015e600480360360208110156100bb57600080fd5b81019080803590602001906401000000008111156100d857600080fd5b8201836020820111156100ea57600080fd5b8035906020019184600183028401116401000000008311171561010c57600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600081840152601f19601f820116905080830192505050505050509192919290505050610266565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561019e578082015181840152602081019050610183565b50505050905090810190601f1680156101cb5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6101e1610384565b6040518080602001828103825283818151815260200191508051906020019080838360005b83811015610221578082015181840152602081019050610206565b50505050905090810190601f16801561024e5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6000819050919050565b6060806102a86040805190810160405280600781526020017f48656c6c6f2c2000000000000000000000000000000000000000000000000000815250846103c1565b90507fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd9122816040518080602001828103825283818151815260200191508051906020019080838360005b8381101561030c5780820151818401526020810190506102f1565b50505050905090810190601f1680156103395780820380516001836020036101000a031916815260200191505b509250505060405180910390a16040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250915050919050565b60606040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250905090565b6060808390506060839050606081518351016040519080825280601f01601f1916602001820160405280156104055781602001600182028038833980820191505090505b5090506060819050600080905060008090505b85518110156104cb57858181518110151561042f57fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561048e57fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053508080600101915050610418565b5060008090505b84518110156105855784818151811015156104e957fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561054857fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a90535080806001019150506104d2565b5081955050505050509291505056fea165627a7a72305820680b62a73858bd94dd2dd59babe8e75f8752b58ecc1f9bc85c6e3563192755080029" in
         get_prefunded_address ()
         >>= fun sender ->
+        let code = test_contract_code () in
         create_contract ~sender ~code ?gas_limit:None TokenAmount.zero
         >>= confirm_pre_transaction sender
-        >>=
-        (function
-        | (_, {contract_address=(Some contract)}) ->
-        let call = make_hello_call in
+        >>= (function | (_, {contract_address=(Some contract)}) -> return contract
+                      | _ -> bork "Failed to create contract")
+        >>= fun contract ->
+        Logging.log "SUBTEST: call contract function hello with no argument\n";
+        let call = encode_function_call { function_name = "hello"; parameters = [] } in
         call_function ~sender ~contract ~call TokenAmount.zero
         >>= confirm_pre_transaction sender
-        >>= fun (tx, {transaction_hash}) ->
-        Ethereum_transaction.transaction_execution_matches_transaction transaction_hash tx
-        (* This case is to please the pattern matcher. We will (hopefully) already be
-           throwing TransactionRejected before we get to this case. *)
-        | (_, {contract_address=None}) -> Lwt_exn.return false)))
-     ()
-
-  (* let%test "create-and-call-hello-num-on-Ethereum-testnet" =
-    (Logging.log "\n    TEST: create-and-call-hello-num-on-Ethereum-testnet!!\n";
-    Lwt_exn.run
-     (fun () ->
-        of_lwt Db.open_connection "unit_test_db"
-        >>= fun () ->
-        (* code is result of running "solc --bin contracts/hello.sol", and prepending "0x" *)
-        let code = parse_0x_bytes "0x608060405234801561001057600080fd5b506105c0806100206000396000f3fe608060405234801561001057600080fd5b506004361061005e576000357c0100000000000000000000000000000000000000000000000000000000900480634cfbbad114610063578063b874ee54146100a5578063cf2cc576146101d9575b600080fd5b61008f6004803603602081101561007957600080fd5b810190808035906020019092919050505061025c565b6040518082815260200191505060405180910390f35b61015e600480360360208110156100bb57600080fd5b81019080803590602001906401000000008111156100d857600080fd5b8201836020820111156100ea57600080fd5b8035906020019184600183028401116401000000008311171561010c57600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600081840152601f19601f820116905080830192505050505050509192919290505050610266565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561019e578082015181840152602081019050610183565b50505050905090810190601f1680156101cb5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6101e1610384565b6040518080602001828103825283818151815260200191508051906020019080838360005b83811015610221578082015181840152602081019050610206565b50505050905090810190601f16801561024e5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6000819050919050565b6060806102a86040805190810160405280600781526020017f48656c6c6f2c2000000000000000000000000000000000000000000000000000815250846103c1565b90507fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd9122816040518080602001828103825283818151815260200191508051906020019080838360005b8381101561030c5780820151818401526020810190506102f1565b50505050905090810190601f1680156103395780820380516001836020036101000a031916815260200191505b509250505060405180910390a16040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250915050919050565b60606040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250905090565b6060808390506060839050606081518351016040519080825280601f01601f1916602001820160405280156104055781602001600182028038833980820191505090505b5090506060819050600080905060008090505b85518110156104cb57858181518110151561042f57fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561048e57fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053508080600101915050610418565b5060008090505b84518110156105855784818151811015156104e957fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561054857fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a90535080806001019150506104d2565b5081955050505050509291505056fea165627a7a72305820680b62a73858bd94dd2dd59babe8e75f8752b58ecc1f9bc85c6e3563192755080029" in
-        get_prefunded_address ()
-        >>= fun sender ->
-        create_contract ~sender ~code ?gas_limit:None TokenAmount.zero
-        >>= confirm_pre_transaction sender
-        >>=
-        (function
-        | (_, {contract_address=(Some contract)}) ->
-        let call = make_num_call (Z.of_int 1) in
-        call_function ~sender ~contract ~call TokenAmount.zero
-        >>= confirm_pre_transaction sender
-        >>= fun (tx, {transaction_hash}) ->
-        Ethereum_transaction.transaction_execution_matches_transaction transaction_hash tx
-        (* This case is to please the pattern matcher. We will (hopefully) already be
-           throwing TransactionRejected before we get to this case. *)
-        | (_, {contract_address=None}) -> Lwt_exn.return false)))
-     () *)
-
-  (*let%test "create-and-call-hello-name-on-Ethereum-testnet" =
-    (Logging.log "\n    TEST: create-and-call-hello-name-on-Ethereum-testnet!!\n";
-    Lwt_exn.run
-     (fun () ->
-        of_lwt Db.open_connection "unit_test_db"
-        >>= fun () ->
-        (* code is result of running "solc --bin contracts/hello.sol", and prepending "0x" *)
-        let code = parse_0x_bytes "0x608060405234801561001057600080fd5b506105c0806100206000396000f3fe608060405234801561001057600080fd5b506004361061005e576000357c0100000000000000000000000000000000000000000000000000000000900480634cfbbad114610063578063b874ee54146100a5578063cf2cc576146101d9575b600080fd5b61008f6004803603602081101561007957600080fd5b810190808035906020019092919050505061025c565b6040518082815260200191505060405180910390f35b61015e600480360360208110156100bb57600080fd5b81019080803590602001906401000000008111156100d857600080fd5b8201836020820111156100ea57600080fd5b8035906020019184600183028401116401000000008311171561010c57600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600081840152601f19601f820116905080830192505050505050509192919290505050610266565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561019e578082015181840152602081019050610183565b50505050905090810190601f1680156101cb5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6101e1610384565b6040518080602001828103825283818151815260200191508051906020019080838360005b83811015610221578082015181840152602081019050610206565b50505050905090810190601f16801561024e5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6000819050919050565b6060806102a86040805190810160405280600781526020017f48656c6c6f2c2000000000000000000000000000000000000000000000000000815250846103c1565b90507fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd9122816040518080602001828103825283818151815260200191508051906020019080838360005b8381101561030c5780820151818401526020810190506102f1565b50505050905090810190601f1680156103395780820380516001836020036101000a031916815260200191505b509250505060405180910390a16040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250915050919050565b60606040805190810160405280600881526020017f476f6f6462796521000000000000000000000000000000000000000000000000815250905090565b6060808390506060839050606081518351016040519080825280601f01601f1916602001820160405280156104055781602001600182028038833980820191505090505b5090506060819050600080905060008090505b85518110156104cb57858181518110151561042f57fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561048e57fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053508080600101915050610418565b5060008090505b84518110156105855784818151811015156104e957fe5b9060200101517f010000000000000000000000000000000000000000000000000000000000000090047f010000000000000000000000000000000000000000000000000000000000000002838380600101945081518110151561054857fe5b9060200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a90535080806001019150506104d2565b5081955050505050509291505056fea165627a7a72305820680b62a73858bd94dd2dd59babe8e75f8752b58ecc1f9bc85c6e3563192755080029" in
-        get_prefunded_address ()
-        >>= fun sender ->
-        create_contract ~sender ~code ?gas_limit:None TokenAmount.zero
-        >>= confirm_pre_transaction sender
-        >>=
-        (function
-        | (_, {contract_address=(Some contract)}) ->
-        let call = make_name_call "Lucy" in
-        call_function ~sender ~contract ~call TokenAmount.zero
-        >>= confirm_pre_transaction sender
-        >>= fun (tx, {transaction_hash}) ->
-        Ethereum_transaction.transaction_execution_matches_transaction transaction_hash tx
-        (* This case is to please the pattern matcher. We will (hopefully) already be
-           throwing TransactionRejected before we get to this case. *)
-        | (_, {contract_address=None}) -> Lwt_exn.return false)))
-     ()*)
-
-  let%test "hello-solidity" =
-    (Logging.log "\n    TEST: hello-solidity!!\n";
-    let open Ethereum_abi in
-    Lwt_exn.run
-      (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         (* code is result of running the old "solc --bin hello.sol", and prepending "0x" *)
-         let code = parse_0x_bytes "0x608060405234801561001057600080fd5b506101a7806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806339a7aa4814610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60607fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd912260405180806020018281038252600d8152602001807f48656c6c6f2c20776f726c64210000000000000000000000000000000000000081525060200191505060405180910390a16040805190810160405280600881526020017f476f6f64627965210000000000000000000000000000000000000000000000008152509050905600a165627a7a7230582024923934849b0e74a5091ac4b5c65d9b3b93d74726aff49fd5763bc136dac5c60029" in
-         (* create a contract using "hello, world" EVM code *)
-         get_prefunded_address ()
-         >>= fun sender ->
-         (* a valid contract contains compiled EVM code
-            for testing, we just use a buffer with arbitrary contents
-         *)
-         create_contract ~sender ~code TokenAmount.zero
-         >>= confirm_pre_transaction sender
-         >>= fun (transaction, TransactionReceipt.{transaction_hash}) ->
-         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction
-         >>= fun matches ->
-         assert matches ;
-         (* call the contract we've created *)
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt ->
-         let contract = Option.get receipt.TransactionReceipt.contract_address in
-         let call = encode_function_call {function_name= "printHelloWorld"; parameters= []} in
+        >>= fun (tx, {block_number}) ->
+        eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
+        >>= fun data ->
+        Logging.log "hello replied: %s\n" (unparse_0x_data data);
+        Logging.log "SUBTEST: call contract function mul42 with one number argument\n";
+        let call = encode_function_call
+                     { function_name = "mul42"; parameters = [ abi_uint (Z.of_int 47) ] } in
          call_function ~sender ~contract ~call TokenAmount.zero
          >>= confirm_pre_transaction sender
-         >>= fun (_transaction, TransactionReceipt.{transaction_hash}) ->
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt1 ->
-         (* verify that we called "printHelloWorld" *)
-         let receipt_log = match receipt1.TransactionReceipt.logs with [x] -> x | _ -> Lib.bork "blah" in
-         (* we called the right contract *)
-         let log_contract_address = receipt_log.LogObject.address in
+         >>= fun (tx, {block_number}) ->
+         eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
+         >>= fun data ->
+         Logging.log "mul42 replied: %s\n" (unparse_0x_data data);
+         let mul42_encoding =
+           let tuple_value, tuple_ty = abi_tuple_of_abi_values [abi_uint (Z.of_int 1974)] in
+           encode_abi_value tuple_value tuple_ty in
+         assert (data = Bytes.to_string mul42_encoding);
+
+         Logging.log "SUBTEST: call contract function greetings with one string argument\n";
+         let call = encode_function_call
+                      { function_name = "greetings";
+                        parameters = [ abi_string "Croesus" ] } in
+         call_function ~sender ~contract ~call TokenAmount.zero
+         >>= confirm_pre_transaction sender
+         >>= fun (tx, {block_number; logs}) ->
+         let receipt_log = list_only_element logs in
+         let log_contract_address = receipt_log.address in
          assert (log_contract_address = contract) ;
-         (* we called the right function within the contract *)
-         let topic_event = match receipt_log.LogObject.topics with [x] -> x | _ -> Lib.bork "bleh" in
-         let hello_world = (String_value "Hello, world!", String) in
-         let function_signature = {function_name= "showResult"; parameters= [hello_world]} in
+         let topic_event = list_only_element receipt_log.topics in
+         let greetings_croesus = (String_value "Greetings, Croesus", String) in
+         let greetings_encoding =
+           let tuple_value, tuple_ty = abi_tuple_of_abi_values [greetings_croesus] in
+           encode_abi_value tuple_value tuple_ty in
+         Logging.log "expecting:        %s\n" (unparse_0x_bytes greetings_encoding);
+         let function_signature = {function_name= "greetingsEvent"; parameters= [greetings_croesus]} in
          let function_signature_digest = function_signature |> function_signature_digest in
          assert (Digest.equal topic_event function_signature_digest) ;
          (* the log data is the encoding of the parameter passed to the event *)
          let data = receipt_log.data in
-         let hello_encoding =
-           let tuple_value, tuple_ty = abi_tuple_of_abi_values [hello_world] in
-           unparse_0x_bytes (encode_abi_value tuple_value tuple_ty)
-         in
-         return (unparse_0x_bytes data = hello_encoding)))
-      ()
-
-    (* This tests doesn't terminate. Error began after Confrimation.t was replaced with TransactionReceipt.t *)
-    (*let%test "fallback-with-operator-address" =
-    (* we call the fallback function in a contract by using the operator address as "code" *)
-    let open Ethereum_abi in
-    Lwt_exn.run
-      (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         (* code is result of running "solc --bin operator-fallback.sol", and prepending "0x" *)
-         let code =
-           "0x608060405234801561001057600080fd5b50610108806100206000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000602082015190506c01000000000000000000000000810490509190505600a165627a7a7230582098fc57c39988f3dcf9f7168b876b9f491273775ea6b44db8cb9483966fa1adc10029"
-         in
-         let code = parse_0x_bytes code in
-         (* create the contract *)
-         get_prefunded_address ()
-         >>= fun sender ->
-         create_contract ~sender ~code TokenAmount.zero
-         >>= confirm_pre_transaction sender
-         >>= fun (transaction, TransactionReceipt.{transaction_hash}) ->
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt ->
-         let contract = Option.get receipt.contract_address in
-         (* check balance of new contract *)
-         eth_get_balance (contract, Latest)
-         >>= fun starting_balance ->
-         assert (TokenAmount.sign starting_balance = 0) ;
-         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction
-         >>= fun matches ->
-         assert matches;
-         (* Call the fallback in the contract we've created.
-            It bypasses the regular ABI to access this address directly. *)
-         let amount_to_transfer = TokenAmount.of_int 93490 in
-         let operator_address = Address.of_0x "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
-         let call = Ethereum_util.bytes_of_address operator_address in
-         call_function ~sender ~contract ~call amount_to_transfer
-         >>= confirm_pre_transaction sender
-         >>= fun (_transaction, TransactionReceipt.{transaction_hash}) ->
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt1 ->
-         (* verify that we called the fallback *)
-         let log = match receipt1.logs with [x] -> x | _ -> Lib.bork "bloh" in
-         (* the log is for this contract *)
-         let receipt_address = log.address in
-         assert (receipt_address = contract) ;
-         (* we saw the expected event *)
-         let logged_event = match log.LogObject.topics with [x] -> x | _ -> Lib.bork "bluh" in
-         let event_parameters =
-           [(Address_value operator_address, Address); abi_token_amount amount_to_transfer]
-         in
-         let event_signature =
-           {function_name= "logTransfer"; parameters= event_parameters}
-           |> function_signature_digest
-         in
-         assert (logged_event = event_signature) ;
-         (* the operator address is visible as data *)
-         let data = unparse_0x_bytes log.data in
-         let logged_encoding =
-           let tuple_value, tuple_ty = abi_tuple_of_abi_values event_parameters in
-           unparse_0x_bytes (encode_abi_value tuple_value tuple_ty)
-         in
-         assert (logged_encoding = data) ;
-         (* confirm contract has received amount transferred *)
-         eth_get_balance (contract, Latest)
-         >>= fun ending_balance ->
-         assert (ending_balance = amount_to_transfer) ;
-         (* now try invalid address, make sure it's not logged *)
-         let bogus_address_bytes = parse_0x_bytes "0xFF" in
-         call_function ~sender ~contract ~call:bogus_address_bytes ~gas_limit:(TokenAmount.of_int 1000000) amount_to_transfer
-         >>= confirm_pre_transaction sender
-         >>= fun (_transaction, TransactionReceipt.{transaction_hash}) ->
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt2 ->
-         let logs2 = receipt2.logs in
-         return (logs2 = []))
-      ()*)
+         Logging.log "receipt log data: %s\n" (unparse_0x_bytes data);
+         eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
+         >>= fun result ->
+         Logging.log "computed reply:   %s\n" (unparse_0x_data result);
+         assert (result = Bytes.to_string data);
+         assert (data = greetings_encoding);
+         return true)
+     ()
 end

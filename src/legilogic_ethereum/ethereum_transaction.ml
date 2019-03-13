@@ -1,6 +1,5 @@
 (** Somewhat higher-level wrappers around the basic functionality in ethereum_json_rpc *)
 open Legilogic_lib
-open Lib
 open Signing
 open Action
 open Lwt_exn
@@ -8,43 +7,7 @@ open Json_rpc
 open Digesting
 
 open Ethereum_chain
-
-(* TODO: when to return false vs raise an exception? Add timeout & log
-   Used only by next routine transaction_execution_matches_transaction
-   Which is used only for tests *)
-let transaction_executed transaction_hash =
-  Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
-  >>= fun info ->
-  return (Option.is_some info.block_hash && Option.is_some info.block_number)
-
-
-(* TODO: factor this function into parsing a transaction and comparing transaction objects. *)
-(* This function below is used only for tests (in ethereum_user) at present time *)
-let transaction_execution_matches_transaction (transaction_hash: digest) (transaction: Transaction.t) : bool Lwt_exn.t =
-  transaction_executed transaction_hash
-  >>= fun executed ->
-  if not executed then
-    return false
-  else
-    Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
-    >>= fun info ->
-    return
-      (try
-         (* for all operations, check these fields.
-            Shall we add in the checks "&& info.hash = transaction_hash" ???  *)
-         let tx_header = transaction.tx_header in
-         info.from = Some tx_header.sender
-         && info.nonce = tx_header.nonce
-         && TokenAmount.compare info.gas tx_header.gas_limit <= 0
-         && TokenAmount.compare info.gas_price tx_header.gas_price <= 0
-         && TokenAmount.compare info.value tx_header.value = 0
-         && (* operation-specific checks *)
-         match transaction.operation with
-         | TransferTokens recipient_address -> info.to_ = Some recipient_address
-         | CreateContract data -> info.input = data
-         | CallFunction (contract_address, call_input) ->
-           info.to_ = Some contract_address && info.input = call_input
-       with _ -> false)
+open Ethereum_json_rpc
 
 let ensure_private_key ?timeout ?log (keypair : Keypair.t) =
   Logging.log "ethereum_transaction : ensure_private_key";

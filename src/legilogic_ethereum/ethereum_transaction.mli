@@ -6,13 +6,6 @@ open Signing
 
 open Ethereum_chain
 
-(** Has a transaction given by a hash executed?
-    Looks for a block number and block hash in the transaction receipt *)
-val transaction_executed : digest -> bool Lwt_exn.t
-
-val transaction_execution_matches_transaction : digest -> Transaction.t -> bool Lwt_exn.t
-(** do the parameters of a transaction match what the Ethereum network reports for the transaction *)
-
 val ensure_private_key : ?timeout:float -> ?log:bool -> Keypair.t -> Address.t Lwt_exn.t
 (** Ensure that the private_key for the keypair exists in the Ethereum client,
     with the given password string. Return the corresponding address.
