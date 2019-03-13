@@ -24,25 +24,17 @@ open Side_chain_server_config
 
 (* user account after a deposit or withdrawal, with transaction hash on the net *)
 type transaction_result =
-  { side_chain_account_state : AccountState.t
-  ; side_chain_tx_revision : Revision.t
-  ; main_chain_confirmation : Ethereum_chain.Confirmation.t }
-[@@deriving to_yojson]
-
-[@@@warning "-32"]
-type payment_result =
-  { sender_account : AccountState.t
-  ; recipient_account : AccountState.t
-  ; amount_transferred : TokenAmount.t
-  ; side_chain_tx_revision : Revision.t }
-[@@deriving to_yojson]
+  { side_chain_account_state: AccountState.t
+  ; side_chain_tx_revision:   Revision.t
+  ; main_chain_confirmation:  Ethereum_chain.Confirmation.t
+  ; request_guid:             RequestGuid.t
+  ; requested_at:             Timestamp.t
+  } [@@deriving to_yojson]
 
 type tps_result =
-  { transactions_per_second : int
-  ; time : string }
-[@@deriving to_yojson]
-
-let trent_address = Signing.Test.trent_address
+  { transactions_per_second: int
+  ; time:                    string
+  } [@@deriving to_yojson]
 
 let error_json fmt =
   Printf.ksprintf (fun x -> `Assoc [("error",`String x)]) fmt
@@ -51,18 +43,24 @@ let error_json fmt =
 let (id_to_thread_tbl : (int, yojson Lwt_exn.t) Hashtbl.t) = Hashtbl.create 1031
 
 (* add Lwt.t thread to table, return its id *)
-let add_main_chain_thread thread =
+let add_main_chain_thread request_guid requested_at thread =
   let thread_find_limit = 100000 in
   let rec find_thread_id n =
     if n > thread_find_limit then
-      Lib.bork "Can't find id for main chain thread"
+      Lib.bork "Can't find ID for main chain thread"
     else
       let id = Random.int 100000000 in
       if Hashtbl.mem id_to_thread_tbl id then
         find_thread_id (n + 1)
       else (
         Hashtbl.add id_to_thread_tbl id thread;
-        `Assoc [("result",`Assoc [("thread",`Int id)])])
+        let rg = RequestGuid.to_string request_guid
+        and ra = Timestamp.to_0x       requested_at
+        in
+        `Assoc [("result", `Assoc [ ("thread",       `Int id)
+                                  ; ("request_guid", `String rg)
+                                  ; ("requested_at", `String ra)
+                                  ])])
   in
   find_thread_id 0
 
@@ -112,35 +110,65 @@ let get_recent_user_transactions_on_trent address maybe_limit =
 (* side-effecting operations *)
 
 (* format deposit and withdrawal result *)
-let make_transaction_result (address : Address.t) (side_chain_tx_revision : Revision.t) (main_chain_confirmation : Ethereum_chain.Confirmation.t) : yojson OrExn.t Lwt.t =
+let make_transaction_result (request_guid:            RequestGuid.t)
+                            (requested_at:            Timestamp.t)
+                            (address:                 Address.t)
+                            (side_chain_tx_revision:  Revision.t)
+                            (main_chain_confirmation: Ethereum_chain.Confirmation.t)
+                          : yojson OrExn.t Lwt.t =
   UserQueryRequest.Get_account_state { address }
-  |> post_user_query_request
-  >>= fun account_state_json ->
-  (* TODO: JSON to AccountState to JSON, is there a better way *)
-  match AccountState.of_yojson (YoJson.member "account_state" account_state_json) with
-  | Error _ ->
-     error_json "Could not get account state for depositing or withdrawing user"
-                |> return
-  | Ok account_state ->
-     let side_chain_account_state = account_state in
-     let deposit_result = { side_chain_account_state
-                          ; side_chain_tx_revision
-                          ; main_chain_confirmation } in
-     return (transaction_result_to_yojson deposit_result)
+    |> post_user_query_request
+    >>= fun account_state_json ->
+      (* TODO: JSON to AccountState to JSON, is there a better way *)
+      match AccountState.of_yojson (YoJson.member "account_state" account_state_json) with
+        | Error _ ->
+           error_json "Could not get account state for depositing or withdrawing user"
+                      |> return
+        | Ok account_state ->
+           let rec side_chain_account_state = account_state
+           and r = { side_chain_account_state
+                   ; side_chain_tx_revision
+                   ; main_chain_confirmation
+                   ; request_guid
+                   ; requested_at
+                   }
+           in return (transaction_result_to_yojson r)
 
 (* The type 'a is DepositWanted or WithdrawalWanted *)
-let schedule_transaction (user : Address.t) (transaction : 'a -> TransactionTracker.t UserAsyncAction.t) (parameters : 'a) : yojson =
+let schedule_transaction (request_guid: RequestGuid.t)
+                         (user:         Address.t)
+                         (transaction:  'a -> TransactionTracker.t UserAsyncAction.t)
+                         (wanted:       Timestamp.t -> 'a)
+                       : yojson =
+  let requested_at = Timestamp.now () in
+
   add_main_chain_thread
-    (User.transaction user transaction parameters
+    request_guid
+    requested_at
+    (User.transaction user transaction (wanted requested_at)
      >>= fun (transaction_commitment, main_chain_confirmation) ->
-     let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
-     make_transaction_result user tx_revision main_chain_confirmation)
+       let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
+       make_transaction_result request_guid
+                               requested_at
+                               user
+                               tx_revision
+                               main_chain_confirmation)
 
-let deposit_to ~operator (user : Address.t) (deposit_amount : TokenAmount.t) : yojson =
-  schedule_transaction user deposit DepositWanted.{operator; deposit_amount}
+let deposit_to ~(operator:       Address.t)
+                (request_guid:   RequestGuid.t)
+                (user:           Address.t)
+                (deposit_amount: TokenAmount.t)
+              : yojson =
+  schedule_transaction request_guid user deposit @@ fun requested_at ->
+    DepositWanted.{ operator; deposit_amount; request_guid; requested_at }
 
-let withdrawal_from ~operator (user : Address.t) (withdrawal_amount : TokenAmount.t) : yojson =
-  schedule_transaction user withdrawal WithdrawalWanted.{operator; withdrawal_amount}
+let withdrawal_from ~(operator:          Address.t)
+                     (request_guid:      RequestGuid.t)
+                     (user:              Address.t)
+                     (withdrawal_amount: TokenAmount.t)
+                   : yojson =
+  schedule_transaction request_guid user withdrawal @@ fun requested_at ->
+    WithdrawalWanted.{ operator; withdrawal_amount; request_guid; requested_at }
 
 (* every payment generates a timestamp in this array, treated as circular buffer *)
 (* should be big enough to hold one minute's worth of payments on a fast machine *)
@@ -163,45 +191,43 @@ let payment_timestamp () =
 
 (* TODO: simplify this all away. Problem is that schedule_transaction cannot be used
    because two addresses are used. *)
-let payment_on ~operator (sender : Address.t) (recipient : Address.t) (amount : TokenAmount.t) (memo : string) : yojson =
-  add_main_chain_thread
-    (User.action sender payment
-       PaymentWanted.{operator; recipient; amount; memo; payment_expedited= false }
-     >>= fun (_key, tracker_promise) ->
-     (* set timestamp, now that initial processing on Trent is done *)
-     payment_timestamp ();
-     TransactionTracker.wait tracker_promise
-     >>= fun (transaction_commitment, main_chain_confirmation) ->
-     let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
-     make_transaction_result sender tx_revision main_chain_confirmation)
+let payment_on ~(operator:     Address.t)
+                (request_guid: RequestGuid.t)
+                (sender:       Address.t)
+                (recipient:    Address.t)
+                (amount:       TokenAmount.t)
+                (memo:         string)
+              : yojson =
 
-(* OLD RESPONSE. TODO: find out what the demo-frontend *really needs*
-   (* remaining code is preparing response *)
-   let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
-   UserQueryRequest.Get_account_state { address = sender }
-   |> post_user_query_request
-   >>= fun sender_account_json ->
-   UserQueryRequest.Get_account_state { address = recipient }
-   |> post_user_query_request
-   >>= fun recipient_account_json ->
-   let maybe_sender_account =
-   YoJson.member "account_state" sender_account_json |> AccountState.of_yojson in
-   let maybe_recipient_account =
-   YoJson.member "account_state" recipient_account_json |> AccountState.of_yojson in
-   match maybe_sender_account,maybe_recipient_account with
-   | Error _ ,_
-   | _, Error _ ->
-   (* TODO: use JSON RPC blah *)
-   Lwt_exn.return (error_json "Could not get account information for sender and recipient")
-   | Ok sender_account, Ok recipient_account ->
-   let side_chain_tx_revision = tx_revision in
-   let payment_result =
-   { sender_account
-   ; recipient_account
-   ; amount_transferred = amount
-   ; side_chain_tx_revision } in
-   Lwt_exn.return (payment_result_to_yojson payment_result))
-*)
+  let requested_at = Timestamp.now () in
+
+  add_main_chain_thread
+    request_guid
+    requested_at
+    (User.action sender
+                 payment
+                 PaymentWanted.{ operator
+                               ; recipient
+                               ; amount
+                               ; memo
+                               ; payment_expedited = false
+                               ; request_guid
+                               ; requested_at
+                               }
+
+     >>= fun (_key, tracker_promise) ->
+       (* set timestamp, now that initial processing on Trent is done *)
+       payment_timestamp ();
+       TransactionTracker.wait tracker_promise
+
+     >>= fun (transaction_commitment, main_chain_confirmation) ->
+       let tx_revision = transaction_commitment.transaction.tx_header.tx_revision in
+       make_transaction_result request_guid
+                               requested_at
+                               sender
+                               tx_revision
+                               main_chain_confirmation)
+
 
 (* other actions, not involving posting to server mailbox *)
 

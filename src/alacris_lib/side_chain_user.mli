@@ -24,26 +24,32 @@ open Side_chain
 
 module DepositWanted : sig
   type t =
-    { operator: Address.t
-    ; deposit_amount: TokenAmount.t }
-  [@@deriving yojson]
+    { operator:       Address.t
+    ; deposit_amount: TokenAmount.t
+    ; request_guid:   RequestGuid.t
+    ; requested_at:   Timestamp.t
+    } [@@deriving yojson]
 end
 
 module PaymentWanted : sig
   type t =
-    { operator: Address.t
-    ; recipient: Address.t
-    ; amount: TokenAmount.t
-    ; memo: string
-    ; payment_expedited: bool }
-  [@@deriving yojson]
+    { operator:          Address.t
+    ; recipient:         Address.t
+    ; amount:            TokenAmount.t
+    ; memo:              string
+    ; payment_expedited: bool
+    ; request_guid:      RequestGuid.t
+    ; requested_at:      Timestamp.t
+    } [@@deriving yojson]
 end
 
 module WithdrawalWanted : sig
   type t =
-    { operator: Address.t
-    ; withdrawal_amount: TokenAmount.t }
-  [@@deriving yojson]
+    { operator:          Address.t
+    ; withdrawal_amount: TokenAmount.t
+    ; request_guid:      RequestGuid.t
+    ; requested_at:      Timestamp.t
+    } [@@deriving yojson]
 end
 
 module OngoingTransactionStatus : sig
@@ -52,18 +58,30 @@ module OngoingTransactionStatus : sig
   [@@@warning "-39"]
   type t =
     | DepositWanted of DepositWanted.t * TokenAmount.t
-    | DepositPosted of DepositWanted.t * TokenAmount.t * Ethereum_user.TransactionTracker.Key.t
-    | DepositConfirmed of DepositWanted.t * TokenAmount.t * Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t
-    | Requested of UserTransactionRequest.t signed
-    | SignedByOperator of TransactionCommitment.t
-    | PostedToRegistry of TransactionCommitment.t
-    | PostedToMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+
+    | DepositPosted
+      of DepositWanted.t
+       * TokenAmount.t
+       * Ethereum_user.TransactionTracker.Key.t
+
+    | DepositConfirmed
+      of DepositWanted.t
+       * TokenAmount.t
+       * Ethereum_chain.Transaction.t
+       * Ethereum_chain.Confirmation.t
+
+    | Requested            of UserTransactionRequest.t signed
+    | SignedByOperator     of TransactionCommitment.t
+    | PostedToRegistry     of TransactionCommitment.t
+    | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t
     | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+
   include PersistableS with type t := t
-  val signed_request_opt : t -> UserTransactionRequest.t signed option
-  val signed_request : t -> UserTransactionRequest.t signed
-  val request_opt : t -> UserTransactionRequest.t option
-  val request : t -> UserTransactionRequest.t
+
+  val signed_request_opt: t -> UserTransactionRequest.t signed option
+  val signed_request:     t -> UserTransactionRequest.t signed
+  val request_opt:        t -> UserTransactionRequest.t option
+  val request:            t -> UserTransactionRequest.t
 end
 
 module FinalTransactionStatus : sig
@@ -92,7 +110,12 @@ type revision_generator = (unit, Revision.t) Lwter.arr
 
 module TransactionTracker : sig
   module Key : sig
-    type t= { user : Address.t; operator : Address.t; revision : Revision.t }
+    type t = { user:         Address.t
+             ; operator:     Address.t
+             ; revision:     Revision.t
+             ; request_guid: RequestGuid.t
+             ; requested_at: Timestamp.t
+             }
     include YojsonMarshalableS with type t := t
   end
   module State = TransactionStatus

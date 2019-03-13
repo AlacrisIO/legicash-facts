@@ -5,7 +5,7 @@ open Marshaling
 
 (** TODO: before we go to production, robustify the shit out of all
     the type conversions, arithmetic operations, etc.,
-    least it be used as an attack surface.
+    lest it be used as an attack surface.
 *)
 
 (* Same as Unsigned.S from the integers library, minus the Infix module *)
@@ -135,15 +135,15 @@ module Int : UIntS with type t = Z.t
 (* TODO: make it private Z.t *)
 module Nat : UIntS with type t = Z.t
 
-module UInt256 : UIntS (* with type t = Nat.t *)
 module Data256 : UIntS (* with type t = UInt256.t *)
-
 module Data160 : UIntS (* with type t = Nat.t *)
 
+module UInt256 : UIntS (* with type t = Nat.t *)
 module UInt128 : UIntS (* with type t = Nat.t *)
-module UInt64 : UIntS (* with type t = Unsigned.UInt64.t *)
-module UInt32 : UIntS (* with type t = Unsigned.UInt32.t *)
-module UInt16 : UIntS (* with type t = Unsigned.UInt16.t *)
+module UInt192 : UIntS (* with type t = Nat.t *)
+module UInt64  : UIntS (* with type t = Unsigned.UInt64.t *)
+module UInt32  : UIntS (* with type t = Unsigned.UInt32.t *)
+module UInt16  : UIntS (* with type t = Unsigned.UInt16.t *)
 
 
 module type PreUIntZS = sig

@@ -36,67 +36,151 @@ module UserOperation = struct
   [@warning "-39"]
 
   type deposit_details =
-    { deposit_amount: TokenAmount.t
-    ; deposit_fee: TokenAmount.t
-    ; main_chain_deposit: Ethereum_chain.Transaction.t
-    ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t }
-  [@@deriving lens, yojson]
+    { deposit_amount:                  TokenAmount.t
+    ; deposit_fee:                     TokenAmount.t
+    ; main_chain_deposit:              Ethereum_chain.Transaction.t
+    ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
+    ; request_guid:                    RequestGuid.t
+    ; requested_at:                    Timestamp.t
+    } [@@deriving lens, yojson]
 
   type payment_details =
-    {payment_invoice: Invoice.t; payment_fee: TokenAmount.t; payment_expedited: bool}
-  [@@deriving lens, yojson]
+    { payment_invoice:   Invoice.t
+    ; payment_fee:       TokenAmount.t
+    ; payment_expedited: bool
+    ; request_guid:      RequestGuid.t
+    ; requested_at:      Timestamp.t
+    } [@@deriving lens, yojson]
 
   type withdrawal_details =
-    {withdrawal_amount: TokenAmount.t; withdrawal_fee: TokenAmount.t}
-  [@@deriving lens, yojson]
+    { withdrawal_amount: TokenAmount.t
+    ; withdrawal_fee:    TokenAmount.t
+    ; request_guid:      RequestGuid.t
+    ; requested_at:      Timestamp.t
+    } [@@deriving lens, yojson]
 
   type t =
-    | Deposit of deposit_details
-    | Payment of payment_details
+    | Deposit    of deposit_details
+    | Payment    of payment_details
     | Withdrawal of withdrawal_details
   [@@deriving yojson]
 
+  let guid_and_utc = function
+    | Deposit    o -> (o.request_guid, o.requested_at)
+    | Payment    o -> (o.request_guid, o.requested_at)
+    | Withdrawal o -> (o.request_guid, o.requested_at)
+
   let operation_tag = function
-    | Deposit _ -> Side_chain_tag.deposit
-    | Payment _ -> Side_chain_tag.payment
+    | Deposit    _ -> Side_chain_tag.deposit
+    | Payment    _ -> Side_chain_tag.payment
     | Withdrawal _ -> Side_chain_tag.withdrawal
+
   module PrePersistable = struct
     type nonrec t = t
     let case_table =
-      [| marshaling4
-           (function
-             | Deposit
-                 { deposit_amount; deposit_fee; main_chain_deposit; main_chain_deposit_confirmation } ->
-               (deposit_amount, deposit_fee, main_chain_deposit, main_chain_deposit_confirmation)
-             | _ -> bottom ())
-           (fun deposit_amount deposit_fee main_chain_deposit
-             main_chain_deposit_confirmation ->
-             Deposit
-               { deposit_amount; deposit_fee; main_chain_deposit; main_chain_deposit_confirmation })
+      [| marshaling6
+           (function | Deposit { deposit_amount
+                               ; deposit_fee
+                               ; main_chain_deposit
+                               ; main_chain_deposit_confirmation
+                               ; request_guid
+                               ; requested_at
+                               } -> ( deposit_amount
+                                    , deposit_fee
+                                    , main_chain_deposit
+                                    , main_chain_deposit_confirmation
+                                    , request_guid
+                                    , requested_at
+                                    )
+                     | _ -> bottom ())
+
+           (fun deposit_amount
+                deposit_fee
+                main_chain_deposit
+                main_chain_deposit_confirmation
+                request_guid
+                requested_at
+             -> Deposit { deposit_amount
+                        ; deposit_fee
+                        ; main_chain_deposit
+                        ; main_chain_deposit_confirmation
+                        ; request_guid
+                        ; requested_at
+                        })
+
            TokenAmount.marshaling
            TokenAmount.marshaling
            Ethereum_chain.Transaction.marshaling
            Ethereum_chain.Confirmation.marshaling
-       ; marshaling3
-           (function
-             | Payment {payment_invoice; payment_fee; payment_expedited} ->
-               (payment_invoice, payment_fee, payment_expedited)
-             | _ -> bottom ())
-           (fun payment_invoice payment_fee payment_expedited ->
-              Payment {payment_invoice; payment_fee; payment_expedited})
-           Invoice.marshaling TokenAmount.marshaling bool_marshaling
-       ; marshaling2
-           (function
-             | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-               (withdrawal_amount, withdrawal_fee)
-             | _ -> bottom ())
-           (fun withdrawal_amount withdrawal_fee ->
-              Withdrawal {withdrawal_amount; withdrawal_fee})
-           TokenAmount.marshaling TokenAmount.marshaling |]
-    let marshaling =
-      marshaling_cases operation_tag Side_chain_tag.base_operation case_table
-    let yojsoning = {to_yojson;of_yojson}
-    let make_persistent = normal_persistent
+           RequestGuid.marshaling
+           Timestamp.marshaling
+
+       ; marshaling5
+           (function | Payment { payment_invoice
+                               ; payment_fee
+                               ; payment_expedited
+                               ; request_guid
+                               ; requested_at
+                               } -> ( payment_invoice
+                                    , payment_fee
+                                    , payment_expedited
+                                    , request_guid
+                                    , requested_at
+                                    )
+                     | _ -> bottom ())
+
+           (fun payment_invoice
+                payment_fee
+                payment_expedited
+                request_guid
+                requested_at
+             -> Payment { payment_invoice
+                        ; payment_fee
+                        ; payment_expedited
+                        ; request_guid
+                        ; requested_at
+                        })
+
+           Invoice.marshaling
+           TokenAmount.marshaling
+           bool_marshaling
+           RequestGuid.marshaling
+           Timestamp.marshaling
+
+       ; marshaling4
+           (function | Withdrawal { withdrawal_amount
+                                  ; withdrawal_fee
+                                  ; request_guid
+                                  ; requested_at
+                                  } -> ( withdrawal_amount
+                                       , withdrawal_fee
+                                       , request_guid
+                                       , requested_at
+                                       )
+                     | _ -> bottom ())
+
+           (fun withdrawal_amount
+                withdrawal_fee
+                request_guid
+                requested_at
+             -> Withdrawal { withdrawal_amount
+                           ; withdrawal_fee
+                           ; request_guid
+                           ; requested_at
+                           })
+
+           TokenAmount.marshaling
+           TokenAmount.marshaling
+           RequestGuid.marshaling
+           Timestamp.marshaling
+      |]
+
+    let marshaling = marshaling_cases operation_tag
+                                      Side_chain_tag.base_operation
+                                      case_table
+
+    let yojsoning         = {to_yojson; of_yojson}
+    let make_persistent   = normal_persistent
     let walk_dependencies = no_dependencies
   end
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
@@ -210,12 +294,12 @@ end
 module UserQueryRequest = struct
   [@warning "-39"]
   type t =
-    | Get_account_balance of {address: Address.t}
+    | Get_account_balance     of {address: Address.t}
     | Get_account_balances
-    | Get_account_state of {address: Address.t}
-    | Get_account_status of {address: Address.t}
+    | Get_account_state       of {address: Address.t}
+    | Get_account_status      of {address: Address.t}
     | Get_recent_transactions of {address: Address.t; count: Revision.t option}
-    | Get_proof of {tx_revision: Revision.t}
+    | Get_proof               of {tx_revision: Revision.t}
   [@@deriving yojson]
   module P = struct
     type nonrec t = t
@@ -529,8 +613,8 @@ let initial_fee_schedule =
 
 let initial_fee_schedule =
   OperatorFeeSchedule.
-    { deposit_fee = Side_chain_server_config.deposit_fee_v
-    ; withdrawal_fee = Side_chain_server_config.withdrawal_fee_v
+    { deposit_fee       = Side_chain_server_config.deposit_fee_v
+    ; withdrawal_fee    = Side_chain_server_config.withdrawal_fee_v
     ; per_account_limit = Side_chain_server_config.per_account_limit_v
-    ; fee_per_billion = Side_chain_server_config.fee_per_billion_v
+    ; fee_per_billion   = Side_chain_server_config.fee_per_billion_v
     }

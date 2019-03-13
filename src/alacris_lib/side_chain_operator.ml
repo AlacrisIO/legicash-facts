@@ -22,6 +22,7 @@ open Operator_contract
 open Side_chain
 
 exception Operator_not_found of string
+exception Malformed_request  of string
 
 module OperatorState = struct
   [@warning "-39"]
@@ -125,20 +126,6 @@ let operator_account_lens (address : Address.t) : account_lens =
 let signed_request_requester (rx : UserTransactionRequest.t signed) : Address.t =
   rx.payload.UserTransactionRequest.rx_header.requester
 
-exception Malformed_request of string
-
-(*
-let check_cp (test: bool) (exngen: unit -> 'a) =
-  fun x ->
-  if test then Lwt_exn.return x
-  else Lwt_exn.fail (Malformed_request (exngen ()))
-
-let check_cp (test: bool) (exngen: unit -> 'a) =
-  fun x ->
-  if test then Lwt_exn.return x
-  else Lwt_exn.fail (Malformed_request (exngen ()))
- *)
-
 let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
   let (test : bool Lwt_exn.t) = Ethereum_user.check_confirmation_deep_enough_bool confirmation in
   Lwt_exn.bind test (fun test ->
@@ -146,8 +133,6 @@ let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation
         Lwt_exn.return true
       else
         Lwt_exn.fail (Malformed_request (exngen())))
-
-
 
 (** Check that the request is basically well-formed, or else fail
     This function should include all checks that can be made without any non-local side-effect
@@ -550,14 +535,6 @@ let get_account_balance address (operator_state:OperatorState.t) =
   with Not_found ->
     error_json "Could not find balance for address %s" (Address.to_0x address)
 
-
-let get_account_balances (operator_state:OperatorState.t) =
-  let pair_to_yojson ((address, state): (Address.t * AccountState.t)) =
-    Address.to_0x address, AccountState.to_yojson state in
-  `Assoc (AccountMap.bindings operator_state.current.accounts
-          |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
-          |> List.map pair_to_yojson)
-
 let get_account_state address (operator_state:OperatorState.t) =
   try
     AccountMap.find address operator_state.current.accounts
@@ -585,6 +562,29 @@ let get_account_status address operator_state =
   let main_chain_account = { address; balance; revision } in
   return (`Assoc [("side_chain_account",side_chain_state)
                  ;("main_chain_account",main_chain_account_state_to_yojson main_chain_account)])
+
+let get_account_balances (operator_state:OperatorState.t) =
+  (* TODO Just as in `get_account_status` above, clients should separately query
+   * their own ethereum node
+   *
+   * TODO Replace ad-hoc serialization with concrete type
+   *
+   * TODO Right now, even after pre-funding, you get no data back from this
+   * query unless a user has triggered a deposit/withdrawal from the UI; we
+   * should be sending full+accurate user account states regardless
+   *
+   * TODO Remove/replace the Trent exclusion line; if we continue to exclude
+   * Trent then there should be a comment explaining why and the account's
+   * address should be taken from the operator state rather than a magic
+   * constant
+   *)
+  let open Lwt_exn in
+  AccountMap.bindings operator_state.current.accounts
+    |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
+    |> list_map_p (fun (addr, _) ->
+        get_account_status addr operator_state
+        >>= fun d -> return (Address.to_0x addr, d))
+    >>= fun bs -> return @@ `Assoc bs
 
 (* TODO: maintain per-account index of transactions, otherwise this won't scale!!! *)
 let get_recent_transactions address maybe_limit operator_state =
@@ -623,7 +623,7 @@ let process_user_query_request request =
    | Get_account_balance {address} ->
      get_account_balance address state |> return
    | Get_account_balances ->
-     get_account_balances state |> return
+     get_account_balances state
    | Get_account_state {address} ->
      get_account_state address state |> return
    | Get_account_status {address} ->
@@ -786,11 +786,6 @@ let start_operator address =
    ---push transaction to the ethereum.
    Advanced TODO: update as the auction plays out.
  *)
-(*
-let lwt_for synchronizing
-
- *)
-
 
 module Test = struct
   open Signing.Test

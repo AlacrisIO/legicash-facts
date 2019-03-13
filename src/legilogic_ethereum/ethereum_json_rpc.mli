@@ -36,7 +36,7 @@ module BlockParameter : sig
   include PersistableS with type t := t
 end
 
-(*     
+(*
 (* A contract address or a list of address *)
 module ContractAoListA : sig
   type t =
@@ -45,7 +45,7 @@ module ContractAoListA : sig
   include PersistableS with type t := t
 end
  *)
-   
+
 module TransactionCondition : sig
   type t =
     | Block_number of Revision.t
@@ -105,7 +105,7 @@ module EthObject : sig
   include YojsonableS with type t := t
 end
 
-     
+
 val operation_to_parameters : Address.t -> Operation.t -> TransactionParameters.t
 val pre_transaction_to_parameters : Address.t -> PreTransaction.t -> TransactionParameters.t
 val transaction_to_parameters : Transaction.t -> TransactionParameters.t
@@ -152,18 +152,11 @@ module TransactionReceipt : sig
   include YojsonableS with type t := t
 end
 
-
-
 module EthListLogObjects : sig
   type t = LogObject.t list (* The list of matching objects *)
   include YojsonableS with type t := t
 end
 
-     
-
-
-
-     
 (** Make a call or transaction, which won’t be added to the blockchain and returns the used gas,
     which can be used for estimating the used gas. *)
 val eth_accounts :

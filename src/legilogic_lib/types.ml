@@ -16,20 +16,31 @@ module DBInt(U : Integer.UIntS) = struct
            end) : PersistableS with type t := t)
 end
 
-module UInt16 = DBInt(Integer.UInt16)
-module UInt32 = DBInt(Integer.UInt32)
-module UInt64 = DBInt(Integer.UInt64)
+module UInt16  = DBInt(Integer.UInt16)
+module UInt32  = DBInt(Integer.UInt32)
+module UInt64  = DBInt(Integer.UInt64)
 module UInt128 = DBInt(Integer.UInt128)
+module UInt192 = DBInt(Integer.UInt192)
 module UInt256 = DBInt(Integer.UInt256)
 module Data160 = DBInt(Integer.Data160)
 module Data256 = DBInt(Integer.Data256)
-module Digest = DBInt(Digesting.Digest)
+module Digest  = DBInt(Digesting.Digest)
 
-module Revision = UInt64
+module Revision  = UInt64
+module Duration  = UInt64
 
-module Duration = UInt64
+module Timestamp = struct
+  include UInt64
 
-module Timestamp = UInt64
+  (* TODO as of 2019-02-27:
+   * - Increase `Timestamp` precision from milliseconds to microseconds
+   *   https://gitlab.com/legicash/legicash-facts/issues/90
+   *)
+
+  let now = fun () -> 1000.0 *. Unix.gettimeofday ()
+    |> Int64.of_float
+    |> UInt64.of_int64
+end
 
 (** TODO: mechanism to forget old values? Or is GC enough? *)
 type +'a dv = {digest: Digest.t Lazy.t; value: 'a Lazy.t; mutable persisted: bool}
@@ -135,4 +146,139 @@ module Exception = struct
   include YojsonPersistable(P)
   let pp formatter x = Format.fprintf formatter "%s" (Printexc.to_string x)
   let show x = Format.asprintf "%a" pp x
+end
+
+module RequestGuid = struct
+  (* Request GUIDs follow the UUIDv4 spec and look like this:
+   * fc0f69bb-5482-43ca-9f0b-f005f0bedc4c
+   * 9f996f2a-d7ee-4104-84e2-b0e4576d16be
+   * 086a3f80-9706-4d89-b31b-8507112e7188
+   * 3b5ddd6c-c2e0-4c71-a7d0-486964c450ef
+   * 5e49458d-b1b4-49f5-8069-b33943201e83
+   * 66d8b845-07ec-40a8-8f6d-93fa9ce293d2
+   *
+   * See: https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_(random)
+   * and: https://gitlab.com/legicash/legicash-demo-frontend/blob/6161bdd9/src/types/guid.tsx
+   *
+   * ---
+   * TODO as of 2019-02-27:
+   *
+   * - Replace 512bit `RequestGuid` encoding with 128bit
+   *   https://gitlab.com/legicash/legicash-facts/issues/88
+   *
+   * - Improve `RequestGuid` construction + validation
+   *   https://gitlab.com/legicash/legicash-facts/issues/84
+   *
+   * - DB read to prevent `RequestGuid` collisions
+   *   https://gitlab.com/legicash/legicash-facts/issues/83
+   *
+   * - Identify and leverage an existing OCaml UUID library that's solid or roll our own
+   *   https://gitlab.com/legicash/legicash-facts/issues/89
+   *
+   * - Replace `from_string_result` with more idiomatic `(t, string) result`
+   *   https://gitlab.com/legicash/legicash-facts/issues/91
+   *
+   * - Drop ad-hoc left padding when we move to 128bits
+   *)
+
+  type t = UInt128.t * UInt64.t * UInt64.t * UInt64.t * UInt192.t
+
+  type from_string_result =
+    | WellFormed of t
+    | Malformed  of string
+
+  let to_string (a, b, c, d, e) =
+    let lpad n s =
+      (String.make (n - (String.length s)) '0') ^ s
+
+    in String.concat "-" [ lpad  8 @@ UInt128.to_hex_string a
+                         ; lpad  4 @@  UInt64.to_hex_string b
+                         ; lpad  4 @@  UInt64.to_hex_string c
+                         ; lpad  4 @@  UInt64.to_hex_string d
+                         ; lpad 12 @@ UInt192.to_hex_string e ]
+
+  let from_string s =
+    let make ss =
+      try WellFormed ( UInt128.of_hex_string @@ List.nth ss 0
+                     , UInt64.of_hex_string  @@ List.nth ss 1
+                     , UInt64.of_hex_string  @@ List.nth ss 2
+                     , UInt64.of_hex_string  @@ List.nth ss 3
+                     , UInt192.of_hex_string @@ List.nth ss 4 )
+      with Internal_error e -> Malformed e
+
+    in match String.split_on_char '-' s with
+      | ss when List.length ss <> 5 -> Malformed s
+      | ss                          -> make ss
+
+  let nil =
+    (* Note that valid `UUIDv4`s will never result in this value since the 15th
+     * character should always be "4". `nil` is useful for cases such as
+     * testing or when composing "throwaway" records which must satisfy the
+     * type system but serve no other purpose, e.g. the ignored record produced
+     * in `Side_chain_user.User.resume_transactions`
+     *)
+    match from_string "00000000-0000-0000-0000-000000000000" with
+        | WellFormed s -> s
+        | _            -> raise (Internal_error "Invalid `nil` UUID")
+
+  module P = struct
+    type nonrec t = t
+
+    let to_yojson = function
+      | g -> `String (to_string g)
+
+    let iso s =
+      match from_string s with
+        | WellFormed g -> Ok g
+        | _            -> Error ("Malformed GUID: " ^ s)
+
+    let of_yojson = function
+      | `String s -> iso s
+      | _         -> Error "Malformed GUID"
+
+    let yojsoning = {to_yojson; of_yojson}
+  end
+  include (YojsonPersistable(P) : PersistableS with type t := t)
+
+  module Test = struct
+    let%test "RequestGuid to/from_string survives round-trip" =
+      let good_guid = "fc0f69bb-0482-43ca-9f0b-0f05f0bedc4c"
+      in match from_string good_guid with
+        | WellFormed w -> to_string w = good_guid
+        | _            -> false
+
+    let%test "RequestGuid to/of_yojson survives round-trip" =
+      let good_guid = "fc0f69bb-0482-43ca-9f0b-0f05f0bedc4c"
+      in match of_yojson (`String good_guid) with
+        | Ok g -> to_yojson g = `String good_guid
+        | _    -> false
+
+    let%test "RequestGuid.from_string <non-hexadecimal> yields Malformed" =
+      match from_string "gggggggg-5482-43ca-9f0b-f005f0bedc4c" with
+        | Malformed e -> e = "Invalid hex character g"
+        | _           -> false
+
+    let fail_for bad_guid =
+      match from_string bad_guid with
+        | Malformed e -> e = bad_guid
+        | _           -> false
+
+    let%test "RequestGuid.from_string <empty> yields Malformed" =
+      fail_for ""
+
+    let%test "RequestGuid.from_string <too-few-stanzas> yields Malformed" =
+      fail_for "3b5ddd6c-c2e0-4c71-486964c450ef"
+
+    let%test "RequestGuid.from_string <extra-dashes> yields Malformed" =
+      fail_for "-3b5ddd6c--e02f-c2e0-4c71-486964c450ef"
+
+    (* TODO FIXME *)
+    (*
+    let%test "RequestGuid.from_string <wrong-stanza-order> yields Malformed" =
+      let bad_guid = "07ec-40a8-8f6d-66d8b845-93fa9ce293d2"
+      in match from_string bad_guid with
+        | Malformed e -> Printf.printf "%s" e; e = bad_guid
+        | _           -> false
+    *)
+  end
 end

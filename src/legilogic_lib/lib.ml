@@ -269,6 +269,10 @@ let memoize ?(table=Hashtbl.create 8) f =
 let bindings_of_hashtbl h =
   Hashtbl.fold (fun k v l -> (k, v)::l) h []
 
+let rec range a b =
+  if a > b then []            (* Base case *)
+  else a :: range (a+1) b     (* Recursive case *)
+
 module Test = struct
   let expect_equal description to_string expected computed =
     if not (computed = expected) then

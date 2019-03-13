@@ -547,9 +547,12 @@ let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transacti
   >>> of_lwt track_transaction
   >>> check_transaction_confirmed
 
+(** Gas used for a transfer transaction. Hardcoded value defined in the Yellowpaper. *)
+let transfer_gas_used = TokenAmount.of_int 21000
+
 (* Used only in tests *)
 let transfer_tokens ~recipient value =
-  PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=Side_chain_server_config.transfer_gas_limit}
+  PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=transfer_gas_used}
 
 let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : TokenAmount.t) : PreTransaction.t Lwt_exn.t =
   (match gas_limit with
@@ -649,14 +652,15 @@ module Test = struct
          >>= fun () ->
          get_prefunded_address ()
          >>= fun sender ->
-         (* NB: this contract is bogus enough that eth_estimateGas yields bad answers.
-            TODO: Check whether the contract actually succeeds? *)
-         create_contract ~sender ~code:(Bytes.create 128)
-           ~gas_limit:(TokenAmount.of_int 100000)
-           TokenAmount.zero
-         >>= confirm_pre_transaction sender
-         >>= fun (tx, {transaction_hash}) ->
-         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash tx)
+         let make_contract_of_len n =
+           (* NB: this contract is bogus enough that eth_estimate_gas yields bad answers.
+              TODO: Check whether the contract actually succeeds? *)
+           create_contract ~sender ~code:(Bytes.create n) TokenAmount.zero
+           >>= confirm_pre_transaction sender
+           >>= fun (tx, {transaction_hash}) ->
+           Ethereum_transaction.transaction_execution_matches_transaction transaction_hash tx in
+         list_map_s make_contract_of_len [128; 256; 512]
+         >>= arr (List.for_all identity))
       ()
 
   let%test "call-contract-on-Ethereum-testnet" =
@@ -729,7 +733,7 @@ module Test = struct
          let log_contract_address = receipt_log.LogObject.address in
          assert (log_contract_address = contract) ;
          (* we called the right function within the contract *)
-         let topic_event = match receipt_log.LogObject.topics with [x] -> x | _ -> Lib.bork "bloh" in
+         let topic_event = match receipt_log.LogObject.topics with [x] -> x | _ -> Lib.bork "bleh" in
          let hello_world = (String_value "Hello, world!", String) in
          let function_signature = {function_name= "showResult"; parameters= [hello_world]} in
          let function_signature_digest = function_signature |> function_signature_digest in

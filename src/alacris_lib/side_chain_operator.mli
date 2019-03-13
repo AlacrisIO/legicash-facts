@@ -7,6 +7,7 @@ open Signing
 open Side_chain
 
 exception Operator_not_found of string
+exception Malformed_request  of string
 
 (** Private state of a operator (as opposed to what's public in the side-chain)
     TODO: lawsuits? index expedited vs non-expedited transactions? multiple pending confirmations?

@@ -28,10 +28,10 @@ BUILD_DIR:=_build/default
 all: build_all
 
 .PHONY: all build_all force \
-	legilogic_lib legilogic_lib_test test_legilogic_lib \
-	legilogic_ethereum ethereum_prefunder legilogic_ethereum_test test_legilogic_ethereum \
-	contract alacris_lib side_chain_client_lib \
-	side_chain_server side_chain_client side_chain_client_test \
+	legilogic_lib test_legilogic_lib \
+	legilogic_ethereum ethereum_prefunder test_legilogic_ethereum \
+	contract alacris_lib test_alacris_lib side_chain_server \
+	side_chain_client_lib test_alacris_client side_chain_client side_chain_client_test \
 	install uninstall \
 	toplevel repl test_hello test \
 	run_ethereum_net fund_accounts run_side_chain_server run_side_chain_client nginx \
@@ -49,21 +49,19 @@ $(BUILD_DIR)/$(LEGILOGIC_LIB): $(ML_SOURCES)
 	$(SHOW) "Building Legilogic library"
 	$(HIDE) dune build $(LEGILOGIC_LIB)
 
-LEGILOGIC_LIB_TEST:=src/legilogic_lib/legilogic_lib_test.exe
-legilogic_lib_test: $(BUILD_DIR)/$(LEGILOGIC_LIB_TEST)
-$(BUILD_DIR)/$(LEGILOGIC_LIB_TEST): src/legilogic_lib/legilogic_lib_test.ml $(ML_SOURCES)
-	$(SHOW) "Building test legilogic_lib executable"
-	$(HIDE) dune build $(LEGILOGIC_LIB_TEST)
-
-test_legilogic_lib : $(LEGILOGIC_LIB_TEST)
+test_legilogic_lib :
 	$(SHOW) "Testing legilogic_lib"
-	$(HIDE) mkdir -p _run/logs ; cd _run && ../$(LEGILOGIC_LIB_TEST)
+	$(HIDE) dune runtest src/legilogic_lib
 
 LEGILOGIC_ETHEREUM:=src/legilogic_ethereum/legilogic_ethereum.cmxs
 legilogic_ethereum: $(BUILD_DIR)/$(LEGILOGIC_ETHEREUM)
 $(BUILD_DIR)/$(LEGILOGIC_ETHEREUM): $(ML_SOURCES)
 	$(SHOW) "Building Legilogic ethereum support"
 	$(HIDE) dune build $(LEGILOGIC_ETHEREUM)
+
+test_legilogic_ethereum :
+	$(SHOW) "Testing legilogic_ethereum"
+	$(HIDE) dune runtest src/legilogic_ethereum
 
 ETHEREUM_PREFUNDER:=src/legilogic_ethereum/ethereum_prefunder.exe
 ethereum_prefunder: $(BUILD_DIR)/$(ETHEREUM_PREFUNDER)
@@ -86,17 +84,25 @@ $(BUILD_DIR)/$(ALACRIS_LIB): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Alacris library"
 	$(HIDE) dune build $(ALACRIS_LIB)
 
+SIDE_CHAIN_SERVER:=src/alacris_lib/side_chain_server.exe
+side_chain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
+$(BUILD_DIR)/$(SIDE_CHAIN_SERVER): $(ML_SOURCES) $(CONTRACT)
+	$(SHOW) "Building Alacris side chain server executable"
+	$(HIDE) dune build $(SIDE_CHAIN_SERVER)
+
+test_alacris_lib :
+	$(SHOW) "Testing alacris_lib"
+	$(HIDE) dune runtest src/alacris_lib
+
 SIDE_CHAIN_CLIENT_LIB:=src/alacris_client/side_chain_client_lib.cmxs
 side_chain_client_lib: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_LIB)
 $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_LIB): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building side_chain_client library"
 	$(HIDE) dune build $(SIDE_CHAIN_CLIENT_LIB)
 
-SIDE_CHAIN_SERVER:=src/alacris_lib/side_chain_server.exe
-sidechain_server: $(BUILD_DIR)/$(SIDE_CHAIN_SERVER)
-$(BUILD_DIR)/$(SIDE_CHAIN_SERVER): $(ML_SOURCES) $(CONTRACT)
-	$(SHOW) "Building Alacris side chain server executable"
-	$(HIDE) dune build $(SIDE_CHAIN_SERVER)
+test_alacris_client :
+	$(SHOW) "Testing alacris_client"
+	$(HIDE) dune runtest src/alacris_client
 
 SIDE_CHAIN_CLIENT:=src/alacris_client/side_chain_client.exe
 side_chain_client: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT)
@@ -115,8 +121,6 @@ side_chain_client_stress_test: $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_STRESS_TEST)
 $(BUILD_DIR)/$(SIDE_CHAIN_CLIENT_STRESS_TEST): src/alacris_client/side_chain_client_stress_test.ml $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Alacris side_chain_client_stress_test executable"
 	$(HIDE) dune build $(SIDE_CHAIN_CLIENT_STRESS_TEST)
-
-
 
 
 # You don't usually need to install using opam, but if you want to:
@@ -174,6 +178,7 @@ run_ethereum_net :
 # 2- Fund test accounts on the private Ethereum network,
 # importantly including the operator's account
 fund_accounts : $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) force
+	$(HIDE) mkdir -p _run/logs
 	$(HIDE) $(BUILD_DIR)/$(ETHEREUM_PREFUNDER) ./config/operator_keys.json ./config/demo-keys-small.json
 
 # 3- Run our server

@@ -452,6 +452,8 @@ val memoize : ?table:('i, 'o) Hashtbl.t -> ('i -> 'o) -> 'i -> 'o
 
 val bindings_of_hashtbl : ('k, 'v) Hashtbl.t -> ('k * 'v) list
 
+val range : int -> int -> int list
+
 module Test : sig
   (* description, to_string, expected, computed *)
   val expect_equal : string -> ('a -> string) -> 'a -> 'a -> unit
