@@ -1,14 +1,17 @@
 (* JSON RPC interface to Ethereum node.
-   Classical reference (but with some errors):
-   --- eth_* functionality:
+   Classical reference:
+   * eth_* functionality:
      https://github.com/ethereum/wiki/wiki/JSON-RPC
      https://ethereumbuilders.gitbooks.io/guide/content/en/ethereum_json_rpc.html
      https://wiki.parity.io/JSONRPC
-   --- personal_* functionality:
+   * personal_* functionality:
      https://github.com/ethereum/go-ethereum/wiki/Managing-your-accounts
      https://github.com/ethereum/go-ethereum/wiki/Management-APIs
-   Other reference:
-   --- https://wiki.parity.io/JSONRPC
+     https://wiki.parity.io/JSONRPC-personal-module
+   Note that geth documentation is sometimes inaccurate. Parity wallet documentation tends
+   to be of greater quality, but is not 100% compatible with geth (which is what we currently use),
+   nor are either perfectly compatible with web3.
+   An abstraction layer is required somewhere at some point.
 *)
 open Legilogic_lib
 open Action
@@ -87,8 +90,9 @@ module TransactionInformation : sig
     ; gas: TokenAmount.t (* gas provided by the sender. *)
     ; input: Yojsoning.Bytes.t (* the data send along with the transaction. *)
     ; v: Quantity.t option (* QUANTITY - ECDSA recovery id *)
-    ; standard_v: Quantity.t option (* QUANTITY - ECDSA recovery id *)
-    ; r: Quantity.t option (* DATA, 32 Bytes - ECDSA signature r *)
+    ; standard_v: Quantity.t option (* QUANTITY - ECDSA recovery id, standardized to 0 or 1 -- parity *)
+    ; r: Data256.t option (* DATA, 32 Bytes - ECDSA signature r *)
+    ; s: Data256.t option (* DATA, 32 Bytes - ECDSA signature s *)
     ; raw: Data.t option (* raw transaction data *)
     ; public_key: public_key option (* public key of the signer *)
     ; network_id: Quantity.t option (* the network id of the transaction, if any *)
@@ -107,14 +111,6 @@ module EthObject : sig
     ; blockhash : Digest.t option (* the block hash *)
     }
   include YojsonableS with type t := t
-end
-
-(* Returned by eth_signTransaction *)
-module SignedTransaction : sig
-  type t =
-    { raw: Data.t
-    ; tx: TransactionInformation.t } [@@deriving show]
-  include PersistableS with type t := t
 end
 
 module LogObject : sig
@@ -148,6 +144,7 @@ module TransactionReceipt : sig
     ; transaction_hash: Digest.t (* hash of the transaction. *)
     ; transaction_index: Revision.t (* Integer of the transactions index position in the block. *) }
   include PersistableS with type t := t
+  val to_confirmation : t -> Confirmation.t
 end
 
 module EthListLogObjects : sig
@@ -185,6 +182,10 @@ val eth_call :
   ?timeout:float -> ?log:bool
   -> CallParameters.t * BlockParameter.t -> Data.t Lwt_exn.t
 (** Get value computed by function at given block *)
+
+val eth_chain_id :
+  ?timeout:float -> ?log:bool
+  -> unit -> UInt256.t option Lwt_exn.t
 
 val eth_estimate_gas :
   ?timeout:float -> ?log:bool
@@ -240,14 +241,18 @@ val eth_sign :
   -> Address.t * Data.t -> Data.t Lwt_exn.t
 (** Sign some data *)
 
-(* This operation exists in the Parity wallet but not in geth, and we therefore don't use it. *)
+module ParitySignedTransaction : sig
+  type t =
+    { raw: Data.t
+    ; tx: TransactionInformation.t } [@@deriving show]
+  include PersistableS with type t := t
+end
+
 val eth_sign_transaction :
   ?timeout:float -> ?log:bool
-  -> TransactionParameters.t -> SignedTransaction.t Lwt_exn.t
-(** Sign a transaction from an unlocked account **)
-
-
-(* https://github.com/ethereum/go-ethereum/wiki/Management-APIs *)
+  -> TransactionParameters.t -> ParitySignedTransaction.t Lwt_exn.t
+(** Sign a transaction from an unlocked account.
+    NB: This operation exists in the Parity wallet but not in geth, and we therefore don't use it. *)
 
 (** Import the private_key in the Ethereum client with given password string,
     and return the address of the corresponding account.
@@ -269,10 +274,40 @@ val personal_new_account :
   ?timeout:float -> ?log:bool
   -> string -> Address.t Lwt_exn.t
 
+module SignedTx : sig
+  [@warning "-39"]
+  type t =
+    { nonce : Revision.t
+    ; gas_price : TokenAmount.t
+    ; gas : TokenAmount.t
+    ; to_ : Address.t option
+    ; value : TokenAmount.t
+    ; input : Data.t
+    ; v : UInt256.t option (* before signing it's the chain ID, after it's from the signature *)
+    ; r : Data256.t option (* before signing it's 0; after it's from the signature *)
+    ; s : Data256.t option (* before signing it's 0; after it's from the signature *)
+    ; hash : Digest.t }
+  [@@deriving show]
+  include PersistableS with type t := t
+end
+
+module SignedTransaction : sig
+  type t =
+    { raw: Data.t
+    ; tx: SignedTx.t } [@@deriving show]
+  include PersistableS with type t := t
+end
+
+val transaction_data_of_signed_transaction : SignedTransaction.t -> SignedTransactionData.t
+
 val personal_sign_transaction :
   ?timeout:float -> ?log:bool
   -> TransactionParameters.t * string -> SignedTransaction.t Lwt_exn.t
-(** Sign a transaction without unlocking *)
+(** Sign a transaction without unlocking.
+    NB: The result type isn't standard across implementations.
+    geth, parity and web3 all have different return types.
+    This is for geth.
+ *)
 
 val personal_unlock_account :
   ?timeout:float -> ?log:bool

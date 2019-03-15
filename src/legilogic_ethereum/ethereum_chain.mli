@@ -65,4 +65,27 @@ module Transaction : sig
   val pre_transaction: t -> PreTransaction.t
 end
 
+module SignedTransactionData : sig
+  type t =
+    { nonce : Revision.t
+    ; gas_price : TokenAmount.t
+    ; gas_limit : TokenAmount.t
+    ; to_address : Address.t
+    ; value : TokenAmount.t
+    ; data : Data.t
+    ; v : UInt256.t (* before signing it's the chain ID, after it's from the signature *)
+    ; r : Data256.t (* before signing it's 0; after it's from the signature *)
+    ; s : Data256.t } (* before signing it's 0; after it's from the signature *)
+  [@@deriving lens { prefix=true }]
+  include PersistableS with type t := t
+end
+
+module Confirmation : sig
+  type t = { transaction_hash: Digest.t
+           ; transaction_index: Revision.t
+           ; block_number: Revision.t
+           ; block_hash: Digest.t }
+  include PersistableS with type t := t
+end
+
 val genesis_state : State.t

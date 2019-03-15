@@ -392,6 +392,16 @@ module UIntZable (P: PreUIntZableS) = struct
   end
 end
 
+module UInt8 = struct
+  module P = struct
+    include Unsigned.UInt8
+    let size_in_bits = 8
+    let of_z z = Unsigned.UInt8.of_int (Z.to_int z)
+    let z_of u = Z.of_int (Unsigned.UInt8.to_int u)
+  end
+  include UIntZable (P)
+end
+
 module UInt16 = struct
   module P = struct
     include Unsigned.UInt16

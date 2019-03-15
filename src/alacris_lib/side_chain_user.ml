@@ -73,7 +73,7 @@ let wait_for_contract_event_eth (contract_address:  Address.t)
                                 (topics:            Bytes.t option list)
                                 (list_data_type:    abi_type list)
                                 (data_value_search: abi_value option list)
-                              : Ethereum_json_rpc.TransactionReceipt.t Lwt_exn.t =
+                              : Ethereum_chain.Confirmation.t Lwt_exn.t =
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_contract_event_eth";
 
@@ -85,24 +85,16 @@ let wait_for_contract_event_eth (contract_address:  Address.t)
     data_value_search
 
   (* TODO: DRY with previous function. And the confirmation returned, if needed, should not be faked *)
-  >>= fun _ -> return Ethereum_json_rpc.TransactionReceipt.
+  >>= fun _ -> return Ethereum_chain.Confirmation.
     { block_hash          = Digest.zero
     ; block_number        = Revision.zero
-    ; contract_address    = None
-    ; cumulative_gas_used = TokenAmount.zero
-    ; from                = Address.zero
-    ; to_                 = None
-    ; gas_used            = TokenAmount.zero
-    ; logs                = []
-    ; logs_bloom          = Bytes.make 256 '\x00'
-    ; status              = TokenAmount.zero
     ; transaction_hash    = Digest.zero
     ; transaction_index   = Revision.zero
     }
 
-let wait_for_operator_state_update (contract_address: Address.t)
-                                   (operator:         Address.t)
-                                 : Ethereum_json_rpc.TransactionReceipt.t Lwt_exn.t =
+let wait_for_operator_state_update :
+      Address.t -> Address.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
+  fun contract_address operator ->
   Logging.log "Beginning of wait_for_operator_state_update";
 
   wait_for_contract_event_eth
@@ -128,20 +120,13 @@ let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : A
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
-  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
+  let (gas_limit : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val bond
-  >>= fun x ->
+  Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit bond
+  >>= fun pre ->
   Logging.log "emit_claim_withdrawal_operation : before confirm_pre_transaction";
-  Ethereum_user.confirm_pre_transaction operator x
-  >>= fun (_tx, receipt) ->
-  Logging.log "emit_claim_withdrawal_operation : before eth_get_transaction_receipt";
-  Ethereum_json_rpc.eth_get_transaction_receipt receipt.transaction_hash
-  >>= fun x ->
-  Logging.log "emit_claim_withdrawal_operation : after eth_get_transaction_receipt";
-  match x with
-  | None -> bork "No tx receipt for contract creation"
-  | Some _receipt -> Lwt_exn.return ()
+  Ethereum_user.confirm_pre_transaction operator pre
+  >>= const ()
 
 let emit_withdraw_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
   let open Lwt_exn in
@@ -154,7 +139,7 @@ let emit_withdraw_operation (contract_address : Address.t) (operator : Address.t
   >>= fun x ->
   Logging.log "emit_withdraw_operation : before confirm_pre_transaction";
   Ethereum_user.confirm_pre_transaction operator x
-  >>= fun (_tx, receipt) ->
+  >>= fun (_tx, _, receipt) ->
   Logging.log "emit_withdraw_operation : before eth_get_transaction_receipt";
   Ethereum_json_rpc.eth_get_transaction_receipt receipt.transaction_hash
   >>= fun x ->
@@ -305,8 +290,8 @@ module OngoingTransactionStatus = struct
     | DepositConfirmed
       of DepositWanted.t
        * TokenAmount.t
-       * Ethereum_chain.Transaction.t
-       * Ethereum_json_rpc.TransactionReceipt.t
+       * Ethereum_chain.SignedTransactionData.t
+       * Ethereum_chain.Confirmation.t
 
     (* for all operations *)
     | Requested        of UserTransactionRequest.t signed
@@ -314,8 +299,8 @@ module OngoingTransactionStatus = struct
     | PostedToRegistry of TransactionCommitment.t
 
     (* for withdrawal only *)
-    | PostedToMainChain    of TransactionCommitment.t * Ethereum_json_rpc.TransactionReceipt.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_json_rpc.TransactionReceipt.t
+    | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
   [@@deriving yojson]
 
   include (YojsonPersistable (struct
@@ -366,7 +351,7 @@ end
 
 module FinalTransactionStatus = struct
   type t =
-    | SettledOnMainChain of TransactionCommitment.t * Ethereum_json_rpc.TransactionReceipt.t
+    | SettledOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
     | Failed of OngoingTransactionStatus.t * exn
   [@@deriving yojson]
   include (YojsonPersistable (struct
@@ -399,6 +384,14 @@ module TransactionStatus = struct
 end
 
 exception TransactionFailed of OngoingTransactionStatus.t * exn
+
+let _ = Printexc.register_printer
+          (function
+           | TransactionFailed (s, exn) ->
+              Some (Printf.sprintf "Side_chain_user.TransactionFailed (%s, %s)"
+                      (s |> OngoingTransactionStatus.to_yojson |> string_of_yojson)
+                      (Printexc.to_string exn))
+           | _                -> None)
 
 type revision_generator = (unit, Revision.t) Lwter.arr
 
@@ -483,13 +476,14 @@ module TransactionTracker = struct
              let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
              (promise >>= function
               | Failed (_, error) -> invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
-              | Confirmed (transaction, receipt) ->
-                DepositConfirmed (deposit_wanted, deposit_fee, transaction, receipt) |> continue)
-
+              | Confirmed (transaction, signed, receipt) ->
+                 let txdata = Ethereum_json_rpc.transaction_data_of_signed_transaction signed in
+                 let confirmation = Ethereum_json_rpc.TransactionReceipt.to_confirmation receipt in
+                 DepositConfirmed (deposit_wanted, deposit_fee, txdata, confirmation) |> continue)
            | DepositConfirmed ( { deposit_amount; request_guid; requested_at }
                               , deposit_fee
                               , main_chain_deposit
-                              , main_chain_deposit_receipt
+                              , main_chain_deposit_confirmation
                               ) ->
              Logging.log "TR_LOOP, DepositConfirmed operation";
              revision_generator ()
@@ -501,7 +495,7 @@ module TransactionTracker = struct
                   (Deposit { deposit_amount
                            ; deposit_fee
                            ; main_chain_deposit
-                           ; main_chain_deposit_receipt
+                           ; main_chain_deposit_confirmation
                            ; request_guid
                            ; requested_at
                            })
@@ -533,7 +527,7 @@ module TransactionTracker = struct
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              (wait_for_operator_state_update tc.contract_address operator
               >>= function
-              | Ok (c : Ethereum_json_rpc.TransactionReceipt.t) ->
+              | Ok (c : Ethereum_chain.Confirmation.t) ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
                  | Deposit _ | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
@@ -542,27 +536,23 @@ module TransactionTracker = struct
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                  invalidate ongoing error)
 
-           | PostedToMainChain ( (tc:      TransactionCommitment.t)
-                               , (receipt: Ethereum_json_rpc.TransactionReceipt.t)
-                               ) ->
+           | PostedToMainChain ( tc, confirmation ) ->
              Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
-             (* TODO: wait for receipt on the main chain and handle lawsuits
+             (* TODO: wait for confirmation on the main chain and handle lawsuits
                 Right now, no lawsuit *)
 
              Lwt.bind (final_claim_withdrawal_operation tc operator) (fun _ ->
                  Logging.log "After final_claim_withdrawal_operation";
-                 ConfirmedOnMainChain (tc, receipt) |> continue)
+                 ConfirmedOnMainChain (tc, confirmation) |> continue)
 
-           | ConfirmedOnMainChain ( (tc:      TransactionCommitment.t)
-                                  , (receipt: Ethereum_json_rpc.TransactionReceipt.t)
-                                  ) ->
+           | ConfirmedOnMainChain (tc, confirmation) ->
              Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
              Lwt.bind (final_withdraw_operation tc operator) (fun _ ->
                  Logging.log "After final_withdraw_operation";
-                 FinalTransactionStatus.SettledOnMainChain (tc, receipt) |>
+                 FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |>
                    finalize))
 
         | Final x -> return x

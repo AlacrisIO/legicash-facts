@@ -1,10 +1,7 @@
 (* ethereum_transaction.mli -- run transactions on Ethereum net via JSON RPC *)
 open Legilogic_lib
 open Action
-open Digesting
 open Signing
-
-open Ethereum_chain
 
 val ensure_private_key : ?timeout:float -> ?log:bool -> Keypair.t -> Address.t Lwt_exn.t
 (** Ensure that the private_key for the keypair exists in the Ethereum client,
@@ -25,5 +22,3 @@ exception Bad_password
 
 val unlock_account : ?duration:int -> address -> unit Lwt_exn.t
 (** unlocks account for given duration (in seconds) on net *)
-
-val is_receipt_successful : Ethereum_json_rpc.TransactionReceipt.t -> Transaction.t -> bool

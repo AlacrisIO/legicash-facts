@@ -16,6 +16,7 @@ type address = Address.t
 
 (* Create context just once, because it's an expensive operation.
    This assumes single instantiation of this module in a single-threaded environment.
+   NB: If and when OCaml becomes effectively multithreaded, we need to handle the context better.
 *)
 let (secp256k1_ctx : Secp256k1.Context.t) = Secp256k1.Context.create [Sign; Verify]
 
@@ -23,42 +24,13 @@ let private_key_length = 32
 
 (* Ethereum can deduce the correct 65th byte from just 64 ones.
    TODO: Be like Ethereum.
-   Experimentally: looks like it is always 0x04:
+   Experimentally: looks like the first byte is always 0x04:
    cat src/endpoints/demo-keys-*json | grep public_key | cut -c1-21 | sort -u
 *)
 let public_key_length = 65
 
 let bytes_of_key (key : 'a Secp256k1.Key.t) : bytes =
   key |> Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx |> Cstruct.of_bigarray |> Cstruct.to_bytes
-
-module PublicKey = struct
-  module P = struct
-    type t = Secp256k1.Key.public Secp256k1.Key.t
-    let marshal buffer (public_key : t) =
-      Buffer.add_bytes buffer (bytes_of_key public_key)
-    let unmarshal start bytes =
-      let public_buffer = Cstruct.create public_key_length in
-      Cstruct.blit_from_bytes bytes start public_buffer 0 public_key_length;
-      match Secp256k1.Key.read_pk secp256k1_ctx (Cstruct.to_bigarray public_buffer) with
-      | Ok (key : t) -> key, start + public_key_length
-      | Error s -> bork "Could not unmarshal public key: %s" s
-    let marshaling = {marshal;unmarshal}
-  end
-  include YojsonableOfPreMarshalable(P)
-  let pp formatter x = Format.fprintf formatter "%s" (x |> marshal_string |> unparse_0x_data)
-  let show x = Format.asprintf "%a" pp x
-end
-type public_key = PublicKey.t
-
-let address_of_public_key public_key =
-  let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
-  (* uncompressed public key has an extra byte at the beginning, which we remove:
-     https://bitcoin.stackexchange.com/questions/57855/c-secp256k1-what-do-prefixes-0x06-and-0x07-in-an-uncompressed-public-key-signif
-  *)
-  let pubkey_string = Cstruct.to_string (Cstruct.of_bigarray ~off:1 buffer) in
-  let hash = keccak256_string pubkey_string in
-  let hash_len = String.length hash in
-  Address.of_bits (String.init Address.size_in_bytes (fun ndx -> hash.[hash_len - ndx - 1]))
 
 module PrivateKey = struct
   module P = struct
@@ -76,6 +48,36 @@ module PrivateKey = struct
   include YojsonableOfPreMarshalable(P)
 end
 type private_key = PrivateKey.t
+
+module PublicKey = struct
+  module P = struct
+    type t = Secp256k1.Key.public Secp256k1.Key.t
+    let marshal buffer (public_key : t) =
+      Buffer.add_bytes buffer (bytes_of_key public_key)
+    let unmarshal start bytes =
+      let public_buffer = Cstruct.create public_key_length in
+      Cstruct.blit_from_bytes bytes start public_buffer 0 public_key_length;
+      match Secp256k1.Key.read_pk secp256k1_ctx (Cstruct.to_bigarray public_buffer) with
+      | Ok (key : t) -> key, start + public_key_length
+      | Error s -> bork "Could not unmarshal public key: %s" s
+    let marshaling = {marshal;unmarshal}
+  end
+  include YojsonableOfPreMarshalable(P)
+  let pp formatter x = Format.fprintf formatter "%s" (x |> marshal_string |> unparse_0x_data)
+  let show x = Format.asprintf "%a" pp x
+  let of_private_key = Secp256k1.Key.neuterize_exn secp256k1_ctx
+end
+type public_key = PublicKey.t
+
+let address_of_public_key public_key =
+  let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
+  (* uncompressed public key has an extra byte at the beginning, which we remove:
+     https://bitcoin.stackexchange.com/questions/57855/c-secp256k1-what-do-prefixes-0x06-and-0x07-in-an-uncompressed-public-key-signif
+  *)
+  let pubkey_string = Cstruct.to_string (Cstruct.of_bigarray ~off:1 buffer) in
+  let hash = keccak256_string pubkey_string in
+  let hash_len = String.length hash in
+  Address.of_bits (String.init Address.size_in_bytes (fun ndx -> hash.[hash_len - ndx - 1]))
 
 let string_of_signature signature =
   (* see https://bitcoin.stackexchange.com/questions/38351/ecdsa-v-r-s-what-is-v

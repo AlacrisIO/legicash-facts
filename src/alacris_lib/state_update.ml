@@ -37,11 +37,5 @@ let push_state_digest_exn (digest : Digest.t) (value : TokenAmount.t) : Digest.t
   >>= fun x ->
   Logging.log "push_state_digest_exn : before confirm_pre_transaction";
   Ethereum_user.confirm_pre_transaction oper_addr x
-  >>= fun (_tx, confirmation) ->
-  Logging.log "push_state_digest_exn : before eth_get_transaction_receipt";
-  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
-  >>= fun x ->
-  Logging.log "push_state_digest_exn : after eth_get_transaction_receipt";
-  match x with
-  | None -> bork "No tx receipt for contract creation"
-  | Some _receipt -> return digest
+  >>= fun (_, _, {transaction_hash}) ->
+  return transaction_hash

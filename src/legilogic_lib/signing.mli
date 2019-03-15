@@ -15,16 +15,19 @@ module Address : sig
 end
 type address = Address.t
 
+(** Private key in Secp256k1 public-key cryptography *)
+module PrivateKey : sig
+  include YojsonMarshalableS (* with type t = Secp256k1.Key.secret Secp256k1.Key.t *)
+end
+type private_key = PrivateKey.t
+
 (** Public key in Secp256k1 public-key cryptography *)
 module PublicKey : sig
   include YojsonMarshalableS (* with type t = Secp256k1.Key.public Secp256k1.Key.t *)
   include ShowableS with type t := t
+  val of_private_key : private_key -> t
 end
 type public_key = PublicKey.t (* Do we really need this "short" name as an alias? *)
-
-(** Private key in Secp256k1 public-key cryptography *)
-module PrivateKey : YojsonMarshalableS (* with type t = Secp256k1.Key.secret Secp256k1.Key.t *)
-type private_key = PrivateKey.t
 
 (** Pair of public and private keys for Secp256k1 public key cryptography,
     with matching Ethereum address *)

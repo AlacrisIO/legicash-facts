@@ -20,7 +20,7 @@ end
 
 module FinalTransactionStatus : sig
   type t =
-    | Confirmed of Transaction.t * TransactionReceipt.t
+    | Confirmed of Transaction.t * SignedTransaction.t * TransactionReceipt.t
     | Failed of OngoingTransactionStatus.t * exn
   include PersistableS with type t := t
   val pre_transaction : t -> PreTransaction.t
@@ -95,9 +95,10 @@ val block_depth_for_receipt : Revision.t
 exception Still_pending
 (** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
 
-val check_receipt_sufficiently_confirmed : TransactionReceipt.t -> TransactionReceipt.t Lwt_exn.t
+val is_receipt_sufficiently_confirmed : TransactionReceipt.t -> Revision.t -> bool
+(* is the given receipt sufficiently confirmed as of the given block number? *)
 
-val check_receipt_sufficiently_confirmed_bool : TransactionReceipt.t -> bool Lwt_exn.t
+val check_receipt_sufficiently_confirmed : TransactionReceipt.t -> TransactionReceipt.t Lwt_exn.t
 
 val issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr
 (** Issue a pre-transaction as transaction on the Ethereum network, return a tracker *)
@@ -105,10 +106,10 @@ val issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t
 val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr
 (** Track a transaction until it is either confirmed or invalidated *)
 
-val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * TransactionReceipt.t) Lwt_exn.arr
+val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr
 (** Check that the final transaction status is indeed confirmed, or fail *)
 
-val confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * TransactionReceipt.t) Lwt_exn.arr
+val confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr
 (** Issue a transaction on the Ethereum network, wait for it to be confirmed *)
 
 val transfer_tokens : recipient:Address.t -> TokenAmount.t -> PreTransaction.t

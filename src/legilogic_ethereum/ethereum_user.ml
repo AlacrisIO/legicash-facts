@@ -153,7 +153,7 @@ end
 module FinalTransactionStatus = struct
   [@@@warning "-39"]
   type t =
-    | Confirmed of Transaction.t * TransactionReceipt.t
+    | Confirmed of Transaction.t * SignedTransaction.t * TransactionReceipt.t
     | Failed of OngoingTransactionStatus.t * exn
   [@@deriving yojson]
   include (YojsonPersistable (struct
@@ -161,7 +161,7 @@ module FinalTransactionStatus = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
   let pre_transaction : t -> PreTransaction.t = function
-    | Confirmed (tx, _) -> Transaction.pre_transaction tx
+    | Confirmed (tx, _, _) -> Transaction.pre_transaction tx
     | Failed (ots, _) -> OngoingTransactionStatus.pre_transaction ots
 end
 
@@ -202,28 +202,17 @@ let check_transaction_receipt_status (receipt : TransactionReceipt.t) =
 (* let block_depth_for_receipt = Revision.of_int 0 *)
 let block_depth_for_receipt = Side_chain_server_config.minNbBlockConfirm
 
-let check_receipt_sufficiently_confirmed (receipt : TransactionReceipt.t) : TransactionReceipt.t Lwt_exn.t =
-  (*Logging.log "check_receipt_sufficiently_confirmed %s" (TransactionReceipt.to_yojson_string receipt);*)
+let is_receipt_sufficiently_confirmed (receipt : TransactionReceipt.t) block_number =
+  Revision.(is_add_valid receipt.block_number block_depth_for_receipt
+            && compare block_number (add receipt.block_number block_depth_for_receipt) >= 0)
+
+let check_receipt_sufficiently_confirmed receipt =
   eth_block_number ()
   >>= fun block_number ->
-  if Revision.(is_add_valid receipt.block_number block_depth_for_receipt
-               && compare block_number (add receipt.block_number block_depth_for_receipt)
-                  >= 0) then
+  if is_receipt_sufficiently_confirmed receipt block_number then
     return receipt
   else
     fail Still_pending
-
-let check_receipt_sufficiently_confirmed_bool (receipt : TransactionReceipt.t) : bool Lwt_exn.t =
-  (*Logging.log "check_receipt_sufficiently_confirmed %s" (TransactionReceipt.to_yojson_string receipt);*)
-  eth_block_number ()
-  >>= fun block_number ->
-  if Revision.(is_add_valid receipt.block_number block_depth_for_receipt
-               && compare block_number (add receipt.block_number block_depth_for_receipt)
-                  >= 0) then
-    return true
-  else
-    return false
-
 
 type nonce_operation = Peek | Next | Reset [@@deriving yojson]
 
@@ -316,6 +305,8 @@ let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt
   | Ok (Some receipt) -> check_transaction_receipt_status receipt
   | Error e -> Lwt_exn.fail e
 
+exception Replacement_transaction_underpriced
+
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
     (*Logging.log "send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);*)
@@ -328,6 +319,9 @@ let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.
          | Error (Rpc_error {code= -32000; message})
               when message = "known transaction: " ^ Digest.to_hex_string hash ->
             return hash
+         | Error (Rpc_error {code= -32000; message})
+              when message = "replacement transaction underpriced" ->
+            fail Replacement_transaction_underpriced
          | Error e -> fail e
          | Ok transaction_hash ->
             if transaction_hash = hash then
@@ -418,7 +412,7 @@ module TransactionTracker = struct
                                  | Error e -> fail e))))
              >>= (function
                | Ok receipt ->
-                 FinalTransactionStatus.Confirmed (transaction, receipt) |> finalize
+                 FinalTransactionStatus.Confirmed (transaction, signed, receipt) |> finalize
                | Error NonceTooLow ->
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
                | Error error -> invalidate ongoing error))
@@ -539,12 +533,13 @@ let issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t
 let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr =
   fun (_, promise, _) -> promise
 
-let check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * TransactionReceipt.t) Lwt_exn.arr
+let check_transaction_confirmed :
+      (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr
   = function
-    | FinalTransactionStatus.Confirmed (t, r) -> return (t, r)
+    | FinalTransactionStatus.Confirmed (t, s, r) -> return (t, s, r)
     | FinalTransactionStatus.Failed (t, e) -> fail (TransactionFailed (t, e))
 
-let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transaction.t *  TransactionReceipt.t) Lwt_exn.arr =
+let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
   issue_pre_transaction address
   >>> of_lwt track_transaction
   >>> check_transaction_confirmed
@@ -561,6 +556,7 @@ let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : T
    | Some x -> return x
    | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation))
   >>= fun gas_limit ->
+  (* TODO: clear up what's happening here before we go to production! *)
   Logging.log "make_pre_transaction gas_limit=%i value=%i" (TokenAmount.to_int gas_limit) (TokenAmount.to_int value);
   let gas_limit_tenfold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
   return PreTransaction.{operation; value; gas_limit=gas_limit_tenfold}
@@ -572,6 +568,7 @@ let call_function ~sender ~contract ~call ?gas_limit value =
   make_pre_transaction ~sender (Operation.CallFunction (contract, call)) ?gas_limit value
 
 module Test = struct
+  open Lwt_exn
   open Hex
   open Digesting
   open Signing.Test
@@ -602,7 +599,6 @@ module Test = struct
       (TokenAmount.to_0x balance)
 
   let ensure_address_prefunded prefunded_address amount address =
-    let open Lwt_exn in
     let open TokenAmount in
     eth_get_balance (address, BlockParameter.Pending)
     >>= fun balance ->
@@ -665,7 +661,7 @@ module Test = struct
         >>= fun croesus ->
         transfer_tokens ~recipient:alice_address (TokenAmount.of_int 1000000000)
         |> confirm_pre_transaction croesus
-        >>= fun (transaction, TransactionReceipt.{transaction_hash}) ->
+        >>= fun (transaction, _signed_tx, TransactionReceipt.{transaction_hash}) ->
         check_transaction_execution transaction_hash transaction)
       ()
 
@@ -680,6 +676,7 @@ module Test = struct
     | [x] -> x
     | _ -> Lib.bork "list isn't a singleton"
 
+(*
   let%test "Ethereum-testnet-contract-failure" =
     (Logging.log "\nTEST: contract-failure-on-Ethereum-testnet!!\n";
     Lwt_exn.run
@@ -694,11 +691,12 @@ module Test = struct
         ~gas_limit:(TokenAmount.of_int 100000) TokenAmount.zero
         >>= (trying (confirm_pre_transaction sender)
         >>> (function
-        | Ok _    -> Lwt_exn.return false
+        | Ok _    -> return false
         (* TransactionTracker returns a FinalTransactionStatus after TransactionRejected is thrown *)
-        | Error TransactionFailed (_, _) -> Lwt_exn.return true
-        | Error _ -> Lwt_exn.return false))))
+        | Error TransactionFailed (_, _) -> return true
+        | Error _ -> return false))))
     ()
+ *)
 
   let%test "Ethereum-testnet-contract-success" =
     Logging.log "\nTEST: contract-success-on-Ethereum-testnet!!\n";
@@ -712,14 +710,14 @@ module Test = struct
         let code = test_contract_code () in
         create_contract ~sender ~code ?gas_limit:None TokenAmount.zero
         >>= confirm_pre_transaction sender
-        >>= (function | (_, {contract_address=(Some contract)}) -> return contract
+        >>= (function | (_, _, {contract_address=(Some contract)}) -> return contract
                       | _ -> bork "Failed to create contract")
         >>= fun contract ->
         Logging.log "SUBTEST: call contract function hello with no argument\n";
         let call = encode_function_call { function_name = "hello"; parameters = [] } in
         call_function ~sender ~contract ~call TokenAmount.zero
         >>= confirm_pre_transaction sender
-        >>= fun (tx, {block_number}) ->
+        >>= fun (tx, _, {block_number}) ->
         eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
         >>= fun data ->
         Logging.log "hello replied: %s\n" (unparse_0x_data data);
@@ -728,7 +726,7 @@ module Test = struct
                      { function_name = "mul42"; parameters = [ abi_uint (Z.of_int 47) ] } in
          call_function ~sender ~contract ~call TokenAmount.zero
          >>= confirm_pre_transaction sender
-         >>= fun (tx, {block_number}) ->
+         >>= fun (tx, _, {block_number}) ->
          eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
          >>= fun data ->
          Logging.log "mul42 replied: %s\n" (unparse_0x_data data);
@@ -743,7 +741,7 @@ module Test = struct
                         parameters = [ abi_string "Croesus" ] } in
          call_function ~sender ~contract ~call TokenAmount.zero
          >>= confirm_pre_transaction sender
-         >>= fun (tx, {block_number; logs}) ->
+         >>= fun (tx, _, {block_number; logs}) ->
          let receipt_log = list_only_element logs in
          let log_contract_address = receipt_log.address in
          assert (log_contract_address = contract) ;
@@ -764,6 +762,7 @@ module Test = struct
          Logging.log "computed reply:   %s\n" (unparse_0x_data result);
          assert (result = Bytes.to_string data);
          assert (data = greetings_encoding);
+         (* TODO: add a stateful function, and check the behavior of eth_call wrt block_number *)
          return true)
      ()
 end

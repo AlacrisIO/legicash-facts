@@ -1,5 +1,6 @@
 open Legilogic_lib
 open Lib
+open Action
 open Yojsoning
 open Persisting
 open Json_rpc
@@ -137,7 +138,8 @@ module TransactionInformation = struct
     ; input: Yojsoning.Bytes.t
     ; v: Quantity.t option [@default None]
     ; standard_v: Quantity.t option [@default None]
-    ; r: Quantity.t option [@default None]
+    ; r: Data256.t option [@default None]
+    ; s: Data256.t option [@default None]
     ; raw: Data.t option [@default None]
     ; public_key: PublicKey.t option [@key "publicKey"] [@default None]
     ; network_id: Quantity.t option [@key "networkID"] [@default None]
@@ -164,7 +166,7 @@ module EthObject = struct
            end) : (PersistableS with type t := t))
 end
 
-module SignedTransaction = struct
+module ParitySignedTransaction = struct
   type t =
     { raw: Data.t
     ; tx: TransactionInformation.t }
@@ -218,6 +220,12 @@ module TransactionReceipt = struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
+  let to_confirmation
+        { transaction_hash ; transaction_index ; block_number ; block_hash ; status } =
+    if TokenAmount.sign status = 0 then
+      Lib.bork "receipt indicates transaction %s failed" (Digest.to_0x transaction_hash)
+    else
+      Confirmation.{ transaction_hash ; transaction_index ; block_number ; block_hash }
 end
 
 module EthListLogObjects = struct
@@ -270,6 +278,60 @@ let eth_call =
   ethereum_json_rpc "eth_call"
     Data.of_yojson_exn
     (yojson_2args CallParameters.to_yojson BlockParameter.to_yojson)
+
+let eth_chain_id =
+  ethereum_json_rpc "eth_chainId"
+    (option_of_yojson_exn UInt256.of_yojson_exn)
+    yojson_noargs
+
+let this_chain_id = lazy (Lwt_exn.run eth_chain_id ())
+
+let v_of_chain_id =
+  Option.defaulting (fun () -> Option.defaulting (konstant UInt256.zero) (Lazy.force this_chain_id))
+
+module SignedTx = struct
+  type t =
+    { nonce : Revision.t
+    ; gas_price : TokenAmount.t [@key "gasPrice"]
+    ; gas : TokenAmount.t
+    ; to_ : Address.t option [@key "to"] [@default None]
+    ; value : TokenAmount.t
+    ; input : Data.t
+    ; v : UInt256.t option [@default None]
+    ; r : Data256.t option [@default None]
+    ; s : Data256.t option [@default None]
+    ; hash : Digest.t }
+  [@@deriving yojson {strict = false}, show]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+
+module SignedTransaction = struct
+  type t =
+    { raw: Data.t
+    ; tx: SignedTx.t }
+  [@@deriving yojson {strict = false}, show]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+
+let transaction_data_of_signed_transaction = function
+    | SignedTransaction.{tx={nonce; gas_price; gas; to_ ; value ; input ; v ; r ; s }} ->
+       SignedTransactionData.{
+           nonce
+         ; gas_price
+         ; gas_limit = gas
+         ; to_address = Option.defaulting (konstant Address.zero) to_
+         ; value
+         ; data = input
+         ; v = v_of_chain_id v
+         ; r = Option.defaulting (konstant Data256.zero) r
+         ; s = Option.defaulting (konstant Data256.zero) s } (* TODO: is this the correct s? probably not *)
+
 
 let eth_estimate_gas =
   ethereum_json_rpc "eth_estimateGas"
@@ -341,7 +403,7 @@ let eth_sign =
 
 let eth_sign_transaction =
   ethereum_json_rpc "eth_signTransaction"
-    SignedTransaction.of_yojson_exn
+    ParitySignedTransaction.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
 
 let eth_block_number =
@@ -394,7 +456,7 @@ let personal_unlock_account =
              ; `Int (Option.defaulting (konstant 5) duration) ])
 
 module Test = struct
-  open Action.Lwt_exn
+  open Lwt_exn
   let%test "eth_latest_block get the current latest block" =
     (* Just checks that the block number is non-negative *)
     run (eth_block_number ~log:false >>> (Revision.sign >> (<=) 0 >> return)) ()

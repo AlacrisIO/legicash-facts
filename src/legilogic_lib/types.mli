@@ -8,6 +8,11 @@ module type UIntS = sig
   include PersistableS with type t := t
 end
 
+module UInt8 : sig
+  include module type of Integer.UInt8
+  include PersistableS with type t := t
+end
+
 module UInt16 : sig
   include module type of Integer.UInt16
   include PersistableS with type t := t

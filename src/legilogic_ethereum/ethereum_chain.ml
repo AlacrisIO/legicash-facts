@@ -57,6 +57,26 @@ module State = struct
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
+module Confirmation = struct
+  type t = { transaction_hash: Digest.t
+           ; transaction_index: Revision.t
+           ; block_number: Revision.t
+           ; block_hash: Digest.t }
+  [@@deriving yojson]
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling =
+      marshaling4
+        (fun {transaction_hash; transaction_index; block_number; block_hash} ->
+           (transaction_hash, transaction_index, block_number, block_hash))
+        (fun transaction_hash transaction_index block_number block_hash ->
+           {transaction_hash; transaction_index; block_number; block_hash})
+        Digest.marshaling Revision.marshaling Revision.marshaling Digest.marshaling
+    let yojsoning = {to_yojson; of_yojson}
+  end
+  include (TrivialPersistable (PrePersistable) : (PersistableS with type t := t))
+end
+
 let genesis_state = State.{revision= Revision.zero; accounts= AccountMap.empty}
 
 (* TODO: use whichever way is used to compute on-chain hashes for marshaling.
@@ -124,6 +144,25 @@ module Transaction = struct
            end) : PersistableS with type t := t)
   let pre_transaction {tx_header={value;gas_limit}; operation} =
     PreTransaction.{operation;value;gas_limit}
+end
+
+module SignedTransactionData = struct
+  [@warning "-39"]
+  type t =
+    { nonce : Revision.t
+    ; gas_price : TokenAmount.t
+    ; gas_limit : TokenAmount.t
+    ; to_address : Address.t
+    ; value : TokenAmount.t
+    ; data : Data.t
+    ; v : UInt256.t
+    ; r : Data256.t
+    ; s : Data256.t }
+  [@@deriving lens { prefix=true }, yojson]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : PersistableS with type t := t)
 end
 
 module TransactionDigestSet = DigestSet

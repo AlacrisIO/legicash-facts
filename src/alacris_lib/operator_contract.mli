@@ -30,7 +30,7 @@ val pre_deposit : operator:Address.t -> TokenAmount.t -> PreTransaction.t
 (** Create a PreTransaction for a contract call that deposits the amount
     into the sender's account on the operator *)
 
-val deposit : Address.t -> (Address.t * TokenAmount.t, Transaction.t * Ethereum_json_rpc.TransactionReceipt.t) Lwt_exn.arr
+val deposit : Address.t -> (Address.t * TokenAmount.t, Transaction.t * Ethereum_json_rpc.SignedTransaction.t * Ethereum_json_rpc.TransactionReceipt.t) Lwt_exn.arr
 
 val make_claim_withdrawal_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t
 

@@ -4,10 +4,6 @@ open Signing
 open Action
 open Lwt_exn
 open Json_rpc
-open Digesting
-
-open Ethereum_chain
-open Ethereum_json_rpc
 
 let ensure_private_key ?timeout ?log (keypair : Keypair.t) =
   Logging.log "ethereum_transaction : ensure_private_key";
@@ -61,15 +57,3 @@ module Test = struct
   let%test "poll-for-testnet" =
     run is_ethereum_net_up () || Lib.bork "Could not connect to Ethereum network"
 end
-
-(** TODO: have an actual confirmation that a contract could check.
-    For Ethereum, we might check the transaction hashes match, or
-    perform a Merkle proof using the transactionsRoot in the given block
-    NOTE: We should not compute the transaction hash ourself.
-    --- 1 : When we post, a hash is computed and returned.
-        (It is in TransactionReceipt.transaction_hash) returned by eth_get_transaction_receipt.
-    --- 2 : When we query the client it returns a confirmation object telling whether the
-            transaction completed successfully.
-    ---Therefore, this code below will never work.
-*)
-let is_receipt_successful (_receipt: Ethereum_json_rpc.TransactionReceipt.t) (_transaction: Transaction.t) : bool = true
