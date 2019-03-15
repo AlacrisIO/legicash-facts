@@ -73,6 +73,13 @@ module type PrePersistableS = sig
   include PrePersistableDependencyS with type t := t
 end
 
+module type PreRlpYojsonablePersistableDependencyS = sig
+  type t
+  [@@deriving rlp]
+  include PreYojsonableS with type t := t
+  include PrePersistableDependencyS with type t := t
+end
+
 module type PrePersistableRlpS = sig
   type t
   [@@deriving rlp]
@@ -100,6 +107,16 @@ module Persistable (P : PrePersistableS) = struct
   include (DigestibleOfPreMarshalable(P) : DigestibleS with type t := t)
   let dependency_walking = { digest; marshal_string; walk_dependencies; make_persistent }
   let save = save_of_dependency_walking dependency_walking
+end
+
+module PrePersistableOfRlp (P : PreRlpYojsonablePersistableDependencyS) = struct
+  include P
+  let marshaling = marshaling_of_rlping rlping
+end
+
+module PersistableOfRlp (P : PreRlpYojsonablePersistableDependencyS) = struct
+  include P
+  include (Persistable(PrePersistableOfRlp(P)) : PersistableS with type t := t)
 end
 
 module PersistableRlp (P : PrePersistableRlpS) = struct
