@@ -454,8 +454,6 @@ module IdWrapType : WrapTypeS with type +'a t = 'a
 
 module IdWrap (T: TypeS) : WrapS with type t = T.t and type value = T.t
 
-module IdWrapRlp (T: TypeRlpS) : WrapRlpS with type t = T.t and type value = T.t
-
 val the_global : 'a option ref -> (unit -> 'a) -> unit -> 'a
 
 val write_file : path:string -> string -> unit

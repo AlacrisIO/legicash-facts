@@ -250,14 +250,6 @@ module IdWrap (T: TypeS) = struct
   let make = identity
 end
 
-module IdWrapRlp (T: TypeRlpS) = struct
-  type t = T.t
-  [@@deriving rlp]
-  type value = T.t
-  [@@deriving rlp]
-  include (IdWrap (T) : WrapS with type t := t and type value := value)
-end
-
 let the_global ref maker =
   fun () ->
     match !ref with
