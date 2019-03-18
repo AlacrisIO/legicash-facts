@@ -1,3 +1,4 @@
+open Ppx_deriving_rlp_runtime
 
 type foo = A of int | B of float * bool
 [@@deriving rlp]
@@ -45,3 +46,9 @@ type matter2 =
 type ('k, 'v) seq_tree_map = StmLeaf of 'v
                            | StmNode of ('k * (('k,'v) seq_tree_map)) list
 [@@deriving rlp]
+
+
+(* Using { rlping = expression } attribute *)
+
+type int_seq = int Seq.t
+[@@deriving rlp { rlping = rlping_by_isomorphism List.to_seq List.of_seq (list_rlping int_rlping) }]

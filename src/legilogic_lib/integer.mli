@@ -53,7 +53,10 @@ module type UIntBaseS = sig
 end
 
 module type UIntMoreS = sig
-  include UIntBaseS
+  type t
+  [@@deriving rlp]
+
+  include UIntBaseS with type t := t
   val module_name : string
 
   (** size in bits, or -1 if dynamically allocated *)

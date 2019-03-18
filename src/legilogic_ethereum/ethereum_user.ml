@@ -233,9 +233,10 @@ module NonceTracker = struct
     type key = Key.t
     let key_prefix = "ETNT"
     module State = TrivialPersistable(struct
-        type t = Nonce.t option [@@deriving yojson]
+        type t = Nonce.t option
+        [@@deriving yojson, rlp]
         let yojsoning = {to_yojson;of_yojson}
-        let marshaling = option_marshaling Nonce.marshaling
+        let marshaling = marshaling_of_rlping rlping
       end)
     type state = State.t
     (* zero is often wrong, but just let it fail and resynchronize *)
@@ -365,14 +366,12 @@ module TransactionTracker = struct
     type context = unit
     module Key = struct
       [@@@warning "-39"]
-      type t= { user : Address.t; revision : Revision.t } [@@deriving yojson]
+      type t = { user : Address.t; revision : Revision.t }
+      [@@deriving yojson, rlp]
       include (YojsonMarshalable(struct
                  type nonrec t = t
                  let yojsoning = {to_yojson;of_yojson}
-                 let marshaling = marshaling2
-                                    (fun {user;revision} -> user,revision)
-                                    (fun user revision -> {user;revision})
-                                    Address.marshaling Revision.marshaling
+                 let marshaling = marshaling_of_rlping rlping
                end): YojsonMarshalableS with type t := t)
     end
     type key = Key.t
@@ -432,15 +431,8 @@ module UserState = struct
     { address: Address.t
     ; transaction_counter: Revision.t
     ; ongoing_transactions: RevisionSet.t }
-  [@@deriving lens { prefix=true }, yojson]
-  let marshaling =
-    marshaling3
-      (fun { address; transaction_counter; ongoing_transactions} ->
-         address, transaction_counter, RevisionSet.elements ongoing_transactions)
-      (fun address transaction_counter ongoing_transactions_keys ->
-         {address; transaction_counter;
-          ongoing_transactions= RevisionSet.of_list ongoing_transactions_keys})
-      Address.marshaling Revision.marshaling (list_marshaling Revision.marshaling)
+  [@@deriving lens { prefix=true }, yojson, rlp]
+  let marshaling = marshaling_of_rlping rlping
   include (TrivialPersistable (struct
              type nonrec t = t
              let marshaling = marshaling

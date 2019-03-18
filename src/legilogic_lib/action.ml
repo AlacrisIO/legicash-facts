@@ -1,6 +1,14 @@
 open Lib
+open Ppx_deriving_rlp_runtime
+
+exception Server_error of string
+
+let exn_to_rlp_item e = string_to_rlp_item (Printexc.to_string e)
+let exn_of_rlp_item i = Server_error (string_of_rlp_item i)
+let exn_rlping = rlping { to_rlp_item = exn_to_rlp_item; of_rlp_item = exn_of_rlp_item }
 
 type +'output or_exn = ('output, exn) result
+[@@deriving rlp]
 
 type (-'input, +'output, 'state) action = 'input -> 'state -> 'output * 'state
 
@@ -62,12 +70,14 @@ module Monad (M : MonadBaseS) = struct
 end
 
 module Identity = struct
+  type 'a t = 'a
+  [@@deriving rlp]
   module I = struct
     type 'a t = 'a
     let return = identity
     let bind = (|>)
   end
-  include Monad(I)
+  include (Monad(I) : MonadS with type 'a t := 'a t)
 end
 
 module type ErrorMonadS = sig

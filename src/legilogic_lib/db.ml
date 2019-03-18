@@ -29,6 +29,7 @@ type db = LevelDB.db
 type batch = LevelDB.writebatch
 
 type transaction = int
+[@@deriving rlp]
 
 (* Our "transactions" will block the batch from being sent to disk for committing
    until all currently open transactions are closed, even though the batch may otherwise be ready to merge.
@@ -51,6 +52,8 @@ type transaction = int
 (* type snapshot = LevelDB.snapshot *)
 
 type ('key, 'value) kv = {key: 'key; value: 'value}
+[@@deriving rlp]
+
 let kv_to_yojson key_to_yojson value_to_yojson {key; value} =
   `List [key_to_yojson key; value_to_yojson value]
 

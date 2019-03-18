@@ -12,7 +12,9 @@ open Types
 (** A signature for the computation of a synthesized attribute from a binary tree *)
 module type TreeSynthS = sig
   type value
+  [@@deriving rlp]
   type t
+  [@@deriving rlp]
   val empty : t
   val leaf : value -> t
   val branch : int -> t -> t -> t
@@ -22,15 +24,16 @@ end
 module type TrieSynthS = sig
   include TreeSynthS
   type key
+  [@@deriving rlp]
   val skip : int -> int -> key -> t -> t
 end
 
 (** A module to synthesize nothing *)
-module TrieSynthUnit (Key : UIntS) (Value : TypeS)
+module TrieSynthUnit (Key : UIntS) (Value : TypeRlpS)
   : TrieSynthS with type t = unit and type key = Key.t and type value = Value.t
 
 (** A module to synthesize the cardinal of a trie as an attribute of said trie *)
-module TrieSynthCardinal (Key : UIntS) (Value : TypeS)
+module TrieSynthCardinal (Key : UIntS) (Value : TypeRlpS)
   : TrieSynthS with type t = Z.t and type key = Key.t and type value = Value.t
 
 (** A module to synthesize attributes for Skip by reducing it to Branch and Leaf. *)
@@ -41,16 +44,20 @@ end
 (* For a concrete usage of this, see [Merkle_trie.MerkleTrieType]. *)
 module type TrieTypeS = sig
   type key
+  [@@deriving rlp]
   (** Type of keys *)
 
   type value
+  [@@deriving rlp]
   (** Type of leaves *)
 
   type synth
+  [@@deriving rlp]
   (** Type of synthesized attribute, which is recursively computed from the leaf
       values. E.g., the cardinality of the leaves. *)
 
   type +'a wrap
+  [@@deriving rlp]
   (** This the type constructor used to wrap an arbitrary type ['a] into a type
       that contains an ['a] while addressing other aspects --- in practice,
       in [Merkle_trie.MerkleTrieType], ['a wrap] is ['a Types.dv], which wraps
@@ -73,6 +80,7 @@ module type TrieTypeS = sig
         the next [length] bits in common, being the sequence [bits], down to
         [child] which is either a [Leaf] or a [Branch]. *)
     | Skip of {child: t; bits: key; length: int; height: int; synth: synth}
+  [@@deriving rlp]
 
   (** Accessor for synthesized attribute. *)
   val trie_synth : trie -> synth
@@ -96,7 +104,7 @@ module type TrieTypeS = sig
 end
 
 module TrieType
-    (Key : UIntS) (Value : TypeS) (WrapType : WrapTypeS)
+    (Key : UIntS) (Value : TypeRlpS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
   : TrieTypeS with type key = Key.t
                and type value = Value.t
@@ -114,6 +122,7 @@ module type TrieS = sig
     | LeftBranch of {right: 'a}
     | RightBranch of {left: 'a}
     | SkipChild of {bits: key; length: int}
+  [@@deriving rlp]
 
   (** Context for a step: where you are in the tree *)
   type costep = { height: int option; index: key }
@@ -298,7 +307,7 @@ end
 
 (** A module for Big-Endian Patricia Tree, a.k.a. Trie. *)
 module Trie
-    (Key : UIntS) (Value : YojsonableS) (WrapType : WrapTypeS)
+    (Key : UIntS) (Value : YojsonableRlpS) (WrapType : WrapTypeS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
     (TrieType : TrieTypeS with type key = Key.t
                            and type value = Value.t
@@ -315,7 +324,9 @@ module Trie
 module type TrieSetS = sig
   type elt
   module T : TrieS with type key = elt and type value = unit
-  include Set.S with type elt := elt and type t = T.t
+  type t = T.t
+  [@@deriving rlp]
+  include Set.S with type elt := elt and type t := T.t
   val lens : elt -> (t, bool) Lens.t
   include PersistableS with type t := t
 end
@@ -325,7 +336,7 @@ module TrieSet (Elt : UIntS) (T : TrieS with type key = Elt.t and type value = u
 
 module type SimpleTrieS = TrieS with type 'a wrap = 'a and type synth = unit
 
-module SimpleTrie (Key : UIntS) (Value : YojsonableS) : SimpleTrieS with type key = Key.t and type value = Value.t
+module SimpleTrie (Key : UIntS) (Value : YojsonableRlpS) : SimpleTrieS with type key = Key.t and type value = Value.t
 
 module SimpleTrieSet (Elt : UIntS) : TrieSetS with type elt = Elt.t
 

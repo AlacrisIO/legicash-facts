@@ -1,9 +1,11 @@
+open Ppx_deriving_rlp_runtime_core
 open Rlping
 
 module Rlp = Rlp
 module Rlping = Rlping
 module Rlp_encode = Rlp_encode
 module Rlp_decode = Rlp_decode
+module Ppx_deriving_rlp_runtime_core = Ppx_deriving_rlp_runtime_core
 
 module Private : sig
   val marshal_of_to       : 'a to_rlp_item -> 'a marshal_rlp
@@ -13,7 +15,7 @@ end
 
 (** Given a type `a` which has pre_rlping, produce the full
     rlping for it. *)
-val rlping : 'a Rlping.pre_rlping -> 'a Rlping.rlping
+val rlping : 'a pre_rlping -> 'a rlping
 
 (* Adapting Rlping from one type to another if they are isomorphic *)
 
@@ -108,4 +110,11 @@ val option_of_rlp        : ('elem of_rlp_item) -> ('elem option) of_rlp
 val option_marshal_rlp   : ('elem to_rlp_item) -> ('elem option) marshal_rlp
 val option_unmarshal_rlp : ('elem of_rlp_item) -> ('elem option) unmarshal_rlp
 val option_rlping        : ('elem rlping)      -> ('elem option) rlping
+
+(* results *)
+
+type ('a, 'b) result = ('a, 'b) Pervasives.result =
+  | Ok of 'a
+  | Error of 'b
+[@@deriving rlp]
 

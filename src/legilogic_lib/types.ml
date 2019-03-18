@@ -2,6 +2,8 @@ open Lib
 open Yojsoning
 open Marshaling
 open Persisting
+open Ppx_deriving_rlp_runtime
+open Rlping
 
 module type UIntS = sig
   include Integer.UIntS
@@ -54,13 +56,21 @@ let dv_of_digest unmarshal_string digest =
   { digest=lazy digest
   ; value=lazy (db_value_of_digest unmarshal_string digest)
   ; persisted=true }
-let dv_marshal buffer x =
-  marshal_map dv_digest Digest.marshal buffer x
-let dv_unmarshal unmarshal_string =
-  unmarshal_map (dv_of_digest unmarshal_string) Digest.unmarshal
-let dv_marshaling value_unmarshal_string =
-  { marshal= dv_marshal
-  ; unmarshal= dv_unmarshal value_unmarshal_string }
+
+(* TODO: This `dv` RLP marshaling forces both the value and the
+         digest, and includes them both in the RLP representation.
+         Is this right? Or should it only include the digest,
+         and use something like `dv_of_digest` in the unmarshaling? *)
+let (dv_to_rlp_item, dv_of_rlp_item, dv_rlping) =
+  let dv_to_rlp_item _ x =
+    Digest.to_rlp_item (dv_digest x)
+  and dv_of_rlp_item vof it =
+    dv_of_digest (fun x -> vof (Rlp_decode.rlp_item_of_rlp x)) (Digest.of_rlp_item it) in
+  let dv_rlping vrlp =
+    rlping { to_rlp_item = dv_to_rlp_item vrlp.to_rlp_item;
+             of_rlp_item = dv_of_rlp_item vrlp.of_rlp_item } in
+  (dv_to_rlp_item, dv_of_rlp_item, dv_rlping)
+
 
 module type DigestValueBaseS = sig
   include WrapS
@@ -80,20 +90,24 @@ end
 
 module DigestValueType = struct
   type +'a t = 'a dv
+  [@@deriving rlp]
 end
 
 (* TODO: somehow replace the strong reference to the value by a weak reference once it's been persisted
    (and not merely scheduled for persistence as part of a transaction), so it may be garbage-collected. *)
-module DigestValue (Value : PersistableS) = struct
+module DigestValue (Value : PersistableRlpS) = struct
   type value = Value.t
+  [@@deriving rlp]
   type digest = Digest.t
+  type t = value dv
+  [@@deriving rlp]
   let get = dv_get
   let make = dv_make Value.digest
   let of_digest = dv_of_digest Value.unmarshal_string
   (* let equal x y = Digest.equal (dv_digest x) (dv_digest y) (* Assume no hash collision *) *)
-  include Persistable(struct
-      type t = value dv
-      let marshaling = marshaling_map dv_digest of_digest Digest.marshaling
+  module P = struct
+      type nonrec t = t
+      let marshaling = marshaling_of_rlping rlping
       let yojsoning = yojsoning_map get make Value.yojsoning
       let walk_dependencies _methods context x =
         walk_dependency Value.dependency_walking context (dv_get x)
@@ -103,11 +117,14 @@ module DigestValue (Value : PersistableS) = struct
         else
           (dv.persisted <- true;
            Value.save (dv_get dv))
-    end)
+  end
+  include (Persistable(P) : PersistableS with type t := t)
 end
 
 module StringT = struct
-  include String
+  type t = string
+  [@@deriving rlp]
+  include (String : module type of String with type t := t)
   include (TrivialPersistable (String1G) : PersistableS with type t := t)
 end
 
@@ -118,10 +135,10 @@ end
 
 module Unit = struct
   type t = unit
+  [@@deriving rlp]
   module PrePersistable = struct
     type t = unit
-    let marshaling = { marshal = (fun _buffer () -> ())
-                     ; unmarshal = (fun start _bytes -> ((), start)) }
+    let marshaling = marshaling_of_rlping rlping
     let make_persistent = already_persistent
     let walk_dependencies = no_dependencies
     let yojsoning =
@@ -182,6 +199,7 @@ module RequestGuid = struct
    *)
 
   type t = UInt128.t * UInt64.t * UInt64.t * UInt64.t * UInt192.t
+  [@@deriving rlp]
 
   type from_string_result =
     | WellFormed of t

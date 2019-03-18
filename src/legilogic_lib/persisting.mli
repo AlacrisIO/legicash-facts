@@ -60,6 +60,19 @@ module type PrePersistableS = sig
   include PrePersistableDependencyS with type t := t
 end
 
+module type PreRlpYojsonablePersistableDependencyS = sig
+  type t
+  [@@deriving rlp]
+  include PreYojsonableS with type t := t
+  include PrePersistableDependencyS with type t := t
+end
+
+module type PrePersistableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include PrePersistableS with type t := t
+end
+
 (** Content-addressed persistence. *)
 module type PersistableS = sig
   include PrePersistableS
@@ -70,10 +83,20 @@ module type PersistableS = sig
   val save : t -> unit Lwt.t
 end
 
+module type PersistableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include PersistableS with type t := t
+end
+
 val db_value_of_digest : (string -> 'a) -> digest -> 'a
 
 (** Auto-defined methods for content-addressed persistence *)
 module Persistable (P : PrePersistableS) : PersistableS with type t = P.t
+
+module PersistableOfRlp (P : PreRlpYojsonablePersistableDependencyS) : PersistableS with type t = P.t
+
+module PersistableRlp (P : PrePersistableRlpS) : PersistableRlpS with type t = P.t
 
 (** Non-recursive persistence *)
 module TrivialPersistable (P : PreYojsonMarshalableS) : PersistableS with type t = P.t

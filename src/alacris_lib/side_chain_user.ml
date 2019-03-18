@@ -403,25 +403,13 @@ module TransactionTracker = struct
                ; revision:     Revision.t
                ; request_guid: RequestGuid.t
                ; requested_at: Timestamp.t
-               } [@@deriving yojson]
+               }
+      [@@deriving yojson, rlp]
 
       include (YojsonMarshalable(struct
            type nonrec t = t
            let yojsoning = {to_yojson; of_yojson}
-
-           let marshaling = marshaling5
-             (fun { user; operator; revision; request_guid; requested_at } ->
-                    user, operator, revision, request_guid, requested_at)
-
-             (fun user  operator  revision  request_guid  requested_at ->
-                { user; operator; revision; request_guid; requested_at })
-
-             Address.marshaling
-             Address.marshaling
-             Revision.marshaling
-             RequestGuid.marshaling
-             Timestamp.marshaling
-
+           let marshaling = marshaling_of_rlping rlping
          end): YojsonMarshalableS with type t := t)
     end
 
@@ -584,27 +572,10 @@ module UserAccountState = struct
     ; side_chain_revision: Revision.t
     ; transaction_counter: Revision.t
     ; ongoing_transactions: RevisionSet.t }
-  [@@deriving lens { prefix=true }, yojson ]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling5
-        (fun { is_operator_valid
-             ; confirmed_state
-             ; side_chain_revision
-             ; transaction_counter
-             ; ongoing_transactions } ->
-          is_operator_valid, confirmed_state, side_chain_revision,
-          transaction_counter, ongoing_transactions)
-        (fun is_operator_valid confirmed_state side_chain_revision
-          transaction_counter ongoing_transactions ->
-          { is_operator_valid
-          ; confirmed_state
-          ; side_chain_revision
-          ; transaction_counter
-          ; ongoing_transactions })
-        bool_marshaling AccountState.marshaling Revision.marshaling
-        Revision.marshaling RevisionSet.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
@@ -627,17 +598,10 @@ module UserState = struct
     ; operators: UserAccountStateMap.t
     ; notification_counter: Revision.t
     ; notifications: (Revision.t * yojson) list }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling4
-        (fun { address; operators; notification_counter; notifications } ->
-           address, operators, notification_counter, notifications)
-        (fun address operators notification_counter notifications ->
-           { address; operators; notification_counter; notifications })
-        Address.marshaling UserAccountStateMap.marshaling Revision.marshaling
-        (list_marshaling (marshaling2 identity pair Revision.marshaling yojson_marshaling))
+    let marshaling = marshaling_of_rlping rlping
     let walk_dependencies = no_dependencies
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}

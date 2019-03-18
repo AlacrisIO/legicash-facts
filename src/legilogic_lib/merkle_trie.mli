@@ -18,7 +18,7 @@ end
 
 (** Persistable merkle tree. [Key]s are bit paths (right/left), [Value]s are the
     tree type. *)
-module TrieSynthMerkle (Key : UIntS) (Value : PersistableS)
+module TrieSynthMerkle (Key : UIntS) (Value : PersistableRlpS)
   : TrieSynthMerkleS with type key = Key.t
                       and type value = Value.t
 
@@ -32,7 +32,7 @@ end
 
 (** Persistable merkle tree with methods for recursive synthesization of node
     digests. *)
-module MerkleTrieType (Key : UIntS) (Value : PersistableS)
+module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t)
   : MerkleTrieTypeS with type key = Key.t
                      and type value = Value.t
@@ -55,6 +55,7 @@ module type MerkleTrieProofS = sig
     (** Hashes to pair with in the proof, and their locations *)
     ; steps : (Digest.t step) list
     }
+  [@@deriving rlp]
   (** [get k mt] is the proof that the object referenced in the db by k is in
       mt. *)
   val get : key -> mtrie -> t option
@@ -67,6 +68,7 @@ end
 (** Merkle Trie *)
 module type MerkleTrieS = sig
   type key
+  [@@deriving rlp]
   type value
   module Synth : TrieSynthS with type t = unit and type key = key and type value = value
   (* Contains the logic for recursively computing merkle digest of tree: *)
@@ -92,7 +94,7 @@ module type MerkleTrieS = sig
     with type key = key and type value = value and type mtrie = t and type 'a step = 'a step
 end
 
-module MerkleTrie (Key : UIntS) (Value : PersistableS)
+module MerkleTrie (Key : UIntS) (Value : PersistableRlpS)
   : MerkleTrieS with type key = Key.t and type value = Value.t
 
 (** Proofs that [elt]s are members of tries [mts].  *)
@@ -104,6 +106,7 @@ module type MerkleTrieSetProofS = sig
     { elt : elt
     ; trie : Digest.t
     ; steps : (Digest.t step) list }
+  [@@deriving rlp]
   val get : elt -> mts -> t option
   val check : t -> mts -> elt -> bool
   include YojsonableS with type t := t
@@ -112,6 +115,7 @@ end
 (** Merkle tries where the only concern is membership, not tree location. *)
 module type MerkleTrieSetS = sig
   type elt
+  [@@deriving rlp]
   module M : MerkleTrieS with type key = elt and type value = unit
   module T : TrieS
     with type key = elt
@@ -120,7 +124,7 @@ module type MerkleTrieSetS = sig
      and type 'a wrap = 'a M.wrap
      and type trie = M.trie
      and type t = M.t
-  include PersistableS with type t = T.t
+  include PersistableRlpS with type t = T.t
   include Set.S with type elt := elt and type t := t
   module Proof : MerkleTrieSetProofS
     with type elt = elt and type mts = t and type 'a step = 'a T.step

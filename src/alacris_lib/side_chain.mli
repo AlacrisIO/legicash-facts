@@ -228,7 +228,7 @@ module AccountState : sig
     (* number of operations so far that concern this account.
        This both makes verification easier and prevents replay attacks
        like the equivalent Ethereum "nonce" *) }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
 
   (** Default (empty) state for a new operator *)
@@ -278,7 +278,7 @@ module State : sig
            ; accounts: AccountMap.t
            ; transactions: TransactionMap.t
            ; main_chain_transactions_posted: DigestSet.t }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
   val empty : t
 end
@@ -299,7 +299,7 @@ module OperatorFeeSchedule : sig
     ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
     ; fee_per_billion: TokenAmount.t
     (* function TokenAmount.t -> TokenAmount.t ? *) }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
 end
 
@@ -322,7 +322,7 @@ module TransactionCommitment : sig
     ; state_digest: Digest.t (* Signature put in the state update *)
     ; contract_address: Address.t (* contract address needed for accessing to data *)
     }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
 end
 
