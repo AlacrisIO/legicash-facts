@@ -2,27 +2,15 @@ open Lib
 open Ppx_deriving_rlp_runtime
 open Rlping
 
-type yojson = Yojson.Safe.t
 let string_of_yojson y = Yojson.Safe.to_string y
 let yojson_of_string s = Yojson.Safe.from_string s
+type yojson = Yojson.Safe.t
+[@@deriving rlp { rlping = rlping_by_isomorphism yojson_of_string string_of_yojson string_rlping }]
 
 let yojson_of_file fn = Yojson.Safe.from_file fn
 
 let pp_yojson formatter x = Format.fprintf formatter "%s" (string_of_yojson x)
 let show_yojson x = Format.asprintf "%a" pp_yojson x
-
-let yojson_rlping = rlping_by_isomorphism yojson_of_string string_of_yojson string_rlping
-let { to_rlp_item = yojson_to_rlp_item;
-      of_rlp_item = yojson_of_rlp_item;
-      of_rlp_item_opt = yojson_of_rlp_item_opt;
-      to_rlp = yojson_to_rlp;
-      of_rlp = yojson_of_rlp;
-      of_rlp_opt = yojson_of_rlp_opt;
-      marshal_rlp = yojson_marshal_rlp;
-      unmarshal_rlp = yojson_unmarshal_rlp;
-      unmarshal_rlp_opt = yojson_unmarshal_rlp_opt }
-    =
-    yojson_rlping
 
 let yojson_string s = `String s
 let yojson_list l = `List l
