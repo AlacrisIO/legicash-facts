@@ -230,14 +230,6 @@ module type WrapS = sig
   val make : value -> t
 end
 
-module type WrapRlpS = sig
-  type t
-  [@@deriving rlp]
-  type value
-  [@@deriving rlp]
-  include WrapS with type t := t and type value := value
-end
-
 module IdWrapType = struct
   type +'a t = 'a
   [@@deriving rlp]
