@@ -165,14 +165,9 @@ let binary_post_op_check = fun
       type_name op_name (x_to_string x) (y_to_string y)
 
 module Int = struct
-  open Rlping
-  include Z
-  let rlping = [%rlp: Z.t]
-  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
-        to_rlp; of_rlp; of_rlp_opt;
-        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
-      =
-      rlping
+  type t = Z.t
+  [@@deriving rlp]
+  include (Z : module type of Z with type t := t)
 
   let z_of = identity
   let of_z = identity
