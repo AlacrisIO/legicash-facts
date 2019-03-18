@@ -45,3 +45,9 @@ type matter2 =
 type ('k, 'v) seq_tree_map = StmLeaf of 'v
                            | StmNode of ('k * (('k,'v) seq_tree_map)) list
 [@@deriving rlp]
+
+
+(* Using { rlping = expression } attribute *)
+
+type int_seq = int Seq.t
+[@@deriving rlp]

@@ -6,7 +6,7 @@ open OUnit2
 let show_string s = "\"" ^ String.escaped s ^ "\""
 let buffer_to_string b = Bytes.to_string (Buffer.to_bytes b)
 
-let check_convert_rlp to_rlp of_rlp marshal_rlp unmarshal_rlp ~ctxt:ctxt data rlp str =
+let check_convert_rlp ?(cmp = (=)) to_rlp of_rlp marshal_rlp unmarshal_rlp ~ctxt:ctxt data rlp str =
   let buffer = Buffer.create 32
   and pre = "\x902re3mi1do1do5sol"
   and post = "\x915sol7ti2re5sol1do" in
@@ -14,14 +14,17 @@ let check_convert_rlp to_rlp of_rlp marshal_rlp unmarshal_rlp ~ctxt:ctxt data rl
   let post_offset = pre_offset + String.length str in
   (* assert_equal expected actual *)
   assert_equal ~ctxt ~printer:Rlp.show_rlp_item rlp (to_rlp data);
-  assert_equal ~ctxt data (of_rlp rlp);
+  assert_equal ~ctxt ~cmp data (of_rlp rlp);
   assert_equal ~ctxt ~printer:show_string str (Rlp_encode.rlp_item_to_rlp rlp);
   assert_equal ~ctxt ~printer:Rlp.show_rlp_item rlp (Rlp_decode.rlp_item_of_rlp str);
   Buffer.add_string buffer pre;
   marshal_rlp buffer data;
   Buffer.add_string buffer post;
   assert_equal ~ctxt ~printer:show_string (pre ^ str ^ post) (buffer_to_string buffer);
-  assert_equal ~ctxt (data, post_offset) (unmarshal_rlp pre_offset (buffer_to_string buffer))
+  assert_equal ~ctxt
+               ~cmp:(fun (x,i) (y,j) -> cmp x y && i = j)
+               (data, post_offset)
+               (unmarshal_rlp pre_offset (buffer_to_string buffer))
 
 let check_z_rlp = check_convert_rlp [%rlp: Z.t].to_rlp_item [%rlp: Z.t].of_rlp_item [%rlp: Z.t].marshal_rlp [%rlp: Z.t].unmarshal_rlp
 let check_float_rlp = check_convert_rlp [%rlp: float].to_rlp_item [%rlp: float].of_rlp_item [%rlp: float].marshal_rlp [%rlp: float].unmarshal_rlp
@@ -34,6 +37,12 @@ let check_loi_rlp = check_convert_rlp loi_to_rlp_item loi_of_rlp_item loi_marsha
 let check_wrapped_list1_rlp = check_convert_rlp wrapped_list1_to_rlp_item wrapped_list1_of_rlp_item wrapped_list1_marshal_rlp wrapped_list1_unmarshal_rlp
 let check_wrapped_list2_rlp = check_convert_rlp wrapped_list2_to_rlp_item wrapped_list2_of_rlp_item wrapped_list2_marshal_rlp wrapped_list2_unmarshal_rlp
 let check_wrapped_list3_rlp = check_convert_rlp wrapped_list3_to_rlp_item wrapped_list3_of_rlp_item wrapped_list3_marshal_rlp wrapped_list3_unmarshal_rlp
+let check_int_seq_rlp = check_convert_rlp
+                          ~cmp:(fun x y -> List.of_seq x = List.of_seq y)
+                          int_seq_to_rlp_item
+                          int_seq_of_rlp_item
+                          int_seq_marshal_rlp
+                          int_seq_unmarshal_rlp
 let check_matter1_rlp = check_convert_rlp matter1_to_rlp_item matter1_of_rlp_item matter1_marshal_rlp matter1_unmarshal_rlp
 let check_matter2_rlp = check_convert_rlp matter2_to_rlp_item matter2_of_rlp_item matter2_marshal_rlp matter2_unmarshal_rlp
 let check_seq_tree_map_str_str_rlp = check_convert_rlp [%rlp: (string, string) seq_tree_map].to_rlp_item
@@ -116,7 +125,14 @@ let test15 ctxt = check_matter2_rlp ~ctxt
                     (RlpItem "Unknown")
                     "\x87Unknown"
 
-
+let test16 ctxt = check_int_seq_rlp ~ctxt
+                    (List.to_seq [0; 1; 1; 2; 3; 5; 8; 13; 21; 34; 55; 89; 144; 233])
+                    (RlpItems [RlpItem "";     RlpItem "\001"; RlpItem "\001";
+                               RlpItem "\002"; RlpItem "\003"; RlpItem "\005";
+                               RlpItem "\008"; RlpItem "\013"; RlpItem "\021";
+                               RlpItem "\034"; RlpItem "\055"; RlpItem "\089";
+                               RlpItem "\144"; RlpItem "\233"])
+                    "\xd0\x80\001\001\002\003\005\008\013\021\034\055\089\x81\144\x81\233"
 
 let test_stmss1 ctxt = check_seq_tree_map_str_str_rlp ~ctxt
                          (StmLeaf "nemo")
@@ -308,6 +324,7 @@ let suite =
   "test13">:: test13;
   "test14">:: test14;
   "test15">:: test15;
+  "test16">:: test16;
   "test_stmss1">:: test_stmss1;
   "test_stmss2">:: test_stmss2;
   "test_t_alias1">:: test_t_alias1]

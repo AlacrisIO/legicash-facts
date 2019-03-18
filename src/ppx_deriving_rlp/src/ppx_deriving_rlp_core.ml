@@ -475,7 +475,7 @@ let type_decl_param_name (core_type, _variance) =
     * vals : listof value_binding
     * post : listof structure_item
   *)
-let str_of_type_rlp ~options ~path type_decl =
+let str_of_type_derive_rlp ~options ~path type_decl =
   ignore options;
   ignore path;
   let catching exn = Exp.case (Pat.construct exn (Some (Pat.any ()))) exp_none in
@@ -549,6 +549,36 @@ let str_of_type_rlp ~options ~path type_decl =
   let val_bindings = rlp_op_map3 make_op_binding name rlp_op_directions rlp_op_exps
   in
   ([], (rlp_ops_to_list val_bindings), [])
+
+(* returns a tuple of three values:
+    * pre : listof structure_item
+    * vals : listof value_binding
+    * post : listof structure_item
+  *)
+let str_of_type_rlp ~options ~path type_decl =
+  match List.assoc_opt "rlping" options with
+  | None -> str_of_type_derive_rlp ~options ~path type_decl
+  | Some rlping_exp ->
+    (match type_decl.ptype_params with
+     | [] -> ()
+     | (_::_) -> raise_errorf "{rlping = expression} attribute cannot be used with type parameters");
+    let name = rlp_op_map (fun s -> mangle_type_decl_suffix s type_decl) rlp_op_names in
+    let val_rlping = Vb.mk (pvar name.rlping) rlping_exp
+    and val_rest =
+      Vb.mk (Pat.record
+              [(lid "Ppx_deriving_rlp_runtime_core.Rlping.to_rlp_item", pvar name.to_rlp_item);
+               (lid "Ppx_deriving_rlp_runtime_core.Rlping.of_rlp_item", pvar name.of_rlp_item);
+               (lid "Ppx_deriving_rlp_runtime_core.Rlping.of_rlp_item_opt", pvar name.of_rlp_item_opt);
+               (lid "Ppx_deriving_rlp_runtime_core.Rlping.to_rlp", pvar name.to_rlp);
+               (lid "Ppx_deriving_rlp_runtime_core.Rlping.of_rlp", pvar name.of_rlp);
+               (lid "Ppx_deriving_rlp_runtime_core.Rlping.of_rlp_opt", pvar name.of_rlp_opt);
+               (lid "Ppx_deriving_rlp_runtime_core.Rlping.marshal_rlp", pvar name.marshal_rlp);
+               (lid "Ppx_deriving_rlp_runtime_core.Rlping.unmarshal_rlp", pvar name.unmarshal_rlp);
+               (lid "Ppx_deriving_rlp_runtime_core.Rlping.unmarshal_rlp_opt", pvar name.unmarshal_rlp_opt)]
+              Closed)
+            (evar name.rlping)
+    in
+    ([], [val_rlping], [Str.value Nonrecursive [val_rest]])
 
 (* --------------------------------- *)
 
