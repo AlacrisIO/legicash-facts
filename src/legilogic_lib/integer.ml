@@ -341,21 +341,16 @@ module type PreUIntZableS = sig
 end
 
 module UIntZable (P: PreUIntZableS) = struct
-  open Rlping
+  let z_rlping = [%rlp: Z.t]
+  type t = P.t
+  [@@deriving rlp { rlping = rlping_by_isomorphism P.of_z P.z_of z_rlping }]
 
-  include (P : UIntBaseS with type t = P.t)
+  include (P : UIntBaseS with type t := P.t)
   let size_in_bits = P.size_in_bits
   let module_name = "UInt" ^ (string_of_int size_in_bits)
   let size_in_bytes = (size_in_bits + 7) / 8
   let of_z = unary_pre_op_check P.of_z (is_sized_nat size_in_bits) (module_name, "of_z", Z.to_string)
   let z_of = P.z_of
-
-  let rlping = rlping_by_isomorphism of_z z_of [%rlp: Z.t]
-  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
-        to_rlp; of_rlp; of_rlp_opt;
-        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
-      =
-      rlping
 
   let check_invariant _ = true
   let equal x y = compare x y = 0
