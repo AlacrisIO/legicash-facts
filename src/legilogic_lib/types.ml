@@ -99,13 +99,14 @@ module DigestValue (Value : PersistableRlpS) = struct
   type value = Value.t
   [@@deriving rlp]
   type digest = Digest.t
+  type t = value dv
+  [@@deriving rlp]
   let get = dv_get
   let make = dv_make Value.digest
   let of_digest = dv_of_digest Value.unmarshal_string
   (* let equal x y = Digest.equal (dv_digest x) (dv_digest y) (* Assume no hash collision *) *)
   module P = struct
-      type t = value dv
-      [@@deriving rlp]
+      type nonrec t = t
       let marshaling = marshaling_of_rlping rlping
       let yojsoning = yojsoning_map get make Value.yojsoning
       let walk_dependencies _methods context x =
@@ -117,14 +118,7 @@ module DigestValue (Value : PersistableRlpS) = struct
           (dv.persisted <- true;
            Value.save (dv_get dv))
   end
-  include Persistable(P)
-
-  let rlping = P.rlping
-  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
-        to_rlp; of_rlp; of_rlp_opt;
-        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
-      =
-      rlping
+  include (Persistable(P) : PersistableS with type t := t)
 end
 
 module StringT = struct
