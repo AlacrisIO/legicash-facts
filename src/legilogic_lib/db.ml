@@ -29,7 +29,7 @@ type db = LevelDB.db
 type batch = LevelDB.writebatch
 
 type transaction = int
-[@@derving rlp]
+[@@deriving rlp]
 
 (* Our "transactions" will block the batch from being sent to disk for committing
    until all currently open transactions are closed, even though the batch may otherwise be ready to merge.

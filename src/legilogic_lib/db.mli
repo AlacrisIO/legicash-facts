@@ -72,7 +72,7 @@ val commit_hook : string -> (unit -> unit Lwt.t) -> unit Lwt.t
     See commit for a note on post-commit actions in general. *)
 
 type transaction
-[@@derving rlp]
+[@@deriving rlp]
 
 val open_transaction : unit -> transaction Lwt.t
 (** Start a transaction. *)
