@@ -13,7 +13,7 @@ open Trie
 
 open Ethereum_chain
 open Ethereum_json_rpc
-open Side_chain_server_config
+open Ethereum_transaction
 
 (* TODO: A much better state machine to get wanted transactions confirmed.
 
@@ -183,36 +183,8 @@ module TransactionStatus = struct
   let operation = fun x -> (x |> pre_transaction).operation
 end
 
-exception Still_pending
 exception TransactionFailed of OngoingTransactionStatus.t * exn
 exception NonceTooLow
-exception TransactionRejected
-
-let check_transaction_receipt_status (receipt : TransactionReceipt.t) =
-  match receipt with
-    TransactionReceipt.{status} ->
-      if TokenAmount.sign status = 0 then
-        fail TransactionRejected
-      else
-        return receipt
-
-(** Number of blocks required for a transaction to be considered confirmed *)
-(* The value should be set in side_chain_server_config.json file.
-   For production, use 100, not 0. Put it as configuration file on input *)
-(* let block_depth_for_receipt = Revision.of_int 0 *)
-let block_depth_for_receipt = Side_chain_server_config.minNbBlockConfirm
-
-let is_receipt_sufficiently_confirmed (receipt : TransactionReceipt.t) block_number =
-  Revision.(is_add_valid receipt.block_number block_depth_for_receipt
-            && compare block_number (add receipt.block_number block_depth_for_receipt) >= 0)
-
-let check_receipt_sufficiently_confirmed receipt =
-  eth_block_number ()
-  >>= fun block_number ->
-  if is_receipt_sufficiently_confirmed receipt block_number then
-    return receipt
-  else
-    fail Still_pending
 
 type nonce_operation = Peek | Next | Reset [@@deriving yojson]
 

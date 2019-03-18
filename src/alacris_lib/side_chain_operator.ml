@@ -126,35 +126,6 @@ let operator_account_lens (address : Address.t) : account_lens =
 let signed_request_requester (rx : UserTransactionRequest.t signed) : Address.t =
   rx.payload.UserTransactionRequest.rx_header.requester
 
-(** Given a putative sender, some transaction data, and a confirmation,
-    make sure that it all matches.
-   TODO: Make sure we can verify the confirmation from the Ethereum contract,
-    by checking the merkle tree and using e.g. Andrew Miller's contract to access old
-    block hashes https://github.com/amiller/ethereum-blockhashes *)
-let check_transaction_confirmation :
-      sender:Address.t -> recipient:Address.t -> Ethereum_chain.SignedTransactionData.t -> Ethereum_chain.Confirmation.t -> 'a -> 'a Lwt_exn.t =
-  fun ~sender ~recipient txdata confirmation x ->
-  let open Lwt_exn in
-  let hash = confirmation.transaction_hash in
-  if not (recipient = txdata.to_address) then
-    fail (Malformed_request "Recipient does not match Transaction data")
-  (* TODO: Use RLP marshaling for SignedTransactionData then reenable this test.
-  else if not (Ethereum_chain.SignedTransactionData.digest txdata = hash) then
-    fail (Malformed_request "Transaction data digest does not match the provided confirmation") *)
-  else
-    Ethereum_json_rpc.eth_get_transaction_receipt hash
-    >>= function
-    | None -> fail (Malformed_request "Transaction not included in the blockchain")
-    | Some receipt ->
-       Ethereum_json_rpc.eth_block_number ()
-       >>= arr (Ethereum_user.is_receipt_sufficiently_confirmed receipt)
-       >>= function
-       | false -> fail (Malformed_request "Transaction still pending")
-       | true -> if not (sender = receipt.from) then
-                   fail (Malformed_request "Transaction sender doesn't match")
-                 else
-                   return x
-
 (** Check that the request is basically well-formed, or else fail
     This function should include all checks that can be made without any non-local side-effect
     beside reading pure or monotonic data, which is allowed for now
@@ -204,7 +175,7 @@ let validate_user_transaction_request :
         >>> check (is_forced || compare deposit_fee fee_schedule.deposit_fee >= 0)
               (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
-        >>> check_transaction_confirmation
+        >>> Ethereum_transaction.check_transaction_confirmation
               ~sender:requester ~recipient:(get_contract_address ())
               main_chain_deposit main_chain_deposit_confirmation
       | UserOperation.Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->

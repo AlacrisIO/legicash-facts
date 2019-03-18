@@ -86,20 +86,6 @@ module User : PersistentActivityS
    before to send any message on the network *)
 val add_ongoing_transaction : Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr
 
-val check_transaction_receipt_status : TransactionReceipt.t -> TransactionReceipt.t Lwt_exn.t
-
-val block_depth_for_receipt : Revision.t
-(** How many additional blocks should one wait for before to consider a transaction receipt
-    after it was included in the blockchain? *)
-
-exception Still_pending
-(** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
-
-val is_receipt_sufficiently_confirmed : TransactionReceipt.t -> Revision.t -> bool
-(* is the given receipt sufficiently confirmed as of the given block number? *)
-
-val check_receipt_sufficiently_confirmed : TransactionReceipt.t -> TransactionReceipt.t Lwt_exn.t
-
 val issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr
 (** Issue a pre-transaction as transaction on the Ethereum network, return a tracker *)
 

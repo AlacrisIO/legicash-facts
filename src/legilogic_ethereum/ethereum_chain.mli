@@ -1,4 +1,3 @@
-(* TODO: rename this module to ethereum_chain or some such ? *)
 open Legilogic_lib
 open Yojsoning
 open Signing

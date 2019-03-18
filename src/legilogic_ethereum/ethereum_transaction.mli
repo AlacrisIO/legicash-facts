@@ -2,6 +2,9 @@
 open Legilogic_lib
 open Action
 open Signing
+open Types
+open Ethereum_chain
+open Ethereum_json_rpc
 
 val ensure_private_key : ?timeout:float -> ?log:bool -> Keypair.t -> Address.t Lwt_exn.t
 (** Ensure that the private_key for the keypair exists in the Ethereum client,
@@ -22,3 +25,25 @@ exception Bad_password
 
 val unlock_account : ?duration:int -> address -> unit Lwt_exn.t
 (** unlocks account for given duration (in seconds) on net *)
+
+exception TransactionRejected
+
+val check_transaction_receipt_status : TransactionReceipt.t -> TransactionReceipt.t Lwt_exn.t
+
+val block_depth_for_receipt : Revision.t
+(** How many additional blocks should one wait for before to consider a transaction receipt
+    after it was included in the blockchain? *)
+
+exception Still_pending
+(** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
+
+exception Invalid_transaction_confirmation of string
+
+val is_receipt_sufficiently_confirmed : TransactionReceipt.t -> Revision.t -> bool
+(* is the given receipt sufficiently confirmed as of the given block number? *)
+
+val check_receipt_sufficiently_confirmed : TransactionReceipt.t -> TransactionReceipt.t Lwt_exn.t
+
+val check_transaction_confirmation :
+      sender:Address.t -> recipient:Address.t -> SignedTransactionData.t -> Confirmation.t
+      -> 'a -> 'a Lwt_exn.t
