@@ -7,12 +7,15 @@ open Digesting
 open Persisting
 open Types
 open Action
+open Ppx_deriving_rlp_runtime
+open Rlping
 
 module Address = struct
   include Data160
   include (YojsonMarshalable(Data160) : YojsonMarshalableS with type t := t)
 end
 type address = Address.t
+[@@deriving rlp]
 
 (* Create context just once, because it's an expensive operation.
    This assumes single instantiation of this module in a single-threaded environment.
@@ -32,6 +35,8 @@ let public_key_length = 65
 let bytes_of_key (key : 'a Secp256k1.Key.t) : bytes =
   key |> Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx |> Cstruct.of_bigarray |> Cstruct.to_bytes
 
+let string_of_key key = Bytes.to_string (bytes_of_key key)
+
 module PrivateKey = struct
   module P = struct
     type t = Secp256k1.Key.secret Secp256k1.Key.t
@@ -44,10 +49,21 @@ module PrivateKey = struct
       | Ok key -> key, start + private_key_length
       | Error s -> bork "Could not unmarshal private key: %s" s
     let marshaling = {marshal;unmarshal}
+    let of_string string =
+      let (v,_) = unmarshal 0 (Bytes.of_string string) in
+      v
+    let rlping = rlping_by_isomorphism of_string string_of_key string_rlping
   end
   include YojsonableOfPreMarshalable(P)
+  let rlping = P.rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
 end
 type private_key = PrivateKey.t
+[@@deriving rlp]
 
 module PublicKey = struct
   module P = struct
@@ -61,13 +77,25 @@ module PublicKey = struct
       | Ok (key : t) -> key, start + public_key_length
       | Error s -> bork "Could not unmarshal public key: %s" s
     let marshaling = {marshal;unmarshal}
+
+    let of_string string =
+      let (v,_) = unmarshal 0 (Bytes.of_string string) in
+      v
+    let rlping = rlping_by_isomorphism of_string string_of_key string_rlping
   end
   include YojsonableOfPreMarshalable(P)
   let pp formatter x = Format.fprintf formatter "%s" (x |> marshal_string |> unparse_0x_data)
   let show x = Format.asprintf "%a" pp x
   let of_private_key = Secp256k1.Key.neuterize_exn secp256k1_ctx
+  let rlping = P.rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
 end
 type public_key = PublicKey.t
+[@@deriving rlp]
 
 let address_of_public_key public_key =
   let buffer = Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx public_key in
@@ -99,15 +127,24 @@ let signature_of_string string =
 
 module Signature = struct
   (* 8 bytes for the recovery id + 64 bytes for the signature proper *)
-  let width = 72
+  (* let width = 72 *)
   module P = struct
     type t = Secp256k1.Sign.recoverable Secp256k1.Sign.t
-    let marshaling = marshaling_sized_string width string_of_signature signature_of_string
+    let rlping = rlping_by_isomorphism signature_of_string string_of_signature string_rlping
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = yojsoning_map string_of_signature signature_of_string string_0x_yojsoning
   end
   include TrivialPersistable (P)
+
+  let rlping = P.rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
 end
 type signature = Signature.t
+[@@deriving rlp]
 
 module Keypair = struct
   [@warning "-39"]
@@ -116,20 +153,16 @@ module Keypair = struct
     ; public_key: PublicKey.t
     ; private_key: PrivateKey.t
     ; password: string }
-  [@@deriving lens {prefix=true}, yojson]
+  [@@deriving lens {prefix=true}, yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
-    let marshaling =
-      marshaling_tagged Tag.keypair
-        (marshaling4
-           (fun {address; public_key; private_key; password} -> address, public_key, private_key, password)
-           (fun address public_key private_key password -> {address; public_key; private_key; password})
-           Address.marshaling PublicKey.marshaling PrivateKey.marshaling String1G.marshaling)
+    let marshaling = marshaling_of_rlping rlping
   end
   include (YojsonMarshalable(P) : YojsonMarshalableS with type t := t)
 end
 type keypair = Keypair.t
+[@@deriving rlp]
 
 (* Used only for tests *)
 let make_public_key public_key_string =
@@ -152,6 +185,7 @@ let make_private_key private_key_string =
   | Error msg -> bork "%s" msg
 
 type 'a signed = {payload: 'a; signature: signature}
+[@@deriving rlp]
 
 (* Used only for tests *)
 let make_keypair private_key_string public_key_string password =
@@ -288,10 +322,6 @@ let unmarshal_signed (unmarshal:'a unmarshaler) start bytes : 'a signed * int =
   let signature,final_offset = Signature.unmarshal payload_offset bytes in
   ({payload; signature}, final_offset)
 
-let signed_marshaling marshaling =
-  { marshal = marshal_signed marshaling.marshal
-  ; unmarshal = unmarshal_signed marshaling.unmarshal }
-
 let signed_to_yojson to_yojson { payload ; signature } =
   `Assoc [ ("payload", to_yojson payload)
          ; ("signature", Signature.to_yojson signature) ]
@@ -321,12 +351,13 @@ module type SignedS = sig
   val make : keypair -> payload -> t
 end
 
-module Signed (P : PersistableS) = struct
+module Signed (P : PersistableRlpS) = struct
   type payload = P.t
   module Pre = struct
     type t = payload signed
     let yojsoning = signed_yojsoning P.yojsoning
-    let marshaling = signed_marshaling P.marshaling
+    let rlping = signed_rlping P.rlping
+    let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context x =
       walk_dependency P.dependency_walking context x.payload
     let make_persistent = normal_persistent

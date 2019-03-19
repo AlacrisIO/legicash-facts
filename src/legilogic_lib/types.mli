@@ -2,6 +2,7 @@ open Lib
 open Marshaling
 open Digesting
 open Persisting
+open Ppx_deriving_rlp_runtime.Rlping
 
 module type UIntS = sig
   include Integer.UIntS
@@ -84,11 +85,17 @@ end
 (** duration in terms of nanoseconds, for use in timeouts. TODO: should the unit be consensus cycles instead? *)
 module Duration : UIntS
 
-module StringT : PersistableS with type t = string
+module StringT : sig
+  type t = string
+  [@@deriving rlp]
+  include PersistableS with type t := string
+end
 
 (* string as data to be printed as 0x strings in JSON *)
 module Data : sig
-  include PersistableS with type t = string
+  type t = string
+  [@@deriving rlp]
+  include PersistableS with type t := t
   include ShowableS with type t := t
 end
 
@@ -96,7 +103,9 @@ end
    type-system compatibility, e.g. you can have a tree with trivial leaves, to
    represent a set. *)
 module Unit : sig
-  include PersistableS with type t = unit
+  type t = unit
+  [@@deriving rlp]
+  include PersistableS with type t := unit
   include ShowableS with type t := unit
 end
 
@@ -112,9 +121,10 @@ val dv_get : 'a dv -> 'a
 val dv_digest : 'a dv -> digest
 val dv_make : ('a -> digest) -> 'a -> 'a dv
 val dv_of_digest : (string -> 'a) -> digest -> 'a dv
-val dv_marshal : 'a dv marshaler
-val dv_unmarshal : (string -> 'a) -> 'a dv unmarshaler
-val dv_marshaling : (string -> 'a) -> 'a dv marshaling
+
+val dv_to_rlp_item : 'a to_rlp_item -> ('a dv) to_rlp_item
+val dv_of_rlp_item : 'a of_rlp_item -> ('a dv) of_rlp_item
+val dv_rlping      : 'a rlping -> ('a dv) rlping
 
 module type DigestValueBaseS = sig
   include WrapS
@@ -136,14 +146,16 @@ end
 (** Asynchronously digestible, content-addressed persistable values. *)
 module DigestValueType : sig
   type +'a t = 'a dv
+  [@@deriving rlp]
 end
 
 (** Asynchronously digestible, content-addressed persistable values, with
     auto-generated methods. *)
-module DigestValue (Value : PersistableS) : sig
+module DigestValue (Value : PersistableRlpS) : sig
   type value = Value.t
   type digest = Digest.t
   type t = value dv
+  [@@deriving rlp]
   val get : t -> value
   val make : value -> t
   val of_digest : digest -> t
@@ -152,6 +164,7 @@ end
 
 module RequestGuid : sig
   type t = UInt128.t * UInt64.t * UInt64.t * UInt64.t * UInt192.t
+  [@@deriving rlp]
 
   type from_string_result =
     | WellFormed of t

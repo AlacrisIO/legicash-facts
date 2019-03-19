@@ -10,10 +10,13 @@ open Action
 (** Address identifying a party (user, operator).
     Per Ethereum, use the low 160-bits of the Keccak256 digest of the party's public key *)
 module Address : sig
-  include UIntS
+  type t
+  [@@deriving rlp]
+  include UIntS with type t := t
   include PersistableS with type t := t
 end
 type address = Address.t
+[@@deriving rlp]
 
 (** Private key in Secp256k1 public-key cryptography *)
 module PrivateKey : sig
@@ -36,17 +39,24 @@ module Keypair : sig
            ; public_key: PublicKey.t
            ; private_key: PrivateKey.t
            ; password: string } (* password to use for signing JSON RPC, until we get rid of it. *)
-  [@@deriving lens {prefix=true}]
+  [@@deriving lens {prefix=true}, rlp]
   include YojsonMarshalableS with type t := t
 end
 type keypair = Keypair.t
+[@@deriving rlp]
 
 (** Signature of a message per Secp256k1 public-key cryptography *)
 type signature
-module Signature : PersistableS with type t = signature
+[@@deriving rlp]
+module Signature : sig
+  type t = signature
+  [@@deriving rlp]
+  include PersistableS with type t := signature
+end
 
 (** Record of an object of type 'a with its signature by one party *)
 type 'a signed = {payload: 'a; signature: signature}
+[@@deriving rlp]
 
 val signed_of_digest : ('a -> digest) -> keypair -> 'a -> 'a signed
 (** Make an ['a signed] record out of the 'a [digest] function, a [keypair] and the 'a payload *)
@@ -135,14 +145,6 @@ val signature_vrs : signature -> string * string * string
 
 val signed : ('a -> digest) -> private_key -> 'a -> 'a signed
 
-(** marshaler for 'a signed, parameterized by the marshaler for the payload of type 'a *)
-val marshal_signed : 'a marshaler -> 'a signed marshaler
-
-(** unmarshaler for 'a signed, parameterized by the unmarshaler for the payload of type 'a *)
-val unmarshal_signed : 'a unmarshaler -> 'a signed unmarshaler
-
-val signed_marshaling : 'a marshaling -> 'a signed marshaling
-
 val signed_to_yojson : 'a to_yojson -> 'a signed to_yojson
 val signed_of_yojson : 'a of_yojson -> 'a signed of_yojson
 val signed_of_yojson_exn : 'a of_yojson_exn -> 'a signed of_yojson_exn
@@ -154,7 +156,7 @@ module type SignedS = sig
   val make : keypair -> payload -> t
 end
 
-module Signed (P : PersistableS) : SignedS with type payload = P.t
+module Signed (P : PersistableRlpS) : SignedS with type payload = P.t
 
 (* keys, address for tests, demos *)
 module Test : sig

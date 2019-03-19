@@ -129,6 +129,11 @@ module type TypeS = sig
   type t
 end
 
+module type TypeRlpS = sig
+  type t
+  [@@deriving rlp]
+end
+
 (** Interface analogous to Map.S from the stdlib, but monomorphic in value *)
 module type MapS = sig
   type key
@@ -427,6 +432,7 @@ val string_reverse : string -> string
 
 module type WrapTypeS = sig
   type +'a t
+  [@@deriving rlp]
 end
 
 module type WrapS = sig

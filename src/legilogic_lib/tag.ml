@@ -7,7 +7,6 @@
 open Lib
 open Yojsoning
 open Marshaling
-open Integer
 
 let base_trie = 0x40
 let empty = 0x40
@@ -33,18 +32,22 @@ let bad_tag_error start bytes =
   raise (Unmarshaling_error ("bad tag", start, bytes))
 
 module UInt16int = struct
+  type t = int
+  [@@deriving rlp]
+
   module U = struct
     type t = int
     let verify x =
       if 0 <= x && x <= 0xFFFF then x else bork "bad UInt16int"
-    let marshaling = marshaling_map UInt16.of_int UInt16.to_int UInt16.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning =
       { to_yojson = (fun x -> `Int x)
       ; of_yojson = function
           | `Int x -> Ok (verify x)
           | _ -> Error "not a json Integer" }
   end
-  include YojsonMarshalable(U)
+
+  include (YojsonMarshalable(U) : YojsonMarshalableS with type t := t)
 end
 
 module Tag = struct
@@ -125,12 +128,8 @@ let result_marshaling mok merror =
   { marshal=marshal_result mok.marshal merror.marshal
   ; unmarshal=unmarshal_result mok.unmarshal merror.unmarshal}
 
-exception Server_error of string
+let exception_marshaling = marshaling_of_rlping Action.exn_rlping
 
-let marshal_exception = marshal_map Printexc.to_string String1G.marshal
-let unmarshal_exception = unmarshal_map (fun s -> Server_error s) String1G.unmarshal
-let exception_marshaling = {marshal=marshal_exception;unmarshal=unmarshal_exception}
-
-let marshal_result_or_exn m = marshal_result m marshal_exception
-let unmarshal_result_or_exn u = unmarshal_result u unmarshal_exception
+let marshal_result_or_exn m = marshal_result m exception_marshaling.marshal
+let unmarshal_result_or_exn u = unmarshal_result u exception_marshaling.unmarshal
 let result_or_exn_marshaling m = result_marshaling m exception_marshaling

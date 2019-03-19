@@ -2,6 +2,7 @@
 
 open Lib
 open Yojsoning
+open Ppx_deriving_rlp_runtime.Rlping
 
 exception Marshaling_error of string
 exception Unmarshaling_error of string*int*Bytes.t
@@ -16,6 +17,8 @@ type 'a unmarshaler = int -> Bytes.t -> 'a*int
     of marshaling for various data structures *)
 type 'a marshaling =
   { marshal: 'a marshaler; unmarshal: 'a unmarshaler }
+
+val marshaling_of_rlping : 'a rlping -> 'a marshaling
 
 (** A module containing the bare minimum methods from which to deduce all utility functions
     about marshaling. *)
@@ -37,9 +40,17 @@ module type MarshalableS = sig
   val unmarshal_string: string -> t
 end
 
+module type MarshalableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include MarshalableS with type t := t
+end
+
 (** Auto-generated methods for object which can be converted to and from binary
     representation *)
 module Marshalable (P : PreMarshalableS) : MarshalableS with type t = P.t
+
+module MarshalableRlp (P : PreMarshalableS) : MarshalableRlpS with type t = P.t
 
 val marshal_of_sized_string_of : int -> ('a -> string) -> 'a marshaler
 val unmarshal_of_sized_of_string : int -> (string -> 'a) -> 'a unmarshaler
@@ -52,13 +63,11 @@ val unmarshal_bytes_of_unmarshal : 'a unmarshaler -> Bytes.t -> 'a
 val marshal_string_of_marshal : 'a marshaler -> 'a -> string
 val unmarshal_string_of_unmarshal : 'a unmarshaler -> string -> 'a
 
-val marshal_char : char marshaler
-val unmarshal_char : char unmarshaler
 val char_marshaling : char marshaling
 
-val marshal_bool : bool marshaler
-val unmarshal_bool : bool unmarshaler
 val bool_marshaling : bool marshaling
+
+val string_marshaling : string marshaling
 
 val list_marshaling : 'a marshaling -> 'a list marshaling
 
@@ -178,10 +187,22 @@ val marshaling_not_implemented : 'a marshaling
 (** Do NOT use this module in production. Only for demos and temporary cut-throughs *)
 module OCamlMarshaling (T: TypeS) : PreMarshalableS with type t = T.t
 
+(** A type with RLP support *)
+module type RlpingS = sig
+  type t
+  val rlping : t rlping
+end
+
 (** Marshalable to binary, and (separately) convertible to json. *)
 module type PreYojsonMarshalableS = sig
   include PreMarshalableS
   include PreYojsonableS with type t := t
+end
+
+module type PreYojsonMarshalableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include PreYojsonMarshalableS with type t := t
 end
 
 (** Marshalable to binary, and (separately) convertible to json. *)
@@ -189,6 +210,15 @@ module type YojsonMarshalableS = sig
   include MarshalableS
   include YojsonableS with type t := t
 end
+
+module type YojsonMarshalableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include YojsonMarshalableS with type t := t
+end
+
+(** Marshalable as RLP *)
+module MarshalableOfRlp (R : RlpingS) : (MarshalableS with type t = R.t)
 
 (** "Marshalable" *as* json. *)
 module MarshalableOfYojsonable (J : YojsonableS) : YojsonMarshalableS with type t = J.t
@@ -242,7 +272,9 @@ module String63 : YojsonMarshalableS with type t = string
 module String1G : YojsonMarshalableS with type t = string
 
 module Data : sig
-  include YojsonMarshalableS with type t = string
+  type t = string
+  [@@deriving rlp]
+  include YojsonMarshalableS with type t := t
   include ShowableS with type t := t
 end
 

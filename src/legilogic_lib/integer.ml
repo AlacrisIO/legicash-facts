@@ -3,6 +3,7 @@ open Action
 open Hex
 open Yojsoning
 open Marshaling
+open Ppx_deriving_rlp_runtime
 
 (* Same as Unsigned.S from the integers library, minus the Infix module *)
 module type UIntBaseS = sig
@@ -35,7 +36,11 @@ module type UIntBaseS = sig
 end
 
 module type UIntMoreS = sig
-  include UIntBaseS
+  type t
+  [@@deriving rlp]
+
+  include UIntBaseS with type t := t
+
   val module_name : string
   val size_in_bits : int
   val size_in_bytes : int
@@ -160,7 +165,10 @@ let binary_post_op_check = fun
       type_name op_name (x_to_string x) (y_to_string y)
 
 module Int = struct
-  include Z
+  type t = Z.t
+  [@@deriving rlp]
+  include (Z : module type of Z with type t := t)
+
   let z_of = identity
   let of_z = identity
   let module_name = "Int"
@@ -333,12 +341,17 @@ module type PreUIntZableS = sig
 end
 
 module UIntZable (P: PreUIntZableS) = struct
-  include (P : UIntBaseS with type t = P.t)
+  let z_rlping = [%rlp: Z.t]
+  type t = P.t
+  [@@deriving rlp { rlping = rlping_by_isomorphism P.of_z P.z_of z_rlping }]
+
+  include (P : UIntBaseS with type t := P.t)
   let size_in_bits = P.size_in_bits
   let module_name = "UInt" ^ (string_of_int size_in_bits)
   let size_in_bytes = (size_in_bits + 7) / 8
   let of_z = unary_pre_op_check P.of_z (is_sized_nat size_in_bits) (module_name, "of_z", Z.to_string)
   let z_of = P.z_of
+
   let check_invariant _ = true
   let equal x y = compare x y = 0
   let sign x = compare x zero

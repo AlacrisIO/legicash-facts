@@ -2,6 +2,7 @@
 open Lib
 
 type yojson = Yojson.Safe.t
+[@@deriving rlp]
 val string_of_yojson : yojson -> string
 val yojson_of_string : string -> yojson
 
@@ -70,6 +71,12 @@ module type YojsonableS = sig
   val of_yojson_string_exn : string -> t
 end
 
+module type YojsonableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include YojsonableS with type t := t
+end
+
 module Yojsonable (P : PreYojsonableS) : YojsonableS with type t = P.t
 
 module NotYojsonable (T : TypeS) : YojsonableS with type t = T.t
@@ -79,7 +86,9 @@ val string_0x_yojsoning : string yojsoning
 val bytes_yojsoning : Bytes.t yojsoning
 
 module Bytes : sig
-  include module type of Bytes
+  type t = Bytes.t
+  [@@deriving rlp]
+  include module type of Bytes with type t := t
   include YojsonableS with type t := t
   include ShowableS with type t := t
 end

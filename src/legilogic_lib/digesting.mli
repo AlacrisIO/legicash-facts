@@ -4,6 +4,7 @@ open Integer
 
 (** Digest (160-bit, using keccak256) *)
 type digest
+[@@deriving rlp]
 
 (** given a string, return its keccak256 digest as a big-endian string *)
 val keccak256_string : string -> string

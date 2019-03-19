@@ -1,8 +1,10 @@
 open Lib
+open Ppx_deriving_rlp_runtime
 
-type yojson = Yojson.Safe.t
 let string_of_yojson y = Yojson.Safe.to_string y
 let yojson_of_string s = Yojson.Safe.from_string s
+type yojson = Yojson.Safe.t
+[@@deriving rlp { rlping = rlping_by_isomorphism yojson_of_string string_of_yojson string_rlping }]
 
 let yojson_of_file fn = Yojson.Safe.from_file fn
 
@@ -126,6 +128,12 @@ module type YojsonableS = sig
   val of_yojson_string_exn : string -> t
 end
 
+module type YojsonableRlpS = sig
+  type t
+  [@@deriving rlp]
+  include YojsonableS with type t := t
+end
+
 module Yojsonable (P : PreYojsonableS) = struct
   include P
   let to_yojson = yojsoning.to_yojson
@@ -151,8 +159,14 @@ let string_0x_yojsoning =
 let bytes_yojsoning =
   yojsoning_map Bytes.to_string Bytes.of_string string_0x_yojsoning
 
+let bytes_rlping =
+  rlping_by_isomorphism Bytes.of_string Bytes.to_string string_rlping
+
 module Bytes = struct
-  include Bytes
+  type t = bytes
+  [@@deriving rlp { rlping = bytes_rlping }]
+  include (Bytes : module type of Bytes with type t := t)
+
   include (Yojsonable(struct
              type t = Bytes.t
              let yojsoning = bytes_yojsoning

@@ -30,26 +30,30 @@ module type TrieSynthMerkleS = sig
   val marshal_skip : (int*int*key*digest) marshaler
 end
 
-module TrieSynthMerkle (Key : UIntS) (Value : PersistableS) = struct
+module TrieSynthMerkle (Key : UIntS) (Value : PersistableRlpS) = struct
   type key = Key.t
+  [@@deriving rlp]
   type value = Value.t
+  [@@deriving rlp]
   type t = digest
+  [@@deriving rlp]
+  (** `item` is a private type to TrieSynthMerkle that's exactly like "trie",
+      except with digests wherever there would be recursive references. *)
+  type item =
+    | Empty
+    | Leaf of {value: value; synth: unit}
+    | Branch of {left: t; right: t; height: int; synth: unit}
+    | Skip of {child: t; bits: key; length: int; height: int; synth: unit}
+  [@@deriving rlp]
+  let synth = ()
   let marshal_empty buffer _ =
-    Tag.marshal buffer Tag.empty
+    item_marshal_rlp buffer Empty
   let marshal_leaf buffer value =
-    Tag.marshal buffer Tag.leaf;
-    Value.marshal buffer value
+    item_marshal_rlp buffer (Leaf { value; synth })
   let marshal_branch buffer (height, left, right) =
-    Tag.marshal buffer Tag.branch;
-    Tag.UInt16int.marshal buffer height;
-    Digest.marshal buffer left;
-    Digest.marshal buffer right
+    item_marshal_rlp buffer (Branch { height; left; right; synth })
   let marshal_skip buffer (height, length, bits, child) =
-    Tag.marshal buffer Tag.skip;
-    Tag.UInt16int.marshal buffer height;
-    Tag.UInt16int.marshal buffer length;
-    Key.marshal buffer bits;
-    Digest.marshal buffer child
+    item_marshal_rlp buffer (Skip { height; length; bits; child; synth })
 
   let empty = digest_of_marshal marshal_empty ()
   let leaf value = digest_of_marshal marshal_leaf value
@@ -68,6 +72,7 @@ module type MerkleTrieProofS = sig
     ; leaf : Digest.t
     ; steps : (Digest.t step) list
     }
+  [@@deriving rlp]
   val get : key -> mtrie -> t option
   val check : t -> mtrie -> key -> value -> bool
   include PersistableS with type t := t
@@ -75,6 +80,7 @@ end
 
 module type MerkleTrieS = sig
   type key
+  [@@deriving rlp]
   type value
   (* [Synth.t = unit] because we want to be able to use the [TrieS] tree-walking
      functionality for lazy DB access, here, without invoking its potentially
@@ -113,7 +119,7 @@ module type MerkleTrieTypeS = sig
   module T : PersistableS with type t = t
 end
 
-module MerkleTrieType (Key : UIntS) (Value : PersistableS)
+module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   include TrieType (Key) (Value) (DigestValueType) (Synth)
 
@@ -125,12 +131,12 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableS)
 
   (* Ugly: to achieve mutual definition between marshaling or trie and t,
      we side-effects that array to close the loop. *)
-  let marshaling_case_table = new_marshaling_cases 4
   let t_dependency_walking = ref dependency_walking_not_implemented
 
   module PreTrie = struct
     type t = trie
-    let marshaling = marshaling_cases trie_tag Tag.base_trie marshaling_case_table
+    [@@deriving rlp]
+    let marshaling = marshaling_of_rlping rlping
     let make_persistent x y = normal_persistent x y
     let walk_dependencies _methods context = function
       | Leaf {value} ->
@@ -143,43 +149,16 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableS)
         walk_dependency !t_dependency_walking context child
     let yojsoning = {to_yojson=bottom;of_yojson=bottom}
   end
-  module Trie = Persistable(PreTrie)
+  module Trie = PersistableRlp(PreTrie)
   module T = DigestValue(Trie)
 
   let _init = (* close the fixpoints *)
-    init_marshaling_cases Tag.base_trie marshaling_case_table
-      [(Tag.leaf,
-        marshaling_map
-          (function
-            | Leaf {value} -> value
-            | _ -> bottom ())
-          trie_leaf
-          Value.marshaling);
-       (Tag.branch,
-        marshaling3
-          (function
-            | Branch {left; right; height} -> (height, left, right)
-            | _ -> bottom ())
-          (trie_branch dv_get)
-          Tag.UInt16int.marshaling T.marshaling T.marshaling);
-       (Tag.skip,
-        marshaling4
-          (function
-            | Skip {height; length; bits; child} -> (height, length, bits, child)
-            | _ -> bottom ())
-          (trie_skip dv_get)
-          Tag.UInt16int.marshaling Tag.UInt16int.marshaling Key.marshaling T.marshaling);
-       (Tag.empty,
-        marshaling_map
-          (fun _ -> ())
-          (fun () -> Empty)
-          Unit.marshaling)];
     t_dependency_walking := T.dependency_walking
 
   include (T : PersistableS with type t := t)
 end
 
-module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
+module MerkleTrie (Key : UIntS) (Value : PersistableRlpS) = struct
   module Synth = TrieSynthUnit (Key) (Value)
   module SynthMerkle = TrieSynthMerkle (Key) (Value)
   module Type = MerkleTrieType (Key) (Value) (Synth)
@@ -245,35 +224,6 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
 
   let step_of_yojson of_yojson = of_yojson_of_of_yojson_exn (step_of_yojson_exn (of_yojson_exn_of_of_yojson of_yojson))
 
-  let step_marshal marshal buffer = function
-    | LeftBranch {right} ->
-      Tag.marshal buffer Tag.left_branch;
-      marshal buffer right
-    | RightBranch {left} ->
-      Tag.marshal buffer Tag.right_branch;
-      marshal buffer left
-    | SkipChild {bits;length} ->
-      Tag.marshal buffer Tag.skip_child;
-      Key.marshal buffer bits;
-      Tag.UInt16int.marshal buffer length
-
-  let step_unmarshal unmarshal start bytes =
-    let (tag, p) = Tag.unmarshal start bytes in
-    if tag = Tag.left_branch then
-      let (right, p) = unmarshal p bytes in
-      LeftBranch { right }, p
-    else if tag = Tag.right_branch then
-      let (left, p) = unmarshal p bytes in
-      RightBranch { left }, p
-    else if tag = Tag.skip_child then
-      let bits, p = Key.unmarshal p bytes in
-      let length, p = Tag.UInt16int.unmarshal p bytes in
-      SkipChild { bits; length }, p
-    else Tag.bad_tag_error start bytes
-
-  let step_marshaling marshaling =
-    { marshal = step_marshal marshaling.marshal; unmarshal = step_unmarshal marshaling.unmarshal }
-
   module Proof = struct
     [@warning "-39"]
     type nonrec key = key
@@ -285,16 +235,11 @@ module MerkleTrie (Key : UIntS) (Value : PersistableS) = struct
       ; trie : Digest.t
       ; leaf : Digest.t
       ; steps : (Digest.t step) list }
-    [@@deriving yojson]
+    [@@deriving yojson, rlp]
 
     module PrePersistable = struct
       type nonrec t = t
-      let marshaling =
-        marshaling4
-          (fun { key; trie; leaf; steps } -> key, trie, leaf, steps)
-          (fun key trie leaf steps -> { key; trie; leaf; steps })
-          Key.marshaling Digest.marshaling Digest.marshaling
-          (list_marshaling (step_marshaling Digest.marshaling))
+      let marshaling = marshaling_of_rlping rlping
       let yojsoning = {to_yojson;of_yojson}
     end
     include (TrivialPersistable (PrePersistable) : PersistableS with type t := t)
@@ -355,6 +300,7 @@ module type MerkleTrieSetProofS = sig
     { elt : elt
     ; trie : Digest.t
     ; steps : (Digest.t step) list }
+  [@@deriving rlp]
   val get : elt -> mts -> t option
   val check : t -> mts -> elt -> bool
   include YojsonableS with type t := t
@@ -362,12 +308,13 @@ end
 
 module type MerkleTrieSetS = sig
   type elt
+  [@@deriving rlp]
   module M : MerkleTrieS with type key = elt and type value = unit
   module T : TrieS
     with type key = elt and type value = unit
                         and type synth = M.synth and type 'a wrap = 'a M.wrap
                                                  and type trie = M.trie and type t = M.t
-  include PersistableS with type t = T.t
+  include PersistableRlpS with type t = T.t
   include Set.S with type elt := elt and type t := t
   module Proof : MerkleTrieSetProofS
     with type elt = elt and type mts = t and type 'a step = 'a T.step
@@ -377,7 +324,11 @@ end
 
 module MerkleTrieSet (Elt : UIntS) = struct
   module M = MerkleTrie (Elt) (Unit)
-  include TrieSet (Elt) (M)
+
+  type elt = Elt.t
+  [@@deriving rlp]
+
+  include (TrieSet (Elt) (M) : module type of (TrieSet (Elt) (M)) with type elt := Elt.t)
   include (M : PersistableS with type t := t)
 
   let trie_digest = M.trie_digest
@@ -402,9 +353,11 @@ module MerkleTrieSet (Elt : UIntS) = struct
     type nonrec elt = elt
     type mts = t
     type 'a step = 'a T.step
+    [@@deriving rlp]
     type t = { elt : elt
              ; trie : Digest.t
              ; steps : (Digest.t step) list }
+    [@@deriving rlp]
     let get elt t =
       Option.map (fun M.Proof.{key; trie; steps} -> {elt=key; trie; steps}) (M.Proof.get elt t)
     let check {elt; trie; steps} t l =
@@ -653,19 +606,19 @@ module Test = struct
 
   let proof_42_in_trie_100 =
     lazy (Proof.of_yojson_exn
-            (`Assoc [ ("key",`String "0x2a")
-                    ; ("trie",`String "0x1b0247d6f6ca6e1411806a9f74fc3d833916fdc2401ed161e6b5ce601ad84185")
-                    ; ("leaf", `String "0x70f3a8f4b17c16dfd0aed8dcb3f6b0d33e1052cf994f75e657d2d322a501bb50")
-                    ; ("steps",
-                       `List [ make_left_step "0x825549a7bd7501bb0ba616c4fc70cbbebefaea2d84f6b952fe398fda5d1462db"
-                             ; make_right_step "0xa56429299f24894faf768ae69ed9615c40ed65f30ed15c2e148501d1310903ec"
-                             ; make_left_step "0x346bfa238000fb06f04f4979b47486a4257d3259177782530fc26b353fbb81be"
-                             ; make_right_step "0x3ff5f6bd2d1bfc6b2abe7696903c496c5b42d9da98e0c338cac8f5c8a6beca64"
-                             ; make_left_step "0x0fd0e9496ba3fa5afb2293ca2531969c89ccb07b3cba20bdcdb6bdc14b92b590"
-                             ; make_right_step "0xb8f1bc4ef8830fee1b2c823f9c2c89846692a15152f7f5a8265238d19f9b7b0d"
-                             ; make_left_step "0xb914f8a6dda6b8a172da0361c6cb3e1c6d386629bdb76aae83d2d66bd374af6b"
-                             ])
-                    ]))
+           (Yojson.Safe.from_string
+            {jsonstring|
+            {"key":"0x2a",
+             "trie":"0x05de65831a0132165e208cc75355719e8cf9b399e9d56f6fe395a57a8be1e5e6",
+             "leaf":"0x916ba345bf6feab74bf75d5830ada3bf426a8ec1388fcef4ea3608737eac671b",
+             "steps":[{"type":"Left","right":"0x064880959049e1ee770ac5669c3960ebe0121394b82966503f91439bc545caa4"},
+                      {"type":"Right","left":"0xb3d80cf4680db145cafc56adfda19cd3f745cdbd1d0294cffe7491cc49b54320"},
+                      {"type":"Left","right":"0xe48546b788ccbca97760865fe0e901fbc28ad8689cbdffadc9fe80d014207651"},
+                      {"type":"Right","left":"0xfaaea838f3c3dcb79244c307ba41e0cf36cfe8104895239bad3df50a041601bd"},
+                      {"type":"Left","right":"0xa7358ee547e1cf2ba6d90bddea49c1bfa44686c7a8103e4816794ebc23b365a5"},
+                      {"type":"Right","left":"0xd09db87e7553ac9ed1760c94ef8a5e2a85683051d6906c54fc603298357998a0"},
+                      {"type":"Left","right":"0xe6520b16a86ad925aacd94247978f64ebea0d7e6d530247dc612c7a3897d5eb1"}]}
+            |jsonstring} ))
 
   let bad_proof = lazy (match force proof_42_in_trie_100 with
     | Proof.{ key ; trie ; leaf ; steps = [s1;s2;s3;s4;s5;s6;s7] } ->

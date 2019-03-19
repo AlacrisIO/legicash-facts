@@ -1,4 +1,5 @@
 open Lib
+open Ppx_deriving_rlp_runtime.Rlping
 
 (* TODO: a variant Action2, ActionX or Interaction,
    where all types have an extra parameter: ('a, 'x) t, ('i, 'o, 'x) arr
@@ -6,8 +7,14 @@ open Lib
    https://github.com/rgrinberg/ocaml-mtl/blob/master/lib/mtl.mli
 *)
 
+(** exception that was marshaled on some server *)
+exception Server_error of string
+
+val exn_rlping : exn rlping
+
 (** 'output or exception *)
 type +'output or_exn = ('output, exn) result
+[@@deriving rlp]
 
 (** function from 'input to 'output that acts on a 'state *)
 type (-'input, +'output, 'state) action = 'input -> 'state -> 'output * 'state
@@ -124,7 +131,11 @@ end
 (** See docstring for MonadS *)
 module Monad (M : MonadBaseS) : MonadS with type 'a t = 'a M.t
 
-module Identity : MonadS with type 'a t = 'a
+module Identity : sig
+  type 'a t = 'a
+  [@@deriving rlp]
+  include MonadS with type 'a t := 'a t
+end
 
 (** Signature for monadic representation of computational processes with
     reportable failure states, and short-circuit logic on failure. *)

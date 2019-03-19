@@ -17,14 +17,10 @@ module TokenAmount = Ethereum_chain.TokenAmount
 module Invoice = struct
   [@warning "-39"]
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: string}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling3
-        (fun {recipient; amount; memo} -> recipient, amount, memo)
-        (fun recipient amount memo -> {recipient; amount; memo})
-        Address.marshaling TokenAmount.marshaling String63.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -42,7 +38,7 @@ module UserOperation = struct
     ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
     ; request_guid: RequestGuid.t
     ; requested_at: Timestamp.t
-    } [@@deriving lens, yojson]
+    } [@@deriving lens, yojson, rlp]
 
   type payment_details =
     { payment_invoice:   Invoice.t
@@ -50,20 +46,20 @@ module UserOperation = struct
     ; payment_expedited: bool
     ; request_guid:      RequestGuid.t
     ; requested_at:      Timestamp.t
-    } [@@deriving lens, yojson]
+    } [@@deriving lens, yojson, rlp]
 
   type withdrawal_details =
     { withdrawal_amount: TokenAmount.t
     ; withdrawal_fee:    TokenAmount.t
     ; request_guid:      RequestGuid.t
     ; requested_at:      Timestamp.t
-    } [@@deriving lens, yojson]
+    } [@@deriving lens, yojson, rlp]
 
   type t =
     | Deposit    of deposit_details
     | Payment    of payment_details
     | Withdrawal of withdrawal_details
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
 
   let guid_and_utc = function
     | Deposit    o -> (o.request_guid, o.requested_at)
@@ -77,109 +73,9 @@ module UserOperation = struct
 
   module PrePersistable = struct
     type nonrec t = t
-    let case_table =
-      [| marshaling6
-           (function | Deposit { deposit_amount
-                               ; deposit_fee
-                               ; main_chain_deposit
-                               ; main_chain_deposit_confirmation
-                               ; request_guid
-                               ; requested_at
-                               } -> ( deposit_amount
-                                    , deposit_fee
-                                    , main_chain_deposit
-                                    , main_chain_deposit_confirmation
-                                    , request_guid
-                                    , requested_at
-                                    )
-                     | _ -> bottom ())
-
-           (fun deposit_amount
-                deposit_fee
-                main_chain_deposit
-                main_chain_deposit_confirmation
-                request_guid
-                requested_at
-             -> Deposit { deposit_amount
-                        ; deposit_fee
-                        ; main_chain_deposit
-                        ; main_chain_deposit_confirmation
-                        ; request_guid
-                        ; requested_at
-                        })
-           TokenAmount.marshaling
-           TokenAmount.marshaling
-           Ethereum_chain.SignedTransactionData.marshaling
-           Ethereum_chain.Confirmation.marshaling
-           RequestGuid.marshaling
-           Timestamp.marshaling
-
-       ; marshaling5
-           (function | Payment { payment_invoice
-                               ; payment_fee
-                               ; payment_expedited
-                               ; request_guid
-                               ; requested_at
-                               } -> ( payment_invoice
-                                    , payment_fee
-                                    , payment_expedited
-                                    , request_guid
-                                    , requested_at
-                                    )
-                     | _ -> bottom ())
-
-           (fun payment_invoice
-                payment_fee
-                payment_expedited
-                request_guid
-                requested_at
-             -> Payment { payment_invoice
-                        ; payment_fee
-                        ; payment_expedited
-                        ; request_guid
-                        ; requested_at
-                        })
-
-           Invoice.marshaling
-           TokenAmount.marshaling
-           bool_marshaling
-           RequestGuid.marshaling
-           Timestamp.marshaling
-
-       ; marshaling4
-           (function | Withdrawal { withdrawal_amount
-                                  ; withdrawal_fee
-                                  ; request_guid
-                                  ; requested_at
-                                  } -> ( withdrawal_amount
-                                       , withdrawal_fee
-                                       , request_guid
-                                       , requested_at
-                                       )
-                     | _ -> bottom ())
-
-           (fun withdrawal_amount
-                withdrawal_fee
-                request_guid
-                requested_at
-             -> Withdrawal { withdrawal_amount
-                           ; withdrawal_fee
-                           ; request_guid
-                           ; requested_at
-                           })
-
-           TokenAmount.marshaling
-           TokenAmount.marshaling
-           RequestGuid.marshaling
-           Timestamp.marshaling
-      |]
-
-    let marshaling = marshaling_cases operation_tag
-                                      Side_chain_tag.base_operation
-                                      case_table
-
-    let yojsoning         = {to_yojson; of_yojson}
-    let make_persistent   = normal_persistent
+    let marshaling = marshaling_of_rlping rlping
+    let yojsoning = {to_yojson;of_yojson}
+    let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
   end
   include (Persistable (PrePersistable) : (PersistableS with type t := t))
@@ -196,38 +92,10 @@ module RxHeader = struct
     ; confirmed_side_chain_state_digest: Digest.t
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
-  [@@deriving lens {prefix=true}, yojson]
+  [@@deriving lens {prefix=true}, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling8
-        (fun { operator
-             ; requester
-             ; requester_revision
-             ; confirmed_main_chain_state_digest
-             ; confirmed_main_chain_state_revision
-             ; confirmed_side_chain_state_digest
-             ; confirmed_side_chain_state_revision
-             ; validity_within } ->
-          operator, requester, requester_revision,
-          confirmed_main_chain_state_digest, confirmed_main_chain_state_revision,
-          confirmed_side_chain_state_digest, confirmed_side_chain_state_revision,
-          validity_within)
-        (fun operator requester requester_revision
-          confirmed_main_chain_state_digest confirmed_main_chain_state_revision
-          confirmed_side_chain_state_digest confirmed_side_chain_state_revision
-          validity_within ->
-          { operator
-          ; requester
-          ; requester_revision
-          ; confirmed_main_chain_state_digest
-          ; confirmed_main_chain_state_revision
-          ; confirmed_side_chain_state_digest
-          ; confirmed_side_chain_state_revision
-          ; validity_within })
-        Address.marshaling Address.marshaling Revision.marshaling
-        Digest.marshaling Revision.marshaling Digest.marshaling Revision.marshaling
-        Duration.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -238,14 +106,10 @@ end
 module UserTransactionRequest = struct
   [@warning "-39"]
   type t = {rx_header: RxHeader.t; operation: UserOperation.t}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling2
-        (fun {rx_header; operation} -> rx_header, operation)
-        (fun rx_header operation -> {rx_header; operation})
-        RxHeader.marshaling UserOperation.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -258,14 +122,10 @@ module SignedUserTransactionRequest = Signed(UserTransactionRequest)
 module TxHeader = struct
   [@warning "-39"]
   type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling2
-        (fun {tx_revision; updated_limit} -> tx_revision, updated_limit)
-        (fun tx_revision updated_limit -> {tx_revision; updated_limit})
-        Revision.marshaling TokenAmount.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -277,15 +137,11 @@ module AdminTransactionRequest = struct
   [@warning "-39"]
   type t =
     | StateUpdate of Revision.t * Digest.t
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
-    let marshaling =
-      marshaling2
-        (function StateUpdate (r, d) -> r, d)
-        (fun r d -> StateUpdate (r, d))
-        Revision.marshaling Digest.marshaling
+    let marshaling = marshaling_of_rlping rlping
   end
   include (TrivialPersistable(P) : PersistableS with type t := t)
 end
@@ -299,7 +155,7 @@ module UserQueryRequest = struct
     | Get_account_status      of {address: Address.t}
     | Get_recent_transactions of {address: Address.t; count: Revision.t option}
     | Get_proof               of {tx_revision: Revision.t}
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -312,7 +168,7 @@ module AdminQueryRequest = struct
   type t =
     | Get_all_balances
     | Get_transaction_rate
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -325,27 +181,11 @@ module TransactionRequest = struct
   type t =
     [ `UserTransaction of UserTransactionRequest.t signed
     | `AdminTransaction of AdminTransactionRequest.t ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
-    let marshal buffer = function
-      | `UserTransaction utrs ->
-        Tag.marshal buffer Side_chain_tag.user_transaction;
-        marshal_signed UserTransactionRequest.marshal buffer utrs
-      | `AdminTransaction x ->
-        Tag.marshal buffer Side_chain_tag.admin_transaction;
-        AdminTransactionRequest.marshal buffer x
-    let unmarshal start bytes =
-      let (tag, p) = Tag.unmarshal start bytes in
-      if tag = Side_chain_tag.user_transaction then
-        let (utrs, p) = unmarshal_signed UserTransactionRequest.unmarshal p bytes in
-        `UserTransaction utrs, p
-      else if tag = Side_chain_tag.admin_transaction then
-        let (x, p) = AdminTransactionRequest.unmarshal p bytes in
-        `AdminTransaction x, p
-      else raise (Unmarshaling_error ("bad tag", start, bytes))
-    let marshaling = {marshal;unmarshal}
+    let marshaling = marshaling_of_rlping rlping
   end
   include (TrivialPersistable(P) : PersistableS with type t := t)
   let signed_request = function
@@ -359,7 +199,7 @@ module Query = struct
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `AdminQuery of AdminQueryRequest.t ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -372,7 +212,7 @@ module UserRequest = struct
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -385,7 +225,7 @@ module AdminRequest = struct
   type t =
     [ `AdminQuery of UserQueryRequest.t
     | `AdminTransaction of AdminTransactionRequest.t ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -399,7 +239,7 @@ module ExternalRequest = struct
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed
     | `AdminQuery of AdminQueryRequest.t ]
-  [@@deriving yojson]
+  [@@deriving yojson, rlp]
   module P = struct
     type nonrec t = t
     let yojsoning = {to_yojson;of_yojson}
@@ -410,14 +250,10 @@ end
 module Transaction = struct
   [@warning "-39"]
   type t = {tx_header: TxHeader.t; tx_request: TransactionRequest.t}
-  [@@deriving lens { prefix=true }, yojson ]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling2
-        (fun {tx_header; tx_request} -> tx_header, tx_request)
-        (fun tx_header tx_request -> {tx_header; tx_request})
-        TxHeader.marshaling TransactionRequest.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -428,14 +264,10 @@ end
 module AccountState = struct
   [@warning "-39"]
   type t = {balance: TokenAmount.t; account_revision: Revision.t}
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling2
-        (fun {balance; account_revision} -> balance, account_revision)
-        (fun balance account_revision -> {balance; account_revision})
-        TokenAmount.marshaling Revision.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
@@ -462,28 +294,11 @@ module State = struct
            ; accounts: AccountMap.t
            ; transactions: TransactionMap.t
            ; main_chain_transactions_posted: DigestSet.t }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
 
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      (* TODO: add a big prefix for the signing? *)
-      marshaling_tagged Side_chain_tag.state
-        (marshaling5
-           (fun { operator_revision
-                ; spending_limit
-                ; accounts
-                ; transactions
-                ; main_chain_transactions_posted } ->
-             (operator_revision, spending_limit, accounts, transactions, main_chain_transactions_posted))
-           (fun operator_revision spending_limit accounts transactions main_chain_transactions_posted ->
-              { operator_revision
-              ; spending_limit
-              ; accounts
-              ; transactions
-              ; main_chain_transactions_posted })
-           Revision.marshaling TokenAmount.marshaling
-           AccountMap.marshaling TransactionMap.marshaling DigestSet.marshaling)
+    let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {accounts; transactions; main_chain_transactions_posted} =
       walk_dependency AccountMap.dependency_walking context accounts
       >>= (fun () -> walk_dependency TransactionMap.dependency_walking context transactions)
@@ -509,16 +324,10 @@ module OperatorFeeSchedule = struct
     ; withdrawal_fee: TokenAmount.t
     ; per_account_limit: TokenAmount.t
     ; fee_per_billion: TokenAmount.t }
-  [@@deriving lens { prefix=true}, yojson]
+  [@@deriving lens { prefix=true}, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling4
-        (fun { deposit_fee ; withdrawal_fee ; per_account_limit ; fee_per_billion } ->
-           deposit_fee, withdrawal_fee, per_account_limit, fee_per_billion)
-        (fun deposit_fee withdrawal_fee per_account_limit fee_per_billion ->
-           { deposit_fee ; withdrawal_fee ; per_account_limit ; fee_per_billion })
-        TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling TokenAmount.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let make_persistent = normal_persistent
     let walk_dependencies = no_dependencies
     let yojsoning = {to_yojson;of_yojson}
@@ -539,36 +348,10 @@ module TransactionCommitment = struct
     ; state_digest: Digest.t
     ; contract_address: Address.t
     }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
-    let marshaling =
-      marshaling9
-        (fun { transaction
-             ; tx_proof
-             ; operator_revision
-             ; spending_limit
-             ; accounts
-             ; main_chain_transactions_posted
-             ; signature
-             ; state_digest
-             ; contract_address } ->
-          transaction, tx_proof, operator_revision, spending_limit,
-          accounts, main_chain_transactions_posted, signature, state_digest, contract_address)
-        (fun transaction tx_proof operator_revision spending_limit
-          accounts main_chain_transactions_posted signature state_digest contract_address ->
-          { transaction
-          ; tx_proof
-          ; operator_revision
-          ; spending_limit
-          ; accounts
-          ; main_chain_transactions_posted
-          ; signature
-          ; state_digest
-          ; contract_address })
-        Transaction.marshaling TransactionMap.Proof.marshaling Revision.marshaling
-        TokenAmount.marshaling Digest.marshaling Digest.marshaling Signature.marshaling
-        Digest.marshaling Address.marshaling
+    let marshaling = marshaling_of_rlping rlping
     let yojsoning = {to_yojson;of_yojson}
   end
   include (TrivialPersistable (PrePersistable) : PersistableS with type t := t)

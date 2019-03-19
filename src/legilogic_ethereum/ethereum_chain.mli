@@ -35,7 +35,7 @@ module TxHeader : sig
     ; gas_price: TokenAmount.t
     ; gas_limit: TokenAmount.t
     ; value: TokenAmount.t }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
 end
 
@@ -49,17 +49,19 @@ module Operation : sig
       where Bytes are the bytes to be sent in the blockchain transaction representing the hash
       of the signature of the combination of the function name and paramters *)
    | CallFunction of Address.t * Bytes.t
+  [@@deriving rlp]
  include PersistableS with type t := t
 end
 
 module PreTransaction : sig
   type t = {operation: Operation.t; value: TokenAmount.t; gas_limit: TokenAmount.t}
+  [@@deriving rlp]
   include PersistableS with type t := t
 end
 
 module Transaction : sig
   type t = {tx_header: TxHeader.t; operation: Operation.t}
-  [@@deriving lens { prefix=true } ]
+  [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
   val pre_transaction: t -> PreTransaction.t
 end
@@ -84,6 +86,7 @@ module Confirmation : sig
            ; transaction_index: Revision.t
            ; block_number: Revision.t
            ; block_hash: Digest.t }
+  [@@deriving rlp]
   include PersistableS with type t := t
 end
 

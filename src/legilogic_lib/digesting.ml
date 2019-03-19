@@ -3,6 +3,7 @@ open Integer
 
 module Digest = Data256
 type digest = Digest.t
+[@@deriving rlp]
 
 let keccak256_string s =
   Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
