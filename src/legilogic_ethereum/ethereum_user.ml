@@ -532,10 +532,10 @@ let call_function ~sender ~contract ~call ?gas_limit value =
 
 module Test = struct
   open Lwt_exn
-  open Hex
+  (* open Hex *)
   open Digesting
   open Signing.Test
-  open Ethereum_abi
+  (* open Ethereum_abi *)
 
   let prefunded_address_mutex = Lwt_mutex.create ()
   let prefunded_address = ref None
@@ -628,6 +628,7 @@ module Test = struct
         check_transaction_execution transaction_hash transaction)
       ()
 
+  (*
   let test_contract_code () =
     "contracts/test/HelloWorld.bin"
     |> Config.get_build_filename
@@ -638,6 +639,7 @@ module Test = struct
   let list_only_element = function
     | [x] -> x
     | _ -> Lib.bork "list isn't a singleton"
+  *)
 
 (*
   let%test "Ethereum-testnet-contract-failure" =
@@ -661,6 +663,7 @@ module Test = struct
     ()
  *)
 
+  (*
   let%test "Ethereum-testnet-contract-success" =
     Logging.log "\nTEST: contract-success-on-Ethereum-testnet!!\n";
     Logging.log "SUBTEST: create the contract\n";
@@ -728,4 +731,5 @@ module Test = struct
          (* TODO: add a stateful function, and check the behavior of eth_call wrt block_number *)
          return true)
      ()
+     *)
 end
