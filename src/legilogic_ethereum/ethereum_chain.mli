@@ -67,6 +67,7 @@ module Transaction : sig
 end
 
 module SignedTransactionData : sig
+  [@warning "-39-32"]
   type t =
     { nonce : Revision.t
     ; gas_price : TokenAmount.t
@@ -77,7 +78,7 @@ module SignedTransactionData : sig
     ; v : UInt256.t (* before signing it's the chain ID, after it's from the signature *)
     ; r : Data256.t (* before signing it's 0; after it's from the signature *)
     ; s : Data256.t } (* before signing it's 0; after it's from the signature *)
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 end
 

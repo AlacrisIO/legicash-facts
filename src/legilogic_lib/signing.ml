@@ -2,7 +2,6 @@ open Lib
 open Hex
 open Yojsoning
 open Marshaling
-open Tag
 open Digesting
 open Persisting
 open Types
@@ -62,6 +61,8 @@ module PrivateKey = struct
       =
       rlping
 end
+
+[@warning "-32"]
 type private_key = PrivateKey.t
 [@@deriving rlp]
 
@@ -94,6 +95,8 @@ module PublicKey = struct
       =
       rlping
 end
+
+[@warning "-32"]
 type public_key = PublicKey.t
 [@@deriving rlp]
 
@@ -313,14 +316,6 @@ let is_signed_value_valid make_digest address signed_value =
 
 let signed (make_digest : 'a->digest) (private_key : private_key) (data : 'a) : 'a signed =
   {payload= data; signature= make_signature make_digest private_key data}
-
-let marshal_signed marshal buffer {payload; signature} =
-  marshal buffer payload; Signature.marshal buffer signature
-
-let unmarshal_signed (unmarshal:'a unmarshaler) start bytes : 'a signed * int =
-  let payload,payload_offset = unmarshal start bytes in
-  let signature,final_offset = Signature.unmarshal payload_offset bytes in
-  ({payload; signature}, final_offset)
 
 let signed_to_yojson to_yojson { payload ; signature } =
   `Assoc [ ("payload", to_yojson payload)

@@ -78,8 +78,7 @@ module type MerkleTrieProofS = sig
 end
 
 module type MerkleTrieS = sig
-  [@warning "-32"] type key
-  [@@deriving rlp]
+  [@warning "-32"] type key [@@deriving rlp]
   type value
   (* [Synth.t = unit] because we want to be able to use the [TrieS] tree-walking
      functionality for lazy DB access, here, without invoking its potentially

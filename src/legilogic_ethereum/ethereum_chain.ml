@@ -130,7 +130,7 @@ module Transaction = struct
 end
 
 module SignedTransactionData = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     { nonce : Revision.t
     ; gas_price : TokenAmount.t
@@ -141,7 +141,7 @@ module SignedTransactionData = struct
     ; v : UInt256.t
     ; r : Data256.t
     ; s : Data256.t }
-  [@@deriving lens { prefix=true }, yojson]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}

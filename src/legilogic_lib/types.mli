@@ -1,5 +1,4 @@
 open Lib
-open Marshaling
 open Digesting
 open Persisting
 open Ppx_deriving_rlp_runtime.Rlping
@@ -152,7 +151,7 @@ end
 (** Asynchronously digestible, content-addressed persistable values, with
     auto-generated methods. *)
 module DigestValue (Value : PersistableRlpS) : sig
-  type value = Value.t
+  [@warning "-32"] type value = Value.t [@@deriving rlp]
   type digest = Digest.t
   type t = value dv
   [@@deriving rlp]
