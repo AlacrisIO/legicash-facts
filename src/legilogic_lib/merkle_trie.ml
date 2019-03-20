@@ -16,7 +16,6 @@ open Lib
 open Lazy
 open Yojsoning
 open Marshaling
-open Tag
 open Digesting
 open Persisting
 open Types
@@ -39,7 +38,7 @@ module TrieSynthMerkle (Key : UIntS) (Value : PersistableRlpS) = struct
   [@@deriving rlp]
   (** `item` is a private type to TrieSynthMerkle that's exactly like "trie",
       except with digests wherever there would be recursive references. *)
-  type item =
+  [@@@warning "-32"] type item =
     | Empty
     | Leaf of {value: value; synth: unit}
     | Branch of {left: t; right: t; height: int; synth: unit}
@@ -79,7 +78,7 @@ module type MerkleTrieProofS = sig
 end
 
 module type MerkleTrieS = sig
-  type key
+  [@warning "-32"] type key
   [@@deriving rlp]
   type value
   (* [Synth.t = unit] because we want to be able to use the [TrieS] tree-walking
@@ -123,7 +122,7 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   include TrieType (Key) (Value) (DigestValueType) (Synth)
 
-  let trie_tag = function
+  [@@@warning "-32"] let trie_tag = function
     | Leaf _ -> Tag.leaf
     | Branch _ -> Tag.branch
     | Skip _ -> Tag.skip
@@ -352,7 +351,7 @@ module MerkleTrieSet (Elt : UIntS) = struct
   module Proof = struct
     type nonrec elt = elt
     type mts = t
-    type 'a step = 'a T.step
+    [@@@warning "-32"] type 'a step = 'a T.step
     [@@deriving rlp]
     type t = { elt : elt
              ; trie : Digest.t
@@ -601,8 +600,8 @@ module Test = struct
     `Assoc [ ("type",`String direction)
            ; (other_direction,`String digest)
            ]
-  let make_left_step = make_step "Left" "right"
-  let make_right_step = make_step "Right" "left"
+  let [@warning "-32"] make_left_step = make_step "Left" "right"
+  let [@warning "-32"] make_right_step = make_step "Right" "left"
 
   let proof_42_in_trie_100 =
     lazy (Proof.of_yojson_exn
