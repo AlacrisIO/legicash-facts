@@ -222,9 +222,11 @@ let validate_user_transaction_request :
           (fun () ->
             "Adding withdrawal amount and fee causes an overflow!")
         >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
-            (fun () ->
-              Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
-                (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
+              (fun () ->
+              Logging.log "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
+                (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee);
+                Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
+                  (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
         >>> check (is_forced || compare withdrawal_fee fee_schedule.withdrawal_fee >= 0)
               (fun () ->
                 Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
