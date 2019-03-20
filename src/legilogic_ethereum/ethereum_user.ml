@@ -2,7 +2,6 @@ open Legilogic_lib
 open Lib
 open Yojsoning
 open Marshaling
-open Tag
 open Persisting
 open Types
 open Signing

@@ -4,7 +4,6 @@ open Legilogic_lib
 open Lib
 open Yojsoning
 open Marshaling
-open Tag
 open Persisting
 open Types
 open Signing
@@ -65,11 +64,6 @@ module UserOperation = struct
     | Deposit    o -> (o.request_guid, o.requested_at)
     | Payment    o -> (o.request_guid, o.requested_at)
     | Withdrawal o -> (o.request_guid, o.requested_at)
-
-  let operation_tag = function
-    | Deposit    _ -> Side_chain_tag.deposit
-    | Payment    _ -> Side_chain_tag.payment
-    | Withdrawal _ -> Side_chain_tag.withdrawal
 
   module PrePersistable = struct
     type nonrec t = t
