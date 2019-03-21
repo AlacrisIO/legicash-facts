@@ -487,7 +487,10 @@ module TransactionTracker = struct
                            })
               >>= function
                 | Ok request  -> Requested request |> continue
-                | Error error -> invalidate ongoing error)
+                | Error error ->
+                   Logging.log "DepositConfirmed: side_chain_user, TrTracker, exn=%s" (Printexc.to_string error);
+                   Logging.log "DepositConfirmed: side_chain_user: TrTracker, Error case";
+                   invalidate ongoing error)
 
            | Requested request ->
              Logging.log "TR_LOOP, Requested operation";

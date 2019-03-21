@@ -2,7 +2,7 @@ open Lib
 open Hex
 open Yojsoning
 open Marshaling
-open Tag
+(* open Tag *)
 open Digesting
 open Persisting
 open Types

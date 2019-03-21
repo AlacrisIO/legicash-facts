@@ -158,6 +158,7 @@ let _ =
           Logging.log "GET /api/thread";
           (match Request.param request "id" with
              Some param ->
+              Logging.log "param=%s" param;
              (try
                 apply_main_chain_thread (int_of_string param)
                 |> ok_json id

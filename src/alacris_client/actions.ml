@@ -69,12 +69,18 @@ let thread_pending_json = `Assoc [("result",`String "The operation is pending")]
 (* lookup id in thread table; if completed, return result, else return boilerplate *)
 let apply_main_chain_thread id : yojson =
   try
+    Logging.log "Beginning of apply_main_chain_thread";
     let thread = Hashtbl.find id_to_thread_tbl id in
     match Lwt.state thread with
     (* TODO: make proper JSON RPC response *)
-    | Return (Ok json) -> json
-    | Return (Error e) -> `Assoc [("error", exn_to_yojson e)]
+    | Return (Ok json) ->
+       Logging.log "Branch 1 of apply_main_chain_thread";
+       json
+    | Return (Error e) ->
+       Logging.log "Branch 2 of apply_main_chain_thread";
+       `Assoc [("error", exn_to_yojson e)]
     | Fail exn ->
+       Logging.log "Branch 3 of apply_main_chain_thread";
       error_json "Thread exception: %s\nStack: %s"
         (Printexc.to_string exn)
         (Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ()))

@@ -45,7 +45,8 @@ let decode_response (unmarshaler : 'a unmarshaler) : (string, 'a or_exn) Lwter.a
 
 (* Queries return JSON *)
 let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =
-  Logging.log "side_chain_client : post_query_to_server";
+  let etime = Unix.gettimeofday() in
+  Logging.log "side_chain_client : post_query_to_server etime=%f" etime;
   match request with
   | `AdminQuery _
   | `UserQuery _ ->

@@ -1,5 +1,5 @@
 open Lib
-open Marshaling
+(* open Marshaling *)
 open Digesting
 open Persisting
 open Ppx_deriving_rlp_runtime.Rlping
