@@ -77,7 +77,7 @@ let apply_main_chain_thread id : yojson =
        Logging.log "Branch 1 of apply_main_chain_thread";
        json
     | Return (Error e) ->
-       Logging.log "Branch 2 of apply_main_chain_thread";
+       Logging.log "Branch 2 of apply_main_chain_thread e=%s" (Printexc.to_string e);
        `Assoc [("error", exn_to_yojson e)]
     | Fail exn ->
        Logging.log "Branch 3 of apply_main_chain_thread";
