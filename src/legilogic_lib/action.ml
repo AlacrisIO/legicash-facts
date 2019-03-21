@@ -462,11 +462,11 @@ let stateless_sequentialize processor =
 *)
 
 (* reading, writing strings from Lwt_io channels *)
-
 let read_string_from_lwt_io_channel ?(count=64) in_channel : string Lwt_exn.t =
   let open Lwt_exn in
   let open Lwt_io in
   Logging.log "read_string_from_lwt_io_channel, beginning";
+  (*  Logging.log "read_string_from_lwt_io_channel, pos_in=%i" (pos_in in_channel);*)
   catching_lwt read_int16 in_channel
   >>= fun len ->
   Logging.log "len=%i" len;
@@ -486,9 +486,10 @@ let write_string_to_lwt_io_channel out_channel s =
   let open Lwt_io in
   Logging.log "Beginning of write_string_to_lwt_io_channel";
   let len = String.length s in (* TODO: handle the case of length overflow *)
+  Logging.log "len=%i" len;
   catching_lwt (write_int16 out_channel) len
   >>= fun () ->
-  Logging.log "Passes step 1";
+  Logging.log "Passes step 1 s=%s" s;
   Lwt_stream.of_string s |> catching_lwt (write_chars out_channel)
   >>= fun () ->
   Logging.log "Passes step 2";

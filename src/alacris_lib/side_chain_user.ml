@@ -487,7 +487,7 @@ module TransactionTracker = struct
                            })
               >>= function
                 | Ok request  -> Requested request |> continue
-                | Error error ->
+                | Error (error : exn) ->
                    Logging.log "DepositConfirmed: side_chain_user, TrTracker, exn=%s" (Printexc.to_string error);
                    Logging.log "DepositConfirmed: side_chain_user: TrTracker, Error case";
                    invalidate ongoing error)
@@ -559,8 +559,11 @@ module TransactionTracker = struct
     Logging.log "Beginning of wait operation";
     let open Lwter in
     promise >>= function
-    | FinalTransactionStatus.SettledOnMainChain (t, c) -> Lwt_exn.return (t, c)
+    | FinalTransactionStatus.SettledOnMainChain (t, c) ->
+       Logging.log "CACE: SettledOnMainChain";
+       Lwt_exn.return (t, c)
     | FinalTransactionStatus.Failed (o, e) ->
+       Logging.log "CASE: Failed e=%s" (Printexc.to_string e);
         (match e with
             | Side_chain_operator.Malformed_request r ->
                 Logging.log "Malformed request: %s" r
