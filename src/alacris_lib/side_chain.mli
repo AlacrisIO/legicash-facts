@@ -38,7 +38,7 @@ module UserOperation : sig
     ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
     ; request_guid:                    RequestGuid.t
     ; requested_at:                    Timestamp.t
-    } [@@deriving lens, yojson]
+    } [@@deriving lens, yojson, rlp]
 
   type payment_details =
     { payment_invoice:   Invoice.t
@@ -46,19 +46,20 @@ module UserOperation : sig
     ; payment_expedited: bool
     ; request_guid:      RequestGuid.t
     ; requested_at:      Timestamp.t
-    } [@@deriving lens, yojson]
+    } [@@deriving lens, yojson, rlp]
 
   type withdrawal_details =
     { withdrawal_amount: TokenAmount.t
     ; withdrawal_fee:    TokenAmount.t
     ; request_guid:      RequestGuid.t
     ; requested_at:      Timestamp.t
-    } [@@deriving lens, yojson]
+    } [@@deriving lens, yojson, rlp]
 
   type t =
     | Deposit    of deposit_details
     | Payment    of payment_details
     | Withdrawal of withdrawal_details
+  [@@deriving rlp]
   (* TODO: do we need a two-phase send then receive (but only after settlement
    * send was settled) for non-expedited payments? *)
 
@@ -158,6 +159,7 @@ module UserQueryRequest : sig
     | Get_account_status of {address: Address.t} (* side chain and main chain *)
     | Get_recent_transactions of {address: Address.t; count: Revision.t option}
     | Get_proof of {tx_revision: Revision.t}
+  [@@deriving rlp]
   include PersistableS with type t := t
 end
 
@@ -165,6 +167,7 @@ module AdminQueryRequest : sig
   type t =
     | Get_all_balances
     | Get_transaction_rate
+  [@@deriving rlp]
   include PersistableS with type t := t
 end
 
@@ -182,6 +185,7 @@ module Query : sig
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `AdminQuery of AdminQueryRequest.t ]
+  [@@deriving rlp]
   include PersistableS with type t := t
 end
 
@@ -189,6 +193,7 @@ module UserRequest : sig
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed]
+  [@@deriving rlp]
   include PersistableS with type t := t
 end
 
@@ -196,6 +201,7 @@ module AdminRequest : sig
   type t =
     [ `AdminQuery of UserQueryRequest.t
     | `AdminTransaction of AdminTransactionRequest.t ]
+  [@@deriving rlp]
   include PersistableS with type t := t
 end
 
@@ -204,6 +210,7 @@ module ExternalRequest : sig
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed
     | `AdminQuery of AdminQueryRequest.t ]
+  [@@deriving rlp]
   include PersistableS with type t := t
 end
 

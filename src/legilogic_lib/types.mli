@@ -1,5 +1,4 @@
 open Lib
-open Marshaling
 open Digesting
 open Persisting
 open Ppx_deriving_rlp_runtime.Rlping
@@ -148,6 +147,7 @@ end
     auto-generated methods. *)
 module DigestValue (Value : PersistableRlpS) : sig
   type value = Value.t
+  [@@deriving rlp]
   type digest = Digest.t
   type t = value dv
   [@@deriving rlp]
