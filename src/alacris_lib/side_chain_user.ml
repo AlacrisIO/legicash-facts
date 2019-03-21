@@ -568,8 +568,11 @@ module TransactionTracker = struct
             | Side_chain_operator.Malformed_request r ->
                 Logging.log "Malformed request: %s" r
             | _ -> ());
-        Lwt_exn.fail (TransactionFailed (o, e))
+        Lwt_exn.fail e                     
 end
+(*        Lwt_exn.fail (TransactionFailed (o, e))*)
+
+
 
 module UserAccountState = struct
   [@warning "-39"]
