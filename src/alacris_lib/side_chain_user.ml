@@ -556,6 +556,7 @@ module TransactionTracker = struct
   module Key = Base.Key
   module State = Base.State
   let wait promise =
+    Logging.log "Beginning of wait operation";
     let open Lwter in
     promise >>= function
     | FinalTransactionStatus.SettledOnMainChain (t, c) -> Lwt_exn.return (t, c)

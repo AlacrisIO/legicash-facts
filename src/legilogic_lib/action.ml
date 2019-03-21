@@ -463,12 +463,16 @@ let stateless_sequentialize processor =
 
 (* reading, writing strings from Lwt_io channels *)
 
-let read_string_from_lwt_io_channel ?(count=64) in_channel =
+let read_string_from_lwt_io_channel ?(count=64) in_channel : string Lwt_exn.t =
   let open Lwt_exn in
   let open Lwt_io in
+  Logging.log "read_string_from_lwt_io_channel, beginning";
   catching_lwt read_int16 in_channel
   >>= fun len ->
+  Logging.log "len=%i" len;
   let rec loop sofar accum =
+    Logging.log "read_string_from_lwt_io_channel, sofar=%i" sofar;
+    (*    Logging.log "read_string_from_lwt_io_channel, accum=%s" accum;*)
     if sofar >= len then
       String.concat "" (List.rev accum) |> return
     else
@@ -480,10 +484,15 @@ let read_string_from_lwt_io_channel ?(count=64) in_channel =
 let write_string_to_lwt_io_channel out_channel s =
   let open Lwt_exn in
   let open Lwt_io in
+  Logging.log "Beginning of write_string_to_lwt_io_channel";
   let len = String.length s in (* TODO: handle the case of length overflow *)
   catching_lwt (write_int16 out_channel) len
-  >>= fun () -> Lwt_stream.of_string s |> catching_lwt (write_chars out_channel)
-  >>= fun () -> catching_lwt flush out_channel (* flushing is critical *)
+  >>= fun () ->
+  Logging.log "Passes step 1";
+  Lwt_stream.of_string s |> catching_lwt (write_chars out_channel)
+  >>= fun () ->
+  Logging.log "Passes step 2";
+  catching_lwt flush out_channel (* flushing is critical *)
 
 (* TODO: some kind of try ... finally to always close the channels *)
 let with_connection sockaddr f =

@@ -52,6 +52,7 @@ let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =
   | `UserQuery _ ->
     with_connection (Lazy.force sockaddr)
       (fun (in_channel,out_channel) ->
+        Logging.log "Beginning of in_channel, out_channel";
          Query.marshal_string request
          |> write_string_to_lwt_io_channel out_channel
          >>= fun () ->
