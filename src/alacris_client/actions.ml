@@ -84,8 +84,11 @@ let apply_main_chain_thread id : yojson =
       error_json "Thread exception: %s\nStack: %s"
         (Printexc.to_string exn)
         (Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ()))
-    | Sleep -> thread_pending_json
+    | Sleep ->
+       Logging.log "Branch 4 of apply_main_chain_thread";
+       thread_pending_json
   with Not_found ->
+    Logging.log "Error case of apply_main_chain_thread";
     error_json "Thread %d not found" id
 
 (* operations posted to operator *)
