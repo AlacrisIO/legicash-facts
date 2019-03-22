@@ -469,13 +469,15 @@ let read_string_from_lwt_io_channel ?(count=64) in_channel : string Lwt_exn.t =
   (*  Logging.log "read_string_from_lwt_io_channel, pos_in=%i" (pos_in in_channel);*)
   catching_lwt read_int16 in_channel
   >>= fun len ->
-  Logging.log "len=%i" len;
+  Logging.log "read_string_from_lwt_io_channel len=%i" len;
   let rec loop sofar accum =
     Logging.log "read_string_from_lwt_io_channel, sofar=%i" sofar;
     (*    Logging.log "read_string_from_lwt_io_channel, accum=%s" accum;*)
     if sofar >= len then
       (*      Logging.log "read_string_from_lwt_io_channel s=%s" (String.concat "" (List.rev accum));*)
-      String.concat "" (List.rev accum) |> return
+      let x=String.concat "" (List.rev accum) in
+      Logging.log "Before return statement";
+      x |> return
     else
       catching_lwt (read ~count) in_channel
       >>= fun s ->
@@ -489,7 +491,7 @@ let write_string_to_lwt_io_channel out_channel s =
   let open Lwt_io in
   Logging.log "Beginning of write_string_to_lwt_io_channel";
   let len = String.length s in (* TODO: handle the case of length overflow *)
-  Logging.log "len=%i" len;
+  Logging.log "write_string_to_lwt_io_channel len=%i" len;
   catching_lwt (write_int16 out_channel) len
   >>= fun () ->
   Logging.log "Passes step 1 s=%s" s;
