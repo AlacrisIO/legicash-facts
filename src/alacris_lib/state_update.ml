@@ -34,6 +34,7 @@ let push_state_digest_exn (digest : Digest.t) (value : TokenAmount.t) : Digest.t
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   Logging.log "push_state_digest_exn : before make_pre_transaction";
   Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val value
+  (*  >>= handling (fun e -> Logging.log "Error caught in push_state_digest_exn"; return ())*)
   >>= fun x ->
   Logging.log "push_state_digest_exn : before confirm_pre_transaction";
   Ethereum_user.confirm_pre_transaction oper_addr x

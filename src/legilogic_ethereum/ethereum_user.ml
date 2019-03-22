@@ -547,9 +547,14 @@ let transfer_tokens ~recipient value =
   PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=transfer_gas_used}
 
 let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : TokenAmount.t) : PreTransaction.t Lwt_exn.t =
+  Logging.log "Beginning of make_pre_transaction";
   (match gas_limit with
    | Some x -> return x
-   | None -> eth_estimate_gas (operation_to_parameters sender operation))
+   | None ->
+      Logging.log "None case";
+      let theval = (operation_to_parameters sender operation) in
+      Logging.log "We now have theval";
+      eth_estimate_gas theval)
   >>= fun gas_limit ->
   Logging.log "make_pre_transaction gas_limit=%i value=%i" (TokenAmount.to_int gas_limit) (TokenAmount.to_int value);
   let gas_limit_tenfold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
