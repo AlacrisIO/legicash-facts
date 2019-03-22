@@ -93,13 +93,11 @@ let int_unmarshal_rlp = int_rlping.unmarshal_rlp
 
 (* floats *)
 
-let z_to_int64_guarded z =
-  if Z.fits_int64 z
-  then Z.to_int64 z
-  else raise (Rlp.Rlp_data_type_mismatch ("int64 doesn't fit", z_to_rlp_item z))
-
 let z_bits_of_float x = Z.of_int64 (Int64.bits_of_float x)
-let float_of_z_bits z = Int64.float_of_bits (z_to_int64_guarded z)
+let float_of_z_bits z =
+  if Z.fits_int64 z
+  then Int64.float_of_bits (Z.to_int64 z)
+  else raise (Rlp.Rlp_data_type_mismatch ("float doesn't fit", z_to_rlp_item z))
 
 let float_rlping = rlping_by_isomorphism float_of_z_bits z_bits_of_float z_rlping
 let float_to_rlp_item = float_rlping.to_rlp_item
