@@ -43,6 +43,26 @@ let test10 ctxt = let str = ("abcdefghi jklmnopqr stuvwxyz, 32abcdefghi jklmnopq
 let test11 ctxt = check_rlp_str ~ctxt (RlpItem "2re3mi1do1do5sol") "\x902re3mi1do1do5sol"
 let test12 ctxt = check_rlp_str ~ctxt (RlpItem "5sol7ti2re5sol1do") "\x915sol7ti2re5sol1do"
 
+let test_string_length_too_long ctxt =
+  let s1f = "\xbf\x1f\xff\xff\xff\xff\xff\xff\xff\000\000\000\000..."
+  and sff = "\xbf\xff\xff\xff\xff\xff\xff\xff\xff\000\000\000\000..." in
+  assert_equal ~ctxt None (rlp_item_of_rlp_opt s1f);
+  assert_raises (Rlp.Rlp_unmarshaling_error ("string length goes past limit", 0, s1f))
+                (fun () -> rlp_item_of_rlp s1f);
+  assert_equal ~ctxt None (rlp_item_of_rlp_opt sff);
+  assert_raises (Rlp.Rlp_unmarshaling_error ("string length does not fit into an `int`", 0, sff))
+                (fun () -> rlp_item_of_rlp sff)
+
+let test_list_length_too_long ctxt =
+  let s1f = "\xff\x1f\xff\xff\xff\xff\xff\xff\xff\000\000\000\000..."
+  and sff = "\xff\xff\xff\xff\xff\xff\xff\xff\xff\000\000\000\000..." in
+  assert_equal ~ctxt None (rlp_item_of_rlp_opt s1f);
+  assert_raises (Rlp.Rlp_unmarshaling_error ("list payload length goes past limit", 0, s1f))
+                (fun () -> rlp_item_of_rlp s1f);
+  assert_equal ~ctxt None (rlp_item_of_rlp_opt sff);
+  assert_raises (Rlp.Rlp_unmarshaling_error ("list payload length does not fit into an `int`", 0, sff))
+                (fun () -> rlp_item_of_rlp sff)
+
 let suite =
 "rlp_encode_test">:::
  ["wiki_ex1">:: wiki_ex1;
@@ -56,6 +76,8 @@ let suite =
   "wiki_ex9">:: wiki_ex9;
   "test10">:: test10;
   "test11">:: test11;
-  "test12">:: test12]
+  "test12">:: test12;
+  "test_string_length_too_long">:: test_string_length_too_long;
+  "test_list_length_too_long">:: test_list_length_too_long]
 
 let () = run_test_tt_main suite
