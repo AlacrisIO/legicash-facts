@@ -474,10 +474,13 @@ let read_string_from_lwt_io_channel ?(count=64) in_channel : string Lwt_exn.t =
     Logging.log "read_string_from_lwt_io_channel, sofar=%i" sofar;
     (*    Logging.log "read_string_from_lwt_io_channel, accum=%s" accum;*)
     if sofar >= len then
+      (*      Logging.log "read_string_from_lwt_io_channel s=%s" (String.concat "" (List.rev accum));*)
       String.concat "" (List.rev accum) |> return
     else
       catching_lwt (read ~count) in_channel
-      >>= fun s -> loop (sofar + String.length s) (s::accum)
+      >>= fun s ->
+      Logging.log "s=%s" s;
+      loop (sofar + String.length s) (s::accum)
   in
   loop 0 []
 
