@@ -153,7 +153,7 @@ let validate_user_transaction_request :
            UNTIL WE IMPROVE THE SIDE CHAIN USER SOFTWARE
            TODO - Fix the side_chain_user and endpoints/actions code, then re-enable this check. *)
       let open Revision in
-      Logging.log "requester_revision=%i account_revision=%i" (Revision.to_int requester_revision) (Revision.to_int account_revision);
+      Logging.log "requester_revision=%s account_revision=%s" (Revision.to_string requester_revision) (Revision.to_string account_revision);
       check (requester_revision = (add account_revision one) || true) (* <-- TODO: REMOVE the || true *)
         (fun () ->
            Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
