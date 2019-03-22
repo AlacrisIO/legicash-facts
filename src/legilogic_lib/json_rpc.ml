@@ -123,7 +123,7 @@ let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
     Logging.log "json_rpc: response_json";
     response_json
     |> trying (catching_arr (result_response_of_yojson >> OrString.get))
-    >>= handling (fun e ->
+    >>= handling (fun _ ->
             Logging.log "HAN: json_rpc: handling";
       response_json
       |> trying (catching_arr (error_response_of_yojson >> OrString.get))

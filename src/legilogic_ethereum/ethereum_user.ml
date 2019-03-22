@@ -2,7 +2,6 @@ open Legilogic_lib
 open Lib
 open Yojsoning
 open Marshaling
-(* open Tag *)
 open Persisting
 open Types
 open Signing
@@ -556,7 +555,7 @@ let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : T
       Logging.log "We now have theval";
       eth_estimate_gas theval)
   >>= fun gas_limit ->
-  Logging.log "make_pre_transaction gas_limit=%i value=%i" (TokenAmount.to_int gas_limit) (TokenAmount.to_int value);
+  Logging.log "make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
   let gas_limit_tenfold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
   return PreTransaction.{operation; value; gas_limit=gas_limit_tenfold}
 

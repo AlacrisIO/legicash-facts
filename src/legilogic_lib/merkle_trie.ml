@@ -16,7 +16,6 @@ open Lib
 open Lazy
 open Yojsoning
 open Marshaling
-(* open Tag *)
 open Digesting
 open Persisting
 open Types
@@ -31,6 +30,7 @@ module type TrieSynthMerkleS = sig
 end
 
 module TrieSynthMerkle (Key : UIntS) (Value : PersistableRlpS) = struct
+  [@@@warning "-32"]
   type key = Key.t
   [@@deriving rlp]
   type value = Value.t
@@ -80,7 +80,6 @@ end
 
 module type MerkleTrieS = sig
   type key
-  [@@deriving rlp]
   type value
   (* [Synth.t = unit] because we want to be able to use the [TrieS] tree-walking
      functionality for lazy DB access, here, without invoking its potentially
@@ -122,12 +121,6 @@ end
 module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
     (Synth : TrieSynthS with type key = Key.t and type value = Value.t) = struct
   include TrieType (Key) (Value) (DigestValueType) (Synth)
-
-  let trie_tag = function
-    | Leaf _ -> Tag.leaf
-    | Branch _ -> Tag.branch
-    | Skip _ -> Tag.skip
-    | Empty -> Tag.empty
 
   (* Ugly: to achieve mutual definition between marshaling or trie and t,
      we side-effects that array to close the loop. *)
@@ -350,6 +343,7 @@ module MerkleTrieSet (Elt : UIntS) = struct
     m ~i:Elt.zero ~treea:a ~treeb:b ~k:(konstant true)
 
   module Proof = struct
+    [@@@warning "-32"]
     type nonrec elt = elt
     type mts = t
     type 'a step = 'a T.step
@@ -596,13 +590,6 @@ module Test = struct
 
   let%test "unequal" =
     not (equal (=) (force trie_4) (force trie_1))
-
-  let make_step direction other_direction digest =
-    `Assoc [ ("type",`String direction)
-           ; (other_direction,`String digest)
-           ]
-  let make_left_step = make_step "Left" "right"
-  let make_right_step = make_step "Right" "left"
 
   let proof_42_in_trie_100 =
     lazy (Proof.of_yojson_exn

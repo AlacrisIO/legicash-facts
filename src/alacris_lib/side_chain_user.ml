@@ -632,7 +632,7 @@ let get_next_account_revision : Address.t -> unit -> UserState.t -> (Revision.t 
   fun operator () state ->
     let revision_lens = operator_lens operator |-- UserAccountState.lens_side_chain_revision in
     let (revision : Revision.t) = revision_lens.get state in
-    (*    Logging.log "get_next_account_revision revision=%i" (Revision.to_int revision);*)
+    (*    Logging.log "get_next_account_revision revision=%s" (Revision.to_string revision);*)
     Lwt.return (revision, (state |> revision_lens.set Revision.(add one revision)))
 
 module User = struct
