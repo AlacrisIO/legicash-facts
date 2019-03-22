@@ -54,10 +54,15 @@ let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =
       (fun (in_channel,out_channel) ->
         Logging.log "Beginning of in_channel, out_channel";
          Query.marshal_string request
-         |> write_string_to_lwt_io_channel out_channel
+         |> fun x ->
+            Logging.log "Before write_string_to_lwt_io_channel, post_query_to_server, x=%s" x;
+            write_string_to_lwt_io_channel out_channel x
          >>= fun () ->
+         Logging.log "Before read_string_from_lwt_io_channel, in postquery_to_server";
          read_string_from_lwt_io_channel in_channel
-         >>= decode_response yojson_marshaling.unmarshal)
+         >>= fun x ->
+         Logging.log "After read_string_from_lwt_io_channel, post_query_to_server x=%s" x;
+         decode_response yojson_marshaling.unmarshal x)
 
 let post_query_hook = ref post_query_to_server
 
@@ -85,11 +90,15 @@ let post_user_transaction_request_to_server (request : UserTransactionRequest.t 
       let (eval : string) = ExternalRequest.marshal_string external_request in
       Logging.log "Returning marshaled value";
       eval
-      |> write_string_to_lwt_io_channel out_channel
+      |> fun x ->
+         Logging.log "Before write_string_to_lwt_io_channel, post_user_transaction_request_to_server x=%s" x;
+         write_string_to_lwt_io_channel out_channel x
       >>= fun () ->
-      Logging.log "Before read_string_from_lwt_io_channel in_channel";
+      Logging.log "Before read_string_from_lwt_io_channel, in post_user_transaction_request_to_server";
       read_string_from_lwt_io_channel in_channel
-      >>= decode_response fct_decode_response)
+      >>= fun x ->
+      Logging.log "Afer read_string_from_lwt_io_channel, post_user_transaction_request_to_server x=%s" x;
+      decode_response fct_decode_response x)
 
 let post_user_transaction_request_hook = ref post_user_transaction_request_to_server
 

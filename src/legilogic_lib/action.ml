@@ -489,7 +489,7 @@ let read_string_from_lwt_io_channel ?(count=64) in_channel : string Lwt_exn.t =
 let write_string_to_lwt_io_channel out_channel s =
   let open Lwt_exn in
   let open Lwt_io in
-  Logging.log "Beginning of write_string_to_lwt_io_channel";
+  Logging.log "Beginning of write_string_to_lwt_io_channel s=%s" s;
   let len = String.length s in (* TODO: handle the case of length overflow *)
   Logging.log "write_string_to_lwt_io_channel len=%i" len;
   catching_lwt (write_int16 out_channel) len
