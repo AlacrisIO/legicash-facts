@@ -55,10 +55,14 @@ let rec unmarshal s offset limit =
      else
        (* >55 byte item *)
        let nn = first_byte - 0xb7
+       (* 1 <= nn because 0xb8 <= first_byte *)
+       (* nn <= 8 because first_byte < 0xc0 *)
        and offset_a = offset + 1 in
        let offset_b = offset_a + nn in
        (if limit < offset_b then raise (Rlp_unmarshaling_error ("string length-of-length goes past limit", offset, s)));
-       let n = Z.to_int (unmarshal_nat s offset_a nn) in
+       let nz = unmarshal_nat s offset_a nn in
+       if not (Z.fits_int nz) then raise (Rlp_unmarshaling_error ("string length does not fit into an `int`", offset, s));
+       let n = Z.to_int nz in
        let offset_c = offset_b + n in
        (if limit < offset_c then raise (Rlp_unmarshaling_error ("string length goes past limit", offset, s)));
        (if n < 56 then raise (Rlp_unmarshaling_error ("string should be represented with length<=55 mode", offset, s)));
@@ -76,10 +80,14 @@ let rec unmarshal s offset limit =
      else
        (* >55 byte list *)
        let nn = first_byte - 0xf7
+       (* 1 <= nn because 0xf8 <= first_byte *)
+       (* nn <= 8 because first_byte <= 0xff *)
        and offset_a = offset + 1 in
        let offset_b = offset_a + nn in
        (if limit < offset_b then raise (Rlp_unmarshaling_error ("list payload length-of-length goes past limit", offset, s)));
-       let n = Z.to_int (unmarshal_nat s offset_a nn) in
+       let nz = unmarshal_nat s offset_a nn in
+       if not (Z.fits_int nz) then raise (Rlp_unmarshaling_error ("list payload length does not fit into an `int`", offset, s));
+       let n = Z.to_int nz in
        let offset_c = offset_b + n in
        (if limit < offset_c then raise (Rlp_unmarshaling_error ("list payload length goes past limit", offset, s)));
        (if n < 56 then raise (Rlp_unmarshaling_error ("list should be represented with length<=55 mode", offset, s)));
