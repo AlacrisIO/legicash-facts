@@ -120,13 +120,13 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         if (is_claim_status_accepted(claim)) {
           // Consume a valid withdrawal claim.
 	  set_claim_consumed(claim);
-	  
-          // Log the withdrawal so future double-claim attempts can be duly rejected.
-          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
 
           // NB: Always transfer money LAST!
           // TODO: Should we allow a recipient different from the sender?
           msg.sender.transfer(_value + _bond);
+	  
+          // Log the withdrawal so future double-claim attempts can be duly rejected.
+          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
 	}
     }
 

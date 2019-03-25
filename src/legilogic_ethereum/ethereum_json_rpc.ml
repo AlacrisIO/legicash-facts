@@ -172,13 +172,6 @@ module EthObject = struct
            end) : (PersistableS with type t := t))
 end
 
-(*
-module EthCall
-
-
-
-
- *)
 module SignedTransaction = struct
   type t =
     { raw: Data.t
@@ -352,11 +345,6 @@ let eth_block_number =
   ethereum_json_rpc "eth_blockNumber"
     Revision.of_yojson_exn
     yojson_0args
-
-  (*
-let eth_call =
-  ethereum_json_rpc "eth_call"
-   *)
 
 
 
