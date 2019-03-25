@@ -392,6 +392,16 @@ end
 
 exception TransactionFailed of OngoingTransactionStatus.t * exn
 
+                                                              
+let () = Printexc.register_printer (function
+             | TransactionFailed (o,e) ->
+                let str_except : string = Printexc.to_string e in
+                let str_ret : string = Printf.sprintf "TransactionFailed(o,%s)" str_except in
+                Some str_ret
+             | _ -> None)
+           
+
+                             
 type revision_generator = (unit, Revision.t) Lwter.arr
 
 module TransactionTracker = struct
@@ -568,9 +578,8 @@ module TransactionTracker = struct
             | Side_chain_operator.Malformed_request r ->
                 Logging.log "Malformed request: %s" r
             | _ -> ());
-        Lwt_exn.fail e                     
+        Lwt_exn.fail (TransactionFailed (o, e))
 end
-(*        Lwt_exn.fail (TransactionFailed (o, e))*)
 
 
 
