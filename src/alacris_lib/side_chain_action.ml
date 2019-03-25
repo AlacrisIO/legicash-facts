@@ -65,7 +65,7 @@ let ensure_side_chain_contract_created (installer_address : Address.t) : Address
   Operator_contract.set_contract_address contract_address;
   return contract_address
 
-(*
+(* TODO re-enable
 module Test = struct
   open Lib.Test
   open Signing.Test

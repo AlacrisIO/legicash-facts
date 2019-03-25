@@ -613,6 +613,7 @@ module Test = struct
                info.to_ = Some contract_address && info.input = call_input) ;
     return true
 
+  (* TODO re-enable
   let%test "Ethereum-testnet-transfer" =
     Logging.log "\nTEST: Ethereum-testnet-transfer\n";
     Lwt_exn.run
@@ -626,6 +627,7 @@ module Test = struct
         >>= fun (transaction, _signed_tx, TransactionReceipt.{transaction_hash}) ->
         check_transaction_execution transaction_hash transaction)
       ()
+      *)
 
   (*
   let test_contract_code () =
@@ -640,7 +642,7 @@ module Test = struct
     | _ -> Lib.bork "list isn't a singleton"
   *)
 
-(*
+(* TODO re-enable
   let%test "Ethereum-testnet-contract-failure" =
     (Logging.log "\nTEST: contract-failure-on-Ethereum-testnet!!\n";
     Lwt_exn.run
@@ -662,7 +664,7 @@ module Test = struct
     ()
  *)
 
-  (*
+  (* TODO re-enable
   let%test "Ethereum-testnet-contract-success" =
     Logging.log "\nTEST: contract-success-on-Ethereum-testnet!!\n";
     Logging.log "SUBTEST: create the contract\n";
