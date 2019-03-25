@@ -28,7 +28,7 @@ type private_key = PrivateKey.t
 
 (** Public key in Secp256k1 public-key cryptography *)
 module PublicKey : sig
-  include YojsonMarshalableS (* with type t = Secp256k1.Key.public Secp256k1.Key.t *)
+  include YojsonMarshalableRlpS (* with type t = Secp256k1.Key.public Secp256k1.Key.t *)
   include ShowableS with type t := t
   val of_private_key : private_key -> t
 end

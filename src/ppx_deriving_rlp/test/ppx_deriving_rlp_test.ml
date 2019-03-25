@@ -58,6 +58,11 @@ let test_z3 ctxt = check_z_rlp ~ctxt (Z.of_string "98765432109876543210")
                                      (RlpItem "\x05\x5A\xA5\x4D\x38\xE5\x26\x7E\xEA")
                                      "\x89\x05\x5A\xA5\x4D\x38\xE5\x26\x7E\xEA"
 
+let test_int_too_large ctxt =
+  assert_equal ~ctxt None ([%rlp: int].of_rlp_item_opt (RlpItem "\x05\x5A\xA5\x4D\x38\xE5\x26\x7E\xEA"));
+  assert_equal ~ctxt None ([%rlp: int].of_rlp_opt "\x89\x05\x5A\xA5\x4D\x38\xE5\x26\x7E\xEA")
+
+
 let test_int1 ctxt = check_alias_int_rlp ~ctxt 5 (RlpItem "\005") "\005"
 let test_int2 ctxt = check_alias_int_rlp ~ctxt (-10) (RlpItems [RlpItem "\010"]) "\xc1\010"
 let test_list2 ctxt = check_alias_list_rlp ~ctxt [6] (RlpItems [RlpItem "\006"]) "\xc1\006"
@@ -78,6 +83,10 @@ let test_float3 ctxt = check_float_rlp ~ctxt
                                        1.1428571428571428
                                        (RlpItem "\x3f\xf2\x49\x24\x92\x49\x24\x92")
                                        "\x88\x3f\xf2\x49\x24\x92\x49\x24\x92"
+
+let test_float_too_large ctxt =
+  assert_equal ~ctxt None ([%rlp: float].of_rlp_item_opt (RlpItem "\x3f\xf2\x49\x24\x92\x49\x24\x92\x49\x24\x92\x49"));
+  assert_equal ~ctxt None ([%rlp: float].of_rlp_opt "\x8c\x3f\xf2\x49\x24\x92\x49\x24\x92\x49\x24\x92\x49")
 
 let test3 ctxt = check_foo_rlp ~ctxt (A 5) (RlpItems [RlpItem ""; RlpItem "\005"]) "\xc2\x80\005"
 let test4 ctxt = check_foo_rlp ~ctxt
@@ -300,6 +309,7 @@ let suite =
  ["test_z1">:: test_z1;
   "test_z2">:: test_z2;
   "test_z3">:: test_z3;
+  "test_int_too_large">:: test_int_too_large;
   "test_int1">:: test_int1;
   "test_int2">:: test_int2;
   "test_list2">:: test_list2;
@@ -311,6 +321,7 @@ let suite =
   "test_float1">:: test_float1;
   "test_float2">:: test_float2;
   "test_float3">:: test_float3;
+  "test_float_too_large">:: test_float_too_large;
   "test3">:: test3;
   "test4">:: test4;
   "test5">:: test5;

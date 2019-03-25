@@ -30,6 +30,7 @@ module type TrieSynthMerkleS = sig
 end
 
 module TrieSynthMerkle (Key : UIntS) (Value : PersistableRlpS) = struct
+  [@@@warning "-32"]
   type key = Key.t
   [@@deriving rlp]
   type value = Value.t
@@ -348,6 +349,7 @@ module MerkleTrieSet (Elt : UIntS) = struct
     m ~i:Elt.zero ~treea:a ~treeb:b ~k:(konstant true)
 
   module Proof = struct
+    [@@@warning "-32"]
     type nonrec elt = elt
     type mts = t
     [@@@warning "-32"] type 'a step = 'a T.step
