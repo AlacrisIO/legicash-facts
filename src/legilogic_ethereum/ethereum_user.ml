@@ -591,6 +591,7 @@ module Test = struct
 
   (** Has a transaction given by a hash successfully executed,
       and does the Ethereum network report information that match what we expected? *)
+  [@@@warning "-32"]
   let check_transaction_execution (transaction_hash: digest) (transaction: Transaction.t) : bool Lwt_exn.t =
     eth_get_transaction_receipt transaction_hash
     >>= arr (function
