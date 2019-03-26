@@ -392,11 +392,23 @@ end
 
 exception TransactionFailed of OngoingTransactionStatus.t * exn
 
-                                                              
+
+let print_ots_state (o: OngoingTransactionStatus.t) : string =
+  match o with
+  | DepositWanted _ -> "depositwanted"
+  | DepositPosted _ -> "depositposted"
+  | DepositConfirmed _ -> "depositconfirmed"
+  | Requested _ -> "requested"
+  | SignedByOperator _ -> "signedbyoperator"
+  | PostedToRegistry _ -> "postedtoregistry"
+  | PostedToMainChain _ -> "postedtomainchain"
+  | ConfirmedOnMainChain _ -> "confirmedonmainchain"
+                             
 let () = Printexc.register_printer (function
              | TransactionFailed (o,e) ->
                 let str_except : string = Printexc.to_string e in
-                let str_ret : string = Printf.sprintf "TransactionFailed(o,%s)" str_except in
+                let str_o = print_ots_state o in
+                let str_ret : string = Printf.sprintf "TransactionFailed(%s,%s)" str_o str_except in
                 Some str_ret
              | _ -> None)
            
