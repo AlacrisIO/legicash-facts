@@ -415,16 +415,10 @@ let effect_validated_user_transaction_request :
       debit_balance (TokenAmount.add withdrawal_amount withdrawal_fee) requester
       >>> accept_fee withdrawal_fee
 
-let post_state_update_needed_uo (useroper : UserOperation.t) : (bool * TokenAmount.t * TokenAmount.t) =
-  match useroper with
-  | Deposit _ -> (true, TokenAmount.zero, TokenAmount.zero)
-  | Payment _ -> (true, TokenAmount.zero, TokenAmount.zero)
-  | Withdrawal x -> (true, x.withdrawal_amount, (TokenAmount.add x.withdrawal_amount x.withdrawal_fee))
-
-let post_state_update_needed_tr (transreq : TransactionRequest.t) : (bool*TokenAmount.t*TokenAmount.t) =
+let post_state_update_needed_tr (transreq : TransactionRequest.t) : bool =
   match transreq with
-  | `AdminTransaction _ -> (false, TokenAmount.zero, TokenAmount.zero)
-  | `UserTransaction x -> post_state_update_needed_uo x.payload.operation
+  | `AdminTransaction _ -> false
+  | `UserTransaction _ -> true
 
 (** TODO: have a server do all the effect_requests sequentially,
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
@@ -438,7 +432,7 @@ let post_validated_transaction_request :
 
 let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * Digest.t) Lwt_exn.t =
   Logging.log "post_state_update_request, beginning of function";
-  let ((lneedupdate, _bond, value) : (bool*TokenAmount.t*TokenAmount.t)) = post_state_update_needed_tr transreq in
+  let (lneedupdate : bool) = post_state_update_needed_tr transreq in
   (*  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate; *)
   if lneedupdate then
     let fct = simple_client inner_transaction_request_mailbox
@@ -449,7 +443,7 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
     Lwt_exn.bind (Lwt.bind (fct transreq)
                     (fun (digest_rev) ->
                       let (digest : Digest.t) = digest_rev in
-                      push_state_digest_exn digest value))
+                      push_state_digest_exn digest))
       (fun (x : Digest.t) -> Lwt_exn.return (transreq, x))
   else
     Lwt_exn.return (transreq, Digesting.null_digest)
@@ -548,9 +542,11 @@ let get_account_status address operator_state =
   let exception Failure_to_get_main_chain_balance of exn in
   let exception Failure_to_get_main_chain_transaction_count of exn in
   let side_chain_state = get_account_state address operator_state in
+  Logging.log "Before call to eth_get_balance with address=%s" (Address.to_string address);
   trying Ethereum_json_rpc.eth_get_balance (address, Latest)
   >>= handling (fun e -> fail (Failure_to_get_main_chain_balance e))
   >>= fun balance ->
+  Logging.log "Before call to computing get_transaction_count";
   trying Ethereum_json_rpc.eth_get_transaction_count (address, Pending)
   >>= handling (fun e -> fail (Failure_to_get_main_chain_transaction_count e))
   >>= fun revision ->
@@ -573,11 +569,13 @@ let get_account_balances (operator_state:OperatorState.t) =
    * address should be taken from the operator state rather than a magic
    * constant
    *)
+  Logging.log "Beginning of get_account_balances";
   let open Lwt_exn in
   AccountMap.bindings operator_state.current.accounts
-    |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
-    |> list_map_p (fun (addr, _) ->
-        get_account_status addr operator_state
+  |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
+  |> list_map_p (fun (addr, _) ->
+         Logging.log "Before get_account_status with addr=%s" (Address.to_string addr);
+         get_account_status addr operator_state
         >>= fun d -> return (Address.to_0x addr, d))
     >>= fun bs -> return @@ `Assoc bs
 

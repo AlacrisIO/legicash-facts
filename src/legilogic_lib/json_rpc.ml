@@ -98,53 +98,33 @@ let make_request : string -> ('a -> yojson) -> 'a -> request Lwt_exn.t =
     return {json_rpc_version;method_name;params;id}
 
 let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
-  Logging.log "json_rpc: decode_response";
   fun result_decoder request_id response ->
-    Logging.log "json_rpc: result_decoder";
     let malformed_response exn = fail (
                                      Logging.log "exn=%s" (Printexc.to_string exn);
                                      Malformed_response (response, exn)) in
     let checking jsonrpc x id =
       if not (jsonrpc = json_rpc_version) then
-        (Logging.log "checking, case 1";
-        malformed_response (Internal_error "bad json_rpc_version"))
+        malformed_response (Internal_error "bad json_rpc_version")
       else if not (id = request_id) then
-        (Logging.log "checking, case 2";
-        malformed_response (Internal_error "bad id"))
+        malformed_response (Internal_error "bad id")
       else
-        (Logging.log "checking, case 3";
-        return x)
+        return x
     in
     trying (catching_arr yojson_of_string) response
     >>= fun x ->
-    Logging.log "json_rpc: handling 1";
     handling malformed_response x
     >>= fun response_json ->
-    Logging.log "json_rpc: response_json";
     response_json
     |> trying (catching_arr (result_response_of_yojson >> OrString.get))
-    >>= handling (fun _ ->
-            Logging.log "HAN: json_rpc: handling";
-      response_json
+    >>= handling (fun _ -> response_json
       |> trying (catching_arr (error_response_of_yojson >> OrString.get))
-      >>= fun x ->
-      Logging.log "HAN: json_rpc: handling 2";
-      handling malformed_response x
-      >>= fun {jsonrpc;error;id} ->
-      Logging.log "HAN: json_rpc: checking";
-      checking jsonrpc error id
-      >>= fun e ->
-      Logging.log "HAN: Before the fail statement";
-      fail (Rpc_error e))
-    >>= fun {jsonrpc;result;id} ->
-    Logging.log "json_rpc: fun(jsonrpc;result;id)";
-    checking jsonrpc result id
-    >>= fun x ->
-    Logging.log "Before trying catching";
-    trying (catching_arr result_decoder) x
-    >>= fun x ->
-    Logging.log "json_rpc: handling 3";
-    handling malformed_response x
+      >>= handling malformed_response
+      >>= fun {jsonrpc;error;id} -> checking jsonrpc error id
+      >>= fun e -> fail (Rpc_error e))
+    >>= fun {jsonrpc;result;id} -> checking jsonrpc result id
+    >>= trying (catching_arr result_decoder)
+    >>= handling malformed_response
+      
 
 let json_rpc server method_name result_decoder param_encoder
       ?(timeout=rpc_timeout) ?(log= !rpc_log) params =
