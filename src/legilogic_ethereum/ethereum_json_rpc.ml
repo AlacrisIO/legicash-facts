@@ -330,7 +330,7 @@ let transaction_data_of_signed_transaction = function
          ; data = input
          ; v = v_of_chain_id v
          ; r = Option.defaulting (konstant Data256.zero) r
-         ; s = Option.defaulting (konstant Data256.zero) s } (* TODO: is this the correct s? probably not *)
+         ; s = Option.defaulting (konstant Data256.zero) s } (* TODO: is this the correct? Probably not *)
 
 
 let eth_estimate_gas =
