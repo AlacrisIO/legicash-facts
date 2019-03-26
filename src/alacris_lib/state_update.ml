@@ -23,6 +23,23 @@ let init_state : unit -> digest_entry =
 
 let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
 
+
+let print_contract_account_value (estr : string) : unit Lwt_exn.t =
+  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
+  Lwt_exn.bind (Ethereum_json_rpc.eth_get_balance (oper_addr, Latest))
+    (fun x-> Logging.log "PCAV stage=%s value=%s" estr (TokenAmount.to_string x);
+             Lwt_exn.return ())
+
+let print_contract_account_value_ret (estr : string) (x : 'a) : 'a Lwt_exn.t =
+  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
+  Lwt_exn.bind (Ethereum_json_rpc.eth_get_balance (oper_addr, Latest))
+    (fun x-> Logging.log "PCAV stage=%s value=%s" estr (TokenAmount.to_string x);
+             Lwt_exn.return x)
+  
+
+
+  
+                                              
 (* Alert to take care of:
    ---lack of gas
    ---transaction not passed

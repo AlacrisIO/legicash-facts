@@ -123,9 +123,10 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
           // NB: Always transfer money LAST!
           // TODO: Should we allow a recipient different from the sender?
-	  address payable addr=msg.sender;
-	  uint256 theval = _value + _bond;
-          addr.transfer(theval);
+	  msg.sender.transfer(_value + _bond);
+//          address payable addr=msg.sender;
+//          uint256 theval = _value + _bond;
+//          addr.transfer(theval);
 	  
           // Log the withdrawal so future double-claim attempts can be duly rejected.
           emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
