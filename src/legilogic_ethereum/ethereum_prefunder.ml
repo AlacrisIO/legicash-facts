@@ -46,21 +46,30 @@ let ensure_prefunded prefunded_address amount string =
       >> List.map (fun (nickname, keypair) ->
         Signing.register_keypair nickname keypair;
         Some nickname, keypair.Keypair.address)]
+
   |> list_iter_p (fun (nickname, address) ->
     (match nickname with
      | Some name -> register_address name address
      | None -> ());
-    Logging.log "ensure_address_prefunded %s %s %s" (Address.to_0x prefunded_address) (TokenAmount.to_string amount) (Address.to_0x address);
+
+    Logging.log "ensure_address_prefunded %s %s %s"
+      (Address.to_0x prefunded_address)
+      (TokenAmount.to_string amount)
+      (Address.to_0x address);
+
     with_error_logging
-      (fun () ->
-        Printf.sprintf "Error trying to fund %s to %s tokens"
-          (nicknamed_string_of_address address) (TokenAmount.to_string amount))
-      (ensure_address_prefunded prefunded_address amount) address >>= fun () ->
-    with_error_logging
-      (fun () ->
-        Printf.sprintf "Error trying to register key for %s"
+      (fun () -> Printf.sprintf "Error trying to fund %s to %s tokens"
+        (nicknamed_string_of_address address)
+        (TokenAmount.to_string amount))
+      (ensure_address_prefunded prefunded_address amount)
+      address
+
+    >>= fun () ->
+      with_error_logging
+        (fun () -> Printf.sprintf "Error trying to register key for %s"
           (nicknamed_string_of_address address))
-      Ethereum_transaction.ensure_eth_signing_address address)
+        Ethereum_transaction.ensure_eth_signing_address
+        address)
 
 let _ =
   parse_argv Sys.argv
