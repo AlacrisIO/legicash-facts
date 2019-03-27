@@ -472,10 +472,10 @@ module TransactionTracker = struct
                              } as deposit_wanted)
                             , deposit_fee) ->
              Logging.log "TR_LOOP, DepositWanted operation";
+             (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
              let amnt = TokenAmount.(add deposit_amount deposit_fee) in
              let contr_addr = get_contract_address () in
-             let pre_transaction = Operator_contract.pre_deposit ~operator contr_addr amnt in
-             (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
+             let pre_transaction = Operator_contract.pre_deposit ~operator amnt contr_addr in
              (Ethereum_user.add_ongoing_transaction user (Wanted pre_transaction)
               >>= function
                 | Error error -> invalidate ongoing error

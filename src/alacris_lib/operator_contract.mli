@@ -25,7 +25,7 @@ val get_contract_address : unit -> Address.t
 (** set the address of the contract on Ethereum
     TODO: use a fixed address, obviating this call *)
 
-val pre_deposit : operator:Address.t -> Address.t -> TokenAmount.t -> PreTransaction.t
+val pre_deposit : operator:Address.t -> TokenAmount.t -> Address.t -> PreTransaction.t                  
 (** Create a PreTransaction for a contract call that deposits the amount
     into the sender's account on the operator *)
 

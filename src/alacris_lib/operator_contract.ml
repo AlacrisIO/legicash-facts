@@ -39,7 +39,7 @@ let make_deposit_call ~operator (contract_address: Address.t) : Ethereum_chain.O
   Logging.log "make_deposit_call : contr_addr=%s" (Address.to_string contr_addr);
   Operation.CallFunction (contract_address, call)
 
-let pre_deposit ~operator (contract_address: Address.t) (amount : TokenAmount.t) : PreTransaction.t =
+let pre_deposit ~operator (amount : TokenAmount.t) (contract_address: Address.t) : PreTransaction.t =
   let oper: Ethereum_chain.Operation.t = make_deposit_call ~operator contract_address in
   PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
 
