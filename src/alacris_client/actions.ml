@@ -113,16 +113,28 @@ let get_all_balances_on_trent () =
   UserQueryRequest.Get_account_balances
   |> post_user_query_request
 
-(*
-let get_contract_address () =
-  Logging.log "Beginning of get_contract_address";
+(*let get_contract_address_from_client_req : unit -> Address.t Lwt_exn.t =*)
+let get_contract_address_from_client_req () =
+  Logging.log "Beginning of get_contract_address_from_client";
+  let open Lwt_exn in 
   UserQueryRequest.Get_contract_address
   |> post_user_query_request
- *)  
+  >>= fun x -> return (Address.of_yojson_exn x)
 
+let contract_address_from_client_ref : (Address.t option ref) = ref None
 
+             
+let get_contract_address_from_client : unit -> Address.t Lwt_exn.t =
+  fun () ->
+  match !contract_address_from_client_ref with
+  | Some x -> Lwt_exn.return x
+  | None ->
+     Lwt_exn.bind (get_contract_address_from_client_req ())
+       (fun x ->
+         contract_address_from_client_ref := Some x;
+         Lwt_exn.return x)
+             
 
-  
 let get_recent_user_transactions_on_trent address maybe_limit =
   UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
   |> post_user_query_request

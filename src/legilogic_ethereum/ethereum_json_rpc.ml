@@ -70,25 +70,6 @@ module BlockParameter = struct
            end) : (PersistableS with type t := t))
 end
 
-(*
-module ContractAoListA = struct
-  type t =
-    | Contract_address of Address.t
-    | List_addresses of Address.t list
-  let to_yojson = function
-    | Contract_address x -> Address.to_yojson x
-    | List_addresses x -> bork "This List_addresses was missing"
-  let of_yojson_exn yojson =
-    let (str : string) = Address.of_yojson yojson in
-    let (xt : t) = Contract_address str in
-    xt
-  let of_yojson = of_yojson_of_of_yojson_exn of_yojson_exn
-  include (YojsonPersistable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : (PersistableS with type t := t))
-end
- *)
 
 
 module TransactionCondition = struct
