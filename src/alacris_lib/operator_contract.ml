@@ -35,8 +35,7 @@ let get_contract_address () = !contract_address
 let make_deposit_call ~operator (contract_address: Address.t) : Ethereum_chain.Operation.t =
   let parameters = [ abi_address operator ] in
   let call = encode_function_call { function_name = "deposit"; parameters } in
-  let contr_addr = get_contract_address() in
-  Logging.log "make_deposit_call : contr_addr=%s" (Address.to_string contr_addr);
+  Logging.log "make_deposit_call : contr_addr=%s" (Address.to_string contract_address);
   Operation.CallFunction (contract_address, call)
 
 let pre_deposit ~operator (amount : TokenAmount.t) (contract_address: Address.t) : PreTransaction.t =
