@@ -109,10 +109,20 @@ let get_status_on_trent_and_main_chain address =
   |> post_user_query_request
 
 let get_all_balances_on_trent () =
-  Logging.log "Beginning of get_all_balaces_on_trent";
+  Logging.log "Beginning of get_all_balances_on_trent";
   UserQueryRequest.Get_account_balances
   |> post_user_query_request
 
+(*
+let get_contract_address () =
+  Logging.log "Beginning of get_contract_address";
+  UserQueryRequest.Get_contract_address
+  |> post_user_query_request
+ *)  
+
+
+
+  
 let get_recent_user_transactions_on_trent address maybe_limit =
   UserQueryRequest.Get_recent_transactions { address; count = maybe_limit }
   |> post_user_query_request

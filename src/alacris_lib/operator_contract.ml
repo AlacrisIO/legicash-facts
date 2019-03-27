@@ -37,6 +37,8 @@ let make_deposit_call : Address.t -> Ethereum_chain.Operation.t =
   fun operator ->
     let parameters = [ abi_address operator ] in
     let call = encode_function_call { function_name = "deposit"; parameters } in
+    let contr_addr = get_contract_address() in
+    Logging.log "make_deposit_call : contr_addr=%s" (Address.to_string contr_addr);
     Operation.CallFunction (get_contract_address (), call)
 
 let pre_deposit ~operator amount =
@@ -62,6 +64,7 @@ let make_claim_withdrawal_call (contract_address : Address.t) (operator : Addres
                    ; abi_token_amount value
                    ; abi_digest confirmed_state ] in
   let call = encode_function_call { function_name = "claim_withdrawal"; parameters } in
+  Logging.log "make_claim_withdrawal_call contr_addr=%s" (Address.to_string contract_address);
   Operation.CallFunction (contract_address, call)
 
 
@@ -74,6 +77,7 @@ let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (op
                    ; abi_token_amount bond
                    ; abi_digest confirmed_state ] in
   let call = encode_function_call { function_name = "withdraw"; parameters } in
+  Logging.log "make_withdraw_call, contr_addr=%s" (Address.to_string contract_address);
   Operation.CallFunction (contract_address, call)
 
 
@@ -87,9 +91,9 @@ let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.
   Logging.log "OPERATION: Before creation of parameter for CallFunction make_state_update_call";
   let (parameters : 'a list) = [ abi_digest state_digest ] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
+  let contr_addr = get_contract_address() in
+  Logging.log "make_state_update_call : contr_addr=%s" (Address.to_string contr_addr);
   Operation.CallFunction (get_contract_address (), call)
-
-
 
 
 

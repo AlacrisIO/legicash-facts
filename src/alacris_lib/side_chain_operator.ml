@@ -608,8 +608,17 @@ let get_2proof tx_revision (operator_state : OperatorState.t) =
     error_json "Cannot provide proof for tx-revision: %s" (Revision.to_string tx_revision)
   | Some proof -> TransactionMap.Proof.to_yojson proof
 
+
+let get_contract_address_yojson () =
+  let open Lwt_exn in
+  let contr_addr = get_contract_address() in
+  return (`Assoc [("contract_address",Address.to_yojson contr_addr)])
+
+
+                
 (** Take messages from the user_query_request_mailbox, and process them (TODO: in parallel?) *)
-let process_user_query_request request =
+(*let process_user_query_request : (request : UserQueryRequest.t) : yojson Lwt_exn.t = *)
+let process_user_query_request request = 
   let open Lwt_exn in
   let state = get_operator_state () in
   (match (request : UserQueryRequest.t) with
@@ -617,6 +626,8 @@ let process_user_query_request request =
      get_account_balance address state |> return
    | Get_account_balances ->
      get_account_balances state
+   | Get_contract_address ->
+     get_contract_address_yojson ()
    | Get_account_state {address} ->
      get_account_state address state |> return
    | Get_account_status {address} ->
