@@ -55,12 +55,26 @@ let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
 
+module ContractAddrType = struct
+  [@warning "-39"]
+  type t = { contract_address : Address.t }
+  [@@deriving yojson {strict = false}]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+
+
+  
 let get_contract_address_from_client_exn_req () =
   Logging.log "Beginning of get_contract_address_from_client";
   let open Lwt_exn in
   UserQueryRequest.Get_contract_address
   |> post_user_query_request
-  >>= fun x -> return (Address.of_yojson_exn x)
+  >>= fun (x: yojson) ->
+  Logging.log "After post_user_query_request x=";
+  return (ContractAddrType.of_yojson_exn x).contract_address
 
 let contract_address_from_client_ref : (Address.t option ref) = ref None
 
@@ -190,8 +204,8 @@ let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Addres
 
   
 let post_operations (tc:       TransactionCommitment.t)
-                                     (operator: Address.t)
-                                   : unit Lwt_exn.t =
+      (operator: Address.t)
+    : unit Lwt_exn.t =
   let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
     | Deposit _ -> Logging.log "This part should not occur"; return ()
