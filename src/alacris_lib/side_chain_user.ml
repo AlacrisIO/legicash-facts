@@ -11,6 +11,7 @@ open Types
 open Merkle_trie
 open Json_rpc
 open Trie
+open Side_chain_client
 
 open Legilogic_ethereum
 open Side_chain_server_config
@@ -54,8 +55,35 @@ let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
 
+let get_contract_address_from_client_exn_req () =
+  Logging.log "Beginning of get_contract_address_from_client";
+  let open Lwt_exn in
+  UserQueryRequest.Get_contract_address
+  |> post_user_query_request
+  >>= fun x -> return (Address.of_yojson_exn x)
 
+let contract_address_from_client_ref : (Address.t option ref) = ref None
 
+let get_contract_address_from_client_exn : unit -> Address.t Lwt_exn.t =
+  fun () ->
+  match !contract_address_from_client_ref with
+  | Some x -> Lwt_exn.return x
+  | None ->
+     Lwt_exn.bind (get_contract_address_from_client_exn_req ())
+       (fun x ->
+         contract_address_from_client_ref := Some x;
+         Lwt_exn.return x)
+
+let get_contract_address_from_client : unit -> Address.t Lwt.t =
+  fun () -> 
+  Lwt.bind
+    (get_contract_address_from_client_exn ())
+    (fun x ->
+      match x with
+      | Error e -> bork "Error in obtaining the contract_address"
+      | Ok x -> Lwt.return x)
+
+    
 
 
 
@@ -474,6 +502,18 @@ module TransactionTracker = struct
              Logging.log "TR_LOOP, DepositWanted operation";
              (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
              let amnt = TokenAmount.(add deposit_amount deposit_fee) in
+             (*
+             Lwt_exn.bind 
+               (Lwt_exn.bind (get_contract_address_from_client ())
+                  (fun x -> Lwt_exn.return (Operator_contract.pre_deposit ~operator amnt x)))
+             (fun x_pre_transaction ->
+               (Ethereum_user.add_ongoing_transaction user (Wanted x_pre_transaction)
+                >>= function
+                | Error error -> invalidate ongoing error
+                | Ok (tracker_key, _, _) ->
+                   DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue))
+              *)
+             
              let contr_addr = get_contract_address () in
              let pre_transaction = Operator_contract.pre_deposit ~operator amnt contr_addr in
              (Ethereum_user.add_ongoing_transaction user (Wanted pre_transaction)
@@ -482,6 +522,7 @@ module TransactionTracker = struct
                 | Ok (tracker_key, _, _) ->
                   DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
 
+             
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
              Logging.log "TR_LOOP, DepositPosted operation";
              let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in

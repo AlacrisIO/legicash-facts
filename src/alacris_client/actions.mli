@@ -15,9 +15,6 @@ val error_json : ('a, unit, string, yojson) format4 -> 'a
 val get_all_balances_on_trent : unit -> yojson Lwt_exn.t
 (** balances for all users *)
 
-val get_contract_address_from_client : unit -> Address.t Lwt_exn.t
-(** balances for all users *)
-
 val get_transaction_rate_on_trent : unit -> yojson
 (** timestamped transaction rate for last minute *)
 

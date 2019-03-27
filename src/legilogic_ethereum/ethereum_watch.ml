@@ -247,7 +247,10 @@ let wait_for_contract_event_unit (contract_address:  Address.t)
     data_value_search
   >>= const ()
 
-   
+
+
+
+  
 (* TODO: implement following operations:
    ---Watch Ethereum blocks on the ethereum blockchain.
    ---Distinguish between confirmed blocks and not quite confirmed blocks.

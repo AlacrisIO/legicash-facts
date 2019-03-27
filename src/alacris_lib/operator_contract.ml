@@ -98,8 +98,6 @@ let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.
 
 
 
-
-
 (* TODO Add support for including a bond with the claim.
    Which routine to include? Bonds contains:
    ---get_gas_cost_estimate
