@@ -14,6 +14,7 @@ open Trie
 
 open Legilogic_ethereum
 open Side_chain_server_config
+open Ethereum_json_rpc
 open Ethereum_watch
 open Ethereum_abi
 open Operator_contract
@@ -25,11 +26,14 @@ open Side_chain
 let get_operator_fee_schedule _operator_address =
   Lwt_exn.return initial_fee_schedule
 
+let (topic_of_deposited: Bytes.t option) =
+  topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
+
 let (topic_of_state_update: Bytes.t option) =
   topic_of_hash (digest_of_string "StateUpdate(address,bytes32)")
 
 let (topic_of_claim_withdrawal: Bytes.t option) =
-  topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32)")
+  topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32,uint256,uint256)")
 
 let (topic_of_withdraw: Bytes.t option) =
   topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
@@ -51,40 +55,20 @@ let get_keypair_of_address user =
 
 
 
-let wait_for_contract_event_unit (contract_address:  Address.t)
-                                 (topics:            Bytes.t option list)
-                                 (list_data_type:    abi_type list)
-                                 (data_value_search: abi_value option list)
-                               : unit Lwt_exn.t =
+
+
+
+
+let wait_for_operator_state_update (contract_address: Address.t)
+                                   (operator:         Address.t)
+                                 : Ethereum_chain.Confirmation.t Lwt_exn.t =
   let open Lwt_exn in
-  Logging.log "Beginning of wait_for_contract_event";
-
-  retrieve_relevant_single_logs_data
-    Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+  Logging.log "Beginning of wait_for_operator_state_update";
+  wait_for_contract_event_eth
     contract_address
-    topics
-    list_data_type
-    data_value_search
-
-  >>= const () (* TODO: forgetting stuff suggests this one is not the primitive one. Or maybe it is? *)
-
-
-let wait_for_contract_event_eth (contract_address:  Address.t)
-                                (topics:            Bytes.t option list)
-                                (list_data_type:    abi_type list)
-                                (data_value_search: abi_value option list)
-                              : Ethereum_chain.Confirmation.t Lwt_exn.t =
-  let open Lwt_exn in
-  Logging.log "Beginning of wait_for_contract_event_eth";
-
-  retrieve_relevant_single_logs_data
-    Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
-    contract_address
-    topics
-    list_data_type
-    data_value_search
-
-  (* TODO: DRY with previous function. And the confirmation returned, if needed, should not be faked *)
+    [topic_of_state_update]
+    [Address; Bytes 32]
+    [Some (Address_value operator); None]
   >>= fun _ -> return Ethereum_chain.Confirmation.
     { transaction_hash  = Digest.zero (* NB: THIS IS FAKE. TODO: UNFAKE IT. *)
     ; transaction_index = Revision.zero
@@ -92,16 +76,7 @@ let wait_for_contract_event_eth (contract_address:  Address.t)
     ; block_hash        = Digest.zero
     }
 
-let wait_for_operator_state_update (contract_address: Address.t)
-                                   (operator:         Address.t)
-                                 : Ethereum_chain.Confirmation.t Lwt_exn.t =
-  Logging.log "Beginning of wait_for_operator_state_update";
-
-  wait_for_contract_event_eth
-    contract_address
-    [topic_of_state_update]
-    [Address; Bytes 32]
-    [Some (Address_value operator); None]
+  
 
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                     (operator:         Address.t)
@@ -109,11 +84,16 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                   : unit Lwt_exn.t =
   Logging.log "Beginning of wait_for_claim_withdrawal_event";
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
-  let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32] in
+  let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 256; Uint 256] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
-                                                     Some (abi_value_from_revision revision); None; None] in
+                                                     Some (abi_value_from_revision revision);
+                                                     None; None; None; None] in
   Lwt_exn.bind (wait_for_contract_event_eth contract_address topics list_data_type data_value_search)
-    (fun _ -> Lwt_exn.return ())
+    (fun (x : (LogObject.t * (abi_value list))) ->
+      let (_a, b) = x in
+      Logging.log "claim_withdrawal, RETURN bond=%s" (print_abi_value_256 (List.nth b 4));
+      Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
+      Lwt_exn.return ())
 
 let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
   let open Lwt_exn in

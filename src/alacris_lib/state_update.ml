@@ -24,9 +24,12 @@ let init_state : unit -> digest_entry =
 let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
 
 
-let print_contract_account_value (estr : string) : unit Lwt_exn.t =
+let print_contract_account_value_unit (estr : string) : unit Lwt_exn.t =
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
-  Lwt_exn.bind (Ethereum_json_rpc.eth_get_balance (oper_addr, Latest))
+  let (contr_addr : Address.t) = get_contract_address () in
+  Logging.log "oper_addr=%s" (Address.to_string oper_addr);
+  Logging.log "contr_addr=%s" (Address.to_string contr_addr);
+  Lwt_exn.bind (Ethereum_json_rpc.eth_get_balance (contr_addr, Latest))
     (fun x-> Logging.log "PCAV stage=%s value=%s" estr (TokenAmount.to_string x);
              Lwt_exn.return ())
 
@@ -51,8 +54,8 @@ let push_state_digest_exn (digest : Digest.t) : Digest.t Lwt_exn.t =
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   Logging.log "push_state_digest_exn : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val value
-  (*  >>= handling (fun e -> Logging.log "Error caught in push_state_digest_exn"; return ())*)
+  print_contract_account_value_unit "from push_state_digest_exn"
+  >>= fun () -> Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val value
   >>= fun x ->
   Logging.log "push_state_digest_exn : before confirm_pre_transaction";
   Ethereum_user.confirm_pre_transaction oper_addr x

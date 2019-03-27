@@ -35,9 +35,7 @@ let get_contract_address () = !contract_address
     address argument is the operator *)
 let make_deposit_call : Address.t -> Ethereum_chain.Operation.t =
   fun operator ->
-    let memo = "" in
-    let parameters = [ abi_address operator
-                     ; abi_bytes_dynamic_of_string memo ] in
+    let parameters = [ abi_address operator ] in
     let call = encode_function_call { function_name = "deposit"; parameters } in
     Operation.CallFunction (get_contract_address (), call)
 
@@ -54,6 +52,9 @@ let deposit user (operator, amount) =
               >>> of_lwt track_transaction
               >>> check_transaction_confirmed)
 
+
+  
+  
 let make_claim_withdrawal_call (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (confirmed_state : Digest.t) : Ethereum_chain.Operation.t =
   Logging.log "OPERATION: Before creation of parameter for CallFunction make_claim_withdrawal_call";
   let parameters = [ abi_address operator

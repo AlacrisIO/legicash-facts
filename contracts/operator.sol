@@ -4,31 +4,25 @@ pragma solidity ^0.5.2;
 import "claims.sol";
 import "claimtypes.sol";
 import "bonds.sol";
-import "ethereum-blocks.sol";
 
 /**
  * Contract for a number of operator using the same court registry
  */
-contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
+contract Operators is Claims, ClaimTypes, Bonds {
 
     // DEPOSITS
     //
     // See operator-fallback.sol for an alternate strategy for deposits, not currently implemented.
     // Question: should we allow the depositor to specify the recipient as well, for a few extra GAS?
     //
-    event Deposited(address _operator, address _recipient, uint256 _value, bytes memo);
-    function deposit(address _operator, bytes memory memo) public payable {
-            emit Deposited(_operator, msg.sender, msg.value, memo);
+    event Deposited(address _operator, address _recipient, uint256 _value, uint256 _balance);
+    function deposit(address _operator) public payable {
+            emit Deposited(_operator, msg.sender, msg.value, address(this).balance);
     }
 
     // STATE UPDATE
 
     event StateUpdate(address _operator, bytes32 _confirmed_state);
-
-    // struct StateUpdateClaim {
-    //     address _operator; // account of the operator making the claim for his side-chain
-    //     bytes32 _new_state; // new state of the side-chain
-    // }
 
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state) external {
@@ -86,11 +80,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     // from the structure of the contract itself.
     uint256 maximum_withdrawal_challenge_gas = 100*1000;
 
-    //    event ClaimWithdrawal(address indexed _operator, uint64 indexed _ticket, uint256 _value, bytes32 _confirmed_state);
-//    event ClaimWithdrawal(address indexed _operator, uint64 indexed _ticket, uint256 indexed _validx);
-
-//    event ClaimWithdrawal(address indexed _operator, uint64 indexed _ticket, uint256 indexed _validx);
-    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state);
+    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint256 _bond, uint256 _balance);
 
     function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state)
             external payable {
@@ -98,7 +88,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         if (test) {
           make_claim(withdrawal_claim(
               _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
-          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state);
+          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance);
         }
     }
 
@@ -115,22 +105,31 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
 
     function withdraw(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state)
             external {
-	bytes32 claim = withdrawal_claim(
-            _operator, msg.sender, _ticket, _value, _bond, _confirmed_state);
-        if (is_claim_status_accepted(claim)) {
+//        bytes32 claim = withdrawal_claim(
+//            _operator, msg.sender, _ticket, _value, _bond, _confirmed_state);
+//        if (is_claim_status_accepted(claim)) {
           // Consume a valid withdrawal claim.
-	  set_claim_consumed(claim);
+//	  set_claim_consumed(claim);
 
           // NB: Always transfer money LAST!
           // TODO: Should we allow a recipient different from the sender?
-	  msg.sender.transfer(_value + _bond);
 //          address payable addr=msg.sender;
 //          uint256 theval = _value + _bond;
+
+//          uint256 balanceBeforeTransfer = address(this).balance;
+//          require(theval <= address(this).balance);
 //          addr.transfer(theval);
+//          assert(address(this).balance == balanceBeforeTransfer - theval);
+
+
+//          addr.transfer(theval);
+
+
+          msg.sender.transfer(_value + _bond);
 	  
           // Log the withdrawal so future double-claim attempts can be duly rejected.
           emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
-	}
+//        }
     }
 
 
@@ -139,6 +138,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
     /**
      * Challenge a withdrawal claim because its confirmed_state isn't accepted as valid.
      */
+     /*
     function challenge_withdrawal__confirmed_state_not_accepted (
         address _operator, address _account,
         uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state)
@@ -148,7 +148,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         // LAST, send the bond as reward to the sender.
         // TODO: should we send only half the bond, and burn the rest and/or donate it to a foundation?
         msg.sender.transfer(_bond);
-    }
+    }*/
 
     /**
      * Challenge a withdrawal claim because its confirmed_state isn't actually a state update.
@@ -157,6 +157,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
      * Parameters from _preimage_operator to _preimage_data describe a preimage to _confirmed_state,
      * that fail to match a state update.
      */
+     /*
     function challenge_withdrawal__confirmed_state_not_state(
         address _operator, address _account,
         uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state,
@@ -169,11 +170,12 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
         // LAST, send the bond as reward to the sender.
         // TODO: should we send only half the bond, and burn the rest and/or donate it to a foundation?
         msg.sender.transfer(_bond);
-    }
+    }*/
 
     /**
      * Challenge a withdrawal claim because its confirmed_state doesn't contain that big a ticket number.
      */
+     /*
     function challenge_withdrawal__ticket_number_too_large(
         address _operator,
         address _account,
@@ -206,11 +208,12 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
             _operator, _account, _ticket, _value, _bond, _confirmed_state));
         // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
-    }
+    }*/
 
+    /*
     function state_bits_hash(bytes32[] memory state_bits) public pure returns (bytes32) {
       return keccak256(abi.encodePacked(state_bits));
-    }
+    }*/
 
     /**
      * Challenge a withdrawal claim because the ticket number doesn't correspond to a withdrawal.
@@ -218,6 +221,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
      * Parameters from _operator to _confirmed_state describe the claim being disputed.
      * Parameters afterwards exhibit the ticket at given number, which is of the wrong subtype.
      */
+     /*
     function challenge_withdrawal__ticket_not_withdrawal(
         address _operator,
         address _account,
@@ -241,7 +245,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
             _operator, _account, _ticket, _value, _bond, _confirmed_state));
         // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
-    }
+    }*/
 
     /**
      * Challenge a withdrawal claim because the actual ticket doesn't match the claim
@@ -249,6 +253,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
      * Parameters from _operator to _confirmed_state describe the claim being disputed.
      * Parameters afterwards exhibit the ticket at given number, which fails to match the claim.
      */
+     /*
     function challenge_withdrawal__ticket_mismatch(
         address _operator,
         address _account,
@@ -272,7 +277,7 @@ contract Operators is Claims, ClaimTypes, Bonds, EthereumBlocks {
             _operator, _account, _ticket, _value, _bond, _confirmed_state));
         // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
-    }
+    }*/
 
     /**
      * Challenge a withdrawal claim because the ticket was already withdrawn.

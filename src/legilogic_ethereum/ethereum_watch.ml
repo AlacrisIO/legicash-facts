@@ -6,7 +6,8 @@ open Signing
 open Integer
 open Ethereum_json_rpc
 open Ethereum_abi
-
+open Side_chain_server_config
+   
 (* TODO capturing `starting_watch_ref` in a state monad or similar would be a
  * much better approach than using mutable global state *)
 let starting_watch_ref : (Revision.t ref) = ref Revision.zero
@@ -220,6 +221,33 @@ let retrieve_relevant_list_logs_group (delay : float) (contract_address : Addres
   in fct_downloading !starting_watch_ref
 
 
+let wait_for_contract_event_eth (contract_address:  Address.t)
+      (topics:            Bytes.t option list)
+      (list_data_type:    abi_type list)      
+      (data_value_search: abi_value option list)
+    : (LogObject.t * (abi_value list)) Lwt_exn.t =
+  Logging.log "Beginning of wait_for_contract_event_eth";
+  retrieve_relevant_single_logs_data
+    Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    contract_address
+    topics
+    list_data_type
+    data_value_search
+
+let wait_for_contract_event_unit (contract_address:  Address.t)
+      (topics:            Bytes.t option list)
+      (list_data_type:    abi_type list)
+      (data_value_search: abi_value option list)
+    : unit Lwt_exn.t =
+  let open Lwt_exn in
+  wait_for_contract_event_eth
+    contract_address
+    topics
+    list_data_type
+    data_value_search
+  >>= const ()
+
+   
 (* TODO: implement following operations:
    ---Watch Ethereum blocks on the ethereum blockchain.
    ---Distinguish between confirmed blocks and not quite confirmed blocks.

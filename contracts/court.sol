@@ -9,10 +9,9 @@ pragma solidity ^0.5.2;
 import "claims.sol";
 import "claimtypes.sol";
 import "bonds.sol";
-import "ethereum-blocks.sol";
 import "operator.sol";
 
-contract Court is Claims, ClaimTypes, Bonds, EthereumBlocks, Operators {
+contract Court is Claims, ClaimTypes, Bonds, Operators {
 }
 
 // TODO: For patricia tree verification, import code from:

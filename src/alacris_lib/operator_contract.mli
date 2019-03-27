@@ -35,6 +35,7 @@ val deposit : Address.t -> (Address.t * TokenAmount.t, Transaction.t * Confirmat
 val make_claim_withdrawal_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t
 
 
+  
 val make_withdraw_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "withdraw" function of the operator contract
     arguments: operator address, bond amount, confirmed state
