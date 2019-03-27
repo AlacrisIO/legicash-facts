@@ -95,6 +95,10 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
       Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
       Lwt_exn.return ())
 
+
+
+
+
 let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
   let open Lwt_exn in
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
@@ -114,6 +118,8 @@ let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : A
   match x with
   | None -> bork "No tx receipt for contract creation"
   | Some _receipt -> Lwt_exn.return ()
+
+
 
 let emit_withdraw_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
   let open Lwt_exn in
@@ -135,16 +141,32 @@ let emit_withdraw_operation (contract_address : Address.t) (operator : Address.t
   | None -> bork "No tx receipt for contract creation"
   | Some _receipt -> Lwt_exn.return ()
 
-(* TODO: final_ is a bad name. Should be more like post_withdrawal_claim or just claim_withdrawal *)
-let final_claim_withdrawal_operation (tc:       TransactionCommitment.t)
+
+
+let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Address.t) : unit Lwt_exn.t =
+  Logging.log "Beginning of post_operation_deposit";
+  Logging.log "contract_address contr_addr=%s" (Address.to_string tc.contract_address);
+  let (topics : Bytes.t option list) = [topic_of_deposited] in
+  let (list_data_type : abi_type list) = [Address; Address; Uint 256; Uint 256] in
+  let (data_value_search : abi_value option list) = [Some (Address_value operator);
+                                                     None; None; None] in
+  Lwt_exn.bind (wait_for_contract_event_eth tc.contract_address topics list_data_type data_value_search)
+    (fun (x : (LogObject.t * (abi_value list))) ->
+      let (_a, b) = x in
+      Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_256 (List.nth b 2));
+      Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_256 (List.nth b 3));
+      Lwt_exn.return ())
+
+  
+let post_operations (tc:       TransactionCommitment.t)
                                      (operator: Address.t)
                                    : unit Lwt_exn.t =
   let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
-    | Deposit _ -> return ()
-    | Payment _ -> return ()
+    | Deposit _ -> Logging.log "This part should not occur"; return ()
+    | Payment _ -> Logging.log "This part should not occur"; return ()
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-        Logging.log "Beginning of final_claim_withdrawal_operation";
+        Logging.log "Beginning of post_operations, withdrawal";
         emit_claim_withdrawal_operation
            tc.contract_address
            operator
@@ -450,9 +472,9 @@ module TransactionTracker = struct
                              } as deposit_wanted)
                             , deposit_fee) ->
              Logging.log "TR_LOOP, DepositWanted operation";
-             let pre_transaction =
-               TokenAmount.(add deposit_amount deposit_fee)
-               |> Operator_contract.pre_deposit ~operator in
+             let amnt = TokenAmount.(add deposit_amount deposit_fee) in
+             let contr_addr = get_contract_address () in
+             let pre_transaction = Operator_contract.pre_deposit ~operator contr_addr amnt in
              (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
              (Ethereum_user.add_ongoing_transaction user (Wanted pre_transaction)
               >>= function
@@ -501,7 +523,7 @@ module TransactionTracker = struct
               |> Side_chain_client.post_user_transaction_request
               >>= function
               | Ok (tc : TransactionCommitment.t) ->
-                 Logging.log "Requested: side_chain_user: TrTracker, Ok case";
+                 Logging.log "Requested: side_chain_user: TrTracker, Ok case tc.contr_addr=%s" (Address.to_string tc.contract_address);
                  SignedByOperator tc |> continue
               | Error (error : exn) ->
                  Logging.log "Requested: side_chain_user: exn=%s" (Printexc.to_string error);
@@ -509,20 +531,22 @@ module TransactionTracker = struct
                  invalidate ongoing error)
 
            | SignedByOperator (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, SignedByOperator operation";
+             Logging.log "TR_LOOP, SignedByOperator operation tc.contr_addr=%s" (Address.to_string tc.contract_address);
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
 
            | PostedToRegistry (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, PostedToRegistry operation";
+             Logging.log "TR_LOOP, PostedToRegistry operation tc.contr_addr=%s" (Address.to_string tc.contract_address);
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              (wait_for_operator_state_update tc.contract_address operator
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
-                 | Deposit _ | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
-                 | Withdrawal _          -> PostedToMainChain (tc, c) |> continue)
+                 | Deposit _ ->
+                    FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
+                 | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
+                 | Withdrawal _ -> PostedToMainChain (tc, c) |> continue)
               | Error error ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                  invalidate ongoing error)
@@ -535,8 +559,8 @@ module TransactionTracker = struct
              (* TODO: wait for confirmation on the main chain and handle lawsuits
                 Right now, no lawsuit *)
 
-             Lwt.bind (final_claim_withdrawal_operation tc operator) (fun _ ->
-                 Logging.log "After final_claim_withdrawal_operation";
+             Lwt.bind (post_operations tc operator) (fun _ ->
+                 Logging.log "After post_operations";
                  ConfirmedOnMainChain (tc, confirmation) |> continue)
 
            | ConfirmedOnMainChain ( (tc:           TransactionCommitment.t)
@@ -726,16 +750,16 @@ let withdrawal_fee_for OperatorFeeSchedule.{withdrawal_fee} _withdrawal_amount =
 
 let deposit DepositWanted.{operator; deposit_amount; request_guid; requested_at} =
   let open UserAsyncAction in
+  Logging.log "deposit(side_chain_user): using add_ongoing_side_chain_transaction";
   of_lwt_exn get_operator_fee_schedule operator
   >>= fun fee_schedule ->
-    let deposit_fee = deposit_fee_for fee_schedule deposit_amount in
-
-    let status = OngoingTransactionStatus.DepositWanted ({ operator
-                                                         ; deposit_amount
-                                                         ; request_guid
-                                                         ; requested_at
-                                                         }, deposit_fee) in
-    add_ongoing_side_chain_transaction status
+  let deposit_fee = deposit_fee_for fee_schedule deposit_amount in
+  let status = OngoingTransactionStatus.DepositWanted ({ operator
+                                                       ; deposit_amount
+                                                       ; request_guid
+                                                       ; requested_at
+                                                       }, deposit_fee) in
+  add_ongoing_side_chain_transaction status
 
 let get_user_address : (unit, Address.t) UserAsyncAction.arr =
   fun () user_state -> UserAsyncAction.return user_state.UserState.address user_state

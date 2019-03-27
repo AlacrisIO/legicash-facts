@@ -3,7 +3,6 @@
 open Legilogic_lib
 open Types
 open Signing
-open Action
 
 open Legilogic_ethereum
 open Ethereum_chain
@@ -33,27 +32,28 @@ let get_contract_address () = !contract_address
 
 (** build the encoding of a call to the "deposit" function of the operator contract
     address argument is the operator *)
-let make_deposit_call : Address.t -> Ethereum_chain.Operation.t =
-  fun operator ->
-    let parameters = [ abi_address operator ] in
-    let call = encode_function_call { function_name = "deposit"; parameters } in
-    let contr_addr = get_contract_address() in
-    Logging.log "make_deposit_call : contr_addr=%s" (Address.to_string contr_addr);
-    Operation.CallFunction (get_contract_address (), call)
+let make_deposit_call ~operator (contract_address: Address.t) : Ethereum_chain.Operation.t =
+  let parameters = [ abi_address operator ] in
+  let call = encode_function_call { function_name = "deposit"; parameters } in
+  let contr_addr = get_contract_address() in
+  Logging.log "make_deposit_call : contr_addr=%s" (Address.to_string contr_addr);
+  Operation.CallFunction (contract_address, call)
 
-let pre_deposit ~operator amount =
-  PreTransaction.{operation=make_deposit_call operator; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
+let pre_deposit ~operator (contract_address: Address.t) (amount : TokenAmount.t) : PreTransaction.t =
+  let oper: Ethereum_chain.Operation.t = make_deposit_call ~operator contract_address in
+  PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
 
 (* Create a signed transaction to call the contract to deposit money onto
    an account managed by the operator, ready to be committed on the main chain
    TODO: get rid of this, have proper state machine in side_chain_user. *)
-let deposit user (operator, amount) =
+(* let deposit user (operator, amount) =
+  Logging.log "deposit(operator_contract): add_ongoing_transaction";
   let open Ethereum_user in
   OngoingTransactionStatus.Wanted (pre_deposit ~operator amount)
   |> Lwt_exn.(add_ongoing_transaction user
               >>> of_lwt track_transaction
               >>> check_transaction_confirmed)
-
+ *)
 
   
   

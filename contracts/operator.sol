@@ -16,7 +16,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
     // Question: should we allow the depositor to specify the recipient as well, for a few extra GAS?
     //
     event Deposited(address _operator, address _recipient, uint256 _value, uint256 _balance);
-    function deposit(address _operator) public payable {
+    function deposit(address _operator) external payable {
             emit Deposited(_operator, msg.sender, msg.value, address(this).balance);
     }
 
