@@ -58,7 +58,7 @@ let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =
             Logging.log "Before write_string_to_lwt_io_channel, post_query_to_server, x=%s" x;
             write_string_to_lwt_io_channel out_channel x
          >>= fun () ->
-         Logging.log "Before read_string_from_lwt_io_channel, in postquery_to_server";
+         Logging.log "Before read_string_from_lwt_io_channel, in post_query_to_server";
          read_string_from_lwt_io_channel in_channel
          >>= fun x ->
          Logging.log "After read_string_from_lwt_io_channel, post_query_to_server x=%s" x;
