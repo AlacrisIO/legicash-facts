@@ -164,6 +164,7 @@ module SignedTransaction = struct
            end) : (PersistableS with type t := t))
 end
 
+                         
 module LogObject = struct
   [@warning "-39"]
   type t =
@@ -183,6 +184,28 @@ module LogObject = struct
            end) : (YojsonableS with type t := t))
 end
 
+let retrieve_transaction_hash (elog : LogObject.t) : Digest.t =
+  match elog.transactionHash with
+  | Some x -> x
+  | None -> Digest.zero
+
+let retrieve_transaction_index (elog : LogObject.t) : Revision.t =
+  match elog.transactionIndex with
+  | Some x -> x
+  | None -> Revision.zero
+
+let retrieve_block_hash (elog : LogObject.t) : Digest.t =
+  match elog.blockHash with
+  | Some x -> x
+  | None -> Digest.zero
+
+let retrieve_block_number (elog : LogObject.t) : Revision.t =
+  match elog.blockNumber with
+  | Some x -> x
+  | None -> Revision.zero
+
+
+          
 module Bloom = struct
   include Yojsoning.Bytes (* TODO: Actually always 256 bytes *)
 end

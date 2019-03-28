@@ -114,11 +114,13 @@ let wait_for_operator_state_update (contract_address: Address.t)
     [topic_of_state_update]
     [Address; Bytes 32]
     [Some (Address_value operator); None]
-  >>= fun _ -> return Ethereum_chain.Confirmation.
-    { transaction_hash  = Digest.zero (* NB: THIS IS FAKE. TODO: UNFAKE IT. *)
-    ; transaction_index = Revision.zero
-    ; block_number      = Revision.zero
-    ; block_hash        = Digest.zero
+  >>= fun x ->
+  let (x_logo, _x_vals) = x in
+  return Ethereum_chain.Confirmation.
+    { transaction_hash  = retrieve_transaction_hash x_logo
+    ; transaction_index = retrieve_transaction_index x_logo
+    ; block_number      = retrieve_block_number x_logo
+    ; block_hash        = retrieve_block_hash x_logo
     }
 
   

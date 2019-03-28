@@ -118,6 +118,8 @@ module SignedTransaction : sig
   include PersistableS with type t := t
 end
 
+
+     
 module LogObject : sig
   type t =
     { removed: bool (* true when the log was removed, due to a chain reorganization. false if its a valid log. *)
@@ -132,6 +134,18 @@ module LogObject : sig
   include YojsonableS with type t := t
 end
 
+val retrieve_transaction_hash : LogObject.t -> Digest.t
+
+val retrieve_transaction_index : LogObject.t -> Revision.t
+
+val retrieve_block_hash : LogObject.t -> Digest.t
+
+val retrieve_block_number : LogObject.t -> Revision.t
+
+
+
+
+     
 module Bloom : YojsonableS with type t = Bytes.t
 
 module TransactionReceipt : sig
