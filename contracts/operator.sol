@@ -105,11 +105,11 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
     function withdraw(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state)
             external {
-//        bytes32 claim = withdrawal_claim(
-//            _operator, msg.sender, _ticket, _value, _bond, _confirmed_state);
-//        if (is_claim_status_accepted(claim)) {
+        bytes32 claim = withdrawal_claim(
+            _operator, msg.sender, _ticket, _value, _bond, _confirmed_state);
+        if (is_claim_status_accepted(claim)) {
           // Consume a valid withdrawal claim.
-//	  set_claim_consumed(claim);
+          set_claim_consumed(claim);
 
           // NB: Always transfer money LAST!
           // TODO: Should we allow a recipient different from the sender?
@@ -129,7 +129,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
 	  
           // Log the withdrawal so future double-claim attempts can be duly rejected.
           emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
-//        }
+        }
     }
 
 
