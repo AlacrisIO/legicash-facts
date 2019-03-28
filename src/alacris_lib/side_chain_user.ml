@@ -124,6 +124,7 @@ let wait_for_operator_state_update (contract_address: Address.t)
   
 
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
+                                    (_sender:          Address.t)
                                     (operator:         Address.t)
                                     (revision:         Revision.t)
                                   : unit Lwt_exn.t =
@@ -144,17 +145,16 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
 
 
 
-let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+let emit_claim_withdrawal_operation (contract_address : Address.t) (sender : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
   let open Lwt_exn in
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
-  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val bond
+  Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val bond
   >>= fun x ->
   Logging.log "emit_claim_withdrawal_operation : before confirm_pre_transaction";
-  Ethereum_user.confirm_pre_transaction operator x
+  Ethereum_user.confirm_pre_transaction sender x
   >>= fun (_tx, confirmation) ->
   Logging.log "emit_claim_withdrawal_operation : before eth_get_transaction_receipt";
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
@@ -166,17 +166,17 @@ let emit_claim_withdrawal_operation (contract_address : Address.t) (operator : A
 
 
 
-let emit_withdraw_operation (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+let emit_withdraw_operation (contract_address : Address.t) (sender: Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
   let open Lwt_exn in
   Logging.log "emit_withdraw_operation : beginning of operation";
   let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   let (value_send : TokenAmount.t) = TokenAmount.zero in
   Logging.log "emit_withdraw_operation : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender:operator operation ?gas_limit:gas_limit_val value_send
+  Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val value_send
   >>= fun x ->
   Logging.log "emit_withdraw_operation : before confirm_pre_transaction";
-  Ethereum_user.confirm_pre_transaction operator x
+  Ethereum_user.confirm_pre_transaction sender x
   >>= fun (_tx, confirmation) ->
   Logging.log "emit_withdraw_operation : before eth_get_transaction_receipt";
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
@@ -203,7 +203,8 @@ let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Addres
       Lwt_exn.return ())
 
   
-let post_operations (tc:       TransactionCommitment.t)
+let post_claim_withdrawal_operation (tc:       TransactionCommitment.t)
+      (sender: Address.t)
       (operator: Address.t)
     : unit Lwt_exn.t =
   let open Lwt_exn in
@@ -211,9 +212,10 @@ let post_operations (tc:       TransactionCommitment.t)
     | Deposit _ -> Logging.log "This part should not occur"; return ()
     | Payment _ -> Logging.log "This part should not occur"; return ()
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-        Logging.log "Beginning of post_operations, withdrawal";
+        Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
         emit_claim_withdrawal_operation
            tc.contract_address
+           sender
            operator
            tc.tx_proof.key
            withdrawal_amount
@@ -221,14 +223,16 @@ let post_operations (tc:       TransactionCommitment.t)
            tc.state_digest
 
         >>= fun _ -> wait_for_claim_withdrawal_event
-           tc.contract_address
-           operator
-           tc.tx_proof.key
+                       tc.contract_address
+                       sender
+                       operator
+                       tc.tx_proof.key
 
 
 
 (* TODO: should be more like post_withdrawal or execute_withdrawal *)
 let final_withdraw_operation (tc:       TransactionCommitment.t)
+                             (sender:   Address.t)
                              (operator: Address.t)
                            : unit Lwt_exn.t =
   let open Lwt_exn in
@@ -243,6 +247,7 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
            (* TODO actually accept challenges and handle accordingly *)
            >>= fun () -> emit_withdraw_operation
              tc.contract_address
+             sender
              operator
              tc.tx_proof.key
              withdrawal_amount
@@ -616,8 +621,8 @@ module TransactionTracker = struct
              (* TODO: wait for confirmation on the main chain and handle lawsuits
                 Right now, no lawsuit *)
 
-             Lwt.bind (post_operations tc operator) (fun _ ->
-                 Logging.log "After post_operations";
+             Lwt.bind (post_claim_withdrawal_operation tc user operator) (fun _ ->
+                 Logging.log "After post_claim_withdrawal_operation";
                  ConfirmedOnMainChain (tc, confirmation) |> continue)
 
            | ConfirmedOnMainChain ( (tc:           TransactionCommitment.t)
@@ -626,7 +631,7 @@ module TransactionTracker = struct
              Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
-             Lwt.bind (final_withdraw_operation tc operator) (fun _ ->
+             Lwt.bind (final_withdraw_operation tc user operator) (fun _ ->
                  Logging.log "After final_withdraw_operation";
                  FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |>
                    finalize))
