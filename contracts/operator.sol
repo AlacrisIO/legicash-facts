@@ -15,6 +15,8 @@ contract Operators is Claims, ClaimTypes, Bonds {
     // See operator-fallback.sol for an alternate strategy for deposits, not currently implemented.
     // Question: should we allow the depositor to specify the recipient as well, for a few extra GAS?
     //
+    // TODO: We need to add the "memo" entry back.
+    // TODO: The balance needs to be removed eventually.
     event Deposited(address _operator, address _recipient, uint256 _value, uint256 _balance);
     function deposit(address _operator) external payable {
             emit Deposited(_operator, msg.sender, msg.value, address(this).balance);
@@ -27,7 +29,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state) external {
         make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
-	emit StateUpdate(msg.sender, _new_state);
+        emit StateUpdate(msg.sender, _new_state);
     }
 
     function operator_state(
@@ -69,15 +71,16 @@ contract Operators is Claims, ClaimTypes, Bonds {
         uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state)
             private pure returns(bytes32) {
         return digest_claim(
-                _operator, ClaimType.WITHDRAWAL_CLAIM, 
+                _operator, ClaimType.WITHDRAWAL_CLAIM,
                 withdrawal_claim_data(_account, _ticket, _value, _bond, _confirmed_state));
     }
 //                _operator, ClaimType.WITHDRAWAL_CLAIM, _confirmed_state);
-//                withdrawal_claim_data(_account, _ticket, _value, _bond, 
+//                withdrawal_claim_data(_account, _ticket, _value, _bond,
 //                withdrawal_claim_data(_account, _ticket, _value, _bond, _confirmed_state));
 
     // TODO: The cost of a legal argument in gas should be statically deduced
     // from the structure of the contract itself.
+    // TODO the balance needs to be removed eventually from the code
     uint256 maximum_withdrawal_challenge_gas = 100*1000;
 
     event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint256 _bond, uint256 _balance);
@@ -111,22 +114,11 @@ contract Operators is Claims, ClaimTypes, Bonds {
           // Consume a valid withdrawal claim.
           set_claim_consumed(claim);
 
-          // NB: Always transfer money LAST!
+          // NB: Should we always transfer money LAST! ?
+          // I am not sure this is such a good idea
           // TODO: Should we allow a recipient different from the sender?
-//          address payable addr=msg.sender;
-//          uint256 theval = _value + _bond;
-
-//          uint256 balanceBeforeTransfer = address(this).balance;
-//          require(theval <= address(this).balance);
-//          addr.transfer(theval);
-//          assert(address(this).balance == balanceBeforeTransfer - theval);
-
-
-//          addr.transfer(theval);
-
-
           msg.sender.transfer(_value + _bond);
-	  
+
           // Log the withdrawal so future double-claim attempts can be duly rejected.
           emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
         }
