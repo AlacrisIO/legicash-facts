@@ -207,8 +207,8 @@ let post_claim_withdrawal_operation (tc:       TransactionCommitment.t)
     : unit Lwt_exn.t =
   let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
-    | Deposit _ -> Logging.log "This part should not occur"; return ()
-    | Payment _ -> Logging.log "This part should not occur"; return ()
+    | Deposit _ -> bork "This part should not occur"
+    | Payment _ -> bork "This part should not occur"
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
         Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
         emit_claim_withdrawal_operation
