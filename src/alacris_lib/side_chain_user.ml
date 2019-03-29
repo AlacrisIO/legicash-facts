@@ -521,10 +521,10 @@ module TransactionTracker = struct
                             , deposit_fee) ->
              Logging.log "TR_LOOP, DepositWanted operation";
              (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
-             let amnt = TokenAmount.(add deposit_amount deposit_fee) in
+             let amount = TokenAmount.(add deposit_amount deposit_fee) in
              Lwt.bind 
                (Lwt.bind (get_contract_address_from_client ())
-                  (fun x -> Lwt.return (Operator_contract.pre_deposit ~operator amnt x)))
+                  (fun x -> Lwt.return (Operator_contract.pre_deposit ~operator amount x)))
              (fun x_pre_transaction ->
                (Ethereum_user.add_ongoing_transaction user (Wanted x_pre_transaction)
                 >>= function
@@ -646,10 +646,8 @@ module TransactionTracker = struct
     let open Lwter in
     promise >>= function
     | FinalTransactionStatus.SettledOnMainChain (t, c) ->
-       Logging.log "CACE: SettledOnMainChain";
        Lwt_exn.return (t, c)
     | FinalTransactionStatus.Failed (o, e) ->
-       Logging.log "CASE: Failed e=%s" (Printexc.to_string e);
         (match e with
             | Side_chain_operator.Malformed_request r ->
                 Logging.log "Malformed request: %s" r
