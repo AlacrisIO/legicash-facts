@@ -149,7 +149,7 @@ let emit_claim_withdrawal_operation (contract_address : Address.t) (sender : Add
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val bond
+  Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val bond
   >>= fun x ->
   Logging.log "emit_claim_withdrawal_operation : before confirm_pre_transaction";
   Ethereum_user.confirm_pre_transaction sender x
@@ -171,7 +171,7 @@ let emit_withdraw_operation (contract_address : Address.t) (sender: Address.t) (
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   let (value_send : TokenAmount.t) = TokenAmount.zero in
   Logging.log "emit_withdraw_operation : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val value_send
+  Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value_send
   >>= fun x ->
   Logging.log "emit_withdraw_operation : before confirm_pre_transaction";
   Ethereum_user.confirm_pre_transaction sender x
