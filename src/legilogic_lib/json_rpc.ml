@@ -99,9 +99,7 @@ let make_request : string -> ('a -> yojson) -> 'a -> request Lwt_exn.t =
 
 let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
   fun result_decoder request_id response ->
-    let malformed_response exn = fail (
-                                     Logging.log "exn=%s" (Printexc.to_string exn);
-                                     Malformed_response (response, exn)) in
+    let malformed_response exn = fail (Malformed_response (response, exn)) in
     let checking jsonrpc x id =
       if not (jsonrpc = json_rpc_version) then
         malformed_response (Internal_error "bad json_rpc_version")
