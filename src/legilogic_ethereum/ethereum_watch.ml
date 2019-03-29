@@ -221,32 +221,18 @@ let retrieve_relevant_list_logs_group (delay : float) (contract_address : Addres
   in fct_downloading !starting_watch_ref
 
 
-let wait_for_contract_event_eth (contract_address:  Address.t)
+let wait_for_contract_event (contract_address:  Address.t)
       (topics:            Bytes.t option list)
       (list_data_type:    abi_type list)      
       (data_value_search: abi_value option list)
     : (LogObject.t * (abi_value list)) Lwt_exn.t =
-  Logging.log "Beginning of wait_for_contract_event_eth";
+  Logging.log "Beginning of wait_for_contract_event";
   retrieve_relevant_single_logs_data
     Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
     contract_address
     topics
     list_data_type
     data_value_search
-
-let wait_for_contract_event_unit (contract_address:  Address.t)
-      (topics:            Bytes.t option list)
-      (list_data_type:    abi_type list)
-      (data_value_search: abi_value option list)
-    : unit Lwt_exn.t =
-  let open Lwt_exn in
-  wait_for_contract_event_eth
-    contract_address
-    topics
-    list_data_type
-    data_value_search
-  >>= const ()
-
 
 
 

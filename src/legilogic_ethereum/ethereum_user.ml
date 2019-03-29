@@ -551,9 +551,7 @@ let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : T
    | Some x -> return x
    | None ->
       Logging.log "None case";
-      let theval = (operation_to_parameters sender operation) in
-      Logging.log "make_pre_transaction: We have theval used for gas estimation";
-      eth_estimate_gas theval)
+      eth_estimate_gas (operation_to_parameters sender operation))
   >>= fun gas_limit ->
   Logging.log "make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
   let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 3) gas_limit) in

@@ -134,13 +134,13 @@ module LogObject : sig
   include YojsonableS with type t := t
 end
 
-val retrieve_transaction_hash : LogObject.t -> Digest.t
+val get_transaction_hash : LogObject.t -> Digest.t
 
-val retrieve_transaction_index : LogObject.t -> Revision.t
+val get_transaction_index : LogObject.t -> Revision.t
 
-val retrieve_block_hash : LogObject.t -> Digest.t
+val get_block_hash : LogObject.t -> Digest.t
 
-val retrieve_block_number : LogObject.t -> Revision.t
+val get_block_number : LogObject.t -> Revision.t
 
 
 

@@ -440,7 +440,7 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
     Lwt_exn.bind (Lwt.bind (fct transreq)
                     (fun (digest_rev) ->
                       let (digest : Digest.t) = digest_rev in
-                      push_state_digest digest))
+                      post_state_update digest))
       (fun (x : Digest.t) -> Lwt_exn.return (transreq, x))
   else
     Lwt_exn.return (transreq, Digesting.null_digest)

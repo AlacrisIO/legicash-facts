@@ -184,23 +184,27 @@ module LogObject = struct
            end) : (YojsonableS with type t := t))
 end
 
-let retrieve_transaction_hash (elog : LogObject.t) : Digest.t =
-  match elog.transactionHash with
+
+(* let get_transaction_hash log_object = Option.get_defaulting Digest.zero log_object.transactionHash *)
+
+let get_transaction_hash (log_object : LogObject.t) : Digest.t =
+  match log_object.transactionHash with
   | Some x -> x
   | None -> Digest.zero
 
-let retrieve_transaction_index (elog : LogObject.t) : Revision.t =
-  match elog.transactionIndex with
+  
+let get_transaction_index (log_object : LogObject.t) : Revision.t =
+  match log_object.transactionIndex with
   | Some x -> x
   | None -> Revision.zero
 
-let retrieve_block_hash (elog : LogObject.t) : Digest.t =
-  match elog.blockHash with
+let get_block_hash (log_object : LogObject.t) : Digest.t =
+  match log_object.blockHash with
   | Some x -> x
   | None -> Digest.zero
 
-let retrieve_block_number (elog : LogObject.t) : Revision.t =
-  match elog.blockNumber with
+let get_block_number (log_object : LogObject.t) : Revision.t =
+  match log_object.blockNumber with
   | Some x -> x
   | None -> Revision.zero
 
@@ -265,12 +269,6 @@ let eth_accounts =
     yojson_noargs
 (** Returns a list of address owned by the client **)
 
-(*
-let eth_estimate_gas =
-  ethereum_json_rpc "eth_estimateGas"
-    TokenAmount.of_yojson_exn
-    (yojson_1arg TransactionParameters.to_yojson)   *)
-  
 let eth_estimate_gas =
   (ethereum_json_rpc "eth_estimateGas"
     TokenAmount.of_yojson_exn 

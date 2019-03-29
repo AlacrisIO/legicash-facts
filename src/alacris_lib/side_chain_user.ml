@@ -105,7 +105,7 @@ let wait_for_operator_state_update (contract_address: Address.t)
                                  : Ethereum_chain.Confirmation.t Lwt_exn.t =
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_operator_state_update";
-  wait_for_contract_event_eth
+  wait_for_contract_event
     contract_address
     [topic_of_state_update]
     [Address; Bytes 32]
@@ -113,10 +113,10 @@ let wait_for_operator_state_update (contract_address: Address.t)
   >>= fun x ->
   let (x_logo, _x_vals) = x in
   return Ethereum_chain.Confirmation.
-    { transaction_hash  = retrieve_transaction_hash x_logo
-    ; transaction_index = retrieve_transaction_index x_logo
-    ; block_number      = retrieve_block_number x_logo
-    ; block_hash        = retrieve_block_hash x_logo
+    { transaction_hash  = get_transaction_hash x_logo
+    ; transaction_index = get_transaction_index x_logo
+    ; block_number      = get_block_number x_logo
+    ; block_hash        = get_block_hash x_logo
     }
 
   
@@ -132,7 +132,7 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      Some (abi_value_from_revision revision);
                                                      None; None; None; None] in
-  Lwt_exn.bind (wait_for_contract_event_eth contract_address topics list_data_type data_value_search)
+  Lwt_exn.bind (wait_for_contract_event contract_address topics list_data_type data_value_search)
     (fun (x : (LogObject.t * (abi_value list))) ->
       let (_a, b) = x in
       Logging.log "claim_withdrawal, RETURN bond=%s" (print_abi_value_256 (List.nth b 4));
@@ -193,7 +193,7 @@ let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Addres
   let (list_data_type : abi_type list) = [Address; Address; Uint 256; Uint 256] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      None; None; None] in
-  Lwt_exn.bind (wait_for_contract_event_eth tc.contract_address topics list_data_type data_value_search)
+  Lwt_exn.bind (wait_for_contract_event tc.contract_address topics list_data_type data_value_search)
     (fun (x : (LogObject.t * (abi_value list))) ->
       let (_a, b) = x in
       Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_256 (List.nth b 2));
@@ -261,11 +261,12 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
         ; None
         ; None
         ]
-      in wait_for_contract_event_unit
+      in wait_for_contract_event
         tc.contract_address
         [topic_of_withdraw]
         [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
         data_value_search
+         >>= const ()
 
 (* TODO: unstub the stubs *)
 let make_rx_header (user:     Address.t)
