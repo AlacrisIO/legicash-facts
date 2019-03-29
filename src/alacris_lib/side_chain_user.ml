@@ -68,12 +68,10 @@ end
 
   
 let get_contract_address_from_client_exn_req () =
-  Logging.log "Beginning of get_contract_address_from_client";
   let open Lwt_exn in
   UserQueryRequest.Get_contract_address
   |> post_user_query_request
   >>= fun (x: yojson) ->
-  Logging.log "After post_user_query_request x=";
   return (ContractAddrType.of_yojson_exn x).contract_address
 
 let contract_address_from_client_ref : (Address.t option ref) = ref None
@@ -82,13 +80,11 @@ let get_contract_address_from_client_exn : unit -> Address.t Lwt_exn.t =
   fun () ->
   match !contract_address_from_client_ref with
   | Some x ->
-     Logging.log "get_contract_address_from_client_exn 1: contr_addr=%s" (Address.to_string x);
      Lwt_exn.return x
   | None ->
      Lwt_exn.bind (get_contract_address_from_client_exn_req ())
        (fun x ->
          contract_address_from_client_ref := Some x;
-         Logging.log "get_contract_address_from_client_exn 2: contr_addr=%s" (Address.to_string x);
          Lwt_exn.return x)
 
 let get_contract_address_from_client : unit -> Address.t Lwt.t =

@@ -69,26 +69,17 @@ let thread_pending_json = `Assoc [("result",`String "The operation is pending")]
 (* lookup id in thread table; if completed, return result, else return boilerplate *)
 let apply_main_chain_thread id : yojson =
   try
-    Logging.log "Beginning of apply_main_chain_thread";
     let thread = Hashtbl.find id_to_thread_tbl id in
     match Lwt.state thread with
     (* TODO: make proper JSON RPC response *)
-    | Return (Ok json) ->
-       Logging.log "Branch 1 of apply_main_chain_thread";
-       json
-    | Return (Error e) ->
-       Logging.log "Branch 2 of apply_main_chain_thread e=%s" (Printexc.to_string e);
-       `Assoc [("error", exn_to_yojson e)]
+    | Return (Ok json) -> json
+    | Return (Error e) -> `Assoc [("error", exn_to_yojson e)]
     | Fail exn ->
-       Logging.log "Branch 3 of apply_main_chain_thread";
       error_json "Thread exception: %s\nStack: %s"
         (Printexc.to_string exn)
         (Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ()))
-    | Sleep ->
-       Logging.log "Branch 4 of apply_main_chain_thread";
-       thread_pending_json
+    | Sleep -> thread_pending_json
   with Not_found ->
-    Logging.log "Error case of apply_main_chain_thread";
     error_json "Thread %d not found" id
 
 (* operations posted to operator *)
@@ -109,7 +100,6 @@ let get_status_on_trent_and_main_chain address =
   |> post_user_query_request
 
 let get_all_balances_on_trent () =
-  Logging.log "Beginning of get_all_balances_on_trent";
   UserQueryRequest.Get_account_balances
   |> post_user_query_request
 
@@ -171,7 +161,6 @@ let deposit_to ~(operator:       Address.t)
               : yojson =
   schedule_transaction request_guid user deposit @@
     fun requested_at ->
-    Logging.log "deposit_to, before returning DepositWanted";
     DepositWanted.{ operator; deposit_amount; request_guid; requested_at }
 
 let withdrawal_from ~(operator:          Address.t)

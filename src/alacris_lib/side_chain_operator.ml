@@ -223,8 +223,6 @@ let validate_user_transaction_request :
             "Adding withdrawal amount and fee causes an overflow!")
         >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
               (fun () ->
-              Logging.log "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
-                (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee);
                 Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
                   (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
         >>> check (is_forced || compare withdrawal_fee fee_schedule.withdrawal_fee >= 0)
@@ -437,7 +435,6 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
   if lneedupdate then
     let fct = simple_client inner_transaction_request_mailbox
                 (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
-                  Logging.log "The post_state_update_request lambda";
                   `GetCurrentDigest digest_resolver) in
     (*    Logging.log "post_state_update_request, before simple_client and push function"; *)
     Lwt_exn.bind (Lwt.bind (fct transreq)
@@ -489,7 +486,6 @@ let make_transaction_commitment : (Transaction.t * Digest.t) -> TransactionCommi
 *)
 let process_user_transaction_request :
       (UserTransactionRequest.t signed * bool, TransactionCommitment.t) Lwt_exn.arr =
-  Logging.log "Beginning of process_user_transaction_request";
   let open Lwt_exn in
   validate_user_transaction_request
   >>> post_state_update_request
@@ -502,7 +498,6 @@ let process_user_transaction_request :
 
 
 let oper_post_user_transaction_request (request: UserTransactionRequest.t signed) : TransactionCommitment.t Lwt_exn.t =
-  Logging.log "passing through oper_post_user_transaction_request";
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =
@@ -542,11 +537,9 @@ let get_account_status address operator_state =
   let exception Failure_to_get_main_chain_balance of exn in
   let exception Failure_to_get_main_chain_transaction_count of exn in
   let side_chain_state = get_account_state address operator_state in
-  Logging.log "Before call to eth_get_balance with address=%s" (Address.to_string address);
   trying Ethereum_json_rpc.eth_get_balance (address, Latest)
   >>= handling (fun e -> fail (Failure_to_get_main_chain_balance e))
   >>= fun balance ->
-  Logging.log "Before call to computing get_transaction_count";
   trying Ethereum_json_rpc.eth_get_transaction_count (address, Pending)
   >>= handling (fun e -> fail (Failure_to_get_main_chain_transaction_count e))
   >>= fun revision ->
@@ -569,12 +562,10 @@ let get_account_balances (operator_state:OperatorState.t) =
    * address should be taken from the operator state rather than a magic
    * constant
    *)
-  Logging.log "Beginning of get_account_balances";
   let open Lwt_exn in
   AccountMap.bindings operator_state.current.accounts
   |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
   |> list_map_p (fun (addr, _) ->
-         Logging.log "Before get_account_status with addr=%s" (Address.to_string addr);
          get_account_status addr operator_state
         >>= fun d -> return (Address.to_0x addr, d))
     >>= fun bs -> return @@ `Assoc bs

@@ -35,7 +35,6 @@ let get_contract_address () = !contract_address
 let make_deposit_call ~operator (contract_address: Address.t) : Ethereum_chain.Operation.t =
   let parameters = [ abi_address operator ] in
   let call = encode_function_call { function_name = "deposit"; parameters } in
-  Logging.log "make_deposit_call : contr_addr=%s" (Address.to_string contract_address);
   Operation.CallFunction (contract_address, call)
 
 let pre_deposit ~operator (amount : TokenAmount.t) (contract_address: Address.t) : PreTransaction.t =
@@ -57,26 +56,22 @@ let pre_deposit ~operator (amount : TokenAmount.t) (contract_address: Address.t)
   
   
 let make_claim_withdrawal_call (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (confirmed_state : Digest.t) : Ethereum_chain.Operation.t =
-  Logging.log "OPERATION: Before creation of parameter for CallFunction make_claim_withdrawal_call";
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
                    ; abi_digest confirmed_state ] in
   let call = encode_function_call { function_name = "claim_withdrawal"; parameters } in
-  Logging.log "make_claim_withdrawal_call contr_addr=%s" (Address.to_string contract_address);
   Operation.CallFunction (contract_address, call)
 
 
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
 let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (confirmed_state : Digest.t) : Ethereum_chain.Operation.t =
-  Logging.log "OPERATION: Before creation of parameter for CallFunction make_withdraw_call";
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
                    ; abi_token_amount bond
                    ; abi_digest confirmed_state ] in
   let call = encode_function_call { function_name = "withdraw"; parameters } in
-  Logging.log "make_withdraw_call, contr_addr=%s" (Address.to_string contract_address);
   Operation.CallFunction (contract_address, call)
 
 
@@ -87,11 +82,8 @@ let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (op
 
  *)
 let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.t =
-  Logging.log "OPERATION: Before creation of parameter for CallFunction make_state_update_call";
   let (parameters : 'a list) = [ abi_digest state_digest ] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
-  let contr_addr = get_contract_address() in
-  Logging.log "make_state_update_call : contr_addr=%s" (Address.to_string contr_addr);
   Operation.CallFunction (get_contract_address (), call)
 
 
