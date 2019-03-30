@@ -132,7 +132,6 @@ let _ =
         match api_call with
         | "balances" ->
           Logging.log "GET /api/balances";
-          Logging.log "Before call to get_all_balances_on_trent"; 
           get_all_balances_on_trent ()
           >>= return_result id
 

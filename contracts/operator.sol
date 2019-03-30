@@ -16,7 +16,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
     // Question: should we allow the depositor to specify the recipient as well, for a few extra GAS?
     //
     // TODO: We need to add the "memo" entry back.
-    // TODO: The balance needs to be removed eventually.
+    // TODO: The balance needs to be removed eventually as it is for debugging purposes.
     event Deposited(address _operator, address _recipient, uint256 _value, uint256 _balance);
     function deposit(address _operator) external payable {
             emit Deposited(_operator, msg.sender, msg.value, address(this).balance);
@@ -80,7 +80,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
     // TODO: The cost of a legal argument in gas should be statically deduced
     // from the structure of the contract itself.
-    // TODO the balance needs to be removed eventually from the code
+    // TODO the balance needs to be removed eventually from the code because it is here for debugging
     uint256 maximum_withdrawal_challenge_gas = 100*1000;
 
     event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint256 _bond, uint256 _balance);
@@ -114,13 +114,13 @@ contract Operators is Claims, ClaimTypes, Bonds {
           // Consume a valid withdrawal claim.
           set_claim_consumed(claim);
 
+          // Log the withdrawal so future double-claim attempts can be duly rejected.
+          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
+	  
           // NB: Should we always transfer money LAST! ?
           // I am not sure this is such a good idea
           // TODO: Should we allow a recipient different from the sender?
           msg.sender.transfer(_value + _bond);
-
-          // Log the withdrawal so future double-claim attempts can be duly rejected.
-          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
         }
     }
 

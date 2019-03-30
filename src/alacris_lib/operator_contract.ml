@@ -37,21 +37,9 @@ let make_deposit_call ~operator (contract_address: Address.t) : Ethereum_chain.O
   let call = encode_function_call { function_name = "deposit"; parameters } in
   Operation.CallFunction (contract_address, call)
 
-let pre_deposit ~operator (amount : TokenAmount.t) (contract_address: Address.t) : PreTransaction.t =
-  let oper: Ethereum_chain.Operation.t = make_deposit_call ~operator contract_address in
+let pre_deposit ~operator amount contract_address =
+  let oper = make_deposit_call ~operator contract_address in
   PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
-
-(* Create a signed transaction to call the contract to deposit money onto
-   an account managed by the operator, ready to be committed on the main chain
-   TODO: get rid of this, have proper state machine in side_chain_user. *)
-(* let deposit user (operator, amount) =
-  Logging.log "deposit(operator_contract): add_ongoing_transaction";
-  let open Ethereum_user in
-  OngoingTransactionStatus.Wanted (pre_deposit ~operator amount)
-  |> Lwt_exn.(add_ongoing_transaction user
-              >>> of_lwt track_transaction
-              >>> check_transaction_confirmed)
- *)
 
   
   
