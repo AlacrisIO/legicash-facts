@@ -55,7 +55,7 @@ contract Claims {
      */
     int constant internal challenge_period_in_seconds = 10;
     /* TODO: Replace the challenge period, by the depth of confirmed block.
-       At least as an option */
+       At least as an option. This would of course change the solidity code */
 
 
     /** @dev expiry delay, in seconds.
