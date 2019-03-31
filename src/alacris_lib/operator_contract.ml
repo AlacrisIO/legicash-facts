@@ -32,7 +32,8 @@ let get_contract_address () = !contract_address
 
 (** build the encoding of a call to the "deposit" function of the operator contract
     address argument is the operator *)
-let make_deposit_call ~operator (contract_address: Address.t) : Ethereum_chain.Operation.t =
+let make_deposit_call : operator:Address.t -> Address.t -> Ethereum_chain.Operation.t =
+  fun ~operator contract_address -> 
   let parameters = [ abi_address operator ] in
   let call = encode_function_call { function_name = "deposit"; parameters } in
   Operation.CallFunction (contract_address, call)
