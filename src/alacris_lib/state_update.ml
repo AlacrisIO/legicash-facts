@@ -24,7 +24,8 @@ let init_state : unit -> digest_entry =
 let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
 
 
-let print_contract_account_value (estr : string) : unit Lwt_exn.t =
+let print_contract_account_value : string -> unit Lwt_exn.t =
+  fun estr -> 
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   let (contr_addr : Address.t) = get_contract_address () in
   Logging.log "oper_addr=%s" (Address.to_string oper_addr);
