@@ -106,23 +106,22 @@ let decode_response : (yojson -> 'b) -> yojson -> string -> 'b Lwt_exn.t =
       else if not (id = request_id) then
         malformed_response (Internal_error "bad id")
       else
-        return x
-    in
+        return x in
     trying (catching_arr yojson_of_string) response
-    >>= fun x ->
-    handling malformed_response x
+    >>= handling malformed_response
     >>= fun response_json ->
     response_json
     |> trying (catching_arr (result_response_of_yojson >> OrString.get))
-    >>= handling (fun _ -> response_json
+    >>= handling (fun _ ->
+      response_json
       |> trying (catching_arr (error_response_of_yojson >> OrString.get))
       >>= handling malformed_response
       >>= fun {jsonrpc;error;id} -> checking jsonrpc error id
       >>= fun e -> fail (Rpc_error e))
-    >>= fun {jsonrpc;result;id} -> checking jsonrpc result id
+    >>= fun {jsonrpc;result;id} ->
+    checking jsonrpc result id
     >>= trying (catching_arr result_decoder)
     >>= handling malformed_response
-      
 
 let json_rpc server method_name result_decoder param_encoder
       ?(timeout=rpc_timeout) ?(log= !rpc_log) params =

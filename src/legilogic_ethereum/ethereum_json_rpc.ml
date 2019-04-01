@@ -247,9 +247,9 @@ let eth_accounts =
 (** Returns a list of address owned by the client **)
 
 let eth_estimate_gas =
-  (ethereum_json_rpc "eth_estimateGas"
+  ethereum_json_rpc "eth_estimateGas"
     TokenAmount.of_yojson_exn 
-    (yojson_1arg TransactionParameters.to_yojson))
+    (yojson_1arg TransactionParameters.to_yojson)
 (** Returns estimate of gas needed for transaction **)
 
 let eth_gas_price =
