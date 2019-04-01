@@ -84,10 +84,12 @@ let get_contract_address_from_client_exn : unit -> Address.t Lwt_exn.t =
   fun () ->
   match !contract_address_from_client_ref with
   | Some x ->
+     Logging.log "get_contract_address_from_client_exn 1 : x=%s" (Address.to_string x);
      Lwt_exn.return x
   | None ->
      Lwt_exn.bind (get_contract_address_from_client_exn_req ())
        (fun x ->
+         Logging.log "get_contract_address_from_client_exn 2 : x=%s" (Address.to_string x);
          contract_address_from_client_ref := Some x;
          Lwt_exn.return x)
 

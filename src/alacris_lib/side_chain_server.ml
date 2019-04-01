@@ -90,6 +90,7 @@ let _ =
     (fun () ->
        of_lwt Db.open_connection "alacris_server_db"
        >>= fun () ->
+       Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_string Side_chain_server_config.operator_address);
        Side_chain_action.ensure_side_chain_contract_created Side_chain_server_config.operator_address
        >>= fun contract_address ->
        assert (contract_address = Operator_contract.get_contract_address ());
