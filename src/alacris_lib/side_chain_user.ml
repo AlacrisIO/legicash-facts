@@ -98,7 +98,14 @@ let get_contract_address_from_client : unit -> Address.t Lwt.t =
 
     
 
+let get_option : 'a -> 'a option -> 'a =
+  fun x_val x_opt ->
+  match x_opt with
+  | None -> x_val
+  | Some x -> x
+  
 
+  
 
 let wait_for_operator_state_update (contract_address: Address.t)
                                    (operator:         Address.t)
@@ -113,10 +120,10 @@ let wait_for_operator_state_update (contract_address: Address.t)
   >>= fun x ->
   let (x_logo, _x_vals) = x in
   return Ethereum_chain.Confirmation.
-    { transaction_hash  = get_transaction_hash x_logo
-    ; transaction_index = get_transaction_index x_logo
-    ; block_number      = get_block_number x_logo
-    ; block_hash        = get_block_hash x_logo
+    { transaction_hash  = get_option Digest.zero x_logo.transactionHash
+    ; transaction_index = get_option Revision.zero x_logo.transactionIndex
+    ; block_number      = get_option Revision.zero x_logo.blockNumber
+    ; block_hash        = get_option Digest.zero x_logo.blockHash
     }
 
   

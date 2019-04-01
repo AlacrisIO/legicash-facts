@@ -185,29 +185,6 @@ module LogObject = struct
 end
 
 
-(* let get_transaction_hash log_object = Option.get_defaulting Digest.zero log_object.transactionHash *)
-
-let get_transaction_hash (log_object : LogObject.t) : Digest.t =
-  match log_object.transactionHash with
-  | Some x -> x
-  | None -> Digest.zero
-
-  
-let get_transaction_index (log_object : LogObject.t) : Revision.t =
-  match log_object.transactionIndex with
-  | Some x -> x
-  | None -> Revision.zero
-
-let get_block_hash (log_object : LogObject.t) : Digest.t =
-  match log_object.blockHash with
-  | Some x -> x
-  | None -> Digest.zero
-
-let get_block_number (log_object : LogObject.t) : Revision.t =
-  match log_object.blockNumber with
-  | Some x -> x
-  | None -> Revision.zero
-
 
           
 module Bloom = struct
