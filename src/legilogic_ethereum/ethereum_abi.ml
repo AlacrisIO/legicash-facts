@@ -170,7 +170,7 @@ let uint_of_big_endian_bytes num_bits bytes =
     bork "num_bits = %d is too large" num_bits ;
   nat_of_big_endian_bits num_bits (Bytes.to_string bytes)
 
-let abi_value_to_uintN n (evalue : abi_value) =
+let abi_value_to_uintN n evalue =
   match evalue with
   | Uint_value x -> uint_of_big_endian_bytes n x
   | _ -> bork "Wrong input type"
@@ -195,10 +195,14 @@ let abi_value_to_uint = abi_value_to_uintN 256
 
 
 
-let print_abi_value_256 (x: abi_value) : string =
+let print_abi_value_256 : abi_value -> string =
+  fun x ->
   let x_uint = abi_value_to_uint x in
   let x_str : string = Nat.to_string x_uint in
   x_str
+
+
+  
 (*
     match x with
   | Uint_value x_bytes ->
