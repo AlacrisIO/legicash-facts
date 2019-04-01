@@ -554,7 +554,8 @@ let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : T
       eth_estimate_gas (operation_to_parameters sender operation))
   >>= fun gas_limit ->
   Logging.log "make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
-  let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 3) gas_limit) in
+  (* TODO: The multiplication by 2 is a hack that needs to be addressed *)
+  let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
   Logging.log "gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
   return PreTransaction.{operation; value; gas_limit=gas_limit_n_fold}
 

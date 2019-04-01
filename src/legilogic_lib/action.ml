@@ -462,7 +462,7 @@ let stateless_sequentialize processor =
 *)
 
 (* reading, writing strings from Lwt_io channels *)
-let read_string_from_lwt_io_channel ?(count=64) in_channel : string Lwt_exn.t =
+let read_string_from_lwt_io_channel ?(count=64) in_channel =
   let open Lwt_exn in
   let open Lwt_io in
   (*  Logging.log "read_string_from_lwt_io_channel, beginning";*)
