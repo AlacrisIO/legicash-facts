@@ -27,11 +27,15 @@ open Side_chain
 let get_operator_fee_schedule _operator_address =
   Lwt_exn.return initial_fee_schedule
 
+(* Those tpoics below correspond to events in the operator.sol code
+   Be careful of adjusting everything when you change the type like adding a balance.
+ *)
+  
 let (topic_of_deposited: Bytes.t option) =
   topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
 
 let (topic_of_state_update: Bytes.t option) =
-  topic_of_hash (digest_of_string "StateUpdate(address,bytes32)")
+  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint256)")
 
 let (topic_of_claim_withdrawal: Bytes.t option) =
   topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32,uint256,uint256)")
@@ -115,10 +119,11 @@ let wait_for_operator_state_update (contract_address: Address.t)
   wait_for_contract_event
     contract_address
     [topic_of_state_update]
-    [Address; Bytes 32]
-    [Some (Address_value operator); None]
+    [Address; Bytes 32; Uint 256]
+    [Some (Address_value operator); None; None]
   >>= fun x ->
-  let (x_logo, _x_vals) = x in
+  let (x_logo, x_vals) = x in
+  Logging.log "Balance at state_update RETURN balance=%s" (print_abi_value_256 (List.nth x_vals 2));
   return Ethereum_chain.Confirmation.
     { transaction_hash  = get_option Digest.zero x_logo.transactionHash
     ; transaction_index = get_option Revision.zero x_logo.transactionIndex
@@ -142,7 +147,7 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   Lwt_exn.bind (wait_for_contract_event contract_address topics list_data_type data_value_search)
     (fun (x : (LogObject.t * (abi_value list))) ->
       let (_a, b) = x in
-      Logging.log "claim_withdrawal, RETURN bond=%s" (print_abi_value_256 (List.nth b 4));
+      Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_256 (List.nth b 4));
       Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
       Lwt_exn.return ())
 
@@ -150,7 +155,8 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
 
 
 
-let emit_claim_withdrawal_operation (contract_address : Address.t) (sender : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> unit Lwt_exn.t =
+  fun contract_address sender operator operator_revision value bond digest ->
   let open Lwt_exn in
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
@@ -170,8 +176,11 @@ let emit_claim_withdrawal_operation (contract_address : Address.t) (sender : Add
   | Some _receipt -> Lwt_exn.return ()
 
 
+(* let emit_withdraw_operation (contract_address : Address.t) (sender: Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =*)
 
-let emit_withdraw_operation (contract_address : Address.t) (sender: Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =
+                   
+let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> unit Lwt_exn.t =
+  fun contract_address sender operator operator_revision value bond digest ->
   let open Lwt_exn in
   Logging.log "emit_withdraw_operation : beginning of operation";
   let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in

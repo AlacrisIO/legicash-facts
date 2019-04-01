@@ -24,12 +24,12 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
     // STATE UPDATE
 
-    event StateUpdate(address _operator, bytes32 _confirmed_state);
+    event StateUpdate(address _operator, bytes32 _confirmed_state, uint256 _balance);
 
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state) external {
         make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
-        emit StateUpdate(msg.sender, _new_state);
+        emit StateUpdate(msg.sender, _new_state, address(this).balance);
     }
 
     function operator_state(

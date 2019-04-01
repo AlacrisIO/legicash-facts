@@ -28,7 +28,9 @@ let contract_address = ref Address.zero
 
 let set_contract_address address = contract_address := address
 
-let get_contract_address () = !contract_address
+let get_contract_address () =
+  Logging.log "get_contract_address : contract_address=%s" (Address.to_string !contract_address);
+  !contract_address
 
 (** build the encoding of a call to the "deposit" function of the operator contract
     address argument is the operator *)
