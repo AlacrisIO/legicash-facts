@@ -606,10 +606,10 @@ let get_contract_address_yojson () =
   return (`Assoc [("contract_address",Address.to_yojson contr_addr)])
 
 
-                
+
 (** Take messages from the user_query_request_mailbox, and process them (TODO: in parallel?) *)
 (*let process_user_query_request : (request : UserQueryRequest.t) : yojson Lwt_exn.t = *)
-let process_user_query_request request = 
+let process_user_query_request request =
   let open Lwt_exn in
   let state = get_operator_state () in
   (match (request : UserQueryRequest.t) with

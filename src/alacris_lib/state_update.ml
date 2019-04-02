@@ -25,7 +25,7 @@ let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
 
 
 let print_contract_account_value : string -> unit Lwt_exn.t =
-  fun estr -> 
+  fun estr ->
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   let (contr_addr : Address.t) = get_contract_address () in
   Logging.log "oper_addr=%s" (Address.to_string oper_addr);
@@ -35,8 +35,6 @@ let print_contract_account_value : string -> unit Lwt_exn.t =
              Lwt_exn.return ())
 
 
-  
-                                              
 (* Alert to take care of:
    ---lack of gas
    ---transaction not passed

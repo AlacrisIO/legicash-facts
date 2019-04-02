@@ -90,7 +90,7 @@ let post_user_transaction_request_to_server (request : UserTransactionRequest.t 
 
 let post_user_transaction_request_hook = ref post_user_transaction_request_to_server
 
-                                       
+
 let post_user_transaction_request (request : UserTransactionRequest.t signed) =
   request |> !post_user_transaction_request_hook
 

@@ -3,7 +3,7 @@
 open Legilogic_lib
 open Types
 open Signing
-   
+
 open Legilogic_ethereum
 open Ethereum_chain
 
@@ -25,14 +25,14 @@ val get_contract_address : unit -> Address.t
 (** set the address of the contract on Ethereum
     TODO: use a fixed address, obviating this call *)
 
-val pre_deposit : operator:Address.t -> TokenAmount.t -> Address.t -> PreTransaction.t                  
+val pre_deposit : operator:Address.t -> TokenAmount.t -> Address.t -> PreTransaction.t
 (** Create a PreTransaction for a contract call that deposits the amount
     into the sender's account on the operator *)
 
 val make_claim_withdrawal_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t
 
 
-  
+
 val make_withdraw_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "withdraw" function of the operator contract
     arguments: operator address, bond amount, confirmed state

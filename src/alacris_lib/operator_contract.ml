@@ -35,7 +35,7 @@ let get_contract_address () =
 (** build the encoding of a call to the "deposit" function of the operator contract
     address argument is the operator *)
 let make_deposit_call : operator:Address.t -> Address.t -> Ethereum_chain.Operation.t =
-  fun ~operator contract_address -> 
+  fun ~operator contract_address ->
   let parameters = [ abi_address operator ] in
   let call = encode_function_call { function_name = "deposit"; parameters } in
   Operation.CallFunction (contract_address, call)
@@ -44,8 +44,8 @@ let pre_deposit ~operator amount contract_address =
   let oper = make_deposit_call ~operator contract_address in
   PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
 
-  
-  
+
+
 let make_claim_withdrawal_call (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (confirmed_state : Digest.t) : Ethereum_chain.Operation.t =
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision

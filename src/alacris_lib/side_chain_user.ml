@@ -30,7 +30,7 @@ let get_operator_fee_schedule _operator_address =
 (* Those tpoics below correspond to events in the operator.sol code
    Be careful of adjusting everything when you change the type like adding a balance.
  *)
-  
+
 let (topic_of_deposited: Bytes.t option) =
   topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
 
@@ -70,7 +70,7 @@ module ContractAddrType = struct
 end
 
 
-  
+
 let get_contract_address_from_client_exn_req () =
   let open Lwt_exn in
   UserQueryRequest.Get_contract_address
@@ -94,7 +94,7 @@ let get_contract_address_from_client_exn : unit -> Address.t Lwt_exn.t =
          Lwt_exn.return x)
 
 let get_contract_address_from_client : unit -> Address.t Lwt.t =
-  fun () -> 
+  fun () ->
   Lwt.bind
     (get_contract_address_from_client_exn ())
     (fun x ->
@@ -102,16 +102,16 @@ let get_contract_address_from_client : unit -> Address.t Lwt.t =
       | Error e -> bork "Error in obtaining the contract_address"
       | Ok x -> Lwt.return x)
 
-    
+
 
 let get_option : 'a -> 'a option -> 'a =
   fun x_val x_opt ->
   match x_opt with
   | None -> x_val
   | Some x -> x
-  
 
-  
+
+
 
 let wait_for_operator_state_update (contract_address: Address.t)
                                    (operator:         Address.t)
@@ -133,7 +133,7 @@ let wait_for_operator_state_update (contract_address: Address.t)
     ; block_hash        = get_option Digest.zero x_logo.blockHash
     }
 
-  
+
 
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                     (_sender:          Address.t)
@@ -180,7 +180,7 @@ let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Rev
 
 (* let emit_withdraw_operation (contract_address : Address.t) (sender: Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =*)
 
-                   
+
 let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> unit Lwt_exn.t =
   fun contract_address sender operator operator_revision value bond digest ->
   let open Lwt_exn in
@@ -218,7 +218,7 @@ let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Addres
       Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_256 (List.nth b 3));
       Lwt_exn.return ())
 
-  
+
 let post_claim_withdrawal_operation (tc:       TransactionCommitment.t)
       (sender: Address.t)
       (operator: Address.t)
@@ -472,7 +472,7 @@ let print_ots_state (o: OngoingTransactionStatus.t) : string =
   | PostedToRegistry _ -> "postedtoregistry"
   | PostedToMainChain _ -> "postedtomainchain"
   | ConfirmedOnMainChain _ -> "confirmedonmainchain"
-                             
+
 let () = Printexc.register_printer (function
              | TransactionFailed (o,e) ->
                 let str_except : string = Printexc.to_string e in
@@ -480,9 +480,9 @@ let () = Printexc.register_printer (function
                 let str_ret : string = Printf.sprintf "TransactionFailed(%s,%s)" str_o str_except in
                 Some str_ret
              | _ -> None)
-           
 
-                             
+
+
 type revision_generator = (unit, Revision.t) Lwter.arr
 
 module TransactionTracker = struct
@@ -541,7 +541,7 @@ module TransactionTracker = struct
              Logging.log "TR_LOOP, DepositWanted operation";
              (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
              let amount = TokenAmount.(add deposit_amount deposit_fee) in
-             Lwt.bind 
+             Lwt.bind
                (Lwt.bind (get_contract_address_from_client ())
                   (fun x -> Lwt.return (Operator_contract.pre_deposit ~operator amount x)))
              (fun x_pre_transaction ->
@@ -560,7 +560,7 @@ module TransactionTracker = struct
                 | Ok (tracker_key, _, _) ->
                   DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
               *)
-             
+
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
              Logging.log "TR_LOOP, DepositPosted operation";
              let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in

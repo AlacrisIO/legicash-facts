@@ -164,7 +164,7 @@ module SignedTransaction = struct
            end) : (PersistableS with type t := t))
 end
 
-                         
+
 module LogObject = struct
   [@warning "-39"]
   type t =
@@ -186,7 +186,7 @@ end
 
 
 
-          
+
 module Bloom = struct
   include Yojsoning.Bytes (* TODO: Actually always 256 bytes *)
 end
@@ -248,7 +248,7 @@ let eth_accounts =
 
 let eth_estimate_gas =
   ethereum_json_rpc "eth_estimateGas"
-    TokenAmount.of_yojson_exn 
+    TokenAmount.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
 (** Returns estimate of gas needed for transaction **)
 

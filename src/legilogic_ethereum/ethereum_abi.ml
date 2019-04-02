@@ -202,7 +202,7 @@ let print_abi_value_256 : abi_value -> string =
   x_str
 
 
-  
+
 (*
     match x with
   | Uint_value x_bytes ->
@@ -214,7 +214,6 @@ let print_abi_value_256 : abi_value -> string =
  *)
 
 
-                      
 (*
 let abi_value_to_intN n evalue =
   Logging.log "abi_value_to_intN code has not been written down";
