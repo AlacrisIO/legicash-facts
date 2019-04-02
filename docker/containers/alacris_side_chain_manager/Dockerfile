@@ -12,7 +12,7 @@ USER appuser
 WORKDIR /var/www/app/legicash-facts
 RUN make
 
-# Create new image 
+# Create new image
 FROM gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1
 
 # Copy config dir from previous image
