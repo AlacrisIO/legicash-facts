@@ -15,10 +15,10 @@ The type "side\_chain\_account" is a JSON record of the form:
 
 The type main\_chain\_account is a JSON record of the form:
 
-     { "address" : address,
-	 ; "balance" : hex-string,
-	 ; "revision : hex-string
-	 }
+   { "address" : address,
+   ; "balance" : hex-string,
+   ; "revision : hex-string
+   }
 
 The type "hash" is a hex-string with 32 hex-digit pairs.
 
@@ -26,8 +26,8 @@ The type "main\_chain\_confirmation" is a JSON record of the form:
 
      { "transaction_hash" : hash,
        "transaction_index" : int,
-	   "block_number" : int,
-	   "block_hash" : hash
+     "block_number" : int,
+     "block_hash" : hash
      }
 
 The type user\_status is a JSON record of the form:
@@ -40,8 +40,8 @@ The type "proof" is a JSON record of the form:
 
      { "key" : hex-string
        "transaction_index" : hash,
-	   "value" : hash,
-	   "steps" : step list
+     "value" : hash,
+     "steps" : step list
      }
 
 where a "step" is a JSON record of one of the following forms:
@@ -51,8 +51,8 @@ where a "step" is a JSON record of one of the following forms:
      { "right" : hash }, or
 
      { "bits" : hex-string,
-	   "length" : number
-	 }
+     "length" : number
+   }
 
 Deposit
 -------
@@ -166,7 +166,7 @@ Transaction rate
 
     { "transaction_rate" : number
       "time" : string
-	}
+  }
 
   indicating the transactions per second in the minute preceding
   the request, and the time when the request was received. The
