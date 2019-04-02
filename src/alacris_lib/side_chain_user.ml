@@ -102,16 +102,11 @@ let get_contract_address_from_client : unit -> Address.t Lwt.t =
       | Error e -> bork "Error in obtaining the contract_address"
       | Ok x -> Lwt.return x)
 
-
-
 let get_option : 'a -> 'a option -> 'a =
   fun x_val x_opt ->
   match x_opt with
   | None -> x_val
   | Some x -> x
-
-
-
 
 let wait_for_operator_state_update (contract_address: Address.t)
                                    (operator:         Address.t)
@@ -126,13 +121,16 @@ let wait_for_operator_state_update (contract_address: Address.t)
   >>= fun x ->
   let (x_logo, x_vals) = x in
   Logging.log "Balance at state_update RETURN balance=%s" (print_abi_value_256 (List.nth x_vals 2));
+
+  (* TODO defaulting to zero is wrong; we need to capture and represent `null`s
+   * at the type level instead so consuming code is forced to deal with them
+   * explicitly and unambiguously *)
   return Ethereum_chain.Confirmation.
     { transaction_hash  = get_option Digest.zero x_logo.transactionHash
     ; transaction_index = get_option Revision.zero x_logo.transactionIndex
     ; block_number      = get_option Revision.zero x_logo.blockNumber
     ; block_hash        = get_option Digest.zero x_logo.blockHash
     }
-
 
 
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
@@ -152,9 +150,6 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
       Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_256 (List.nth b 4));
       Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
       Lwt_exn.return ())
-
-
-
 
 
 let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> unit Lwt_exn.t =
