@@ -222,9 +222,9 @@ let validate_user_transaction_request :
           (fun () ->
             "Adding withdrawal amount and fee causes an overflow!")
         >>> check (compare balance (add withdrawal_amount withdrawal_fee) >= 0)
-            (fun () ->
-              Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
-                (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
+              (fun () ->
+                Printf.sprintf "Balance %s insufficient to cover withdrawal amount %s plus fee %s"
+                  (to_string balance) (to_string withdrawal_amount) (to_string withdrawal_fee))
         >>> check (is_forced || compare withdrawal_fee fee_schedule.withdrawal_fee >= 0)
               (fun () ->
                 Printf.sprintf "Insufficient withdrawal fee %s, requiring at least %s"
@@ -413,16 +413,10 @@ let effect_validated_user_transaction_request :
       debit_balance (TokenAmount.add withdrawal_amount withdrawal_fee) requester
       >>> accept_fee withdrawal_fee
 
-let post_state_update_needed_uo (useroper : UserOperation.t) : (bool * TokenAmount.t * TokenAmount.t) =
-  match useroper with
-  | Deposit _ -> (true, TokenAmount.zero, TokenAmount.zero)
-  | Payment _ -> (true, TokenAmount.zero, TokenAmount.zero)
-  | Withdrawal x -> (true, x.withdrawal_amount, (TokenAmount.add x.withdrawal_amount x.withdrawal_fee))
-
-let post_state_update_needed_tr (transreq : TransactionRequest.t) : (bool*TokenAmount.t*TokenAmount.t) =
+let post_state_update_needed_tr (transreq : TransactionRequest.t) : bool =
   match transreq with
-  | `AdminTransaction _ -> (false, TokenAmount.zero, TokenAmount.zero)
-  | `UserTransaction x -> post_state_update_needed_uo x.payload.operation
+  | `AdminTransaction _ -> false
+  | `UserTransaction _ -> true
 
 (** TODO: have a server do all the effect_requests sequentially,
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
@@ -436,18 +430,17 @@ let post_validated_transaction_request :
 
 let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * Digest.t) Lwt_exn.t =
   Logging.log "post_state_update_request, beginning of function";
-  let ((lneedupdate, _bond, value) : (bool*TokenAmount.t*TokenAmount.t)) = post_state_update_needed_tr transreq in
+  let (lneedupdate : bool) = post_state_update_needed_tr transreq in
   (*  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate; *)
   if lneedupdate then
     let fct = simple_client inner_transaction_request_mailbox
                 (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
-                  Logging.log "The post_state_update_request lambda";
                   `GetCurrentDigest digest_resolver) in
     (*    Logging.log "post_state_update_request, before simple_client and push function"; *)
     Lwt_exn.bind (Lwt.bind (fct transreq)
                     (fun (digest_rev) ->
                       let (digest : Digest.t) = digest_rev in
-                      push_state_digest_exn digest value))
+                      post_state_update digest))
       (fun (x : Digest.t) -> Lwt_exn.return (transreq, x))
   else
     Lwt_exn.return (transreq, Digesting.null_digest)
@@ -493,7 +486,6 @@ let make_transaction_commitment : (Transaction.t * Digest.t) -> TransactionCommi
 *)
 let process_user_transaction_request :
       (UserTransactionRequest.t signed * bool, TransactionCommitment.t) Lwt_exn.arr =
-  Logging.log "Beginning of process_user_transaction_request";
   let open Lwt_exn in
   validate_user_transaction_request
   >>> post_state_update_request
@@ -506,7 +498,6 @@ let process_user_transaction_request :
 
 
 let oper_post_user_transaction_request (request: UserTransactionRequest.t signed) : TransactionCommitment.t Lwt_exn.t =
-  Logging.log "passing through oper_post_user_transaction_request";
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =
@@ -573,9 +564,9 @@ let get_account_balances (operator_state:OperatorState.t) =
    *)
   let open Lwt_exn in
   AccountMap.bindings operator_state.current.accounts
-    |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
-    |> list_map_p (fun (addr, _) ->
-        get_account_status addr operator_state
+  |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
+  |> list_map_p (fun (addr, _) ->
+         get_account_status addr operator_state
         >>= fun d -> return (Address.to_0x addr, d))
     >>= fun bs -> return @@ `Assoc bs
 
@@ -608,7 +599,16 @@ let get_2proof tx_revision (operator_state : OperatorState.t) =
     error_json "Cannot provide proof for tx-revision: %s" (Revision.to_string tx_revision)
   | Some proof -> TransactionMap.Proof.to_yojson proof
 
+
+let get_contract_address_yojson () =
+  let open Lwt_exn in
+  let contr_addr = get_contract_address() in
+  return (`Assoc [("contract_address",Address.to_yojson contr_addr)])
+
+
+
 (** Take messages from the user_query_request_mailbox, and process them (TODO: in parallel?) *)
+(*let process_user_query_request : (request : UserQueryRequest.t) : yojson Lwt_exn.t = *)
 let process_user_query_request request =
   let open Lwt_exn in
   let state = get_operator_state () in
@@ -617,6 +617,8 @@ let process_user_query_request request =
      get_account_balance address state |> return
    | Get_account_balances ->
      get_account_balances state
+   | Get_contract_address ->
+     get_contract_address_yojson ()
    | Get_account_state {address} ->
      get_account_state address state |> return
    | Get_account_status {address} ->

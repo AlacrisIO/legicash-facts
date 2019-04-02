@@ -26,11 +26,12 @@ let process_request_exn _client_address (in_channel,out_channel) =
   Logging.log "process_request_exn, running 1";
   let (iter : int ref) = ref 0 in
   let encode_response marshaler =
-    Logging.log "encode_response iter=%i" !iter;
     iter := !iter + 1;
     marshaler |> Tag.marshal_result_or_exn |> marshal_string_of_marshal |> arr in
   read_string_from_lwt_io_channel in_channel
-  >>= trying (catching_arr ExternalRequest.unmarshal_string)
+  >>= fun x ->
+  Logging.log "After read_string_from_lwt_io_channel x=%s" x;
+  trying (catching_arr ExternalRequest.unmarshal_string) x
   >>= (function
     | Ok (`UserQuery request) ->
        Logging.log "process_request_exn : UserQuery";
@@ -47,7 +48,9 @@ let process_request_exn _client_address (in_channel,out_channel) =
   (* TODO: We need to always close, and thus exit the Lwt_exn monad and properly handle the Result
      (e.g. by turning it into a yojson that fulfills the JSON RPC interface) before we close.
   *)
-  >>= catching (write_string_to_lwt_io_channel out_channel)
+  >>= fun x ->
+  Logging.log "Before writing to write_string_to_lwt_io_channel x=%s" x;
+  catching (write_string_to_lwt_io_channel out_channel) x
   >>= fun () -> catching_lwt Lwt_io.close in_channel
   >>= fun () -> catching_lwt Lwt_io.close out_channel
 
@@ -87,6 +90,7 @@ let _ =
     (fun () ->
        of_lwt Db.open_connection "alacris_server_db"
        >>= fun () ->
+       Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_string Side_chain_server_config.operator_address);
        Side_chain_action.ensure_side_chain_contract_created Side_chain_server_config.operator_address
        >>= fun contract_address ->
        assert (contract_address = Operator_contract.get_contract_address ());

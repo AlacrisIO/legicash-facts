@@ -39,23 +39,27 @@ let operator_address =
 
 
 let decode_response (unmarshaler : 'a unmarshaler) : (string, 'a or_exn) Lwter.arr =
-  Logging.log "side_chain_client : decode_response";
   unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwter.arr
 
 
 (* Queries return JSON *)
 let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =
-  Logging.log "side_chain_client : post_query_to_server";
+  (*  let etime = Unix.gettimeofday() in
+  Logging.log "side_chain_client : post_query_to_server etime=%f" etime; *)
   match request with
   | `AdminQuery _
   | `UserQuery _ ->
     with_connection (Lazy.force sockaddr)
       (fun (in_channel,out_channel) ->
          Query.marshal_string request
-         |> write_string_to_lwt_io_channel out_channel
+         |> fun x ->
+            Logging.log "Before write_string_to_lwt_io_channel, post_query_to_server, x=%s" x;
+            write_string_to_lwt_io_channel out_channel x
          >>= fun () ->
          read_string_from_lwt_io_channel in_channel
-         >>= decode_response yojson_marshaling.unmarshal)
+         >>= fun x ->
+         Logging.log "After read_string_from_lwt_io_channel, post_query_to_server x=%s" x;
+         decode_response yojson_marshaling.unmarshal x)
 
 let post_query_hook = ref post_query_to_server
 
@@ -68,32 +72,26 @@ let post_admin_query_request (request : AdminQueryRequest.t) =
  *)
 
 
-let fct_decode_response (x : int) : bytes -> TransactionCommitment.t * int =
-  Logging.log "Passing by fct_decode_response x=%i" x;
-  TransactionCommitment.unmarshal x
-
-
 (* Transaction's return TransactionCommitment's *)
 let post_user_transaction_request_to_server (request : UserTransactionRequest.t signed) : TransactionCommitment.t OrExn.t Lwt.t =
-  Logging.log "side_chain_client : post_user_transaction_request_to_server";
   let (external_request : ExternalRequest.t) = `UserTransaction request in
   with_connection (Lazy.force sockaddr)
     (fun (in_channel, out_channel) ->
-      Logging.log "side_chain_client : fun (in_channel, out_channel)";
       let (eval : string) = ExternalRequest.marshal_string external_request in
-      Logging.log "Returning marshaled value";
       eval
-      |> write_string_to_lwt_io_channel out_channel
+      |> fun x ->
+         Logging.log "Before write_string_to_lwt_io_channel, post_user_transaction_request_to_server x=%s" x;
+         write_string_to_lwt_io_channel out_channel x
       >>= fun () ->
-      Logging.log "Before read_string_from_lwt_io_channel in_channel";
       read_string_from_lwt_io_channel in_channel
-      >>= decode_response fct_decode_response)
+      >>= fun x ->
+      Logging.log "Afer read_string_from_lwt_io_channel, post_user_transaction_request_to_server x=%s" x;
+      decode_response TransactionCommitment.unmarshal x)
 
 let post_user_transaction_request_hook = ref post_user_transaction_request_to_server
 
 
 let post_user_transaction_request (request : UserTransactionRequest.t signed) =
-  Logging.log "post_user_transaction_request";
   request |> !post_user_transaction_request_hook
 
 module Test = struct

@@ -6,6 +6,7 @@ open Signing
 open Integer
 open Ethereum_json_rpc
 open Ethereum_abi
+open Side_chain_server_config
 
 (* TODO capturing `starting_watch_ref` in a state monad or similar would be a
  * much better approach than using mutable global state *)
@@ -218,6 +219,22 @@ let retrieve_relevant_list_logs_group (delay : float) (contract_address : Addres
           Lwt_exn.return x_llogs_group
       )
   in fct_downloading !starting_watch_ref
+
+
+let wait_for_contract_event (contract_address:  Address.t)
+      (topics:            Bytes.t option list)
+      (list_data_type:    abi_type list)
+      (data_value_search: abi_value option list)
+    : (LogObject.t * (abi_value list)) Lwt_exn.t =
+  Logging.log "Beginning of wait_for_contract_event";
+  retrieve_relevant_single_logs_data
+    Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    contract_address
+    topics
+    list_data_type
+    data_value_search
+
+
 
 
 (* TODO: implement following operations:
