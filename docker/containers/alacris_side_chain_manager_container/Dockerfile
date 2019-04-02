@@ -1,4 +1,4 @@
-# Create new image 
+# Create new image
 FROM ubuntu
 
 # Add non-root user
@@ -20,7 +20,7 @@ RUN cd secp256k1 && ./autogen.sh && ./configure --prefix=/usr --enable-module-re
 
 
 # Create supervisor appuser permissions
-RUN   chown appuser:appuser /var/log/supervisor /var/run/ 
+RUN chown appuser:appuser /var/log/supervisor /var/run/
 # Set permissions for appuser
 RUN chown -R appuser:appuser /var/www/app/legicash-facts/
 RUN chown -R appuser:appuser /var/www/app/legicash-facts/_run/logs/
