@@ -50,7 +50,7 @@ let address_of_hex_string_with_checksum hs =
 let bytes_of_address address = Bytes.of_string (Address.to_big_endian_bits address)
 
 let address_of_bytes bytes = Address.of_big_endian_bits (Bytes.to_string bytes)
-                             
+
 module Test = struct
   let%test "0x_string <-> address" =
     List.for_all
