@@ -70,7 +70,6 @@ module ContractAddrType = struct
 end
 
 
-
 let get_contract_address_from_client_exn_req () =
   let open Lwt_exn in
   UserQueryRequest.Get_contract_address
@@ -171,9 +170,6 @@ let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Rev
   match x with
   | None -> bork "No tx receipt for contract creation"
   | Some _receipt -> Lwt_exn.return ()
-
-
-(* let emit_withdraw_operation (contract_address : Address.t) (sender: Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =*)
 
 
 let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> unit Lwt_exn.t =
