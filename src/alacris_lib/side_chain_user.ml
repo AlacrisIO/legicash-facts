@@ -121,9 +121,10 @@ let wait_for_operator_state_update (contract_address: Address.t)
   let (x_logo, x_vals) = x in
   Logging.log "Balance at state_update RETURN balance=%s" (print_abi_value_256 (List.nth x_vals 2));
 
-  (* TODO defaulting to zero is wrong; we need to capture and represent `null`s
-   * at the type level instead so consuming code is forced to deal with them
-   * explicitly and unambiguously *)
+  (* TODO defaulting to zero is wrong and the presence of `null`s indicates
+   * something's broken with the confirmation data; we should instead capture
+   * the possibility of invalid state at the type level and force consuming
+   * code to deal with it explicitly and unambiguously *)
   return Ethereum_chain.Confirmation.
     { transaction_hash  = get_option Digest.zero x_logo.transactionHash
     ; transaction_index = get_option Revision.zero x_logo.transactionIndex
