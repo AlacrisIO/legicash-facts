@@ -65,8 +65,12 @@ ENV PATH /home/appuser/opt/opam-full-2.0.2/bin:${PATH}
 # Install OPAM packages
 #ENV OCAML_VERSION ocaml-base-compiler.4.07.1 ### <= use this format to distinguish from system-provided ocaml of same version
 ENV OCAML_VERSION 4.07.1
+
+# NB: Pinning the `integers` package is currently necessary due to this bug:
+# https://github.com/ocamllabs/ocaml-integers/issues/26
 RUN opam init -a --disable-sandboxing && \
     opam switch create ${OCAML_VERSION} && \
+    opam pin -y integers 0.2.2 && \
     opam install -y \
     cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens leveldb \
     lwt lwt_ppx ppx_deriving ppx_tools_versioned ppx_core \
