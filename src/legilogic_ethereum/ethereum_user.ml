@@ -315,7 +315,7 @@ let confirmed_or_nonce_too_low : Address.t -> (Digest.t, Confirmation.t) Lwt_exn
 
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
-    (*Logging.log "send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);*)
+    Logging.log "send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);
     let open Lwter in
     match signed with
     | SignedTransaction.{raw;tx={hash}} ->
@@ -339,7 +339,7 @@ let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.
 let send_and_confirm_transaction :
   (Transaction.t * SignedTransaction.t, Confirmation.t) Lwt_exn.arr =
   fun (transaction, signed) ->
-    (*Logging.log "Sending and confirming %s %s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);*)
+    Logging.log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
     let sender = transaction.tx_header.sender in
     let hash = signed.SignedTransaction.tx.hash in
     let open Lwt_exn in
@@ -401,16 +401,21 @@ module TransactionTracker = struct
                | Ok (t,c) -> OngoingTransactionStatus.Signed (t,c) |> continue
                | Error error -> invalidate ongoing error)
            | Signed (transaction, signed) ->
+              Logging.log "Ethereum_User: Signed";
              (transaction, signed)
              |> Lwt_exn.(run_lwt
                            (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
                               (trying send_and_confirm_transaction
                                >>> (function
-                                 | Ok confirmation ->
-                                   return (Ok confirmation)
-                                 | Error NonceTooLow ->
-                                   return (Error NonceTooLow)
-                                 | Error e -> fail e))))
+                                    | Ok confirmation ->
+                                       Logging.log "ETH: Ethereum_user, Ok case";
+                                       return (Ok confirmation)
+                                    | Error NonceTooLow ->
+                                       Logging.log "ETH: Ethereum_user, Error NonceTooLow case";
+                                       return (Error NonceTooLow)
+                                    | Error e ->
+                                       Logging.log "ETH: Ethereum_user, Error e case";
+                                       fail e))))
              >>= (function
                | Ok confirmation ->
                  FinalTransactionStatus.Confirmed (transaction, confirmation) |> finalize

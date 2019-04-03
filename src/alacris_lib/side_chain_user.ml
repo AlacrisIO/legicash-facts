@@ -565,8 +565,11 @@ module TransactionTracker = struct
              Logging.log "TR_LOOP, DepositPosted operation";
              let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
              (promise >>= function
-              | Failed (_, error) -> invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
+              | Failed (_, error) ->
+                 Logging.log "DepositPosted, Failed case";
+                 invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
               | Confirmed (transaction, confirmation) ->
+                 Logging.log "DepositPosted, Confirmed case";
                 DepositConfirmed (deposit_wanted, deposit_fee, transaction, confirmation) |> continue)
 
            | DepositConfirmed ( { deposit_amount; request_guid; requested_at }
