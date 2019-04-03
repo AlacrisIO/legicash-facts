@@ -524,8 +524,10 @@ module TransactionTracker = struct
       and finalize (status : FinalTransactionStatus.t) =
         (* TODO: remove the request from the ongoing_transactions set!
            -- this requires some function added to the context! *)
+        Logging.log "Side_chain_user: Beginning of finalize operation";
         TransactionStatus.Final status |> update
       and invalidate transaction_status error =
+        Logging.log "Side_chain_user: Beginning of invalidate operation";
         finalize (Failed (transaction_status, error))
       and loop (status: TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
         match status with
@@ -567,6 +569,7 @@ module TransactionTracker = struct
              (promise >>= function
               | Failed (_, error) ->
                  Logging.log "DepositPosted, Failed case";
+                 Logging.log "error=%s" (Printexc.to_string error);
                  invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
               | Confirmed (transaction, confirmation) ->
                  Logging.log "DepositPosted, Confirmed case";

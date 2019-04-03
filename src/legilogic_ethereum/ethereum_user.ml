@@ -197,6 +197,7 @@ let block_depth_for_confirmation = Side_chain_server_config.minNbBlockConfirm
 exception Still_pending
 exception TransactionFailed of OngoingTransactionStatus.t * exn
 exception NonceTooLow
+exception NotEnoughFund
 
 let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmation.t t =
   (*Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);*)
@@ -387,8 +388,10 @@ module TransactionTracker = struct
       and continue (status : OngoingTransactionStatus.t) =
         TransactionStatus.Ongoing status |> update
       and finalize (status : FinalTransactionStatus.t) =
+        Logging.log "Ethereum_user: beginning of finalize operation";
         TransactionStatus.Final status |> update
       and invalidate transaction_status error =
+        Logging.log "Ethereum_user: beginning of invalidate operation";
         finalize (Failed (transaction_status, error))
       and loop (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
         (*Logging.log "Stepping into %s" (TransactionStatus.to_yojson_string status);*)
@@ -414,15 +417,25 @@ module TransactionTracker = struct
                                        Logging.log "ETH: Ethereum_user, Error NonceTooLow case";
                                        return (Error NonceTooLow)
                                     | Error e ->
+                                       let estr_excp : string = Printexc.to_string e in
                                        Logging.log "ETH: Ethereum_user, Error e case";
-                                       Logging.log "ETH: e=%s" (Printexc.to_string e);
-                                       fail e))))
+                                       Logging.log "ETH: e=%s" estr_excp;
+                                       let estr_fund : string = "Rpc_error(insufficient funds for gas * price + value)" in
+                                       let test : bool = String.equal estr_fund estr_excp in
+                                       if test then
+                                         return (Error NotEnoughFund)
+                                       else
+                                         fail e))))
              >>= (function
                | Ok confirmation ->
-                 FinalTransactionStatus.Confirmed (transaction, confirmation) |> finalize
+                  Logging.log "ETHC: Ok case";
+                  FinalTransactionStatus.Confirmed (transaction, confirmation) |> finalize
                | Error NonceTooLow ->
+                  Logging.log "ETHC: Error NonceTooLow case";
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
-               | Error error -> invalidate ongoing error))
+               | Error error ->
+                  Logging.log "ETHC: Error error case";
+                  invalidate ongoing error))
         | Final x -> return x in
       key, (ready >>= fun () -> loop state), notify_ready
   end
