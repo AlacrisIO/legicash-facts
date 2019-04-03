@@ -446,13 +446,14 @@ module Test = struct
       |> Yojson.Safe.from_string
       |> TxPoolContent.of_yojson_exn
 
-    in TxPoolContent.to_yojson a
+    in let b = TxPoolContent.to_yojson a
       |> Yojson.Safe.to_string
       |> Yojson.Safe.from_string
       |> TxPoolContent.of_yojson
-      |> function
-        | Ok _ -> true
-        | _    -> false
+
+    in match b with
+      | Ok b' -> a = b'
+      | _     -> false
 
   let%test "txpool_content null `block_hash` field yields failed decode" =
     let open Test_txpool_content
