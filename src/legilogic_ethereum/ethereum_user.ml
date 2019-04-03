@@ -415,6 +415,7 @@ module TransactionTracker = struct
                                        return (Error NonceTooLow)
                                     | Error e ->
                                        Logging.log "ETH: Ethereum_user, Error e case";
+                                       Logging.log "ETH: e=%s" (Printexc.to_string e);
                                        fail e))))
              >>= (function
                | Ok confirmation ->
