@@ -1,6 +1,6 @@
 open Ppx_deriving_rlp_runtime
 
-let repo_name = "legicash-facts-4"
+let repo_name = "legicash-facts"
 
 let repo_root_dir =
   let rec up_to_root path =
