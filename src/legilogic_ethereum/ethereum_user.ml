@@ -204,28 +204,33 @@ module NonceTracker = struct
     (* zero is often wrong, but just let it fail and resynchronize *)
     let make_default_state _ _ = None
     type t = (nonce_operation, Nonce.t) Lwter.arr
+
     let make_activity () address saving =
-      sequentialize
-        (fun op state ->
-           let reset () =
-             Lwt_exn.run_lwt
-               (retry ~retry_window:0.01 ~max_window:5.0 ~max_retries:None
-                  Ethereum_json_rpc.eth_get_transaction_count)
-               (address, BlockParameter.Latest) in
-           let continue result state =
-             saving state >>= const (result, state) in
-           let next nonce = continue nonce (Some Nonce.(add one nonce)) in
-           (match (op, state) with
-            | (Reset, _) ->
-              continue Nonce.zero None
-            | (Peek, None) ->
-              reset () >>= fun nonce -> continue nonce (Some nonce)
-            | (Peek, Some nonce) ->
-              return (nonce, Some nonce)
-            | (Next, None) ->
-              reset () >>= next
-            | (Next, Some nonce) -> next nonce)
-           (*>>= fun (result, new_state) -> Logging.log "NonceTracker %s %s %s => %s %s" (Address.to_0x address) (op |> nonce_operation_to_yojson |> string_of_yojson) (State.to_yojson_string state) (Revision.to_0x result) (State.to_yojson_string new_state) ; return (result, new_state)*))
+      sequentialize @@ fun op state ->
+         let rec reset () = Lwt_exn.run_lwt
+           (retry
+              ~retry_window:0.01
+              ~max_window:5.0
+              ~max_retries:None
+              Ethereum_json_rpc.eth_get_transaction_count)
+           (address, BlockParameter.Latest)
+
+         and continue result state =
+           saving state >>= const (result, state)
+
+         and next nonce = continue nonce (Some Nonce.(add one nonce))
+
+         in match (op, state) with
+          | (Reset, _) ->
+            continue Nonce.zero None
+          | (Peek, None) ->
+            reset () >>= fun nonce -> continue nonce (Some nonce)
+          | (Peek, Some nonce) ->
+            return (nonce, Some nonce)
+          | (Next, None) ->
+            reset () >>= next
+          | (Next, Some nonce) ->
+            next nonce
   end
   include PersistentActivity(Base)
   module State = Base.State
@@ -315,6 +320,7 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, Transac
     >>= Ethereum_json_rpc.eth_get_transaction_receipt
     (*>>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)*)
     >>= (function
+      | Some receipt -> check_transaction_receipt_status receipt
       | None ->
         let nonce = transaction.tx_header.nonce in
         Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
@@ -322,8 +328,8 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, Transac
         if Nonce.(compare sender_nonce nonce > 0) then
           confirmed_or_known_issue sender hash
         else
-          fail Still_pending
-      | Some receipt -> check_transaction_receipt_status receipt)
+          fail Still_pending)
+
     >>= check_receipt_sufficiently_confirmed
 
 module TransactionTracker = struct
@@ -434,6 +440,7 @@ module User = struct
         (*Logging.log "SCHEDULING a remove_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) FinalTransactionStatus.(to_yojson_string final_status);*)
         SimpleActor.action (get_user user)
           (remove_transaction get_user user) revision)
+
     and resume_transactions get_user user (state : State.t) =
       RevisionSet.min_elt_opt state.ongoing_transactions
       |> Option.iter (resume_transaction get_user user)
@@ -502,7 +509,9 @@ let check_transaction_confirmed :
     | FinalTransactionStatus.Confirmed (t, s, r) -> return (t, s, r)
     | FinalTransactionStatus.Failed (t, e) -> fail (TransactionFailed (t, e))
 
-let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
+let confirm_pre_transaction (address: Address.t)
+    : (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
+
   issue_pre_transaction address
   >>> of_lwt track_transaction
   >>> check_transaction_confirmed
@@ -570,11 +579,11 @@ module Test = struct
       begin
         display_balance (printf "Account %s only contains %s wei. Funding.\n") address balance
         >>= fun () ->
-        transfer_tokens ~recipient:address (sub amount balance)
-        |> confirm_pre_transaction prefunded_address
+          transfer_tokens ~recipient:address (sub amount balance)
+          |> confirm_pre_transaction prefunded_address
         >>= fun _ -> eth_get_balance (address, BlockParameter.Pending)
         >>= fun balance -> display_balance (printf "Account %s now contains %s wei.\n") address balance
-      end
+    end
 
   (* create accounts, fund them *)
   let ensure_test_account
