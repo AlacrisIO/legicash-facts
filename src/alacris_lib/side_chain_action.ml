@@ -3,14 +3,8 @@ open Lib
 open Signing
 open Action
 open Lwt_exn
-
 open Legilogic_ethereum
-
 open Side_chain
-(*
-open Side_chain_operator
-open Side_chain_user
-*)
 
 let contract_address_key = "alacris.contract-address"
 
@@ -65,7 +59,7 @@ let ensure_side_chain_contract_created (installer_address : Address.t) : Address
   Operator_contract.set_contract_address contract_address;
   return contract_address
 
-(* TODO re-enable
+(* TODO: re-enable
 module Test = struct
   open Lib.Test
   open Signing.Test

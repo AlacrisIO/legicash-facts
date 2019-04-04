@@ -100,9 +100,9 @@ let get_keys_filename = "demo-keys-small.json" |> Config.get_config_filename
 
 
 
-let random_deposit_oper laddr = 
+let random_deposit_oper laddr =
   let deposit_idx = Random.int (List.length laddr) and deposit_amnt = Random.int 100 in
-    let deposit_addr = List.nth laddr deposit_idx and deposit_amnt256 = UInt256.of_int deposit_amnt in 
+    let deposit_addr = List.nth laddr deposit_idx and deposit_amnt256 = UInt256.of_int deposit_amnt in
       ignore (deposit_to ~operator:trent_address deposit_addr deposit_amnt256)
 
 
@@ -118,17 +118,17 @@ let random_payment_oper laddr =
       ignore (payment_on ~operator:trent_address sender_addr recipient_addr payment_amnt256 "memo")
 
 
-let random_balance_oper laddr = 
+let random_balance_oper laddr =
   let queried_idx = Random.int (List.length laddr) in
-    let queried_addr = List.nth laddr queried_idx in 
+    let queried_addr = List.nth laddr queried_idx in
       ignore (get_balance_on ~operator:trent_address queried_addr)
 
 
 let random_recent_transaction_oper = ignore
 
-let random_status_oper laddr = 
+let random_status_oper laddr =
   let queried_idx = Random.int (List.length laddr) in
-    let queried_addr = List.nth laddr queried_idx in 
+    let queried_addr = List.nth laddr queried_idx in
       ignore (get_status_on_trent_and_main_chain queried_addr)
 
 
@@ -146,7 +146,7 @@ let random_single_oper laddr =
 let get_address (_,keypair) =
   keypair.Keypair.address
 
-let get_list_address file = 
+let get_list_address file =
   Yojsoning.yojson_of_file file
   |> decode_keypairs
   |> List.map get_address

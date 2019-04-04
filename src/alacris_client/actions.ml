@@ -159,7 +159,8 @@ let deposit_to ~(operator:       Address.t)
                 (user:           Address.t)
                 (deposit_amount: TokenAmount.t)
               : yojson =
-  schedule_transaction request_guid user deposit @@ fun requested_at ->
+  schedule_transaction request_guid user deposit @@
+    fun requested_at ->
     DepositWanted.{ operator; deposit_amount; request_guid; requested_at }
 
 let withdrawal_from ~(operator:          Address.t)

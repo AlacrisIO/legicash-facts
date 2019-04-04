@@ -524,13 +524,16 @@ let transfer_tokens ~recipient value =
   PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=transfer_gas_used}
 
 let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : TokenAmount.t) : PreTransaction.t Lwt_exn.t =
+  Logging.log "Beginning of make_pre_transaction";
   (match gas_limit with
    | Some x -> return x
    | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation))
   >>= fun gas_limit ->
   Logging.log "make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
-  let gas_limit_tenfold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
-  return PreTransaction.{operation; value; gas_limit=gas_limit_tenfold}
+  (* TODO: The multiplication by 2 is a hack that needs to be addressed *)
+  let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
+  Logging.log "gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
+  return PreTransaction.{operation; value; gas_limit=gas_limit_n_fold}
 
 let create_contract ~sender ~code ?gas_limit value =
   make_pre_transaction ~sender (Operation.CreateContract code) ?gas_limit value

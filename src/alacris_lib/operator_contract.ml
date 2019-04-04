@@ -3,7 +3,6 @@
 open Legilogic_lib
 open Types
 open Signing
-open Action
 
 open Legilogic_ethereum
 open Ethereum_chain
@@ -29,33 +28,25 @@ let contract_address = ref Address.zero
 
 let set_contract_address address = contract_address := address
 
-let get_contract_address () = !contract_address
+let get_contract_address () =
+  Logging.log "get_contract_address : contract_address=%s" (Address.to_string !contract_address);
+  !contract_address
 
 (** build the encoding of a call to the "deposit" function of the operator contract
     address argument is the operator *)
-let make_deposit_call : Address.t -> Ethereum_chain.Operation.t =
-  fun operator ->
-    let memo = "" in
-    let parameters = [ abi_address operator
-                     ; abi_bytes_dynamic_of_string memo ] in
-    let call = encode_function_call { function_name = "deposit"; parameters } in
-    Operation.CallFunction (get_contract_address (), call)
+let make_deposit_call : operator:Address.t -> Address.t -> Ethereum_chain.Operation.t =
+  fun ~operator contract_address ->
+  let parameters = [ abi_address operator ] in
+  let call = encode_function_call { function_name = "deposit"; parameters } in
+  Operation.CallFunction (contract_address, call)
 
-let pre_deposit ~operator amount =
-  PreTransaction.{operation=make_deposit_call operator; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
+let pre_deposit ~operator amount contract_address =
+  let oper = make_deposit_call ~operator contract_address in
+  PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
 
-(* Create a signed transaction to call the contract to deposit money onto
-   an account managed by the operator, ready to be committed on the main chain
-   TODO: get rid of this, have proper state machine in side_chain_user. *)
-let deposit user (operator, amount) =
-  let open Ethereum_user in
-  OngoingTransactionStatus.Wanted (pre_deposit ~operator amount)
-  |> Lwt_exn.(add_ongoing_transaction user
-              >>> of_lwt track_transaction
-              >>> check_transaction_confirmed)
+
 
 let make_claim_withdrawal_call (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (confirmed_state : Digest.t) : Ethereum_chain.Operation.t =
-  Logging.log "OPERATION: Before creation of parameter for CallFunction make_claim_withdrawal_call";
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
@@ -66,7 +57,6 @@ let make_claim_withdrawal_call (contract_address : Address.t) (operator : Addres
 
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
 let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (confirmed_state : Digest.t) : Ethereum_chain.Operation.t =
-  Logging.log "OPERATION: Before creation of parameter for CallFunction make_withdraw_call";
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
@@ -83,14 +73,9 @@ let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (op
 
  *)
 let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.t =
-  Logging.log "OPERATION: Before creation of parameter for CallFunction make_state_update_call";
   let (parameters : 'a list) = [ abi_digest state_digest ] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
-
-
-
-
 
 
 
