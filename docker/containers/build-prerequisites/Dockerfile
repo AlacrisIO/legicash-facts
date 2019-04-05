@@ -71,6 +71,7 @@ ENV OCAML_VERSION 4.07.1
 RUN opam init -a --disable-sandboxing && \
     opam switch create ${OCAML_VERSION} && \
     opam pin -y integers 0.2.2 && \
+    opam pin -y dune 1.6.3 && \
     opam install -y \
     cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens leveldb \
     lwt lwt_ppx ppx_deriving ppx_tools_versioned ppx_core \
