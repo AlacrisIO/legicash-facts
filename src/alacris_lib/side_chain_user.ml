@@ -118,6 +118,9 @@ let wait_for_operator_state_update (contract_address: Address.t)
                                  : Ethereum_chain.Confirmation.t Lwt_exn.t =
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_operator_state_update";
+  Logging.log "wait_for_operator_state_update contract_address=%s" (Address.to_string contract_address);
+  Logging.log "wait_for_operator_state_update         operator=%s" (Address.to_string operator);
+  
   wait_for_contract_event
     contract_address
     [topic_of_state_update]

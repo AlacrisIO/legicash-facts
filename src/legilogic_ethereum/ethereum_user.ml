@@ -200,18 +200,23 @@ exception NonceTooLow
 exception NotEnoughFund
 
 let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmation.t t =
-  (*Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);*)
+  Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);
   eth_block_number ()
   >>= fun block_number ->
+  Logging.log "CONF: block_number=%s" (Revision.to_string block_number);
+  Logging.log "CONF: confirmation.block_number=%s" (Revision.to_string confirmation.block_number);
+  Logging.log "CONF: block_depth_for_confirmation=%s" (Revision.to_string block_depth_for_confirmation);
   if Revision.(is_add_valid confirmation.block_number block_depth_for_confirmation
                && compare block_number (add confirmation.block_number block_depth_for_confirmation)
                   >= 0) then
-    return confirmation
+    (Logging.log "CONF: Ok case, returning confirmation";
+     return confirmation)
   else
-    fail Still_pending
+    (Logging.log "CONF: Error returning Still_pending";
+     fail Still_pending)
 
 let check_confirmation_deep_enough_bool (confirmation : Confirmation.t) : bool Lwt_exn.t =
-  (*Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);*)
+               Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);
   eth_block_number ()
   >>= fun block_number ->
   if Revision.(is_add_valid confirmation.block_number block_depth_for_confirmation
@@ -345,19 +350,25 @@ let send_and_confirm_transaction :
     let hash = signed.SignedTransaction.tx.hash in
     let open Lwt_exn in
     send_raw_transaction sender signed
-    (*>>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)*)
+    >>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)
     >>= Ethereum_json_rpc.eth_get_transaction_receipt
-    (*>>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)*)
+    >>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)
     >>= (function
       | None ->
+        Logging.log "send_and_confirm: None case";
         let nonce = transaction.tx_header.nonce in
         Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
         >>= fun sender_nonce ->
+        Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
         if Nonce.(compare sender_nonce nonce > 0) then
-          confirmed_or_nonce_too_low sender hash
+          (Logging.log "Case confirmed_or_nonce_too_low";
+           confirmed_or_nonce_too_low sender hash)
         else
-          fail Still_pending
-      | Some receipt -> confirmation_of_transaction_receipt receipt |> return)
+          (Logging.log "Case fail Still_pending";
+           fail Still_pending)
+      | Some receipt ->
+        Logging.log "send_and_confirm: Some case case";
+        confirmation_of_transaction_receipt receipt |> return)
     >>= check_confirmation_deep_enough
 
 module TransactionTracker = struct
