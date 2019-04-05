@@ -42,10 +42,10 @@ lib_invariants () {
 }
 
 lib_modules () {
-    cd $GIT_ROOT && \
-	for file in $(ls src/_build/default/alacris_lib/.alacris_lib.objs/*.cmi); do
-	    basename_entry $file
-	done
+  cd $GIT_ROOT && \
+  for file in $(ls src/_build/default/alacris_lib/.alacris_lib.objs/*.cmi); do
+      basename_entry $file
+  done
 }
 
 doc_invariants () {

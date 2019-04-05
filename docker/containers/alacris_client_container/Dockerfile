@@ -1,4 +1,4 @@
-# Create new image 
+# Create new image
 FROM ubuntu
 
 # Add non-root user
@@ -26,7 +26,7 @@ RUN chown -R appuser:appuser /var/lib/nginx
 
 # Create supervisor log file
 #RUN touch /tmp/supervisord.log && \
-RUN   chown appuser:appuser /var/log/supervisor /var/run/ 
+RUN chown appuser:appuser /var/log/supervisor /var/run/
 
 # Set working directory and user
 WORKDIR /var/www/app/legicash-facts/

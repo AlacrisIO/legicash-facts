@@ -7,277 +7,337 @@ The type "hex-string" is a string beginning with "0x", followed by hex digits.
 
 The type "address" is a hex-string with 20 hex-digit pairs.
 
+The type "request-guid" is a
+[UUIDv4](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_(random)).
+
+The type "requested-at" is a hex-encoded UNIX timestamp.
+
 The type "side\_chain\_account" is a JSON record of the form:
 
-     { "balance" : hex-string,
-       "revision" : hex-string
-     }
+```
+{ "balance":  hex-string
+, "revision": hex-string
+}
+```
 
 The type main\_chain\_account is a JSON record of the form:
 
-     { "address" : address,
-	 ; "balance" : hex-string,
-	 ; "revision : hex-string
-	 }
+```
+{ "address": address
+, "balance": hex-string
+, "revision: hex-string
+}
+```
 
 The type "hash" is a hex-string with 32 hex-digit pairs.
 
 The type "main\_chain\_confirmation" is a JSON record of the form:
 
-     { "transaction_hash" : hash,
-       "transaction_index" : int,
-	   "block_number" : int,
-	   "block_hash" : hash
-     }
+```
+{ "transaction_hash":  hash
+, "transaction_index": int
+, "block_number":      int
+, "block_hash":        hash
+}
+```
 
 The type user\_status is a JSON record of the form:
 
-     { "side_chain_account" : side_chain_account,
-       "main_chain_account" : main_chain_account
-     }
+```
+{ "side_chain_account": side_chain_account
+, "main_chain_account": main_chain_account
+}
+```
 
 The type "proof" is a JSON record of the form:
 
-     { "key" : hex-string
-       "transaction_index" : hash,
-	   "value" : hash,
-	   "steps" : step list
-     }
+```
+{ "key":               hex-string
+, "transaction_index": hash
+, "value":             hash
+, "steps":             step list
+}
+```
 
-where a "step" is a JSON record of one of the following forms:
+Where a "step" is a JSON record of one of the following forms:
 
-     { "left" : hash }, or
+```
+{ "left": hash }
 
-     { "right" : hash }, or
+or
 
-     { "bits" : hex-string,
-	   "length" : number
-	 }
+{ "right": hash }
+
+or
+
+{ "bits":   hex-string
+, "length": number
+}
+```
 
 Deposit
 -------
 
-  URL: api/deposit
+POST /api/deposit
 
-  POST / Content-Type: application/json
+Content-Type: application/json
 
-  The body is a JSON record of the form:
+The body is a JSON record of the form:
 
-    { "address" : address,
-      "amount" : hex-string
-    }
+```
+{ "address":      address
+, "amount":       hex-string
+, "request_guid": request-guid
+}
+```
 
-  The result is a JSON record of the form
+The result is a JSON record of the form:
 
-    { "result":{"thread":nn }}
+```
+{ "result": { "thread": nn
+            , "request_guid": request-guid
+            , "requested_at": requested-at
+            }}
+```
 
-  where "nn" is an integer. The thread with the given id transfers funds from the main chain to the side chain.
+Where "nn" is an integer. The thread with the given id transfers funds from the
+main chain to the side chain.
 
 Withdrawal
 ----------
 
-  URL: api/withdrawal
+POST /api/withdrawal
 
-  POST / Content-Type: application/json
+Content-Type: application/json
 
-  The body is a JSON record of the form:
+The body is a JSON record of the form:
 
-    { "address" : address,
-      "amount" : hex-string
-    }
+```
+{ "address":      address
+, "amount":       hex-string
+, "request_guid": request-guid
+}
+```
 
-  The result is a JSON record of the form
+The result is a JSON record of the form:
 
-    { "result":{"thread":nn }}
+```
+{ "result": { "thread": nn
+            , "request_guid": request-guid
+            , "requested_at": requested-at
+            }}
+```
 
-  where "nn" is an integer. The thread with the given id transfers funds from the side chain to the main chain.
+Where "nn" is an integer. The thread with the given id transfers funds from the
+side chain to the main chain.
 
-  Error message:
+Error message:
 
-    { "error":"Insufficient balance to withdraw specified amount" }
+```
+{ "error": "Insufficient balance to withdraw specified amount" }
+```
 
 Payment
 -------
 
-  URL: api/payment
+POST /api/payment
 
-  POST / Content-Type: application/json
+Content-Type: application/json
 
-  The body is a JSON record of the form:
+The body is a JSON record of the form:
 
-    { "sender" : address,
-      "recipient" : address,
-      "amount" : hex-string
-    }
+```
+{ "sender":       address
+, "recipient":    address
+, "amount":       hex-string
+, "request_guid": request-guid
+}
+```
 
-  The result is a JSON record of the form:
+The result is a JSON record of the form:
 
-  { "sender_account" : side_chain_account,
-    "recipient_account" : side_chain_account,
-    "amount_transferred" : hex-string,
-    "side_chain_tx_revision" : hex-string
-  }
-
-  reflecting the accounts after payment has been made.
+```
+{ "result": { "thread": nn
+            , "request_guid": request-guid
+            , "requested_at": requested-at
+            }}
+```
 
 Balance
 -------
 
-  URL: api/balance
+POST /api/balance
 
-  POST / Content-Type: application/json
+Content-Type: application/json
 
-  The body is a JSON record of the form:
+The body is a JSON record of the form:
 
-    { "address" : address }
+```
+{ "address": address }
+```
 
-  The result is a JSON record of type "side\_chain\_account".
+The result is a JSON record of type "side\_chain\_account".
 
 Balances
 --------
 
-  URL: api/balances
+GET /api/balances
 
-  GET
-
-  The result is a JSON list of "side\_chain\_account" records, sorted by user name.
+The result is a JSON list of "side\_chain\_account" records, sorted by user
+name.
 
 Status
 ------
 
-  URL: api/status
+POST /api/status
 
-  POST / Content-Type: application/json
+Content-Type: application/json
 
-  The body is a JSON record of the form:
+The body is a JSON record of the form:
 
-    { "address" : address }
+```
+{ "address": address }
+```
 
-  The result is a JSON record of type "user\_status".
+The result is a JSON record of type "user\_status".
 
 Transaction rate
 ----------------
 
-  URL: api/tps
+GET /api/tps
 
-  GET
+The result is a JSON record of the form:
 
-  The result is a JSON record of the form:
+```
+{ "transaction_rate": number
+, "time":             string
+}
+```
 
-    { "transaction_rate" : number
-      "time" : string
-	}
-
-  indicating the transactions per second in the minute preceding
-  the request, and the time when the request was received. The
-  time format is YYYY:MM:DD HH:MM:SS.
+Indicating the transactions per second in the minute preceding
+the request, and the time when the request was received. The
+time format is YYYY:MM:DD HH:MM:SS.
 
 Proofs
 ------
 
-  URL: api/proof?tx-revision=nn, where "nn" is an integer
+GET /api/proof?tx-revision=nn, where "nn" is an integer
 
-  GET
+If there's a valid Merkle proof for the transaction with "tx-revision", a JSON
+record of type "proof" is returned. The "trie" field should published on the
+main chain.  Otherwise, a JSON record with an "error" field is returned.
 
-  If there's a valid Merkle proof for the transaction with "tx-revision", a JSON record
-  of type "proof" is returned. The "trie" field should published on the main chain.
-  Otherwise, a JSON record with an "error" field is returned.
-
-  Note that "key" field of the proof is a hex-string, while this endpoint below takes an ordinary
-  integer in the "tx-revision" parameter. Those two values agree on their numeric value.
+Note that "key" field of the proof is a hex-string, while this endpoint below
+takes an ordinary integer in the "tx-revision" parameter. Those two values
+agree on their numeric value.
 
 Recent transactions
 -------------------
 
-  URL: api/recent_transactions, or
-  URL: api/recent_transactions?limit=nn, where "nn" is an integer
+POST /api/recent_transactions
 
-  POST / Content-Type: application/json
+or
 
-  The body is a JSON record of the form:
+POST /api/recent_transactions?limit=nn, where "nn" is an integer
 
-    { "address" : address }
+Content-Type: application/json
 
-  The result is a JSON list of transactions. If the "limit" parameter is given, the list
-  is limited to that number of the most recent transactions requested by the user with
-  the given address; otherwise, the list is all the transactions by that user.
+The body is a JSON record of the form:
 
-  The transactions are deposits, withdrawals, or payments, along with their details.
-  
-  Each element of the list is an object. Here is the typescript definition for
-  what's currently used from these objects, on the front end:
-  
-    type transaction_string = "Deposit" | "Withdrawal" | "Payment"
-    type hex_string = string
-    
-    interface IDeposit {
-        deposit_amount: number,
-        deposit_fee: number,
-        main_chain_deposit: { tx_header: { sender: hex_string } }
-    }
-    
-    /* tslint:disable:no-empty-interface */
-    interface IPayment { /* empty */ }
-    
-    interface IWithdrawal { /* empty */ }
-    
-    interface IResponse {
-        tx_header: {},
-        tx_request: ["UserTransaction", {
-            payload: {
-                operation: [transaction_string, IDeposit | IPayment | IWithdrawal]
-            }
-        }]
-    }
+```
+{ "address": address }
+```
 
-  These are taken from `src/sagas/recent_transactions.tsx` in `legicash-demo-frontend`.
-  
-  However, the canonical definitions are in `src/alacris_lib/side_chain.mli`.
-  The actual objects being sent back are `TransactionRequest`s, of subtype `` `UserTransaction``
-  
+The result is a JSON list of transactions. If the "limit" parameter is given,
+the list is limited to that number of the most recent transactions requested by
+the user with the given address; otherwise, the list is all the transactions by
+that user.
+
+The transactions are deposits, withdrawals, or payments, along with their
+details.
+
+Each element of the list is an object. Here is the typescript definition for
+what's currently used from these objects, on the front end:
+
+```typescript
+type transaction_string = "Deposit" | "Withdrawal" | "Payment"
+type hex_string = string
+
+interface IDeposit {
+    deposit_amount: number,
+    deposit_fee: number,
+    main_chain_deposit: { tx_header: { sender: hex_string } }
+}
+
+/* tslint:disable:no-empty-interface */
+interface IPayment { /* empty */ }
+
+interface IWithdrawal { /* empty */ }
+
+interface IResponse {
+    tx_header: {},
+    tx_request: ["UserTransaction", {
+        payload: {
+            operation: [transaction_string, IDeposit | IPayment | IWithdrawal]
+        }
+    }]
+}
+```
+
+These are taken from `src/sagas/recent_transactions.tsx` in
+`legicash-demo-frontend`.
+
+However, the canonical definitions are in `src/alacris_lib/side_chain.mli`.
+The actual objects being sent back are `TransactionRequest`s, of subtype
+`UserTransaction`.
+
+
 Deposit/withdrawal threads
 --------------------------
 
-  URL: api/thread?id=nn, where "nn" is an integer
+GET /api/thread?id=nn, where "nn" is an integer
 
-  GET
+If the thread is still running, the result is a JSON record:
 
-  If the thread is still running, the result is a JSON record:
+```
+{ "result": "The operation is pending" }
+```
 
-    { "result" : "The operation is pending" }
+If the thread has completed for a deposit or withdrawal, the result is a JSON
+record:
 
-  If the thread has completed for a deposit or withdrawal, the result is a JSON record:
+```
+{ "user_account_state":      side_chain_account
+, "side_chain_tx_revision":  hex-string
+, "main_chain_confirmation": main_chain_confirmation
+}
+```
 
-    { "user_account_state" : side_chain_account,
-      "side_chain_tx_revision" : hex-string,
-      "main_chain_confirmation" : main_chain_confirmation
-    }
-
-  where "side\_chain\_tx\_revision" is a sequence number for the request confirmed by the side chain
-  operator, and "main\_chain\_confirmation" has the details of the transaction in a block on the
-  main chain.
+Where "side\_chain\_tx\_revision" is a sequence number for the request
+confirmed by the side chain operator, and "main\_chain\_confirmation" has the
+details of the transaction in a block on the main chain.
 
 Validation of proofs
 --------------------
 
-  For the validation of a [proof](#proofs) to be complete, the serialization of
-  the transaction (leaf value) must be hashed for comparison to the proof leaf.
-  For now, we're skipping that on the front end.
+For the validation of a [proof](#proofs) to be complete, the serialization of
+the transaction (leaf value) must be hashed for comparison to the proof leaf.
+For now, we're skipping that on the front end.
 
-  The hash for each `step` in has to be computed from the serialization of that
-  step. Those serializations are defined in `merkle_trie.ml`, in the module
-  `TrieSynthMerkle`. They are a concatenation of big-endian representations of
-  unsigned integer. The strings returned by the `proof` endpoint are big-endian.
+The hash for each `step` in has to be computed from the serialization of that
+step. Those serializations are defined in `merkle_trie.ml`, in the module
+`TrieSynthMerkle`. They are a concatenation of big-endian representations of
+unsigned integer. The strings returned by the `proof` endpoint are big-endian.
 
-  The following details pertain to commit 4f49fa6, "Fix withdrawal."
+The following details pertain to commit 4f49fa6, "Fix withdrawal."
 
-  The trie from which the proofs are constructed is a `MerkleTrie (Revision)
-  (Confirmation)`, defined as `ConfirmationMap` in `side_chain.ml`. `Revision`
-  is defined in `db.ml` as a `UInt64`. `Confirmation` is defined in
-  `side_chain.ml`
+The trie from which the proofs are constructed is a `MerkleTrie (Revision)
+(Confirmation)`, defined as `ConfirmationMap` in `side_chain.ml`. `Revision`
+is defined in `db.ml` as a `UInt64`. `Confirmation` is defined in
+`side_chain.ml`
 
-  Each component of the serialization begins with a `UInt16`, which is a tag
-  defined in `tag.ml`.
+Each component of the serialization begins with a `UInt16`, which is a tag
+defined in `tag.ml`.
 
 ### Leaf nodes
 

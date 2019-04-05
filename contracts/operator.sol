@@ -116,7 +116,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
           // Log the withdrawal so future double-claim attempts can be duly rejected.
           emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
-	  
+
           // NB: Should we always transfer money LAST! ?
           // I am not sure this is such a good idea
           // TODO: Should we allow a recipient different from the sender?

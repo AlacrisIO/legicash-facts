@@ -7,32 +7,45 @@
    * [build-prerequisites](#build-prerequisites)
    * [alacris_side_chain_manager_container](#alacris_side_chain_manager_container)
    * [alacris_private_ethereum_node_node](#alacris_private_ethereum_node_node)
-   * [alacris_client_container](#alacris_client_container) 
+   * [alacris_client_container](#alacris_client_container)
    * [alacris_side_chain_manager](#alacris_side_chain_manager)
    * [alacris_client](#alacris_client)
    * [stress_tester](#stress_tester)
 * [Logs](#logs)
 
 ## About
-This directory contains Legicash Docker configuration used for building images and running containers/services needed for legicash system to work in local Docker environment in reliable and repeatable way.
+This directory contains Docker configuration used for building images and
+running containers/services needed for the `legicash-facts` system to work in
+local Docker environments in a reliable and repeatable way.
 
-[Docker](https://docs.docker.com/) Images are created with Dockerfiles
+[Docker](https://docs.docker.com/) images are created with `Dockerfile`s.
 
-[docker-compose](https://docs.docker.com/compose/overview/) is used to describe the desired state of Legicash services, thus implementing Infrastructure as Code (IaC) approach.
+[docker-compose](https://docs.docker.com/compose/overview/) is used to describe
+the desired state of Legicash services, thus implementing an Infrastructure as
+Code (IaC) approach.
 
 ## Quick start
-**Prerequisites:** 
-  - Install and configure the most recent version of the [Cloud SDK](https://cloud.google.com/sdk/docs/), which includes the gcloud command-line tool (use `us-central-1a` region and `legicash-demo-1950` project)
-  - Install [Docker](https://docs.docker.com/install/) minimum required version `17.12.0-ce`
-  - Install [docker-compose](https://docs.docker.com/compose/install/) minimum required version `1.16.1`
-  - Get [access to the registries which](https://cloud.google.com/container-registry/docs/access-control) you will be pushing to and pulling from
-  - Configure Docker to use `gcloud` as a credential helper, or are use another [authentication method](https://cloud.google.com/container-registry/docs/advanced-authentication). To use `gcloud` as the crediential helper, run the command:
- ```bash
+**Prerequisites:**
+  - Install and configure the most recent version of the
+    [Cloud SDK](https://cloud.google.com/sdk/docs/),
+    which includes the gcloud command-line tool (use `us-central-1a` region and
+    `legicash-demo-1950` project)
+  - Install [Docker](https://docs.docker.com/install/) minimum required version
+    `17.12.0-ce`
+  - Install [docker-compose](https://docs.docker.com/compose/install/) minimum
+    required version `1.16.1`
+  - Get [access to the registries which](https://cloud.google.com/container-registry/docs/access-control)
+    you will be pushing to and pulling from
+  - Configure Docker to use `gcloud` as a credential helper, or are use another
+    [authentication method](https://cloud.google.com/container-registry/docs/advanced-authentication).
+    To use `gcloud` as the crediential helper, run the command:
+    ```bash
     gcloud auth configure-docker
-``` 
+    ```
 
 #### Build all images
-NOTE: This takes a lot of time to build everything from scratch. Please use `docker-pull` and `docker-build` targets instead
+NOTE: This takes a lot of time to build everything from scratch. Please use
+`docker-pull` and `docker-build` targets instead.
 ```bash
 $ make docker-build-all
 ```
@@ -40,7 +53,7 @@ $ make docker-build-all
 #### Pull build and runtime prerequisites images:
 
 ```bash
-$  make docker-pull
+$ make docker-pull
 ```
 Check **docker-compose.yml** file for detailed service configuration.
 
@@ -51,7 +64,7 @@ $ make docker-build
 ```
 
 #### List available containers
-To list all containers run: 
+To list all containers run:
 ```bash
 $ make docker-list
 ```
@@ -70,27 +83,29 @@ $ make docker-reset-state
 ```
 
 #### Run all containers
-To run all containers at once run the command: 
+To run all containers at once run the command:
 ```bash
 $ make docker-up
 ```
 
-To run all containers at once in detached mode run the command: 
+To run all containers at once in detached mode run the command:
 ```bash
 $ make docker-start
 ```
 
-For `frontend` app to be able to connect to client add hostname to `/etc/hosts` file with the command:
+For `frontend` app to be able to connect to client add hostname to `/etc/hosts`
+file with the command:
 ```bash
 echo  "127.0.0.1       app.legi.cash" | sudo tee --append /etc/hosts > /dev/null
 ```
 #### Important URLs
 Frontend application: http://app.legi.cash:8800
 
-Ethereum block exporer: http://app.legi.cash:8000
+Ethereum block explorer: http://app.legi.cash:8000
 
 #### Recompile applications
-If you want to apply your code changes while all containers are running runt the command:
+If you want to apply your code changes while all containers are running
+execute:
 ```bash
 make docker-recompile
 ```
@@ -106,7 +121,8 @@ Deleting alacris client state
 alacris-client: started
 
 ```
-What happens here is that new code gets built and application binaries get replaced inside of the container. Something like "deploy to local environment" 
+What happens here is that new code gets built and application binaries get
+replaced inside of the container. Something like "deploy to local environment"
 
 
 ## Directory structure
@@ -176,14 +192,17 @@ docker
 ```
 
 ## Containers
-#### build-prerequisites 
-This image is used as a build image for legicash-facts and base image for alacris_client container. Built in previous step
+#### build-prerequisites
+This image is used as a build image for legicash-facts and base image for
+alacris_client container. Built in previous step.
 
 #### alacris_side_chain_manager_container
-Legicash-facts side chain server run prerequisite. Container used for running the app
+Legicash-facts side chain server run prerequisite. Container used for running
+the app.
 
 #### alacris_client_container
-Legicash-facts side chain client, nginx and scgi run prerequisite. Container used for running the app
+Legicash-facts side chain client, nginx and scgi run prerequisite. Container
+used for running the app.
 
 
 #### alacris_private_ethereum_node
@@ -193,17 +212,19 @@ $ make docker-build c=alacris_private_ethereum_node
 ```
 
 #### alacris_side_chain_manager
-To build alacris side chain manager run the command
+To build alacris side chain manager run the command:
 ```bash
 $ make docker-build c=alacris_side_chain_manager
 ```
-To start alacris side chain manager run the command
+To start alacris side chain manager run the command:
 ```bash
 $ make docker-start c=alacris_side_chain_manager
 ```
 
 ## alacris_client
-Alacris client image accepts 2 parameters. ENVIRONMENT to build for and FRONTEND_BRANCH. If none is set on CLI defaults are used. To build alacris client run the command:
+Alacris client image accepts 2 parameters. ENVIRONMENT to build for and
+FRONTEND_BRANCH. If none is set on CLI defaults are used. To build alacris
+client run the command:
 ```bash
 $ make docker-build c=alacris_client ENVIRONMENT=dev FRONTEND_BRANCH=my-feature-branch
 ```
@@ -213,7 +234,9 @@ $ make docker-start c=alacris_client
 ```
 
 #### stress_tester
-stress_tester container running in standalone mode. Single node “cluster”, where the instance plays both the role of the master and the worker. Distribuded mode will be added soon.
+stress_tester container running in standalone mode. Single node “cluster”,
+where the instance plays both the role of the master and the worker.
+Distributed mode will be added soon.
 ```bash
 $ docker-compose build stress_tester
 ```
@@ -228,4 +251,6 @@ $ docker exec -ti -u 0 containername bash
 ```
 
 ## Logs
-Application logs that are not in `stdout` of running containers are for now mounted in `/tmp/legilogs` on local machines until we agree on final destination
+Application logs that are not in `stdout` of running containers are for now
+mounted in `/tmp/legilogs` on local machines until we agree on a final
+destination.
