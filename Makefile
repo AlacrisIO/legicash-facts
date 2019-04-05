@@ -166,8 +166,7 @@ test_hello: toplevel $(ML_SOURCES) $(CONTRACT) force
 ### Running unit tests
 test: $(ML_SOURCES) $(CONTRACT) force
 	$(SHOW) "Running Alacris tests"
-	$(HIDE) dune runtest --verbose -j 1
-#	$(HIDE) dune runtest -j 1
+	$(HIDE) dune runtest -j 1
 
 ### TO RUN OUR INTEGRATION TESTS:
 # 1- Run a private Ethereum network

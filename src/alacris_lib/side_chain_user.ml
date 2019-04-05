@@ -70,7 +70,6 @@ module ContractAddrType = struct
 end
 
 
-
 let get_contract_address_from_client_exn_req () =
   let open Lwt_exn in
   UserQueryRequest.Get_contract_address
@@ -102,16 +101,11 @@ let get_contract_address_from_client : unit -> Address.t Lwt.t =
       | Error e -> bork "Error in obtaining the contract_address"
       | Ok x -> Lwt.return x)
 
-
-
 let get_option : 'a -> 'a option -> 'a =
   fun x_val x_opt ->
   match x_opt with
   | None -> x_val
   | Some x -> x
-
-
-
 
 let wait_for_operator_state_update (contract_address: Address.t)
                                    (operator:         Address.t)
@@ -129,13 +123,17 @@ let wait_for_operator_state_update (contract_address: Address.t)
   >>= fun x ->
   let (x_logo, x_vals) = x in
   Logging.log "Balance at state_update RETURN balance=%s" (print_abi_value_256 (List.nth x_vals 2));
+
+  (* TODO defaulting to zero is wrong and the presence of `null`s indicates
+   * something's broken with the confirmation data; we should instead capture
+   * the possibility of invalid state at the type level and force consuming
+   * code to deal with it explicitly and unambiguously *)
   return Ethereum_chain.Confirmation.
     { transaction_hash  = get_option Digest.zero x_logo.transactionHash
     ; transaction_index = get_option Revision.zero x_logo.transactionIndex
     ; block_number      = get_option Revision.zero x_logo.blockNumber
     ; block_hash        = get_option Digest.zero x_logo.blockHash
     }
-
 
 
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
@@ -157,9 +155,6 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
       Lwt_exn.return ())
 
 
-
-
-
 let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> unit Lwt_exn.t =
   fun contract_address sender operator operator_revision value bond digest ->
   let open Lwt_exn in
@@ -179,9 +174,6 @@ let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Rev
   match x with
   | None -> bork "No tx receipt for contract creation"
   | Some _receipt -> Lwt_exn.return ()
-
-
-(* let emit_withdraw_operation (contract_address : Address.t) (sender: Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (digest : Digest.t) : unit Lwt_exn.t =*)
 
 
 let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> unit Lwt_exn.t =

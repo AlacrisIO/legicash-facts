@@ -119,7 +119,6 @@ module SignedTransaction : sig
 end
 
 
-     
 module LogObject : sig
   type t =
     { removed: bool (* true when the log was removed, due to a chain reorganization. false if its a valid log. *)
@@ -134,7 +133,6 @@ module LogObject : sig
   include YojsonableS with type t := t
 end
 
-     
 module Bloom : YojsonableS with type t = Bytes.t
 
 module TransactionReceipt : sig
@@ -263,3 +261,28 @@ val personal_sign_transaction :
 val personal_unlock_account :
   ?timeout:float -> ?log:bool
   -> address * string * int option -> bool Lwt_exn.t
+
+module TxPoolContent : sig
+  type entry =
+    { block_hash:        Digest.t          [@key "blockHash"]
+    ; block_number:      Revision.t option [@key "blockNumber"]
+    ; from:              Address.t         [@key "from"]
+    ; gas:               TokenAmount.t     [@key "gas"]
+    ; gas_price:         TokenAmount.t     [@key "gasPrice"]
+    ; hash:              Digest.t          [@key "hash"]
+    ; input:             Yojsoning.Bytes.t [@key "input"]
+    ; nonce:             Nonce.t           [@key "nonce"]
+    ; to_:               Address.t         [@key "to"]
+    ; transaction_index: Revision.t option [@key "transactionIndex"]
+    ; value:             TokenAmount.t     [@key "value"]
+    } [@@deriving yojson {strict=false; exn=true}]
+
+  type t =
+    { pending: (Address.t * (Nonce.t * entry list) list) list
+    ; queued:  (Address.t * (Nonce.t * entry list) list) list
+    }
+end
+
+val txpool_content :
+  ?timeout:float -> ?log:bool
+  -> unit -> TxPoolContent.t Lwt_exn.t

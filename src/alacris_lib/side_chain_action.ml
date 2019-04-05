@@ -3,13 +3,8 @@ open Lib
 open Signing
 open Action
 open Lwt_exn
-(* open Json_rpc *)
-
 open Legilogic_ethereum
-
 open Side_chain
-(* open Side_chain_operator *)
-(* open Side_chain_user *)
 
 let contract_address_key = "alacris.contract-address"
 

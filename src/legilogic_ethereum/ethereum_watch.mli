@@ -38,7 +38,7 @@ val retrieve_relevant_single_logs : float -> Address.t -> Bytes.t option list ->
     TODO: named argument for the float. Better description of what the arguments are. *)
 
 val wait_for_contract_event : Address.t -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
-  
+
 val retrieve_last_entries_group : Revision.t -> Address.t -> Bytes.t option list list -> (Revision.t * (LogObject.t list list)) Lwt_exn.t
 (** TODO: named argument for the float. Better description of what the arguments are. *)
 

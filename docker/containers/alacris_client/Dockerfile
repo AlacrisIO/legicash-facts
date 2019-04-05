@@ -46,7 +46,7 @@ WORKDIR /var/www/app/legicash-facts
 RUN make
 ######################################### end build #############################################
 
-# Create new App image 
+# Create new App image
 FROM gcr.io/legicash-demo-1950/legicash-demo/alacris_client_container:v1
 
 # Copy React app from alacris_frontend_build container
