@@ -74,24 +74,6 @@ let retrieve_last_entries (start_block:      Revision.t)
       return (to_block,recLLO)
 
 
-let retrieve_relevant_list_logs
-      (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t list Lwt_exn.t =
-  (*  starting_watch_ref := (Revision.of_int 0); *)
-  let rec fct_downloading (start_block : Revision.t) : LogObject.t list Lwt_exn.t =
-    let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in
-    Lwt_exn.bind (retrieve_last_entries start_block_p_one contract_address topics)
-      (fun (x : (Revision.t * (LogObject.t list))) ->
-        let (x_to, x_llogs) = x in
-        let (len : int) = List.length x_llogs in
-        starting_watch_ref := x_to;
-        if (len == 0) then
-          Lwt_exn.bind (sleep_delay_exn delay) (fun () -> fct_downloading x_to)
-        else
-          Lwt_exn.return x_llogs
-      )
-  in fct_downloading !starting_watch_ref
-
-
 
 let is_matching_data (x_data:        abi_value list)
                      (x_data_filter: abi_value option list)
@@ -163,21 +145,6 @@ let retrieve_relevant_single_logs_data (delay:             float)
 
 
 
-let retrieve_relevant_single_logs (delay:            float)
-                                  (contract_address: Address.t)
-                                  (topics:           Bytes.t option list)
-                                : LogObject.t Lwt_exn.t =
-  let open Lwt_exn in
-
-  retrieve_relevant_list_logs
-    delay
-    contract_address
-    topics
-
-  >>= fun (llogs : LogObject.t list) ->
-      if List.length llogs != 1 then bork "The length should be exactly 1"
-                                else Lwt_exn.return (List.hd llogs)
-
 
 (* GROUP cases *)
 
@@ -225,6 +192,7 @@ let wait_for_contract_event (contract_address:  Address.t)
       (topics:            Bytes.t option list)
       (list_data_type:    abi_type list)
       (data_value_search: abi_value option list)
+      
     : (LogObject.t * (abi_value list)) Lwt_exn.t =
   Logging.log "Beginning of wait_for_contract_event";
   retrieve_relevant_single_logs_data
