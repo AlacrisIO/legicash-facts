@@ -315,9 +315,15 @@ let confirmed_or_nonce_too_low : Address.t -> (Digest.t, Confirmation.t) Lwt_exn
   let open Lwter in
   Ethereum_json_rpc.eth_get_transaction_receipt hash
   >>= function
-  | Ok None -> nonce_too_low sender
-  | Ok (Some receipt) -> confirmation_of_transaction_receipt receipt |> Lwt_exn.return
-  | Error e -> Lwt_exn.fail e
+  | Ok None ->
+     Logging.log "confirmed_or_nonce_too_low CASE: Ok None";
+     nonce_too_low sender
+  | Ok (Some receipt) ->
+     Logging.log "confirmed_or_nonce_too_low CASE: Ok (Some receipt)";
+     confirmation_of_transaction_receipt receipt |> Lwt_exn.return
+  | Error e ->
+     Logging.log "confirmed_or_nonce_too_low CASE: Error e";
+     Lwt_exn.fail e
 
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->

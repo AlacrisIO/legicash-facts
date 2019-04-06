@@ -327,6 +327,7 @@ module TransactionCommitment : sig
     ; accounts: Digest.t (* From State.t, digest only *)
     ; main_chain_transactions_posted: Digest.t (* From State.t, digest only *)
     ; signature: signature (* Signature of the digest of the state reconstituted from the above *)
+    ; trans_hash_state_update: Digest.t
     ; state_digest: Digest.t (* Signature put in the state update *)
     ; contract_address: Address.t (* contract address needed for accessing to data *)
     }

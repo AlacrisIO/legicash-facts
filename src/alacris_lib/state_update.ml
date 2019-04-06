@@ -53,9 +53,12 @@ let post_state_update digest =
   Ethereum_user.confirm_pre_transaction oper_addr x
   >>= fun (_tx, confirmation) ->
   Logging.log "post_state_update : before eth_get_transaction_receipt";
+  Logging.log "post_state_update : confirmation.transaction_hash=%s" (Digest.to_string confirmation.transaction_hash);
   Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
   >>= fun x ->
   Logging.log "post_state_update : after eth_get_transaction_receipt";
   match x with
-  | None -> bork "No tx receipt for contract creation"
-  | Some _receipt -> return digest
+  | None -> bork "post_state_update : No tx receipt for contract creation"
+  | Some receipt ->
+     Logging.log "post_state_update : Ok receipt, transaction_hash=%s" (Digest.to_string receipt.transaction_hash);
+     return receipt
