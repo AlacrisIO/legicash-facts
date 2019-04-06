@@ -95,6 +95,7 @@ let is_matching_data (x_data:        abi_value list)
 
 let retrieve_relevant_list_logs_data (delay:             float)
                                      (contract_address:  Address.t)
+                                     (trans_hash: Digest.t option)
                                      (topics:            Bytes.t option list)
                                      (list_data_type:    abi_type list)
                                      (data_value_search: abi_value option list)
@@ -109,11 +110,18 @@ let retrieve_relevant_list_logs_data (delay:             float)
       >>= fun (start_block', entries) ->
         starting_watch_ref := start_block';
 
-        let only_matches = flip List.filter entries @@ fun l ->
+        let only_matches_a = flip List.filter entries @@ fun l ->
           is_matching_data (decode_data l.data list_data_type)
                            data_value_search
-
-        in let relevant = flip List.map only_matches @@ fun l ->
+        in let only_matches_b = List.filter (fun (l : LogObject.t) ->
+                                 match trans_hash with
+                                 | None -> true
+                                 | Some trans_hash_a ->
+                                    (match l.transactionHash with
+                                     | None -> true
+                                     | Some trans_hash_b -> Digest.equal trans_hash_a trans_hash_b))
+                               only_matches_a
+        in let relevant = flip List.map only_matches_b @@ fun l ->
           (l, decode_data l.data list_data_type)
 
         in if List.length relevant == 0 then
@@ -126,6 +134,7 @@ let retrieve_relevant_list_logs_data (delay:             float)
 
 let retrieve_relevant_single_logs_data (delay:             float)
                                        (contract_address:  Address.t)
+                                       (trans_hash: Digest.t option)
                                        (topics:            Bytes.t option list)
                                        (list_data_type:    abi_type list)
                                        (data_value_search: abi_value option list)
@@ -135,6 +144,7 @@ let retrieve_relevant_single_logs_data (delay:             float)
   retrieve_relevant_list_logs_data
     delay
     contract_address
+    trans_hash
     topics
     list_data_type
     data_value_search
@@ -189,6 +199,7 @@ let retrieve_relevant_list_logs_group (delay : float) (contract_address : Addres
 
 
 let wait_for_contract_event (contract_address:  Address.t)
+      (trans_hash:        Digest.t option)
       (topics:            Bytes.t option list)
       (list_data_type:    abi_type list)
       (data_value_search: abi_value option list)
@@ -198,6 +209,7 @@ let wait_for_contract_event (contract_address:  Address.t)
   retrieve_relevant_single_logs_data
     Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
     contract_address
+    trans_hash
     topics
     list_data_type
     data_value_search
