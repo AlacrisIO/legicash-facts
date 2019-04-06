@@ -109,7 +109,7 @@ let get_option : 'a -> 'a option -> 'a =
 
 let wait_for_operator_state_update (contract_address: Address.t)
                                    (operator:         Address.t)
-                                   (_transactionhash: Digest.t)
+                                   (transactionhash: Digest.t)
                                  : Ethereum_chain.Confirmation.t Lwt_exn.t =
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_operator_state_update";
@@ -124,7 +124,8 @@ let wait_for_operator_state_update (contract_address: Address.t)
   >>= fun x ->
   let (x_logo, x_vals) = x in
   let transhash : Digest.t = get_option Digest.zero x_logo.transactionHash in
-  Logging.log "wait_for_operator_state_update, transhash=%s" (Digest.to_string transhash);
+  Logging.log "wait_for_operator_state_update, transactionhash=%s" (Digest.to_string transactionhash);
+  Logging.log "wait_for_operator_state_update,       transhash=%s" (Digest.to_string transhash);
   Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_256 (List.nth x_vals 2));
 
   (* TODO defaulting to zero is wrong and the presence of `null`s indicates
@@ -624,7 +625,7 @@ module TransactionTracker = struct
            | PostedToRegistry (tc : TransactionCommitment.t) ->
              Logging.log "TR_LOOP, PostedToRegistry operation tc.contr_addr=%s" (Address.to_string tc.contract_address);
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
-             (wait_for_operator_state_update tc.contract_address operator Digest.zero
+             (wait_for_operator_state_update tc.contract_address operator tc.trans_hash_state_update
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
