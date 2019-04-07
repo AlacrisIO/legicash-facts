@@ -10,7 +10,7 @@ open Side_chain_server_config
 
 (* TODO capturing `starting_watch_ref` in a state monad or similar would be a
  * much better approach than using mutable global state *)
-let starting_watch_ref : (Revision.t ref) = ref Revision.zero
+(* let starting_watch_ref : (Revision.t ref) = ref Revision.zero *)
 
 (* 'state is Revision.t *)
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
@@ -101,7 +101,7 @@ let retrieve_relevant_list_logs_data (delay:             float)
                                      (data_value_search: abi_value option list)
                                    : (LogObject.t * (abi_value list)) list Lwt_exn.t =
   let open Lwt_exn in
-
+  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
   let rec fct_downloading start_block =
     retrieve_last_entries (Revision.add start_block Revision.one)
                           contract_address
@@ -182,6 +182,7 @@ let retrieve_last_entries_group (start_block:      Revision.t)
 
 
 let retrieve_relevant_list_logs_group (delay : float) (contract_address : Address.t) (list_topics : Bytes.t option list list) : EthListLogObjects.t list Lwt_exn.t =
+  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
   let rec fct_downloading (start_block : Revision.t) : EthListLogObjects.t list Lwt_exn.t =
     let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in
     Lwt_exn.bind (retrieve_last_entries_group start_block_p_one contract_address list_topics)

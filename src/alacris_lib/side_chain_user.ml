@@ -480,7 +480,7 @@ module TransactionStatus = struct
 end
 
 exception TransactionFailed of OngoingTransactionStatus.t * exn
-
+exception NotEnoughFundSec of string
 
 let print_ots_state (o: OngoingTransactionStatus.t) : string =
   match o with
@@ -505,6 +505,21 @@ let () = Printexc.register_printer (function
 
 type revision_generator = (unit, Revision.t) Lwter.arr
 
+(*
+let retrieve_of_pre_transaction_in_deposit : Address.t -> TokenAmount.t -> OngoingTransactionStatus.t -> Ethereum_user.TransactionTracker.t Lwt_exn.t =
+  fun user amount ongoing ->
+  Lwt_exn.bind (eth_get_balance (user, BlockParameter.Pending))
+    (fun ebalance ->
+      let _test : int = TokenAmount.(compare ebalance amount) in
+      Ethereum_user.add_ongoing_transaction user ongoing
+        (*
+      if test >= 0 then
+      else
+        Lwt.return (Error NotEnoughfund) *)
+    )
+ *)
+
+                        
 module TransactionTracker = struct
   module Base = struct
     module Key = struct
@@ -565,13 +580,33 @@ module TransactionTracker = struct
              let amount = TokenAmount.(add deposit_amount deposit_fee) in
              Lwt.bind
                (Lwt.bind (get_contract_address_from_client ())
-                  (fun x -> Lwt.return (Operator_contract.pre_deposit ~operator amount x)))
-             (fun x_pre_transaction ->
-               (Ethereum_user.add_ongoing_transaction user (Wanted x_pre_transaction)
-                >>= function
-                | Error error -> invalidate ongoing error
-                | Ok (tracker_key, _, _) ->
-                   DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue))
+                  (fun x ->
+                    Logging.log "After the get_contract_address";
+                    Lwt.return (Operator_contract.pre_deposit ~operator amount x)))
+               (fun x_pre_transaction ->
+               Logging.log "We have x_pre_transaction";
+               Lwt.bind (eth_get_balance (user, BlockParameter.Pending))
+                 (function
+                  | Error error ->
+                     Logging.log "Error case in eth_get_balance";
+                     invalidate ongoing error
+                  | Ok ebalance ->
+                     Logging.log "Ok case of eth_get_balance";
+                     (* test_compar >= 0 corresponds to ebalance >= amount *)
+                     let test_compar = TokenAmount.(compare ebalance amount) in
+                     Logging.log "test_compar=%i" test_compar;
+                     if test_compar < 0 then
+                       (Logging.log "invalidate case because of not enough balance";
+                        let error_str = Printf.sprintf "Balance %s while trying to deposit %s for a total cost of %s" (TokenAmount.to_string ebalance) (TokenAmount.to_string deposit_amount) (TokenAmount.to_string amount) in
+                        let except_ret : exn = raise (NotEnoughFundSec error_str) in
+                        invalidate ongoing except_ret)
+                     else
+                       (Logging.log "Before add_ongoing_transaction, operation";
+                        Ethereum_user.add_ongoing_transaction user (Wanted x_pre_transaction)
+                        >>= function
+                        | Error error -> invalidate ongoing error
+                        | Ok (tracker_key, _, _) ->
+                           DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)))
 
              (*
              let contr_addr = get_contract_address () in
