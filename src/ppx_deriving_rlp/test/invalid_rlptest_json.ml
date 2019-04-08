@@ -7,8 +7,7 @@ open OUnit2
    and run them.
    *)
 
-let invalid_rlptest_json_file = Filename.concat rlptest_json_dir "invalidRLPTest.json"
-let invalid_rlptest_json      = Yojson.Safe.from_file invalid_rlptest_json_file
+let invalid_rlptest_json      = Yojson.Safe.from_string [%blob "invalidRLPTest.json"]
 
 (* --------------------------------------------------------------- *)
 
