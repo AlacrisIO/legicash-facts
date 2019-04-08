@@ -197,7 +197,6 @@ let block_depth_for_confirmation = Side_chain_server_config.minNbBlockConfirm
 exception Still_pending
 exception TransactionFailed of OngoingTransactionStatus.t * exn
 exception NonceTooLow
-exception NotEnoughFund
 
 let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmation.t t =
   Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);
