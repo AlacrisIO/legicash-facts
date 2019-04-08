@@ -1,20 +1,5 @@
 open Ppx_deriving_rlp_runtime
 
-let repo_name = "legicash-facts"
-
-let repo_root_dir =
-  let rec up_to_root path =
-    if Filename.basename path = repo_name
-    then path
-    else let up = Filename.dirname path in
-         if String.length up < String.length path
-         then up_to_root up
-         else path
-  in
-    up_to_root (Sys.getcwd ())
-
-let rlptest_json_dir  = Filename.dirname (Filename.concat repo_root_dir __FILE__)
-
 (* --------------------------------------------------------------- *)
 
 (* Parsing the JSON inputs and outputs in the tests *)
