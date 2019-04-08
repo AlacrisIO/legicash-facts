@@ -201,11 +201,7 @@ module Lwt_exn = struct
       let return x = Lwt.return (Ok x)
       let bind m a = Lwt.bind m (function Ok x -> a x | Error e -> fail e)
     end)
-  let run_lwt mf x = Lwt.bind (
-                         Logging.log "run_lwt, mf entry";
-                         mf x) (
-                         Logging.log "run_lwt, OrExn entry";
-                         OrExn.get >> Lwt.return)
+  let run_lwt mf x = Lwt.bind (mf x) (OrExn.get >> Lwt.return)
   let run mf x = run_lwt mf x |> Lwt_main.run
   let bork fmt = Printf.ksprintf (fun x -> fail (Internal_error x)) fmt
   let of_exn a x = a x |> Lwt.return
