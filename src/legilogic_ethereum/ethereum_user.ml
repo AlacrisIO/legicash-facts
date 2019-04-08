@@ -433,16 +433,7 @@ module TransactionTracker = struct
                                     | Error NonceTooLow ->
                                        Logging.log "ETH: Ethereum_user, Error NonceTooLow case";
                                        return (Error NonceTooLow)
-                                    | Error e ->
-                                       let estr_excp : string = Printexc.to_string e in
-                                       Logging.log "ETH: Ethereum_user, Error e case";
-                                       Logging.log "ETH: e=%s" estr_excp;
-                                       let estr_fund : string = "Rpc_error(insufficient funds for gas * price + value)" in
-                                       let test : bool = String.equal estr_fund estr_excp in
-                                       if test then
-                                         return (Error NotEnoughFund)
-                                       else
-                                         fail e))))
+                                    | Error e -> fail e))))
              >>= (function
                | Ok confirmation ->
                   Logging.log "ETHC: Ok case";
