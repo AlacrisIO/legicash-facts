@@ -92,7 +92,23 @@ let is_matching_data (x_data:        abi_value list)
     is_ok_ent (List.nth x_data        i)
               (List.nth x_data_filter i))
 
+let string_of_option_digest : Digest.t option -> string =
+  fun edig ->
+  match edig with
+  | None -> "0xOPTIONAL"
+  | Some x -> Digest.to_0x x
 
+
+let print_list_entries : EthListLogObjects.t -> string =
+  fun entries ->
+  let entries_b : LogObject.t list = entries in 
+  let list_str : string list = List.map (fun (x : LogObject.t) -> string_of_option_digest (x.transactionHash)) entries_b in
+  let estri = ":" in
+  String.concat estri list_str
+
+
+
+            
 let retrieve_relevant_list_logs_data (delay:             float)
                                      (contract_address:  Address.t)
                                      (trans_hash: Digest.t option)
@@ -108,8 +124,9 @@ let retrieve_relevant_list_logs_data (delay:             float)
                           contract_address
                           topics
 
-      >>= fun (start_block_in, entries) ->
-
+    >>= fun (start_block_in, entries) ->
+        Logging.log "retrieve_relevant trans_hash=%s" (string_of_option_digest trans_hash);
+        Logging.log "List transaction_hashe=%s" (print_list_entries entries);
         let only_matches_a = flip List.filter entries @@ fun l ->
           is_matching_data (decode_data l.data list_data_type)
                            data_value_search
