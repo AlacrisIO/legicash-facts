@@ -102,13 +102,13 @@ let retrieve_relevant_list_logs_data (delay:             float)
                                    : (LogObject.t * (abi_value list)) list Lwt_exn.t =
   let open Lwt_exn in
   let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
-  let rec fct_downloading start_block =
+  let iter_state_ref : (int ref) = ref 0 in
+  let rec fct_downloading start_block iter_state =
     retrieve_last_entries (Revision.add start_block Revision.one)
                           contract_address
                           topics
 
-      >>= fun (start_block', entries) ->
-        starting_watch_ref := start_block';
+      >>= fun (start_block_in, entries) ->
 
         let only_matches_a = flip List.filter entries @@ fun l ->
           is_matching_data (decode_data l.data list_data_type)
@@ -125,11 +125,21 @@ let retrieve_relevant_list_logs_data (delay:             float)
           (l, decode_data l.data list_data_type)
 
         in if List.length relevant == 0 then
-          sleep_delay_exn delay >>= fun () -> fct_downloading start_block'
+             sleep_delay_exn delay >>= fun () ->
+             if iter_state == 5 then
+               (starting_watch_ref := Revision.zero;
+                iter_state_ref := 0;
+                fct_downloading !starting_watch_ref !iter_state_ref
+               )
+             else
+               (starting_watch_ref := start_block_in;
+                iter_state_ref := iter_state + 1;
+                fct_downloading start_block_in !iter_state_ref
+               )
         else
           return relevant
 
-  in fct_downloading !starting_watch_ref
+  in fct_downloading !starting_watch_ref !iter_state_ref
 
 
 let retrieve_relevant_single_logs_data (delay:             float)

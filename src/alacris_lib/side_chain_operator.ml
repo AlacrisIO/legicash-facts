@@ -443,7 +443,7 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
         Lwt.bind (post_state_update digest)
           (fun receipt_exn ->
             match receipt_exn with
-            | Ok receipt -> 
+            | Ok receipt ->
                let ret_val : transport_data = Some (receipt, digest) in
                Lwt_exn.return ret_val
             | Error _error -> bork "Cannot handle error in the post_state_update")) in

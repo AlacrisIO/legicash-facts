@@ -289,9 +289,7 @@ let final_withdraw_operation_spec (tc:       TransactionCommitment.t)
         [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
         data_value_search
          >>= const ()
-                    
 
-                    
 (* TODO: should be more like post_withdrawal or execute_withdrawal *)
 let final_withdraw_operation (tc:       TransactionCommitment.t)
                              (sender:   Address.t)
