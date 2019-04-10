@@ -9,6 +9,7 @@ open Legilogic_ethereum
 open Side_chain
 open Operator_contract
 open Digesting
+open Ethereum_json_rpc
 open Side_chain_server_config
 
 
@@ -33,6 +34,14 @@ let print_contract_account_value : string -> unit Lwt_exn.t =
   Lwt_exn.bind (Ethereum_json_rpc.eth_get_balance (contr_addr, Latest))
     (fun x-> Logging.log "PCAV stage=%s value=%s" estr (TokenAmount.to_string x);
              Lwt_exn.return ())
+
+
+
+let print_status_receipt : TransactionReceipt.t -> string =
+  fun tr ->
+  match tr.status with
+  | None -> "-1"
+  | Some x -> (TokenAmount.to_string x)
 
 
 (* Alert to take care of:
@@ -61,4 +70,5 @@ let post_state_update digest =
   | None -> bork "post_state_update : No tx receipt for contract creation"
   | Some receipt ->
      Logging.log "post_state_update : Ok receipt, transaction_hash=%s" (Digest.to_string receipt.transaction_hash);
+     Logging.log "transaction status=%s" (print_status_receipt receipt);
      return receipt

@@ -103,7 +103,7 @@ let print_list_entries : EthListLogObjects.t -> string =
   fun entries ->
   let entries_b : LogObject.t list = entries in 
   let list_str : string list = List.map (fun (x : LogObject.t) -> string_of_option_digest (x.transactionHash)) entries_b in
-  let estri = ":" in
+  let estri = "\n" in
   String.concat estri list_str
 
 

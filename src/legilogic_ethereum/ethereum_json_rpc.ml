@@ -213,7 +213,7 @@ module TransactionReceipt = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
 end
-                          
+
 module EthListLogObjects = struct
   [@warning "-39"]
   type t = LogObject.t list
