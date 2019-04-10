@@ -76,7 +76,7 @@ let post_operation_general : Ethereum_chain.Operation.t -> TransactionReceipt.t 
     fun () ->
     Lwt.bind (post_operation_general_kernel operation)
       (function
-       | Error error -> Logging.log "post_operation_general, end of code";
+       | Error _error -> Logging.log "post_operation_general, end of code";
                         fct_submit ()
        | Ok ereceipt ->
           (let str = print_status_receipt ereceipt in
@@ -89,12 +89,17 @@ let post_operation_general : Ethereum_chain.Operation.t -> TransactionReceipt.t 
       ) in
   fct_submit ()
 
+let post_state_update : Digest.t -> TransactionReceipt.t Lwt_exn.t =
+  fun digest ->
+  let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
+  post_operation_general operation
 
 
 (* Alert to take care of:
    ---lack of gas
    ---transaction not passed
  *)
+(*
 let post_state_update_kernel digest =
   Logging.log "post_state_update : beginning of function";
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
@@ -135,3 +140,4 @@ let post_state_update digest =
         fct_submit ()
     ) in
   fct_submit ()
+ *)
