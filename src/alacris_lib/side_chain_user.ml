@@ -16,6 +16,7 @@ open Side_chain_client
 open Legilogic_ethereum
 open Side_chain_server_config
 open Ethereum_json_rpc
+open State_update
 open Ethereum_watch
 open Ethereum_abi
 open Operator_contract
@@ -115,7 +116,6 @@ let wait_for_operator_state_update (contract_address: Address.t)
   Logging.log "Beginning of wait_for_operator_state_update";
   Logging.log "wait_for_operator_state_update contract_address=%s" (Address.to_string contract_address);
   Logging.log "wait_for_operator_state_update         operator=%s" (Address.to_string operator);
-  
   wait_for_contract_event
     contract_address
     (Some trans_hash)
@@ -243,12 +243,14 @@ let post_claim_withdrawal_operation (tc:       TransactionCommitment.t)
            Side_chain_server_config.bond_value_v
            tc.state_digest
 
-        >>= fun tr -> wait_for_claim_withdrawal_event
-                        tc.contract_address
-                        tr.transaction_hash
-                        sender
-                        operator
-                        tc.tx_proof.key
+        >>= fun tr ->
+        Logging.log "post_claim_withdrawal_operation status=%s" (print_status_receipt tr);
+        wait_for_claim_withdrawal_event
+          tc.contract_address
+          tr.transaction_hash
+          sender
+          operator
+          tc.tx_proof.key
 
 
 
@@ -275,6 +277,7 @@ let final_withdraw_operation_spec (tc:       TransactionCommitment.t)
                     tc.state_digest
   in await_challenge_or_emit
     >>= fun tr ->
+      Logging.log "final_withdraw_operation_spec status=%s" (print_status_receipt tr);
       let (data_value_search: abi_value option list) =
         [ Some (Address_value operator)
         ; Some (abi_value_from_revision tc.tx_proof.key)
