@@ -44,11 +44,10 @@ let print_status_receipt : TransactionReceipt.t -> string =
   | Some x -> (TokenAmount.to_string x)
 
 
-let post_operation_general_kernel : Ethereum_chain.Operation.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operation ->
-  Logging.log "post_operation_kerenel : beginning of function";
+let post_operation_general_kernel : Ethereum_chain.Operation.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+  fun operation value ->
+  Logging.log "post_operation_kernel : beginning of function";
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
-  let (value : TokenAmount.t) = TokenAmount.zero in
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   Logging.log "post_operation_general_kernel : before make_pre_transaction";
   print_contract_account_value "from post_operation_general_kernel"
@@ -70,21 +69,21 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> TransactionRec
      return receipt
 
 
-let post_operation_general : Ethereum_chain.Operation.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operation ->
+let post_operation_general : Ethereum_chain.Operation.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+  fun operation value ->
   let rec fct_submit : unit -> TransactionReceipt.t Lwt_exn.t =
     fun () ->
-    Lwt.bind (post_operation_general_kernel operation)
+    Lwt.bind (post_operation_general_kernel operation value)
       (function
-       | Error _error -> Logging.log "post_operation_general, end of code";
-                        fct_submit ()
+       | Error _error -> Logging.log "post_operation_general, Error case";
+                         Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> fct_submit ())
        | Ok ereceipt ->
           (let str = print_status_receipt ereceipt in
            let str_succ = "1" in
            if String.equal str str_succ then
              Lwt_exn.return ereceipt
            else
-             fct_submit ()
+             Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> fct_submit ())
           )
       ) in
   fct_submit ()
@@ -92,7 +91,8 @@ let post_operation_general : Ethereum_chain.Operation.t -> TransactionReceipt.t 
 let post_state_update : Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun digest ->
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
-  post_operation_general operation
+  let (value : TokenAmount.t) = TokenAmount.zero in
+  post_operation_general operation value
 
 
 (* Alert to take care of:
