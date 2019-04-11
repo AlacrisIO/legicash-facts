@@ -74,7 +74,7 @@ RUN opam init -a --disable-sandboxing && \
     opam pin -y dune 1.6.3 && \
     opam install -y \
     cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens leveldb \
-    lwt lwt_ppx ppx_deriving ppx_tools_versioned ppx_core \
+    lwt lwt_ppx ppx_blob ppx_deriving ppx_tools_versioned ppx_core \
     ppx_driver ppx_inline_test secp256k1 yojson qcheck bisect_ppx ; \
     :
 ENV PATH /home/appuser/.opam/${OCAML_VERSION}/bin:${PATH}
@@ -82,6 +82,7 @@ ENV PATH /home/appuser/.opam/${OCAML_VERSION}/bin:${PATH}
 # Install Scgi library in OPAM
 RUN git clone https://github.com/bikallem/ocaml-scgi.git && \
     cd ocaml-scgi && \
+    git checkout bb810ad74ff0900e34eadedfb1bf5aee2066edc8 && \
     make && \
     opam pin -y add scgi . -n && \
     opam install scgi
