@@ -90,6 +90,7 @@ let post_operation_general : Ethereum_chain.Operation.t -> TokenAmount.t -> Tran
 
 let post_state_update : Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun digest ->
+  Logging.log "post_state_update digest=%s" (Digest.to_0x digest);
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
   let (value : TokenAmount.t) = TokenAmount.zero in
   post_operation_general operation value

@@ -73,9 +73,10 @@ contract Claims {
     }
 
     /** Check that a claim is still pending */
+    /*
     function require_claim_pending(bytes32 _claim) internal view {
         require(is_claim_status_pending(claim_status[_claim]));
-    }
+    }*/
 
     /** True if a claim is accepted as valid */
     function is_status_accepted(int _status) internal view returns(bool) {
@@ -87,9 +88,10 @@ contract Claims {
     }
 
     /** Check that a claim is accepted as valid */
+    /*
     function require_claim_accepted(bytes32 _claim) internal view {
         require(is_claim_status_accepted(_claim));
-    }
+    }*/
 
 
     /**
@@ -103,10 +105,11 @@ contract Claims {
     }
 
     /** Reject a pending claim as invalid. */
+    /*
     function reject_claim(bytes32 _claim) internal {
         require_claim_pending(_claim);
         claim_status[_claim] = REJECTED;
-    }
+    }*/
 
     function set_claim_consumed(bytes32 _claim) internal {
         claim_status[_claim] = CONSUMED;
@@ -114,10 +117,11 @@ contract Claims {
 
 
     /** Check that a claim is valid, then use it up. */
+    /*
     function consume_claim(bytes32 _claim) internal {
         require_claim_accepted(_claim);
         set_claim_consumed(_claim);
-    }
+    }*/
 
 
 
