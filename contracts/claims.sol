@@ -99,9 +99,14 @@ contract Claims {
      *
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
-    function make_claim(bytes32 _claim) internal {
-        require(claim_status[_claim]==0); // The claim must not have been made before
-        claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
+    function make_claim(bytes32 _claim) internal returns(uint64) {
+        if (claim_status[_claim]==0) { // The claim must not have been made before
+          claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
+          return 1;
+        }
+        else {
+          return 0;
+        }
     }
 
     /** Reject a pending claim as invalid. */

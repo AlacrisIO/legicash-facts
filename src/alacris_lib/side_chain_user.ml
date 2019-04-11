@@ -36,10 +36,10 @@ let (topic_of_deposited: Bytes.t option) =
   topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
 
 let (topic_of_state_update: Bytes.t option) =
-  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint256)")
+  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint256,uint64)")
 
 let (topic_of_claim_withdrawal: Bytes.t option) =
-  topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32,uint256,uint256)")
+  topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32,uint256,uint256,uint64)")
 
 let (topic_of_withdraw: Bytes.t option) =
   topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
@@ -120,8 +120,8 @@ let wait_for_operator_state_update (contract_address: Address.t)
     contract_address
     (Some trans_hash)
     [topic_of_state_update]
-    [Address; Bytes 32; Uint 256]
-    [Some (Address_value operator); None; None]
+    [Address; Bytes 32; Uint 256; Uint 64]
+    [Some (Address_value operator); None; None; None]
   >>= fun x ->
   let (x_logo, x_vals) = x in
   let transhash : Digest.t = get_option Digest.zero x_logo.transactionHash in
@@ -152,16 +152,17 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                   : unit Lwt_exn.t =
   Logging.log "Beginning of wait_for_claim_withdrawal_event";
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
-  let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 256; Uint 256] in
+  let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 256; Uint 256; Uint 64] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      Some (abi_value_from_revision revision);
-                                                     None; None; None; None] in
+                                                     None; None; None; None; None] in
   let (trans_hash_b : Digest.t option) = Some trans_hash in
   Lwt_exn.bind (wait_for_contract_event contract_address trans_hash_b topics list_data_type data_value_search)
     (fun (x : (LogObject.t * (abi_value list))) ->
       let (_a, b) = x in
       Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_256 (List.nth b 4));
       Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
+      Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_64  (List.nth b 6));
       Lwt_exn.return ())
 
 
