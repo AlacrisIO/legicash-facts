@@ -168,45 +168,17 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
 
 let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun contract_address sender operator operator_revision value bond digest ->
-  let open Lwt_exn in
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
-  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
-  Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val bond
-  >>= fun x ->
-  Logging.log "emit_claim_withdrawal_operation : before confirm_pre_transaction";
-  Ethereum_user.confirm_pre_transaction sender x
-  >>= fun (_tx, confirmation) ->
-  Logging.log "emit_claim_withdrawal_operation : before eth_get_transaction_receipt";
-  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
-  >>= fun x ->
-  Logging.log "emit_claim_withdrawal_operation : after eth_get_transaction_receipt";
-  match x with
-  | None -> bork "No tx receipt for contract creation"
-  | Some receipt -> Lwt_exn.return receipt
+  post_operation_general operation bond
 
 
 let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun contract_address sender operator operator_revision value bond digest ->
-  let open Lwt_exn in
   Logging.log "emit_withdraw_operation : beginning of operation";
   let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
-  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   let (value_send : TokenAmount.t) = TokenAmount.zero in
-  Logging.log "emit_withdraw_operation : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value_send
-  >>= fun x ->
-  Logging.log "emit_withdraw_operation : before confirm_pre_transaction";
-  Ethereum_user.confirm_pre_transaction sender x
-  >>= fun (_tx, confirmation) ->
-  Logging.log "emit_withdraw_operation : before eth_get_transaction_receipt";
-  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
-  >>= fun x ->
-  Logging.log "emit_withdraw_operation : after eth_get_transaction_receipt";
-  match x with
-  | None -> bork "No tx receipt for contract creation"
-  | Some receipt -> Lwt_exn.return receipt
+  post_operation_general operation value_send
 
 
 
