@@ -82,6 +82,7 @@ ENV PATH /home/appuser/.opam/${OCAML_VERSION}/bin:${PATH}
 # Install Scgi library in OPAM
 RUN git clone https://github.com/bikallem/ocaml-scgi.git && \
     cd ocaml-scgi && \
+    git checkout bb810ad74ff0900e34eadedfb1bf5aee2066edc8 && \
     make && \
     opam pin -y add scgi . -n && \
     opam install scgi
