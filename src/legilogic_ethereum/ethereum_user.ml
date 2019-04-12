@@ -227,7 +227,7 @@ let check_confirmation_deep_enough_bool (confirmation : Confirmation.t) : bool L
 
 
 
-type nonce_operation = Peek | Next | Reset [@@deriving yojson]
+type nonce_operation = Next | Reset [@@deriving yojson]
 
 module NonceTracker = struct
   open Lwter
@@ -260,10 +260,6 @@ module NonceTracker = struct
            (match (op, state) with
             | (Reset, _) ->
               continue Nonce.zero None
-            | (Peek, None) ->
-              reset () >>= fun nonce -> continue nonce (Some nonce)
-            | (Peek, Some nonce) ->
-              return (nonce, Some nonce)
             | (Next, None) ->
               reset () >>= next
             | (Next, Some nonce) -> next nonce)
@@ -272,7 +268,6 @@ module NonceTracker = struct
   include PersistentActivity(Base)
   module State = Base.State
   let reset address = get () address Reset >>= const ()
-  let peek address = get () address Peek
   let next address = get () address Next
 end
 

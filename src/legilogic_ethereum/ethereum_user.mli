@@ -37,7 +37,7 @@ module TransactionStatus : sig
   val operation : t -> Operation.t
 end
 
-type nonce_operation = Peek | Next | Reset [@@deriving yojson]
+type nonce_operation = Next | Reset [@@deriving yojson]
 
 module NonceTracker : sig
   module State : PersistableS with type t = Nonce.t option
@@ -46,7 +46,6 @@ module NonceTracker : sig
      and type context = unit
      and type state = State.t
      and type t = (nonce_operation, Revision.t) Lwter.arr
-  val peek : (address, Revision.t) Lwter.arr
   val next : (address, Revision.t) Lwter.arr
   val reset : (address, unit) Lwter.arr
 end
