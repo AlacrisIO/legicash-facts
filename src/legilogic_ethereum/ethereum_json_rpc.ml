@@ -138,8 +138,8 @@ module TransactionInformation = struct
     ; input: Yojsoning.Bytes.t
     ; v: Quantity.t option [@default None]
     ; standard_v: Quantity.t option [@default None]
-    ; r: Data256.t option [@default None]
-    ; s: Data256.t option [@default None]
+    ; r: UInt256.t option [@default None]
+    ; s: UInt256.t option [@default None]
     ; raw: Data.t option [@default None]
     ; public_key: PublicKey.t option [@key "publicKey"] [@default None]
     ; network_id: Quantity.t option [@key "networkID"] [@default None]
