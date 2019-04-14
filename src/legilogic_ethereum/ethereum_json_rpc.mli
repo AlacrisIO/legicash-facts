@@ -286,8 +286,8 @@ module SignedTx : sig
     ; value : TokenAmount.t
     ; input : Data.t
     ; v : UInt256.t option (* before signing it's the chain ID, after it's from the signature *)
-    ; r : Data256.t option (* before signing it's 0; after it's from the signature *)
-    ; s : Data256.t option (* before signing it's 0; after it's from the signature *)
+    ; r : UInt256.t option (* before signing it's 0; after it's from the signature *)
+    ; s : UInt256.t option (* before signing it's 0; after it's from the signature *)
     ; hash : Digest.t }
   [@@deriving show]
   include PersistableS with type t := t

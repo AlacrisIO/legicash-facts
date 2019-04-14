@@ -246,10 +246,11 @@ exception Missing_password
 
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
+  Logging.log "ETHUSR: Beginning of sign_transaction";
   let address = transaction.tx_header.sender in
   (try return (keypair_of_address address).password with
    | Not_found ->
-      Logging.log "Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
+      Logging.log "ETHUSR: Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
       fail Missing_password)
   >>= fun password ->
   Logging.log "ETHUSR: Before personal_sign_transaction";
@@ -532,6 +533,7 @@ let check_transaction_confirmed :
      return (t, s, r)
   | FinalTransactionStatus.Failed (t, e) ->
      Logging.log "ETHUSR: check_transaction_confirmed, Case Failed";
+     Logging.log "ETHUSR: e=%s" (Printexc.to_string e);
      fail (TransactionFailed (t, e))
 
 let confirm_pre_transaction (address: Address.t)

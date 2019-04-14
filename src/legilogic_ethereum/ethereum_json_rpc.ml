@@ -361,8 +361,8 @@ module SignedTx = struct
     ; value : TokenAmount.t
     ; input : Data.t
     ; v : UInt256.t option [@default None]
-    ; r : Data256.t option [@default None]
-    ; s : Data256.t option [@default None]
+    ; r : UInt256.t option [@default None]
+    ; s : UInt256.t option [@default None]
     ; hash : Digest.t }
   [@@deriving yojson {strict = false}, show]
   include (YojsonPersistable (struct
@@ -392,8 +392,8 @@ let transaction_data_of_signed_transaction = function
          ; value
          ; data = input
          ; v = v_of_chain_id v
-         ; r = Option.defaulting (konstant Data256.zero) r
-         ; s = Option.defaulting (konstant Data256.zero) s } (* TODO: is this the correct? Probably not *)
+         ; r = Option.defaulting (konstant UInt256.zero) r
+         ; s = Option.defaulting (konstant UInt256.zero) s } (* TODO: is this the correct? Probably not *)
 
 
 let eth_estimate_gas =

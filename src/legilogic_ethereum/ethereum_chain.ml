@@ -139,8 +139,8 @@ module SignedTransactionData = struct
     ; value : TokenAmount.t
     ; data : Data.t
     ; v : UInt256.t
-    ; r : Data256.t
-    ; s : Data256.t }
+    ; r : UInt256.t
+    ; s : UInt256.t }
   [@@deriving lens { prefix=true }, yojson, rlp]
   include (YojsonPersistable (struct
              type nonrec t = t
