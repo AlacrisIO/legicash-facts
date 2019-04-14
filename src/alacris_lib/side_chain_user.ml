@@ -74,9 +74,9 @@ end
 let get_contract_address_from_client_exn_req () =
   let open Lwt_exn in
   UserQueryRequest.Get_contract_address
-  |> post_user_query_request
-  >>= fun (x: yojson) ->
-  return (ContractAddrType.of_yojson_exn x).contract_address
+    |> post_user_query_request
+  >>= fun x ->
+    return (ContractAddrType.of_yojson_exn x).contract_address
 
 let contract_address_from_client_ref : (Address.t option ref) = ref None
 
