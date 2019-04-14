@@ -226,7 +226,7 @@ module NonceTracker = struct
           | (Next, None) ->
             reset () >>= next
           | (Next, Some nonce) ->
-             Logging.log "NonceTracker nonce=%s" (Revision.to_string nonce);
+             Logging.log "ETHUSR: NonceTracker nonce=%s" (Revision.to_string nonce);
              next nonce
   end
   include PersistentActivity(Base)
@@ -239,7 +239,7 @@ let make_tx_header (sender, value, gas_limit) : TxHeader.t Lwt_exn.t =
   (* TODO: get gas price and nonce from geth *)
   eth_gas_price () >>= fun gas_price ->
   of_lwt NonceTracker.next sender >>= fun nonce ->
-  Logging.log "make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
+  Logging.log "ETHUSR: make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
   return TxHeader.{sender; nonce; gas_price; gas_limit; value}
 
 exception Missing_password
@@ -252,20 +252,24 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_
       Logging.log "Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
       fail Missing_password)
   >>= fun password ->
+  Logging.log "ETHUSR: Before personal_sign_transaction";
   personal_sign_transaction (TransactionParameters.of_transaction transaction, password)
-  >>= fun signed -> return (transaction, signed)
+  >>= fun signed ->
+  Logging.log "ETHUSR: Before final return in sign_transaction";
+  return (transaction, signed)
 
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
     from given address, with given operation, value and gas_limit *)
 let make_signed_transaction (sender : Address.t) (operation : Operation.t) (value : TokenAmount.t) (gas_limit : TokenAmount.t) : (Transaction.t * SignedTransaction.t) Lwt_exn.t =
   make_tx_header (sender, value, gas_limit)
   >>= fun tx_header ->
+  Logging.log "Before the sign_transaction";
   sign_transaction Transaction.{tx_header; operation}
 
 (* TODO: move as many functions as possible ethereum_transaction ? *)
 
 let nonce_too_low address =
-  Logging.log "nonce too low for %s" (nicknamed_string_of_address address);
+  Logging.log "ETHUSR: nonce too low for %s" (nicknamed_string_of_address address);
   (* TODO: Send Notification to end-user via UI! *)
   Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
 
@@ -274,15 +278,21 @@ let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt
   let open Lwter in
   Ethereum_json_rpc.eth_get_transaction_receipt hash
   >>= function
-  | Ok None -> nonce_too_low sender
-  | Ok (Some receipt) -> check_transaction_receipt_status receipt
-  | Error e -> Lwt_exn.fail e
+  | Ok None ->
+     Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok None";
+     nonce_too_low sender
+  | Ok (Some receipt) ->
+     Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok (Some receipt)";
+     check_transaction_receipt_status receipt
+  | Error e ->
+     Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Error e";
+     Lwt_exn.fail e
 
 exception Replacement_transaction_underpriced
 
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
-    (*Logging.log "send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);*)
+    Logging.log "ETHUSR: send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);
     match signed with
     | SignedTransaction.{raw;tx={hash}} ->
       Lwter.bind (eth_send_raw_transaction raw)
@@ -376,18 +386,27 @@ module TransactionTracker = struct
                               (trying send_and_confirm_transaction
                                >>> (function
                                  | Ok receipt ->
+                                   Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
                                    return (Ok receipt)
                                  | Error NonceTooLow ->
+                                   Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
                                    return (Error NonceTooLow)
                                  | Error TransactionRejected ->
+                                   Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
                                    Lwt_exn.return (Error TransactionRejected)
-                                 | Error e -> fail e))))
+                                 | Error e ->
+                                   Logging.log "ETHUSR: TransactionTracker, Error e";
+                                   fail e))))
              >>= (function
                | Ok receipt ->
+                 Logging.log "ETHUSR: TransactionTracker, Ok receipt B";
                  FinalTransactionStatus.Confirmed (transaction, signed, receipt) |> finalize
                | Error NonceTooLow ->
+                 Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow B";
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
-               | Error error -> invalidate ongoing error))
+               | Error error ->
+                 Logging.log "ETHUSR: TransactionTracker, Error error";
+                 invalidate ongoing error))
         | Final x -> return x in
       key, (ready >>= fun () -> loop state), notify_ready
   end
@@ -494,16 +513,26 @@ let add_ongoing_transaction user status =
   user_action user User.add_transaction status
 
 let issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr =
-  fun sender pre -> OngoingTransactionStatus.Wanted pre |> add_ongoing_transaction sender
+  fun sender pre ->
+  Logging.log "ETHUSR: beginning of issue_pre_transaction";
+  OngoingTransactionStatus.Wanted pre |> add_ongoing_transaction sender
 
 let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr =
-  fun (_, promise, _) -> promise
+  fun (_, promise, _) ->
+  Logging.log "ETHUSR: track_transaction, returning promise";
+  promise
 
 let check_transaction_confirmed :
-      (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr
-  = function
-    | FinalTransactionStatus.Confirmed (t, s, r) -> return (t, s, r)
-    | FinalTransactionStatus.Failed (t, e) -> fail (TransactionFailed (t, e))
+      (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
+  fun x ->
+  Logging.log "ETHUSR: Beginning of check_transaction_confirmed";
+  match x with
+  | FinalTransactionStatus.Confirmed (t, s, r) ->
+     Logging.log "ETHUSR: check_transaction_confirmed, Case Confirmed";
+     return (t, s, r)
+  | FinalTransactionStatus.Failed (t, e) ->
+     Logging.log "ETHUSR: check_transaction_confirmed, Case Failed";
+     fail (TransactionFailed (t, e))
 
 let confirm_pre_transaction (address: Address.t)
     : (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
@@ -520,15 +549,15 @@ let transfer_tokens ~recipient value =
   PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=transfer_gas_used}
 
 let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : TokenAmount.t) : PreTransaction.t Lwt_exn.t =
-  Logging.log "Beginning of make_pre_transaction";
+  Logging.log "ETHUSR: Beginning of make_pre_transaction";
   (match gas_limit with
    | Some x -> return x
    | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation))
   >>= fun gas_limit ->
-  Logging.log "make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
+  Logging.log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
   (* TODO: The multiplication by 2 is a hack that needs to be addressed *)
   let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
-  Logging.log "gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
+  Logging.log "ETHUSR: gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
   return PreTransaction.{operation; value; gas_limit=gas_limit_n_fold}
 
 let create_contract ~sender ~code ?gas_limit value =
