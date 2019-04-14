@@ -185,7 +185,7 @@ end
 exception TransactionFailed of OngoingTransactionStatus.t * exn
 exception NonceTooLow
 
-type nonce_operation = Peek | Next | Reset [@@deriving yojson]
+type nonce_operation = Next | Reset [@@deriving yojson]
 
 module NonceTracker = struct
   open Lwter
@@ -223,19 +223,15 @@ module NonceTracker = struct
          in match (op, state) with
           | (Reset, _) ->
             continue Nonce.zero None
-          | (Peek, None) ->
-            reset () >>= fun nonce -> continue nonce (Some nonce)
-          | (Peek, Some nonce) ->
-            return (nonce, Some nonce)
           | (Next, None) ->
             reset () >>= next
           | (Next, Some nonce) ->
-            next nonce
+             Logging.log "NonceTracker nonce=%s" (Revision.to_string nonce);
+             next nonce
   end
   include PersistentActivity(Base)
   module State = Base.State
   let reset address = get () address Reset >>= const ()
-  let peek address = get () address Peek
   let next address = get () address Next
 end
 
@@ -576,17 +572,22 @@ module Test = struct
     let open TokenAmount in
     eth_get_balance (address, BlockParameter.Pending)
     >>= fun balance ->
+    Logging.log	"address=%s" (nicknamed_string_of_address address);
+    Logging.log "Now working something balance=%s" (TokenAmount.to_string balance);
     if compare balance amount >= 0 then
       display_balance (printf "Account %s contains %s wei.\n") address balance
     else
       begin
         display_balance (printf "Account %s only contains %s wei. Funding.\n") address balance
         >>= fun () ->
-          transfer_tokens ~recipient:address (sub amount balance)
-          |> confirm_pre_transaction prefunded_address
-        >>= fun _ -> eth_get_balance (address, BlockParameter.Pending)
-        >>= fun balance -> display_balance (printf "Account %s now contains %s wei.\n") address balance
-    end
+        Logging.log "Before transfer_tokens";
+        transfer_tokens ~recipient:address (sub amount balance)
+        |> confirm_pre_transaction prefunded_address
+        >>= fun _ ->
+        Logging.log "Before call to eth_get_balance";
+        eth_get_balance (address, BlockParameter.Pending)
+        >>= fun balance -> display_balance (printf "Account %s nowAS contains %s wei.\n") address balance
+      end
 
   (* create accounts, fund them *)
   let ensure_test_account

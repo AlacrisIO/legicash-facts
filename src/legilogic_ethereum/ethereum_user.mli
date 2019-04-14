@@ -37,7 +37,7 @@ module TransactionStatus : sig
   val operation : t -> Operation.t
 end
 
-type nonce_operation = Peek | Next | Reset [@@deriving yojson]
+type nonce_operation = Next | Reset [@@deriving yojson]
 
 module NonceTracker : sig
   module State : PersistableS with type t = Nonce.t option
@@ -46,7 +46,6 @@ module NonceTracker : sig
      and type context = unit
      and type state = State.t
      and type t = (nonce_operation, Revision.t) Lwter.arr
-  val peek : (address, Revision.t) Lwter.arr
   val next : (address, Revision.t) Lwter.arr
   val reset : (address, unit) Lwter.arr
 end
@@ -116,7 +115,7 @@ module Test : sig
   val get_prefunded_address : unit -> Address.t Lwt_exn.t
   (** get the prefunded address on the test network *)
 
-  val display_balance : (string -> string -> 'a) -> Address.t -> TokenAmount.t -> 'a
+  (*  val display_balance : (string -> string -> 'a) -> Address.t -> TokenAmount.t -> 'a *)
   (** display an account having the given balance given a way to print address, optional name and balance *)
 
   val ensure_address_prefunded : Address.t -> TokenAmount.t -> Address.t -> unit Lwt_exn.t
