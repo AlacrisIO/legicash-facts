@@ -18,6 +18,7 @@ type address = Address.t
 
 (* Create context just once, because it's an expensive operation.
    This assumes single instantiation of this module in a single-threaded environment.
+   NB: If and when OCaml becomes effectively multithreaded, we need to handle the context better.
 *)
 let (secp256k1_ctx : Secp256k1.Context.t) = Secp256k1.Context.create [Sign; Verify]
 
@@ -25,7 +26,7 @@ let private_key_length = 32
 
 (* Ethereum can deduce the correct 65th byte from just 64 ones.
    TODO: Be like Ethereum.
-   Experimentally: looks like it is always 0x04:
+   Experimentally: looks like the first byte is always 0x04:
    cat src/endpoints/demo-keys-*json | grep public_key | cut -c1-21 | sort -u
 *)
 let public_key_length = 65
@@ -34,6 +35,36 @@ let bytes_of_key (key : 'a Secp256k1.Key.t) : bytes =
   key |> Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx |> Cstruct.of_bigarray |> Cstruct.to_bytes
 
 let string_of_key key = Bytes.to_string (bytes_of_key key)
+
+module PrivateKey = struct
+  module P = struct
+    type t = Secp256k1.Key.secret Secp256k1.Key.t
+    let marshal buffer (private_key: t) =
+      Buffer.add_bytes buffer (bytes_of_key private_key)
+    let unmarshal start bytes =
+      let private_buffer = Cstruct.create private_key_length in
+      Cstruct.blit_from_bytes bytes start private_buffer 0 private_key_length;
+      match Secp256k1.Key.read_sk secp256k1_ctx (Cstruct.to_bigarray private_buffer) with
+      | Ok key -> key, start + private_key_length
+      | Error s -> bork "Could not unmarshal private key: %s" s
+    let marshaling = {marshal;unmarshal}
+    let of_string string =
+      let (v,_) = unmarshal 0 (Bytes.of_string string) in
+      v
+    let rlping = rlping_by_isomorphism of_string string_of_key string_rlping
+  end
+  include YojsonableOfPreMarshalable(P)
+  let rlping = P.rlping
+  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
+        to_rlp; of_rlp; of_rlp_opt;
+        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
+      =
+      rlping
+end
+
+[@warning "-32"]
+type private_key = PrivateKey.t
+[@@deriving rlp]
 
 module PublicKey = struct
   module P = struct
@@ -56,6 +87,7 @@ module PublicKey = struct
   include YojsonableOfPreMarshalable(P)
   let pp formatter x = Format.fprintf formatter "%s" (x |> marshal_string |> unparse_0x_data)
   let show x = Format.asprintf "%a" pp x
+  let of_private_key = Secp256k1.Key.neuterize_exn secp256k1_ctx
   let rlping = P.rlping
   let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
         to_rlp; of_rlp; of_rlp_opt;
@@ -63,6 +95,8 @@ module PublicKey = struct
       =
       rlping
 end
+
+[@warning "-32"]
 type public_key = PublicKey.t
 [@@deriving rlp]
 
@@ -75,35 +109,6 @@ let address_of_public_key public_key =
   let hash = keccak256_string pubkey_string in
   let hash_len = String.length hash in
   Address.of_bits (String.init Address.size_in_bytes (fun ndx -> hash.[hash_len - ndx - 1]))
-
-module PrivateKey = struct
-  module P = struct
-    type t = Secp256k1.Key.secret Secp256k1.Key.t
-    let marshal buffer (private_key: t) =
-      Buffer.add_bytes buffer (bytes_of_key private_key)
-    let unmarshal start bytes =
-      let private_buffer = Cstruct.create private_key_length in
-      Cstruct.blit_from_bytes bytes start private_buffer 0 private_key_length;
-      match Secp256k1.Key.read_sk secp256k1_ctx (Cstruct.to_bigarray private_buffer) with
-      | Ok key -> key, start + private_key_length
-      | Error s -> bork "Could not unmarshal private key: %s" s
-    let marshaling = {marshal;unmarshal}
-
-    let of_string string =
-      let (v,_) = unmarshal 0 (Bytes.of_string string) in
-      v
-    let rlping = rlping_by_isomorphism of_string string_of_key string_rlping
-  end
-  include YojsonableOfPreMarshalable(P)
-  let rlping = P.rlping
-  let { to_rlp_item; of_rlp_item; of_rlp_item_opt;
-        to_rlp; of_rlp; of_rlp_opt;
-        marshal_rlp; unmarshal_rlp; unmarshal_rlp_opt }
-      =
-      rlping
-end
-type private_key = PrivateKey.t
-[@@deriving rlp]
 
 let string_of_signature signature =
   (* see https://bitcoin.stackexchange.com/questions/38351/ecdsa-v-r-s-what-is-v
@@ -311,16 +316,6 @@ let is_signed_value_valid make_digest address signed_value =
 
 let signed (make_digest : 'a->digest) (private_key : private_key) (data : 'a) : 'a signed =
   {payload= data; signature= make_signature make_digest private_key data}
-
-(*
-let marshal_signed marshal buffer {payload; signature} =
-  marshal buffer payload; Signature.marshal buffer signature
-
-let unmarshal_signed (unmarshal:'a unmarshaler) start bytes : 'a signed * int =
-  let payload,payload_offset = unmarshal start bytes in
-  let signature,final_offset = Signature.unmarshal payload_offset bytes in
-  ({payload; signature}, final_offset)
-*)
 
 let signed_to_yojson to_yojson { payload ; signature } =
   `Assoc [ ("payload", to_yojson payload)

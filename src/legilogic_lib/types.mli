@@ -8,6 +8,11 @@ module type UIntS = sig
   include PersistableS with type t := t
 end
 
+module UInt8 : sig
+  include module type of Integer.UInt8
+  include PersistableS with type t := t
+end
+
 module UInt16 : sig
   include module type of Integer.UInt16
   include PersistableS with type t := t
@@ -146,8 +151,7 @@ end
 (** Asynchronously digestible, content-addressed persistable values, with
     auto-generated methods. *)
 module DigestValue (Value : PersistableRlpS) : sig
-  type value = Value.t
-  [@@deriving rlp]
+  [@warning "-32"] type value = Value.t [@@deriving rlp]
   type digest = Digest.t
   type t = value dv
   [@@deriving rlp]

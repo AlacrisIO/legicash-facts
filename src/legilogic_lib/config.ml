@@ -1,5 +1,3 @@
-(* config.ml -- location of configuration files *)
-
 let application_name = ref "application"
 
 let set_application_name s = application_name := s
@@ -23,3 +21,9 @@ let get_config_dir () =
 let get_config_filename file =
   let config_dir = get_config_dir () in
   config_dir ^ "/" ^ file
+
+let get_build_dir () =
+  get_application_home_dir () ^ "/_build"
+
+let get_build_filename file =
+  get_build_dir () ^ "/" ^ file

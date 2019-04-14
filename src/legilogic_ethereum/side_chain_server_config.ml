@@ -37,6 +37,10 @@ module Side_chain_server_config = struct
     ; max_connection_geth                   : int
     ; deposit_gas_limit                     : int
     ; time_state_update_in_seconds          : float
+    (* TODO:
+    ; network_id : int (* will be v parameter for TransactionData pre-signature *)
+    ; chain_id : char (* will be v parameter for TransactionData pre-signature; or should we get it from eth_chainId ? *)
+       *)
     } [@@deriving of_yojson]
 
   type leveldb_config_t =

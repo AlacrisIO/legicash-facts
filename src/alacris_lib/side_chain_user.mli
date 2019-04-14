@@ -67,7 +67,7 @@ module OngoingTransactionStatus : sig
     | DepositConfirmed
       of DepositWanted.t
        * TokenAmount.t
-       * Ethereum_chain.Transaction.t
+       * Ethereum_chain.SignedTransactionData.t
        * Ethereum_chain.Confirmation.t
 
     | Requested            of UserTransactionRequest.t signed
@@ -242,7 +242,7 @@ val payment : (PaymentWanted.t, TransactionTracker.t) UserAsyncAction.arr
 
 (*
    val push_side_chain_withdrawal_to_main_chain :
-   Address.t -> (Transaction.t, Ethereum_chain.Transaction.t * Ethereum_chain.Confirmation.t) UserAsyncAction.arr
+   Address.t -> (Transaction.t, Ethereum_chain.Transaction.t * Ethereum_json_rpc.TransactionReceipt.t) UserAsyncAction.arr
    (** An withdrawal made on the side chain need a corresponding action on the main chain.
    Specifically, while deposit and payment side-chain transactions require no follow up
    (deposit does have pre-requisites, though), a withdrawal transaction requires

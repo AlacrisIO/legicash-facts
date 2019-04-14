@@ -119,22 +119,15 @@ let operator_account_lens (address : Address.t) : account_lens =
 let signed_request_requester (rx : UserTransactionRequest.t signed) : Address.t =
   rx.payload.UserTransactionRequest.rx_header.requester
 
-let _check_transaction_confirmation (_transaction : Transaction.t) (confirmation : Ethereum_chain.Confirmation.t) (exngen : unit -> 'a) : bool Lwt_exn.t =
-  let (test : bool Lwt_exn.t) = Ethereum_user.check_confirmation_deep_enough_bool confirmation in
-  Lwt_exn.bind test (fun test ->
-      if test then
-        Lwt_exn.return true
-      else
-        Lwt_exn.fail (Malformed_request (exngen())))
-
 (** Check that the request is basically well-formed, or else fail
     This function should include all checks that can be made without any non-local side-effect
     beside reading pure or monotonic data, which is allowed for now
     (but may later have to be split to another function).
     Thus, we can later parallelize this check.
+    NB: the "is_forced" flagged denotes whether the transaction is being forced upon the operator
+    by having been published on the main chain (or, in the future, in sister chains).
     TODO: parallelize the signature checking in a C worker thread that lets us do additional OCaml work.
-    What means the "is_forced"
- **)
+ *)
 let validate_user_transaction_request :
   (UserTransactionRequest.t signed * bool, TransactionRequest.t) Lwt_exn.arr =
   fun ((signed_request, is_forced) : (UserTransactionRequest.t signed * bool)) ->
@@ -166,7 +159,7 @@ let validate_user_transaction_request :
       | UserOperation.Deposit
           { deposit_amount
           ; deposit_fee
-          ; main_chain_deposit={tx_header= {value}} as main_chain_deposit
+          ; main_chain_deposit=Ethereum_chain.SignedTransactionData.{value} as main_chain_deposit
           ; main_chain_deposit_confirmation } ->
         check (is_sum value deposit_amount deposit_fee)
           (fun () ->
@@ -175,15 +168,9 @@ let validate_user_transaction_request :
         >>> check (is_forced || compare deposit_fee fee_schedule.deposit_fee >= 0)
               (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
-        (* TODO: CHECK FROM THE CONFIRMATION THAT THE CORRECT PERSON DID THE DEPOSIT,
-           AND/OR THAT IT   WAS TAGGED WITH THE CORRECT RECIPIENT. *)
-              (*
-        >>> check_transaction_confirmation main_chain_deposit main_chain_deposit_confirmation
-              (fun () -> "The main chain deposit confirmation is invalid")
-               *)
-        >>> check (Ethereum_chain.is_confirmation_valid
-                     main_chain_deposit_confirmation main_chain_deposit)
-              (fun () -> "The main chain deposit confirmation is invalid")
+        >>> Ethereum_transaction.check_transaction_confirmation
+              ~sender:requester ~recipient:(get_contract_address ())
+              main_chain_deposit main_chain_deposit_confirmation
       | UserOperation.Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
         check (payment_invoice.recipient != requester)
           (fun () -> "Recipient same as requester")
@@ -362,9 +349,9 @@ exception Insufficient_balance of string
    Have more expensive process to account for old deposits?)
 *)
 let check_against_double_accounting
-      (main_chain_transaction : Ethereum_chain.Transaction.t)
+      (main_chain_transaction : Ethereum_chain.SignedTransactionData.t)
   : ('a, 'a) OperatorAction.arr =
-  let witness = Ethereum_chain.Transaction.digest main_chain_transaction in
+  let witness = Ethereum_chain.SignedTransactionData.digest main_chain_transaction in
   let lens =
     OperatorState.lens_current
     |-- State.lens_main_chain_transactions_posted
@@ -781,7 +768,6 @@ let start_operator address =
    ---push transaction to the ethereum.
    Advanced TODO: update as the auction plays out.
  *)
-
 module Test = struct
   open Signing.Test
 

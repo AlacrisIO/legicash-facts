@@ -47,15 +47,10 @@ let post_state_update digest =
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   Logging.log "post_state_update : before make_pre_transaction";
   print_contract_account_value "from post_state_update"
-  >>= fun () -> Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val value
+  >>= fun () ->
+    Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val value
   >>= fun x ->
-  Logging.log "post_state_update : before confirm_pre_transaction";
-  Ethereum_user.confirm_pre_transaction oper_addr x
-  >>= fun (_tx, confirmation) ->
-  Logging.log "post_state_update : before eth_get_transaction_receipt";
-  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
-  >>= fun x ->
-  Logging.log "post_state_update : after eth_get_transaction_receipt";
-  match x with
-  | None -> bork "No tx receipt for contract creation"
-  | Some _receipt -> return digest
+    Logging.log "post_state_update : before confirm_pre_transaction";
+    Ethereum_user.confirm_pre_transaction oper_addr x
+  >>= fun (_, _, {transaction_hash}) ->
+    return transaction_hash

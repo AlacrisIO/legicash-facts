@@ -14,7 +14,7 @@ open Side_chain_server_config
 module TokenAmount = Ethereum_chain.TokenAmount
 
 module Invoice = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: string}
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
@@ -31,12 +31,12 @@ module UserOperation = struct
   [@warning "-39"]
 
   type deposit_details =
-    { deposit_amount:                  TokenAmount.t
-    ; deposit_fee:                     TokenAmount.t
-    ; main_chain_deposit:              Ethereum_chain.Transaction.t
+    { deposit_amount: TokenAmount.t
+    ; deposit_fee: TokenAmount.t
+    ; main_chain_deposit: Ethereum_chain.SignedTransactionData.t
     ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
-    ; request_guid:                    RequestGuid.t
-    ; requested_at:                    Timestamp.t
+    ; request_guid: RequestGuid.t
+    ; requested_at: Timestamp.t
     } [@@deriving lens, yojson, rlp]
 
   type payment_details =
@@ -47,6 +47,7 @@ module UserOperation = struct
     ; requested_at:      Timestamp.t
     } [@@deriving lens, yojson, rlp]
 
+  [@@warning "-32"]
   type withdrawal_details =
     { withdrawal_amount: TokenAmount.t
     ; withdrawal_fee:    TokenAmount.t
@@ -54,6 +55,7 @@ module UserOperation = struct
     ; requested_at:      Timestamp.t
     } [@@deriving lens, yojson, rlp]
 
+  [@@@warning "-32"]
   type t =
     | Deposit    of deposit_details
     | Payment    of payment_details
@@ -64,6 +66,11 @@ module UserOperation = struct
     | Deposit    o -> (o.request_guid, o.requested_at)
     | Payment    o -> (o.request_guid, o.requested_at)
     | Withdrawal o -> (o.request_guid, o.requested_at)
+
+  let [@warning "-32"] operation_tag = function
+    | Deposit    _ -> Side_chain_tag.deposit
+    | Payment    _ -> Side_chain_tag.payment
+    | Withdrawal _ -> Side_chain_tag.withdrawal
 
   module PrePersistable = struct
     type nonrec t = t
@@ -76,7 +83,7 @@ module UserOperation = struct
 end
 
 module RxHeader = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     { operator: Address.t
     ; requester: Address.t
@@ -98,7 +105,7 @@ module RxHeader = struct
 end
 
 module UserTransactionRequest = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t = {rx_header: RxHeader.t; operation: UserOperation.t}
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
@@ -114,7 +121,7 @@ end
 module SignedUserTransactionRequest = Signed(UserTransactionRequest)
 
 module TxHeader = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t}
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
@@ -128,7 +135,7 @@ module TxHeader = struct
 end
 
 module AdminTransactionRequest = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     | StateUpdate of Revision.t * Digest.t
   [@@deriving yojson, rlp]
@@ -141,7 +148,7 @@ module AdminTransactionRequest = struct
 end
 
 module UserQueryRequest = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     | Get_account_balance     of {address: Address.t}
     | Get_account_balances
@@ -159,7 +166,7 @@ module UserQueryRequest = struct
 end
 
 module AdminQueryRequest = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     | Get_all_balances
     | Get_transaction_rate
@@ -172,7 +179,7 @@ module AdminQueryRequest = struct
 end
 
 module TransactionRequest = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     [ `UserTransaction of UserTransactionRequest.t signed
     | `AdminTransaction of AdminTransactionRequest.t ]
@@ -190,7 +197,7 @@ module TransactionRequest = struct
 end
 
 module Query = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `AdminQuery of AdminQueryRequest.t ]
@@ -203,7 +210,7 @@ module Query = struct
 end
 
 module UserRequest = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed ]
@@ -216,7 +223,7 @@ module UserRequest = struct
 end
 
 module AdminRequest = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     [ `AdminQuery of UserQueryRequest.t
     | `AdminTransaction of AdminTransactionRequest.t ]
@@ -229,7 +236,7 @@ module AdminRequest = struct
 end
 
 module ExternalRequest = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed
@@ -243,7 +250,7 @@ module ExternalRequest = struct
 end
 
 module Transaction = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t = {tx_header: TxHeader.t; tx_request: TransactionRequest.t}
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
@@ -257,7 +264,7 @@ module Transaction = struct
 end
 
 module AccountState = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t = {balance: TokenAmount.t; account_revision: Revision.t}
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
@@ -283,7 +290,7 @@ module AccountMap = struct
 end
 
 module State = struct
-  [@warning "-39"]
+  [@warning "-39-32"]
   type t = { operator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            ; accounts: AccountMap.t

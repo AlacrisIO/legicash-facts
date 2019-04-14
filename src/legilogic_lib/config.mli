@@ -1,17 +1,23 @@
 (* config.mli -- configuration file location *)
 
 val set_application_name : string -> unit
-(** sets application name, used to create environment variable indicating home directory;
-    default is "application" *)
+(** Set the application name, used to create environment variable indicating home directory.
+    The default is "application" *)
 
 val get_home_environment_variable : unit -> string
-(** get environment variable that indicates home directory for the application *)
+(** Get the name of the environment variable that indicates the home directory for the application.
+    The environment variable is the ASCII uppercase of the application name followed by _HOME *)
 
 val get_application_home_dir : unit -> string
-(** get application home directory for the current application *)
+(** Get the application home directory for the current application. *)
 
 val get_config_filename : string -> string
-(** get full path of config file, relies on home directory environment variable;
-    at make time provided by the Makefile; at run-time, it should be provided by
-    the shell
-*)
+(** Get the full path of a configuration file.
+    This function relies on the home environment variable, then appends "/config/"
+    followed by the provided name. At build time, the variable should be set by the Makefile.
+    At run-time, it should be provided by the shell configuration. *)
+
+val get_build_filename : string -> string
+(** Get full path of build file, relies on home directory environment variable.
+    This function and its result must be used at build time only:
+    the build directory might not exist at run-time. *)

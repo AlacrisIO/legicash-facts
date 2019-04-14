@@ -129,18 +129,23 @@ module Transaction = struct
     PreTransaction.{operation;value;gas_limit}
 end
 
-(** TODO: have an actual confirmation that a contract could check.
-    For Ethereum, we might check the transaction hashes match, or
-    perform a Merkle proof using the transactionsRoot in the given block
-    NOTE: We should not compute the transaction hash ourself.
-    --- 1 : When we post, a hash is computed and returned.
-        (It is in TransactionReceipt.transaction_hash) returned by eth_get_transaction_receipt.
-    --- 2 : When we query the client it returns a confirmation object telling whether the
-            transaction completed successfully.
-    ---Therefore, this code below will never work.
-*)
-let is_confirmation_valid (_confirmation: Confirmation.t) (_transaction: Transaction.t) : bool = true
-
-
+module SignedTransactionData = struct
+  [@warning "-39-32"]
+  type t =
+    { nonce : Revision.t
+    ; gas_price : TokenAmount.t
+    ; gas_limit : TokenAmount.t
+    ; to_address : Address.t
+    ; value : TokenAmount.t
+    ; data : Data.t
+    ; v : UInt256.t
+    ; r : UInt256.t
+    ; s : UInt256.t }
+  [@@deriving lens { prefix=true }, yojson, rlp]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : PersistableS with type t := t)
+end
 
 module TransactionDigestSet = DigestSet

@@ -1,7 +1,5 @@
-(* TODO: rename this module to ethereum_chain or some such ? *)
 open Legilogic_lib
 open Yojsoning
-open Digesting
 open Signing
 open Persisting
 open Types
@@ -42,14 +40,17 @@ module TxHeader : sig
 end
 
 module Operation : sig
-  type t =
-    | TransferTokens of Address.t
-    (* recipient *)
-    | CreateContract of Bytes.t
-    (* code *)
-    | CallFunction of Address.t * Bytes.t
+ type t =
+   (* TransferTokens where this Address is the recipient *)
+   | TransferTokens of Address.t
+   (* CreateContract where the Bytes is the code for the contract *)
+   | CreateContract of Bytes.t
+   (* CallFunction where the Address is the address of the function/contract being called and
+      where Bytes are the bytes to be sent in the blockchain transaction representing the hash
+      of the signature of the combination of the function name and paramters *)
+   | CallFunction of Address.t * Bytes.t
   [@@deriving rlp]
-  include PersistableS with type t := t
+ include PersistableS with type t := t
 end
 
 module PreTransaction : sig
@@ -65,19 +66,29 @@ module Transaction : sig
   val pre_transaction: t -> PreTransaction.t
 end
 
-(** Confirmation of a transaction on the main chain
-    an old enough block on the main chain
-    TODO: maybe also include a path and/or merkle tree from there?
-*)
-module Confirmation : sig
-  type t = { transaction_hash: digest
-           ; transaction_index: Revision.t
-           ; block_number: Revision.t
-           ; block_hash: digest }
-  [@@deriving rlp]
+module SignedTransactionData : sig
+  [@warning "-39-32"]
+  type t =
+    { nonce : Revision.t
+    ; gas_price : TokenAmount.t
+    ; gas_limit : TokenAmount.t
+    ; to_address : Address.t
+    ; value : TokenAmount.t
+    ; data : Data.t
+    ; v : UInt256.t (* before signing it's the chain ID, after it's from the signature *)
+    ; r : UInt256.t (* before signing it's 0; after it's from the signature *)
+    ; s : UInt256.t } (* before signing it's 0; after it's from the signature *)
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 end
 
-val is_confirmation_valid : Confirmation.t -> Transaction.t -> bool
+module Confirmation : sig
+  type t = { transaction_hash: Digest.t
+           ; transaction_index: Revision.t
+           ; block_number: Revision.t
+           ; block_hash: Digest.t }
+  [@@deriving rlp]
+  include PersistableS with type t := t
+end
 
 val genesis_state : State.t
