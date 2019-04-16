@@ -10,23 +10,32 @@ open Action
 (** Address identifying a party (user, operator).
     Per Ethereum, use the low 160-bits of the Keccak256 digest of the party's public key *)
 module Address : sig
-  include UIntS
+  [@warning "-32"] type t [@@deriving rlp]
+  include UIntS with type t := t
   include PersistableS with type t := t
 end
 type address = Address.t
+[@@deriving rlp]
+
+(** Private key in Secp256k1 public-key cryptography *)
+module PrivateKey : sig
+  include YojsonMarshalableS (* with type t = Secp256k1.Key.secret Secp256k1.Key.t *)
+end
+
+[@warning "-32"]
+type private_key = PrivateKey.t
 [@@deriving rlp]
 
 (** Public key in Secp256k1 public-key cryptography *)
 module PublicKey : sig
   include YojsonMarshalableRlpS (* with type t = Secp256k1.Key.public Secp256k1.Key.t *)
   include ShowableS with type t := t
+  val of_private_key : private_key -> t
 end
-type public_key = PublicKey.t (* Do we really need this "short" name as an alias? *)
-[@@deriving rlp]
 
-(** Private key in Secp256k1 public-key cryptography *)
-module PrivateKey : YojsonMarshalableRlpS (* with type t = Secp256k1.Key.secret Secp256k1.Key.t *)
-type private_key = PrivateKey.t
+(* Do we really need this "short" name as an alias? *)
+[@warning "-32"]
+type public_key = PublicKey.t
 [@@deriving rlp]
 
 (** Pair of public and private keys for Secp256k1 public key cryptography,

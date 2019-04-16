@@ -23,8 +23,9 @@ module TokenAmount = Ethereum_chain.TokenAmount
 *)
 
 module Invoice : sig
+  [@warning "-39-32"]
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: string}
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 end
 
@@ -34,7 +35,7 @@ module UserOperation : sig
   type deposit_details =
     { deposit_amount:                  TokenAmount.t
     ; deposit_fee:                     TokenAmount.t
-    ; main_chain_deposit:              Ethereum_chain.Transaction.t
+    ; main_chain_deposit:              Ethereum_chain.SignedTransactionData.t
     ; main_chain_deposit_confirmation: Ethereum_chain.Confirmation.t
     ; request_guid:                    RequestGuid.t
     ; requested_at:                    Timestamp.t
@@ -48,6 +49,7 @@ module UserOperation : sig
     ; requested_at:      Timestamp.t
     } [@@deriving lens, yojson, rlp]
 
+  [@@warning "-32"]
   type withdrawal_details =
     { withdrawal_amount: TokenAmount.t
     ; withdrawal_fee:    TokenAmount.t
@@ -55,11 +57,12 @@ module UserOperation : sig
     ; requested_at:      Timestamp.t
     } [@@deriving lens, yojson, rlp]
 
+  [@@@warning "-32"]
   type t =
     | Deposit    of deposit_details
     | Payment    of payment_details
     | Withdrawal of withdrawal_details
-  [@@deriving rlp]
+  [@@deriving yojson, rlp]
   (* TODO: do we need a two-phase send then receive (but only after settlement
    * send was settled) for non-expedited payments? *)
 
@@ -95,6 +98,7 @@ end
     validity requires the root to be the same as *the* known consensual root at
     the given date. *)
 module RxHeader : sig
+  [@warning "-39-32"]
   type t =
     { operator: Address.t
     ; requester: Address.t
@@ -104,7 +108,7 @@ module RxHeader : sig
     ; confirmed_side_chain_state_digest: digest (* State.t *)
     ; confirmed_side_chain_state_revision: Revision.t
     ; validity_within: Duration.t }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 end
 
@@ -112,8 +116,9 @@ end
     an operation, plus headers that provide a reference to the past and a timeout
 *)
 module UserTransactionRequest : sig
+  [@warning "-39-32"]
   type t = {rx_header: RxHeader.t; operation: UserOperation.t}
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 end
 
@@ -131,8 +136,9 @@ module SignedUserTransactionRequest : SignedS with type payload = UserTransactio
     whose revision is a multiple of 2**k for all k?
 *)
 module TxHeader : sig
+  [@warning "-39-32"]
   type t = {tx_revision: Revision.t; updated_limit: TokenAmount.t}
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 end
 
@@ -142,8 +148,10 @@ module AdminTransactionRequest : sig
      thus allowing the operator to refresh their spending limit.
      All details are in the RxHeader and TxHeader.
   *)
+  [@warning "-39-32"]
   type t =
     | StateUpdate of Revision.t * Digest.t
+  [@@deriving yojson, rlp]
     (*| BondDeposit
       | BondWithdrawal *)
     (* Revision of the side_chain that was confirmed in the main chain,
@@ -152,6 +160,7 @@ module AdminTransactionRequest : sig
 end
 
 module UserQueryRequest : sig
+  [@warning "-39-32"]
   type t =
     | Get_account_balance of {address: Address.t}
     | Get_account_balances
@@ -160,58 +169,65 @@ module UserQueryRequest : sig
     | Get_account_status of {address: Address.t} (* side chain and main chain *)
     | Get_recent_transactions of {address: Address.t; count: Revision.t option}
     | Get_proof of {tx_revision: Revision.t}
-  [@@deriving rlp]
+  [@@deriving yojson, rlp]
   include PersistableS with type t := t
 end
 
 module AdminQueryRequest : sig
+  [@warning "-39-32"]
   type t =
     | Get_all_balances
     | Get_transaction_rate
-  [@@deriving rlp]
+  [@@deriving yojson, rlp]
   include PersistableS with type t := t
 end
 
 (* TODO: use GADT to split those cases? *)
 module TransactionRequest : sig
+  [@warning "-39-32"]
   type t =
     [ `UserTransaction of UserTransactionRequest.t signed
     | `AdminTransaction of AdminTransactionRequest.t ]
+  [@@deriving yojson, rlp]
   include PersistableS with type t := t
   val signed_request : t -> UserTransactionRequest.t signed
   val request : t -> UserTransactionRequest.t
 end
 
 module Query : sig
+  [@warning "-39-32"]
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `AdminQuery of AdminQueryRequest.t ]
-  [@@deriving rlp]
+  [@@deriving yojson, rlp]
   include PersistableS with type t := t
 end
 
 module UserRequest : sig
+  [@warning "-39-32"]
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed]
-  [@@deriving rlp]
+  [@@deriving yojson, rlp]
   include PersistableS with type t := t
 end
 
 module AdminRequest : sig
+  [@warning "-39-32"]
   type t =
     [ `AdminQuery of UserQueryRequest.t
     | `AdminTransaction of AdminTransactionRequest.t ]
-  [@@deriving rlp]
+  [@@deriving yojson, rlp]
   include PersistableS with type t := t
 end
 
 module ExternalRequest : sig
+  [@warning "-39-32"]
   type t =
     [ `UserQuery of UserQueryRequest.t
     | `UserTransaction of UserTransactionRequest.t signed
     | `AdminQuery of AdminQueryRequest.t ]
-  [@@deriving rlp]
+  [@@deriving yojson, rlp]
   include PersistableS with type t := t
 end
 
@@ -219,10 +235,11 @@ end
     a request, plus headers that help validate against fraud.
 *)
 module Transaction : sig
+  [@warning "-39-32"]
   type t = { tx_header: TxHeader.t;
              (* TODO: replace the below with tx_operation: TxOperation.t *)
              tx_request: TransactionRequest.t }
-  [@@deriving lens { prefix=true }]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 end
 
@@ -230,13 +247,14 @@ end
    pass rx_header to apply_side_chain_request (replacing _operation) to account for user_revision *)
 (** public state of the account of a user with a operator as visible in the public side-chain *)
 module AccountState : sig
+  [@warning "-39-32"]
   type t =
     { balance: TokenAmount.t (* amount of tokens in the account *)
     ; account_revision: Revision.t
     (* number of operations so far that concern this account.
        This both makes verification easier and prevents replay attacks
        like the equivalent Ethereum "nonce" *) }
-  [@@deriving lens { prefix=true }, rlp]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 
   (** Default (empty) state for a new operator *)
@@ -278,6 +296,7 @@ required as collateral.
 *)
 module State : sig
   (* NB: If you modify it, make sure to keep this in synch with TransactionCommitment.t *)
+  [@warning "-39-32"]
   type t = { operator_revision: Revision.t
            ; spending_limit: TokenAmount.t
            (*           ; expedited_spending_limit: TokenAmount.t
@@ -286,7 +305,7 @@ module State : sig
            ; accounts: AccountMap.t
            ; transactions: TransactionMap.t
            ; main_chain_transactions_posted: DigestSet.t }
-  [@@deriving lens { prefix=true }, rlp]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
   val empty : t
 end
@@ -301,13 +320,14 @@ module SignedState : SignedS with type payload = State.t
     TODO: make fee structure updatable by posting a new fee schedule in advance.
 *)
 module OperatorFeeSchedule : sig
+  [@warning "-39-32"]
   type t =
     { deposit_fee: TokenAmount.t (* fee to accept a deposit *)
     ; withdrawal_fee: TokenAmount.t (* fee to accept a withdrawal *)
     ; per_account_limit: TokenAmount.t (* limit for pending expedited transactions per user *)
     ; fee_per_billion: TokenAmount.t
     (* function TokenAmount.t -> TokenAmount.t ? *) }
-  [@@deriving lens { prefix=true }, rlp]
+  [@@deriving lens { prefix=true}, yojson, rlp]
   include PersistableS with type t := t
 end
 
@@ -319,6 +339,7 @@ end
     and we need to do the proofs anyway --- NB: numbers unconfirmed.)
 *)
 module TransactionCommitment : sig
+  [@warning "-39-32"]
   type t =
     { transaction: Transaction.t (* The Transaction being committed to *)
     ; tx_proof: TransactionMap.Proof.t (* Merkle proof for the tx *)
@@ -331,7 +352,7 @@ module TransactionCommitment : sig
     ; state_digest: Digest.t (* Signature put in the state update *)
     ; contract_address: Address.t (* contract address needed for accessing to data *)
     }
-  [@@deriving lens { prefix=true }, rlp]
+  [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 end
 

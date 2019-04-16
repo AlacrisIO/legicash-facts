@@ -11,6 +11,20 @@ open Yojsoning
 
 open Ethereum_chain
 
+(* for CallFunction:
+
+address should be a valid contract address
+for testing, it's a dummy address
+
+the bytes are a 4-byte prefix of the Keccak256 hash of the encoding of a method
+signature, followed by the encoding of the method parameters, as described at:
+
+https://solidity.readthedocs.io/en/develop/abi-spec.html
+
+This data tells the EVM which method to call, with what arguments, in the contract
+
+in this test, we just use a dummy hash to represent all of that *)
+
 (* TODO: somehow work with our static types UInt256, UInt64, etc.? Maybe using GADTs somehow? *)
 
 type abi_type =
@@ -254,8 +268,6 @@ let abi_value_to_bool evalue =
   match evalue with
   | Bool_value x -> x
   | _ -> bork "The input is not a bool as required"
-
-
 
 let big_endian_bytes_of_uint num_bits nat =
   big_endian_bytes_of_nat "uint" num_bits nat nat

@@ -18,6 +18,7 @@ module DBInt(U : Integer.UIntS) = struct
            end) : PersistableS with type t := t)
 end
 
+module UInt8  = DBInt(Integer.UInt8)
 module UInt16  = DBInt(Integer.UInt16)
 module UInt32  = DBInt(Integer.UInt32)
 module UInt64  = DBInt(Integer.UInt64)
@@ -96,8 +97,7 @@ end
 (* TODO: somehow replace the strong reference to the value by a weak reference once it's been persisted
    (and not merely scheduled for persistence as part of a transaction), so it may be garbage-collected. *)
 module DigestValue (Value : PersistableRlpS) = struct
-  type value = Value.t
-  [@@deriving rlp]
+  [@warning "-32"] type value = Value.t [@@deriving rlp]
   type digest = Digest.t
   type t = value dv
   [@@deriving rlp]

@@ -12,7 +12,7 @@ open Trie
 
 open Ethereum_chain
 open Ethereum_json_rpc
-open Side_chain_server_config
+open Ethereum_transaction
 
 (* TODO: A much better state machine to get wanted transactions confirmed.
 
@@ -152,7 +152,7 @@ end
 module FinalTransactionStatus = struct
   [@@@warning "-39"]
   type t =
-    | Confirmed of Transaction.t * Confirmation.t
+    | Confirmed of Transaction.t * SignedTransaction.t * TransactionReceipt.t
     | Failed of OngoingTransactionStatus.t * exn
   [@@deriving yojson]
   include (YojsonPersistable (struct
@@ -160,7 +160,7 @@ module FinalTransactionStatus = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
   let pre_transaction : t -> PreTransaction.t = function
-    | Confirmed (tx, _) -> Transaction.pre_transaction tx
+    | Confirmed (tx, _, _) -> Transaction.pre_transaction tx
     | Failed (ots, _) -> OngoingTransactionStatus.pre_transaction ots
 end
 
@@ -182,52 +182,10 @@ module TransactionStatus = struct
   let operation = fun x -> (x |> pre_transaction).operation
 end
 
-(** TODO: check receipt status!!! *)
-let confirmation_of_transaction_receipt =
-  function
-    TransactionReceipt.{transaction_hash ; transaction_index; block_number; block_hash} ->
-    Confirmation.{transaction_hash; transaction_index; block_number; block_hash}
-
-(** Number of blocks required for a transaction to be considered confirmed *)
-(* The value should be set in side_chain_server_config.json file.
-   For production, use 100, not 0. Put it as configuration file on input *)
-(* let block_depth_for_confirmation = Revision.of_int 0 *)
-let block_depth_for_confirmation = Side_chain_server_config.minNbBlockConfirm
-
-exception Still_pending
 exception TransactionFailed of OngoingTransactionStatus.t * exn
 exception NonceTooLow
 
-let check_confirmation_deep_enough (confirmation : Confirmation.t) : Confirmation.t t =
-  Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);
-  eth_block_number ()
-  >>= fun block_number ->
-  Logging.log "CONF: block_number=%s" (Revision.to_string block_number);
-  Logging.log "CONF: confirmation.block_number=%s" (Revision.to_string confirmation.block_number);
-  Logging.log "CONF: block_depth_for_confirmation=%s" (Revision.to_string block_depth_for_confirmation);
-  if Revision.(is_add_valid confirmation.block_number block_depth_for_confirmation
-               && compare block_number (add confirmation.block_number block_depth_for_confirmation)
-                  >= 0) then
-    (Logging.log "CONF: Ok case, returning confirmation";
-     return confirmation)
-  else
-    (Logging.log "CONF: Error returning Still_pending";
-     fail Still_pending)
-
-let check_confirmation_deep_enough_bool (confirmation : Confirmation.t) : bool Lwt_exn.t =
-               Logging.log "check_confirmation_deep_enough %s" (Confirmation.to_yojson_string confirmation);
-  eth_block_number ()
-  >>= fun block_number ->
-  if Revision.(is_add_valid confirmation.block_number block_depth_for_confirmation
-               && compare block_number (add confirmation.block_number block_depth_for_confirmation)
-                  >= 0) then
-    return true
-  else
-    return false
-
-
-
-type nonce_operation = Next | Reset [@@deriving yojson]
+type nonce_operation = Peek | Next | Reset [@@deriving yojson]
 
 module NonceTracker = struct
   open Lwter
@@ -246,30 +204,39 @@ module NonceTracker = struct
     (* zero is often wrong, but just let it fail and resynchronize *)
     let make_default_state _ _ = None
     type t = (nonce_operation, Nonce.t) Lwter.arr
+
     let make_activity () address saving =
-      sequentialize
-        (fun op state ->
-           let reset () =
-             Lwt_exn.run_lwt
-               (retry ~retry_window:0.01 ~max_window:5.0 ~max_retries:None
-                  Ethereum_json_rpc.eth_get_transaction_count)
-               (address, BlockParameter.Latest) in
-           let continue result state =
-             saving state >>= const (result, state) in
-           let next nonce = continue nonce (Some Nonce.(add one nonce)) in
-           (match (op, state) with
-            | (Reset, _) ->
-              continue Nonce.zero None
-            | (Next, None) ->
-              reset () >>= next
-            | (Next, Some nonce) ->
-               Logging.log "ETHUSR: NonceTracker nonce=%s" (Revision.to_string nonce);
-               next nonce)
-           (*>>= fun (result, new_state) -> Logging.log "NonceTracker %s %s %s => %s %s" (Address.to_0x address) (op |> nonce_operation_to_yojson |> string_of_yojson) (State.to_yojson_string state) (Revision.to_0x result) (State.to_yojson_string new_state) ; return (result, new_state)*))
+      sequentialize @@ fun op state ->
+         let rec reset () = Lwt_exn.run_lwt
+           (retry
+              ~retry_window:0.01
+              ~max_window:5.0
+              ~max_retries:None
+              Ethereum_json_rpc.eth_get_transaction_count)
+           (address, BlockParameter.Latest)
+
+         and continue result state =
+           saving state >>= const (result, state)
+
+         and next nonce = continue nonce (Some Nonce.(add one nonce))
+
+         in match (op, state) with
+          | (Reset, _) ->
+            continue Nonce.zero None
+          | (Peek, None) ->
+             reset () >>= fun nonce -> continue nonce (Some nonce)
+          | (Peek, Some nonce) ->
+             return (nonce, Some nonce)
+          | (Next, None) ->
+            reset () >>= next
+          | (Next, Some nonce) ->
+             Logging.log "ETHUSR: NonceTracker nonce=%s" (Revision.to_string nonce);
+             next nonce
   end
   include PersistentActivity(Base)
   module State = Base.State
   let reset address = get () address Reset >>= const ()
+  let peek address = get () address Peek
   let next address = get () address Next
 end
 
@@ -284,14 +251,15 @@ exception Missing_password
 
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
+  Logging.log "ETHUSR: Beginning of sign_transaction";
   let address = transaction.tx_header.sender in
   (try return (keypair_of_address address).password with
    | Not_found ->
-      Logging.log "Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
+      Logging.log "ETHUSR: Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
       fail Missing_password)
   >>= fun password ->
   Logging.log "ETHUSR: Before personal_sign_transaction";
-  personal_sign_transaction (transaction_to_parameters transaction, password)
+  personal_sign_transaction (TransactionParameters.of_transaction transaction, password)
   >>= fun signed ->
   Logging.log "ETHUSR: Before final return in sign_transaction";
   return (transaction, signed)
@@ -301,7 +269,7 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_
 let make_signed_transaction (sender : Address.t) (operation : Operation.t) (value : TokenAmount.t) (gas_limit : TokenAmount.t) : (Transaction.t * SignedTransaction.t) Lwt_exn.t =
   make_tx_header (sender, value, gas_limit)
   >>= fun tx_header ->
-  Logging.log "ETHUSR: Before the sign_transaction";
+  Logging.log "Before the sign_transaction";
   sign_transaction Transaction.{tx_header; operation}
 
 
@@ -313,7 +281,7 @@ let nonce_too_low address =
   (* TODO: Send Notification to end-user via UI! *)
   Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
 
-let confirmed_or_nonce_too_low : Address.t -> (Digest.t, Confirmation.t) Lwt_exn.arr =
+let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt_exn.arr =
   fun sender hash ->
   let open Lwter in
   Ethereum_json_rpc.eth_get_transaction_receipt hash
@@ -323,36 +291,39 @@ let confirmed_or_nonce_too_low : Address.t -> (Digest.t, Confirmation.t) Lwt_exn
      nonce_too_low sender
   | Ok (Some receipt) ->
      Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok (Some receipt)";
-     confirmation_of_transaction_receipt receipt |> Lwt_exn.return
+     check_transaction_receipt_status receipt
   | Error e ->
      Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Error e";
      Lwt_exn.fail e
 
+exception Replacement_transaction_underpriced
+
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
     Logging.log "ETHUSR: send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);
-    let open Lwter in
     match signed with
     | SignedTransaction.{raw;tx={hash}} ->
-      (eth_send_raw_transaction raw
-       >>= function
-       | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
-         Lwt_exn.(confirmed_or_nonce_too_low sender hash >>= const hash)
-       | Error (Rpc_error {code= -32000; message})
-         when message = "known transaction: " ^ Digest.to_hex_string hash ->
-         Lwt_exn.return hash
-       | Error e -> Lwt_exn.fail e
-       | Ok transaction_hash ->
-         if transaction_hash = hash then
-           Lwt_exn.return hash
-         else
-           Lwt_exn.bork "eth_send_raw_transaction: invalid hash %s instead of %s" (Digest.to_0x transaction_hash) (Digest.to_0x hash))
+      Lwter.bind (eth_send_raw_transaction raw)
+        (function
+         | Error (Rpc_error {code= -32000; message="nonce too low"}) ->
+            confirmed_or_known_issue sender hash >>= const hash
+         | Error (Rpc_error {code= -32000; message})
+              when message = "known transaction: " ^ Digest.to_hex_string hash ->
+            return hash
+         | Error (Rpc_error {code= -32000; message})
+              when message = "replacement transaction underpriced" ->
+            fail Replacement_transaction_underpriced
+         | Error e -> fail e
+         | Ok transaction_hash ->
+            if transaction_hash = hash then
+              return hash
+            else
+              bork "eth_send_raw_transaction: invalid hash %s instead of %s" (Digest.to_0x transaction_hash) (Digest.to_0x hash))
 
 (** Wait until a transaction has been confirmed by the main chain.
     TODO: understand why an error in a previous version of this code got eaten silently,
     instead of logged and reported, causing a deadlock. *)
-let send_and_confirm_transaction :
-  (Transaction.t * SignedTransaction.t, Confirmation.t) Lwt_exn.arr =
+let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, TransactionReceipt.t) Lwt_exn.arr =
   fun (transaction, signed) ->
     Logging.log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
     let sender = transaction.tx_header.sender in
@@ -363,6 +334,7 @@ let send_and_confirm_transaction :
     >>= Ethereum_json_rpc.eth_get_transaction_receipt
     >>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)
     >>= (function
+      | Some receipt -> check_transaction_receipt_status receipt
       | None ->
         Logging.log "send_and_confirm: None case";
         let nonce = transaction.tx_header.nonce in
@@ -370,15 +342,11 @@ let send_and_confirm_transaction :
         >>= fun sender_nonce ->
         Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
         if Nonce.(compare sender_nonce nonce > 0) then
-          (Logging.log "Case confirmed_or_nonce_too_low";
-           confirmed_or_nonce_too_low sender hash)
+          confirmed_or_known_issue sender hash
         else
-          (Logging.log "Case fail Still_pending";
-           fail Still_pending)
-      | Some receipt ->
-        Logging.log "send_and_confirm: Some case case";
-        confirmation_of_transaction_receipt receipt |> return)
-    >>= check_confirmation_deep_enough
+          fail Still_pending)
+
+    >>= check_receipt_sufficiently_confirmed
 
 module TransactionTracker = struct
   open Lwter
@@ -430,25 +398,28 @@ module TransactionTracker = struct
                            (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
                               (trying send_and_confirm_transaction
                                >>> (function
-                                    | Ok confirmation ->
-                                       Logging.log "ETHUSR: TransactionTracker, Ok confirmation";
-                                       return (Ok confirmation)
-                                    | Error NonceTooLow ->
-                                       Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow";
-                                       return (Error NonceTooLow)
-                                    | Error e ->
-                                       Logging.log "ETHUSR: TransactionTracker, Error e";
-                                       fail e))))
+                                 | Ok receipt ->
+                                   Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
+                                   return (Ok receipt)
+                                 | Error NonceTooLow ->
+                                   Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
+                                   return (Error NonceTooLow)
+                                 | Error TransactionRejected ->
+                                   Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
+                                   Lwt_exn.return (Error TransactionRejected)
+                                 | Error e ->
+                                   Logging.log "ETHUSR: TransactionTracker, Error e";
+                                   fail e))))
              >>= (function
-               | Ok confirmation ->
-                  Logging.log "ETHC: Ok case";
-                  FinalTransactionStatus.Confirmed (transaction, confirmation) |> finalize
+               | Ok receipt ->
+                 Logging.log "ETHUSR: TransactionTracker, Ok receipt B";
+                 FinalTransactionStatus.Confirmed (transaction, signed, receipt) |> finalize
                | Error NonceTooLow ->
-                  Logging.log "ETHC: Error NonceTooLow case";
+                 Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow B";
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
                | Error error ->
-                  Logging.log "ETHC: Error error case";
-                  invalidate ongoing error))
+                 Logging.log "ETHUSR: TransactionTracker, Error error";
+                 invalidate ongoing error))
         | Final x -> return x in
       key, (ready >>= fun () -> loop state), notify_ready
   end
@@ -497,6 +468,7 @@ module User = struct
         (*Logging.log "SCHEDULING a remove_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) FinalTransactionStatus.(to_yojson_string final_status);*)
         SimpleActor.action (get_user user)
           (remove_transaction get_user user) revision)
+
     and resume_transactions get_user user (state : State.t) =
       RevisionSet.min_elt_opt state.ongoing_transactions
       |> Option.iter (resume_transaction get_user user)
@@ -554,18 +526,31 @@ let add_ongoing_transaction user status =
   user_action user User.add_transaction status
 
 let issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr =
-  fun sender pre -> OngoingTransactionStatus.Wanted pre |> add_ongoing_transaction sender
+  fun sender pre ->
+  Logging.log "ETHUSR: beginning of issue_pre_transaction";
+  OngoingTransactionStatus.Wanted pre |> add_ongoing_transaction sender
 
 let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr =
-  fun (_, promise, _) -> promise
+  fun (_, promise, _) ->
+  Logging.log "ETHUSR: track_transaction, returning promise";
+  promise
 
 let check_transaction_confirmed :
-  (FinalTransactionStatus.t, Transaction.t * Confirmation.t) Lwt_exn.arr
-  = function
-    | FinalTransactionStatus.Confirmed (t, c) -> return (t, c)
-    | FinalTransactionStatus.Failed (t, e) -> fail (TransactionFailed (t, e))
+      (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
+  fun x ->
+  Logging.log "ETHUSR: Beginning of check_transaction_confirmed";
+  match x with
+  | FinalTransactionStatus.Confirmed (t, s, r) ->
+     Logging.log "ETHUSR: check_transaction_confirmed, Case Confirmed";
+     return (t, s, r)
+  | FinalTransactionStatus.Failed (t, e) ->
+     Logging.log "ETHUSR: check_transaction_confirmed, Case Failed";
+     Logging.log "ETHUSR: e=%s" (Printexc.to_string e);
+     fail (TransactionFailed (t, e))
 
-let confirm_pre_transaction (address : Address.t) : (PreTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr =
+let confirm_pre_transaction (address: Address.t)
+    : (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
+
   issue_pre_transaction address
   >>> of_lwt track_transaction
   >>> check_transaction_confirmed
@@ -581,9 +566,7 @@ let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : T
   Logging.log "ETHUSR: Beginning of make_pre_transaction";
   (match gas_limit with
    | Some x -> return x
-   | None ->
-      Logging.log "ETHUSR: None case";
-      eth_estimate_gas (operation_to_parameters sender operation))
+   | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation))
   >>= fun gas_limit ->
   Logging.log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
   (* TODO: The multiplication by 2 is a hack that needs to be addressed *)
@@ -598,9 +581,11 @@ let call_function ~sender ~contract ~call ?gas_limit value =
   make_pre_transaction ~sender (Operation.CallFunction (contract, call)) ?gas_limit value
 
 module Test = struct
-  open Hex
+  open Lwt_exn
+  (* open Hex *)
   open Digesting
   open Signing.Test
+  (* open Ethereum_abi *)
 
   let prefunded_address_mutex = Lwt_mutex.create ()
   let prefunded_address = ref None
@@ -627,11 +612,10 @@ module Test = struct
       (TokenAmount.to_0x balance)
 
   let ensure_address_prefunded prefunded_address amount address =
-    let open Lwt_exn in
     let open TokenAmount in
     eth_get_balance (address, BlockParameter.Pending)
     >>= fun balance ->
-    Logging.log "address=%s" (nicknamed_string_of_address address);
+    Logging.log	"address=%s" (nicknamed_string_of_address address);
     Logging.log "Now working something balance=%s" (TokenAmount.to_string balance);
     if compare balance amount >= 0 then
       display_balance (printf "Account %s contains %s wei.\n") address balance
@@ -645,7 +629,7 @@ module Test = struct
         >>= fun _ ->
         Logging.log "Before call to eth_get_balance";
         eth_get_balance (address, BlockParameter.Pending)
-        >>= fun balance -> display_balance (printf "Account %s now contains %s wei.\n") address balance
+        >>= fun balance -> display_balance (printf "Account %s nowAS contains %s wei.\n") address balance
       end
 
   (* create accounts, fund them *)
@@ -661,200 +645,149 @@ module Test = struct
     list_iter_s (ensure_test_account ?min_balance prefunded_address)
       [("Alice", alice_keys); ("Bob", bob_keys); ("Trent", trent_keys)]
 
-  let%test "transfer-on-Ethereum-testnet" =
+  (** Has a transaction given by a hash successfully executed,
+      and does the Ethereum network report information that match what we expected? *)
+  [@@@warning "-32"]
+  let check_transaction_execution (transaction_hash: digest) (transaction: Transaction.t) : bool Lwt_exn.t =
+    eth_get_transaction_receipt transaction_hash
+    >>= arr (function
+            | Some TransactionReceipt.{status} -> TokenAmount.sign status = 1
+            | _ -> false)
+    >>= fun executed ->
+    assert executed;
+    Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
+    >>= fun info ->
+    let tx_header = transaction.tx_header in
+    assert (info.from = Some tx_header.sender);
+    assert (info.nonce = tx_header.nonce);
+    assert (TokenAmount.compare info.gas tx_header.gas_limit <= 0);
+    assert (TokenAmount.compare info.gas_price tx_header.gas_price <= 0);
+    assert (TokenAmount.compare info.value tx_header.value = 0);
+    assert (match transaction.operation with (* operation-specific checks *)
+            | TransferTokens recipient_address -> info.to_ = Some recipient_address
+            | CreateContract data -> info.input = data
+            | CallFunction (contract_address, call_input) ->
+               info.to_ = Some contract_address && info.input = call_input) ;
+    return true
+
+  (* TODO re-enable
+  let%test "Ethereum-testnet-transfer" =
+    Logging.log "\nTEST: Ethereum-testnet-transfer\n";
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         get_prefunded_address ()
-         >>= fun sender ->
-         Ethereum_json_rpc.personal_new_account ""
-         >>= fun recipient ->
-         (* we don't check opening balance, which may be too large to parse *)
-         let transfer_amount = 22 in
-         transfer_tokens ~recipient (TokenAmount.of_int transfer_amount)
-         |> confirm_pre_transaction sender
-         >>= fun (transaction, Confirmation.{transaction_hash}) ->
-         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction)
+        of_lwt Db.open_connection "unit_test_db"
+        >>= fun () ->
+        get_prefunded_address ()
+        >>= fun croesus ->
+        transfer_tokens ~recipient:alice_address (TokenAmount.of_int 1000000000)
+        |> confirm_pre_transaction croesus
+        >>= fun (transaction, _signed_tx, TransactionReceipt.{transaction_hash}) ->
+        check_transaction_execution transaction_hash transaction)
       ()
+      *)
 
-  let%test "create-contract-on-Ethereum-testnet" =
+  (*
+  let test_contract_code () =
+    "contracts/test/HelloWorld.bin"
+    |> Config.get_build_filename
+    |> read_file
+    |> parse_hex_string
+    |> Bytes.of_string
+
+  let list_only_element = function
+    | [x] -> x
+    | _ -> Lib.bork "list isn't a singleton"
+  *)
+
+(* TODO re-enable
+  let%test "Ethereum-testnet-contract-failure" =
+    (Logging.log "\nTEST: contract-failure-on-Ethereum-testnet!!\n";
+    Lwt_exn.run
+     (fun () ->
+        of_lwt Db.open_connection "unit_test_db"
+        >>= fun () ->
+        get_prefunded_address ()
+        >>= fun sender ->
+        let code = test_contract_code () in
+        create_contract ~sender ~code
+        (* Failure due to bogus gas_limit *)
+        ~gas_limit:(TokenAmount.of_int 100000) TokenAmount.zero
+        >>= (trying (confirm_pre_transaction sender)
+        >>> (function
+        | Ok _    -> return false
+        (* TransactionTracker returns a FinalTransactionStatus after TransactionRejected is thrown *)
+        | Error TransactionFailed (_, _) -> return true
+        | Error _ -> return false))))
+    ()
+ *)
+
+  (* TODO re-enable
+  let%test "Ethereum-testnet-contract-success" =
+    Logging.log "\nTEST: contract-success-on-Ethereum-testnet!!\n";
+    Logging.log "SUBTEST: create the contract\n";
     Lwt_exn.run
       (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         get_prefunded_address ()
-         >>= fun sender ->
-         let make_contract_of_len n =
-           (* NB: this contract is bogus enough that eth_estimate_gas yields bad answers.
-              TODO: Check whether the contract actually succeeds? *)
-           create_contract ~sender ~code:(Bytes.create n) TokenAmount.zero
-           >>= confirm_pre_transaction sender
-           >>= fun (tx, {transaction_hash}) ->
-           Ethereum_transaction.transaction_execution_matches_transaction transaction_hash tx in
-         list_map_s make_contract_of_len [128; 256; 512]
-         >>= arr (List.for_all identity))
-      ()
-
-  let%test "call-contract-on-Ethereum-testnet" =
-    let open Ethereum_chain in
-    Lwt_exn.run
-      (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         get_prefunded_address ()
-         >>= fun sender ->
-         (* for CallFunction:
-
-            address should be a valid contract address
-            for testing, it's a dummy address
-
-            the bytes are a 4-byte prefix of the Keccak256 hash of the encoding of a method
-            signature, followed by the encoding of the method parameters, as described at:
-
-            https://solidity.readthedocs.io/en/develop/abi-spec.html
-
-            This data tells the EVM which method to call, with what arguments, in the contract
-
-            in this test, we just use a dummy hash to represent all of that
-         *)
-         let hashed = digest_of_string "some arbitrary string" in
-         call_function ~sender
-           ~contract:(Address.of_0x "0x2B1c40cD23AAB27F59f7874A1F454748B004C4D8")
-           ~call:(Bytes.of_string (Digest.to_big_endian_bits hashed))
-           TokenAmount.zero
-         >>= confirm_pre_transaction sender
-         >>= fun (transaction, Confirmation.{transaction_hash}) ->
-         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction)
-      ()
-
-  let%test "hello-solidity" =
-    let open Ethereum_abi in
-    Lwt_exn.run
-      (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         (* code is result of running "solc --bin hello.sol", and prepending "0x" *)
-         let code = parse_0x_bytes "0x608060405234801561001057600080fd5b506101a7806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806339a7aa4814610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60607fcde5c32c0a45fd8aa4b65ea8003fc9da9acd5e2c6c24a9fcce6ab79cabbd912260405180806020018281038252600d8152602001807f48656c6c6f2c20776f726c64210000000000000000000000000000000000000081525060200191505060405180910390a16040805190810160405280600881526020017f476f6f64627965210000000000000000000000000000000000000000000000008152509050905600a165627a7a7230582024923934849b0e74a5091ac4b5c65d9b3b93d74726aff49fd5763bc136dac5c60029" in
-         (* create a contract using "hello, world" EVM code *)
-         get_prefunded_address ()
-         >>= fun sender ->
-         (* a valid contract contains compiled EVM code
-            for testing, we just use a buffer with arbitrary contents
-         *)
-         create_contract ~sender ~code TokenAmount.zero
-         >>= confirm_pre_transaction sender
-         >>= fun (transaction, Confirmation.{transaction_hash}) ->
-         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction
-         >>= fun matches ->
-         assert matches ;
-         (* call the contract we've created *)
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt ->
-         let contract = Option.get receipt.TransactionReceipt.contract_address in
-         let call = encode_function_call {function_name= "printHelloWorld"; parameters= []} in
+        of_lwt Db.open_connection "unit_test_db"
+        >>= fun () ->
+        get_prefunded_address ()
+        >>= fun sender ->
+        let code = test_contract_code () in
+        create_contract ~sender ~code ?gas_limit:None TokenAmount.zero
+        >>= confirm_pre_transaction sender
+        >>= (function | (_, _, {contract_address=(Some contract)}) -> return contract
+                      | _ -> bork "Failed to create contract")
+        >>= fun contract ->
+        Logging.log "SUBTEST: call contract function hello with no argument\n";
+        let call = encode_function_call { function_name = "hello"; parameters = [] } in
+        call_function ~sender ~contract ~call TokenAmount.zero
+        >>= confirm_pre_transaction sender
+        >>= fun (tx, _, {block_number}) ->
+        eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
+        >>= fun data ->
+        Logging.log "hello replied: %s\n" (unparse_0x_data data);
+        Logging.log "SUBTEST: call contract function mul42 with one number argument\n";
+        let call = encode_function_call
+                     { function_name = "mul42"; parameters = [ abi_uint (Z.of_int 47) ] } in
          call_function ~sender ~contract ~call TokenAmount.zero
          >>= confirm_pre_transaction sender
-         >>= fun (_transaction, Confirmation.{transaction_hash}) ->
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt1 ->
-         (* verify that we called "printHelloWorld" *)
-         let receipt_log = match receipt1.TransactionReceipt.logs with [x] -> x | _ -> Lib.bork "blah" in
-         (* we called the right contract *)
-         let log_contract_address = receipt_log.LogObject.address in
+         >>= fun (tx, _, {block_number}) ->
+         eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
+         >>= fun data ->
+         Logging.log "mul42 replied: %s\n" (unparse_0x_data data);
+         let mul42_encoding =
+           let tuple_value, tuple_ty = abi_tuple_of_abi_values [abi_uint (Z.of_int 1974)] in
+           encode_abi_value tuple_value tuple_ty in
+         assert (data = Bytes.to_string mul42_encoding);
+
+         Logging.log "SUBTEST: call contract function greetings with one string argument\n";
+         let call = encode_function_call
+                      { function_name = "greetings";
+                        parameters = [ abi_string "Croesus" ] } in
+         call_function ~sender ~contract ~call TokenAmount.zero
+         >>= confirm_pre_transaction sender
+         >>= fun (tx, _, {block_number; logs}) ->
+         let receipt_log = list_only_element logs in
+         let log_contract_address = receipt_log.address in
          assert (log_contract_address = contract) ;
-         (* we called the right function within the contract *)
-         let topic_event = match receipt_log.LogObject.topics with [x] -> x | _ -> Lib.bork "bleh" in
-         let hello_world = (String_value "Hello, world!", String) in
-         let function_signature = {function_name= "showResult"; parameters= [hello_world]} in
+         let topic_event = list_only_element receipt_log.topics in
+         let greetings_croesus = (String_value "Greetings, Croesus", String) in
+         let greetings_encoding =
+           let tuple_value, tuple_ty = abi_tuple_of_abi_values [greetings_croesus] in
+           encode_abi_value tuple_value tuple_ty in
+         Logging.log "expecting:        %s\n" (unparse_0x_bytes greetings_encoding);
+         let function_signature = {function_name= "greetingsEvent"; parameters= [greetings_croesus]} in
          let function_signature_digest = function_signature |> function_signature_digest in
          assert (Digest.equal topic_event function_signature_digest) ;
          (* the log data is the encoding of the parameter passed to the event *)
          let data = receipt_log.data in
-         let hello_encoding =
-           let tuple_value, tuple_ty = abi_tuple_of_abi_values [hello_world] in
-           unparse_0x_bytes (encode_abi_value tuple_value tuple_ty)
-         in
-         return (unparse_0x_bytes data = hello_encoding))
-      ()
-
-  let%test "fallback-with-operator-address" =
-    (* we call the fallback function in a contract by using the operator address as "code" *)
-    let open Ethereum_abi in
-    Lwt_exn.run
-      (fun () ->
-         of_lwt Db.open_connection "unit_test_db"
-         >>= fun () ->
-         (* code is result of running "solc --bin operator-fallback.sol", and prepending "0x" *)
-         let code =
-           "0x608060405234801561001057600080fd5b50610108806100206000396000f300608060405260146000369050141515601657600080fd5b7facfada45e09e5bb4c2c456febe99efe38be8bfc67a25cccdbb4c93ec56f661a560716000368080601f01602080910402602001604051908101604052809392919081815260200183838082843782019150505050505060bc565b34604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a1005b6000602082015190506c01000000000000000000000000810490509190505600a165627a7a7230582098fc57c39988f3dcf9f7168b876b9f491273775ea6b44db8cb9483966fa1adc10029"
-         in
-         let code = parse_0x_bytes code in
-         (* create the contract *)
-         get_prefunded_address ()
-         >>= fun sender ->
-         create_contract ~sender ~code TokenAmount.zero
-         >>= confirm_pre_transaction sender
-         >>= fun (transaction, Confirmation.{transaction_hash}) ->
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt ->
-         let contract = Option.get receipt.contract_address in
-         (* check balance of new contract *)
-         eth_get_balance (contract, Latest)
-         >>= fun starting_balance ->
-         assert (TokenAmount.sign starting_balance = 0) ;
-         Ethereum_transaction.transaction_execution_matches_transaction transaction_hash transaction
-         >>= fun matches ->
-         assert matches;
-         (* Call the fallback in the contract we've created.
-            It bypasses the regular ABI to access this address directly. *)
-         let amount_to_transfer = TokenAmount.of_int 93490 in
-         let operator_address = Address.of_0x "0x9797809415e4b8efea0963e362ff68b9d98f9e00" in
-         let call = Ethereum_util.bytes_of_address operator_address in
-         call_function ~sender ~contract ~call amount_to_transfer
-         >>= confirm_pre_transaction sender
-         >>= fun (_transaction, Confirmation.{transaction_hash}) ->
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt1 ->
-         (* verify that we called the fallback *)
-         let log = match receipt1.logs with [x] -> x | _ -> Lib.bork "bloh" in
-         (* the log is for this contract *)
-         let receipt_address = log.address in
-         assert (receipt_address = contract) ;
-         (* we saw the expected event *)
-         let logged_event = match log.LogObject.topics with [x] -> x | _ -> Lib.bork "bluh" in
-         let event_parameters =
-           [(Address_value operator_address, Address); abi_token_amount amount_to_transfer]
-         in
-         let event_signature =
-           {function_name= "logTransfer"; parameters= event_parameters}
-           |> function_signature_digest
-         in
-         assert (logged_event = event_signature) ;
-         (* the operator address is visible as data *)
-         let data = unparse_0x_bytes log.data in
-         let logged_encoding =
-           let tuple_value, tuple_ty = abi_tuple_of_abi_values event_parameters in
-           unparse_0x_bytes (encode_abi_value tuple_value tuple_ty)
-         in
-         assert (logged_encoding = data) ;
-         (* confirm contract has received amount transferred *)
-         eth_get_balance (contract, Latest)
-         >>= fun ending_balance ->
-         assert (ending_balance = amount_to_transfer) ;
-         (* now try invalid address, make sure it's not logged *)
-         let bogus_address_bytes = parse_0x_bytes "0xFF" in
-         call_function ~sender ~contract ~call:bogus_address_bytes ~gas_limit:(TokenAmount.of_int 1000000) amount_to_transfer
-         >>= confirm_pre_transaction sender
-         >>= fun (_transaction, Confirmation.{transaction_hash}) ->
-         eth_get_transaction_receipt transaction_hash
-         >>= arr Option.get
-         >>= fun receipt2 ->
-         let logs2 = receipt2.logs in
-         return (logs2 = []))
-      ()
+         Logging.log "receipt log data: %s\n" (unparse_0x_bytes data);
+         eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
+         >>= fun result ->
+         Logging.log "computed reply:   %s\n" (unparse_0x_data result);
+         assert (result = Bytes.to_string data);
+         assert (data = greetings_encoding);
+         (* TODO: add a stateful function, and check the behavior of eth_call wrt block_number *)
+         return true)
+     ()
+     *)
 end

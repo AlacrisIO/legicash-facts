@@ -28,7 +28,7 @@ open Side_chain
 let get_operator_fee_schedule _operator_address =
   Lwt_exn.return initial_fee_schedule
 
-(* Those tpoics below correspond to events in the operator.sol code
+(* Topics below correspond to events in the operator.sol code
    Be careful of adjusting everything when you change the type like adding a balance.
  *)
 
@@ -360,7 +360,7 @@ module OngoingTransactionStatus = struct
     | DepositConfirmed
       of DepositWanted.t
        * TokenAmount.t
-       * Ethereum_chain.Transaction.t
+       * Ethereum_chain.SignedTransactionData.t
        * Ethereum_chain.Confirmation.t
 
     (* for all operations *)
@@ -456,6 +456,14 @@ end
 exception TransactionFailed of OngoingTransactionStatus.t * exn
 exception NotEnoughFundSec of string
 
+let _ = Printexc.register_printer
+          (function
+           | TransactionFailed (s, exn) ->
+              Some (Printf.sprintf "Side_chain_user.TransactionFailed (%s, %s)"
+                      (s |> OngoingTransactionStatus.to_yojson |> string_of_yojson)
+                      (Printexc.to_string exn))
+           | _                -> None)
+
 let print_ots_state (o: OngoingTransactionStatus.t) : string =
   match o with
   | DepositWanted _ -> "depositwanted"
@@ -466,16 +474,6 @@ let print_ots_state (o: OngoingTransactionStatus.t) : string =
   | PostedToRegistry _ -> "postedtoregistry"
   | PostedToMainChain _ -> "postedtomainchain"
   | ConfirmedOnMainChain _ -> "confirmedonmainchain"
-
-let () = Printexc.register_printer (function
-             | TransactionFailed (o,e) ->
-                let str_except : string = Printexc.to_string e in
-                let str_o = print_ots_state o in
-                let str_ret : string = Printf.sprintf "TransactionFailed(%s,%s)" str_o str_except in
-                Some str_ret
-             | _ -> None)
-
-
 
 type revision_generator = (unit, Revision.t) Lwter.arr
 
@@ -600,10 +598,10 @@ module TransactionTracker = struct
                  Logging.log "DepositPosted, Failed case";
                  Logging.log "error=%s" (Printexc.to_string error);
                  invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
-              | Confirmed (transaction, confirmation) ->
-                 Logging.log "DepositPosted, Confirmed case";
-                DepositConfirmed (deposit_wanted, deposit_fee, transaction, confirmation) |> continue)
-
+              | Confirmed (transaction, signed, receipt) ->
+                 let txdata = Ethereum_json_rpc.transaction_data_of_signed_transaction signed in
+                 let confirmation = Ethereum_json_rpc.TransactionReceipt.to_confirmation receipt in
+                 DepositConfirmed (deposit_wanted, deposit_fee, txdata, confirmation) |> continue)
            | DepositConfirmed ( { deposit_amount; request_guid; requested_at }
                               , deposit_fee
                               , main_chain_deposit
@@ -665,9 +663,7 @@ module TransactionTracker = struct
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                  invalidate ongoing error)
 
-           | PostedToMainChain ( (tc:           TransactionCommitment.t)
-                               , (confirmation: Ethereum_chain.Confirmation.t)
-                               ) ->
+           | PostedToMainChain ( tc, confirmation ) ->
              Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
              (* TODO: wait for confirmation on the main chain and handle lawsuits
@@ -677,9 +673,7 @@ module TransactionTracker = struct
                  Logging.log "After post_claim_withdrawal_operation";
                  ConfirmedOnMainChain (tc, confirmation) |> continue)
 
-           | ConfirmedOnMainChain ( (tc:           TransactionCommitment.t)
-                                  , (confirmation: Ethereum_chain.Confirmation.t)
-                                  ) ->
+           | ConfirmedOnMainChain (tc, confirmation) ->
              Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)

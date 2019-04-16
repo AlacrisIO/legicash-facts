@@ -1,5 +1,6 @@
 open Legilogic_lib
 open Lib
+open Action
 open Yojsoning
 open Persisting
 open Json_rpc
@@ -70,8 +71,6 @@ module BlockParameter = struct
            end) : (PersistableS with type t := t))
 end
 
-
-
 module TransactionCondition = struct
   type t =
     | Block_number of Revision.t
@@ -93,7 +92,6 @@ module TransactionCondition = struct
            end) : (PersistableS with type t := t))
 end
 
-(** Parameters for a transaction as per Ethereum JSON RPC interface *)
 module TransactionParameters = struct
   type t =
     { from: Address.t
@@ -109,6 +107,20 @@ module TransactionParameters = struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
+
+  let of_operation sender operation =
+    let (to_, data) = match operation with
+      | Operation.TransferTokens recipient -> (Some recipient, None)
+      | Operation.CreateContract code -> (None, Some code)
+      | Operation.CallFunction (recipient, data) -> (Some recipient, Some data) in
+    { from= sender; to_; gas= None; gas_price = None; value = None; data ; nonce= None; condition= None }
+
+  let of_pre_transaction sender PreTransaction.{operation; gas_limit; value} =
+    {(of_operation sender operation) with gas = Some gas_limit; value = Some value}
+
+  let of_transaction Transaction.{tx_header = { sender; nonce; gas_limit; gas_price; value }; operation } =
+    {(of_operation sender operation) with
+      gas= Some gas_limit; gas_price = Some gas_price; value = Some value; nonce= Some nonce }
 end
 
 module TransactionInformation = struct
@@ -126,7 +138,8 @@ module TransactionInformation = struct
     ; input: Yojsoning.Bytes.t
     ; v: Quantity.t option [@default None]
     ; standard_v: Quantity.t option [@default None]
-    ; r: Quantity.t option [@default None]
+    ; r: UInt256.t option [@default None]
+    ; s: UInt256.t option [@default None]
     ; raw: Data.t option [@default None]
     ; public_key: PublicKey.t option [@key "publicKey"] [@default None]
     ; network_id: Quantity.t option [@key "networkID"] [@default None]
@@ -153,7 +166,7 @@ module EthObject = struct
            end) : (PersistableS with type t := t))
 end
 
-module SignedTransaction = struct
+module ParitySignedTransaction = struct
   type t =
     { raw: Data.t
     ; tx: TransactionInformation.t }
@@ -203,8 +216,7 @@ module TransactionReceipt = struct
     ; gas_used: TokenAmount.t [@key "gasUsed"]
     ; logs: LogObject.t list
     ; logs_bloom: Bloom.t [@key "logsBloom"]
-    ; root: Digest.t option [@default None] [@default None]
-    ; status: TokenAmount.t option [@default None] [@default None]
+    ; status: TokenAmount.t
     ; transaction_hash: Digest.t [@key "transactionHash"]
     ; transaction_index: Revision.t [@key "transactionIndex"] }
   [@@deriving yojson {strict = false}]
@@ -212,6 +224,12 @@ module TransactionReceipt = struct
              type nonrec t = t
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
+  let to_confirmation
+        { transaction_hash ; transaction_index ; block_number ; block_hash ; status } =
+    if TokenAmount.sign status = 0 then
+      Lib.bork "receipt indicates transaction %s failed" (Digest.to_0x transaction_hash)
+    else
+      Confirmation.{ transaction_hash ; transaction_index ; block_number ; block_hash }
 end
 
 module EthListLogObjects = struct
@@ -283,33 +301,106 @@ module TxPoolContent = struct
          | ex                  -> Error (Printexc.to_string ex)
 end
 
-let operation_to_parameters (sender : Address.t) (operation : Operation.t) : TransactionParameters.t =
-  let (to_, data) = match operation with
-    | Operation.TransferTokens recipient -> (Some recipient, None)
-    | Operation.CreateContract code -> (None, Some code)
-    | Operation.CallFunction (recipient, data) -> (Some recipient, Some data) in
-  TransactionParameters.
-    { from= sender; to_; gas= None; gas_price = None; value = None; data ; nonce= None; condition= None }
-
-(* Unused function *)
-let pre_transaction_to_parameters (sender : Address.t) PreTransaction.{operation; gas_limit; value} =
-  {(operation_to_parameters sender operation) with gas = Some gas_limit; value = Some value}
-
-let transaction_to_parameters Transaction.{tx_header = { sender; nonce; gas_limit; gas_price; value }; operation } =
-  {(operation_to_parameters sender operation)
-  with gas= Some gas_limit; gas_price = Some gas_price; value = Some value; nonce= Some nonce }
-
 let eth_accounts =
   ethereum_json_rpc "eth_accounts"
     (list_of_yojson_exn Address.of_yojson_exn)
     yojson_noargs
-(** Returns a list of address owned by the client **)
+(** Returns a list of address owned by the client *)
+
+
+module CallParameters = struct
+  type t =
+    { from: Address.t
+    ; to_: Address.t option [@key "to"] [@default None]
+    ; gas: TokenAmount.t option [@default None]
+    ; gas_price: TokenAmount.t option [@key "gasPrice"] [@default None]
+    ; value: TokenAmount.t option [@default None]
+    ; data: Yojsoning.Bytes.t option [@default None] }
+  [@@deriving yojson {strict = false}]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+
+  let of_operation sender operation =
+    let (to_, data) = match operation with
+      | Operation.TransferTokens recipient -> (Some recipient, None)
+      | Operation.CreateContract code -> (None, Some code)
+      | Operation.CallFunction (recipient, data) -> (Some recipient, Some data) in
+    { from= sender; to_; gas= None; gas_price = None; value = None; data }
+
+  let of_pre_transaction sender PreTransaction.{operation; gas_limit; value} =
+    {(of_operation sender operation) with gas = Some gas_limit; value = Some value}
+
+  let of_transaction Transaction.{tx_header = { sender; gas_limit; gas_price; value }; operation } =
+    {(of_operation sender operation) with
+      gas= Some gas_limit; gas_price = Some gas_price; value = Some value }
+end
+
+let eth_call =
+  ethereum_json_rpc "eth_call"
+    Data.of_yojson_exn
+    (yojson_2args CallParameters.to_yojson BlockParameter.to_yojson)
+
+let eth_chain_id =
+  ethereum_json_rpc "eth_chainId"
+    (option_of_yojson_exn UInt256.of_yojson_exn)
+    yojson_noargs
+
+let this_chain_id = lazy (Lwt_exn.run eth_chain_id ())
+
+let v_of_chain_id =
+  Option.defaulting (fun () -> Option.defaulting (konstant UInt256.zero) (Lazy.force this_chain_id))
+
+module SignedTx = struct
+  type t =
+    { nonce : Revision.t
+    ; gas_price : TokenAmount.t [@key "gasPrice"]
+    ; gas : TokenAmount.t
+    ; to_ : Address.t option [@key "to"] [@default None]
+    ; value : TokenAmount.t
+    ; input : Data.t
+    ; v : UInt256.t option [@default None]
+    ; r : UInt256.t option [@default None]
+    ; s : UInt256.t option [@default None]
+    ; hash : Digest.t }
+  [@@deriving yojson {strict = false}, show]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+
+module SignedTransaction = struct
+  type t =
+    { raw: Data.t
+    ; tx: SignedTx.t }
+  [@@deriving yojson {strict = false}, show]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+
+let transaction_data_of_signed_transaction = function
+    | SignedTransaction.{tx={nonce; gas_price; gas; to_ ; value ; input ; v ; r ; s }} ->
+       SignedTransactionData.{
+           nonce
+         ; gas_price
+         ; gas_limit = gas
+         ; to_address = Option.defaulting (konstant Address.zero) to_
+         ; value
+         ; data = input
+         ; v = v_of_chain_id v
+         ; r = Option.defaulting (konstant UInt256.zero) r
+         ; s = Option.defaulting (konstant UInt256.zero) s } (* TODO: is this the correct? Probably not *)
+
 
 let eth_estimate_gas =
   ethereum_json_rpc "eth_estimateGas"
     TokenAmount.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
-(** Returns estimate of gas needed for transaction **)
+(** Returns estimate of gas needed for transaction *)
 
 let eth_gas_price =
   ethereum_json_rpc "eth_gasPrice"
@@ -321,37 +412,37 @@ let eth_get_balance =
   ethereum_json_rpc "eth_getBalance"
     TokenAmount.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
-(** Returns the balance of the account of given address (and block) **)
+(** Returns the balance of the account of given address (and block) *)
 
 let eth_get_code =
   ethereum_json_rpc "eth_getCode"
     Yojsoning.Bytes.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
-(** Returns the code of given address (and block) **)
+(** Returns the code of given address (and block) *)
 
 let eth_get_transaction_by_hash =
   ethereum_json_rpc "eth_getTransactionByHash"
     TransactionInformation.of_yojson_exn
     (yojson_1arg Digest.to_yojson)
-(** Returns a transaction (big object) by the hash code **)
+(** Returns a transaction (big object) by the hash code *)
 
 let eth_get_transaction_count =
   ethereum_json_rpc "eth_getTransactionCount"
     Nonce.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
-(** Returns the number of transaction at address (and transaction) **)
+(** Returns the number of transaction at address (and transaction) *)
 
 let eth_get_transaction_receipt =
   ethereum_json_rpc "eth_getTransactionReceipt"
     (option_of_yojson_exn TransactionReceipt.of_yojson_exn)
     (yojson_1arg Digest.to_yojson)
-(** Returns a receipt of transaction by transaction hash (not available if transaction still pending) **)
+(** Returns a receipt of transaction by transaction hash (not available if transaction still pending) *)
 
 let eth_send_raw_transaction =
   ethereum_json_rpc "eth_sendRawTransaction"
     Digest.of_yojson_exn
     (yojson_1arg Data.to_yojson)
-(** Create new message call transaction or a contract creation for signed transaction **)
+(** Create new message call transaction or a contract creation for signed transaction *)
 
 (* Check that it is coherent *)
 let eth_get_logs =
@@ -365,18 +456,17 @@ let eth_send_transaction =
   ethereum_json_rpc "eth_sendTransaction"
     Digest.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
-(** Creates new message call transaction or a contract creation if the datafield contains code **)
+(** Creates new message call transaction or a contract creation if the datafield contains code *)
 
 let eth_sign =
   ethereum_json_rpc "eth_sign"
     Data.of_yojson_exn
     (yojson_2args Address.to_yojson Data.to_yojson)
-(** Computes an eth signature **)
+(** Computes an eth signature *)
 
-(* Inexistent in the API and unused *)
 let eth_sign_transaction =
   ethereum_json_rpc "eth_signTransaction"
-    SignedTransaction.of_yojson_exn
+    ParitySignedTransaction.of_yojson_exn
     (yojson_1arg TransactionParameters.to_yojson)
 
 let eth_block_number =
@@ -430,7 +520,7 @@ let txpool_content =
     yojson_noargs
 
 module Test = struct
-  open Action.Lwt_exn
+  open Lwt_exn
   let%test "eth_latest_block get the current latest block" =
     (* Just checks that the block number is non-negative *)
     run (eth_block_number ~log:false >>> (Revision.sign >> (<=) 0 >> return)) ()

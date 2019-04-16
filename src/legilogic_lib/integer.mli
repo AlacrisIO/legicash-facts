@@ -147,6 +147,7 @@ module UInt192 : UIntS (* with type t = Nat.t *)
 module UInt64  : UIntS (* with type t = Unsigned.UInt64.t *)
 module UInt32  : UIntS (* with type t = Unsigned.UInt32.t *)
 module UInt16  : UIntS (* with type t = Unsigned.UInt16.t *)
+module UInt8  : UIntS (* with type t = Unsigned.UInt8.t *)
 
 
 module type PreUIntZS = sig
@@ -219,5 +220,4 @@ val unary_pre_op_check : ('a -> 'b) -> ('a -> bool) ->
 val binary_pre_op_check : ('a -> 'b -> 'c) -> ('a -> 'b -> bool) ->
   string * string * ('a -> string) * ('b -> string) ->
   'a -> 'b -> 'c
-
 

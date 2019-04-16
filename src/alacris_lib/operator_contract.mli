@@ -31,17 +31,17 @@ val make_claim_withdrawal_call
   -> Digest.t
   -> Ethereum_chain.Operation.t
 
-
-
-val make_withdraw_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t
+val make_withdraw_call
+   : Address.t
+  -> Address.t
+  -> Revision.t
+  -> TokenAmount.t
+  -> TokenAmount.t
+  -> Digest.t
+  -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "withdraw" function of the operator contract
     arguments: operator address, bond amount, confirmed state
 *)
-
-
-(* val get_contract_address_from_client : unit -> Address.t Lwt_exn.t *)
-
-
 
 val make_state_update_call : Digest.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)

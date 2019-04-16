@@ -20,7 +20,7 @@ end
 
 module FinalTransactionStatus : sig
   type t =
-    | Confirmed of Transaction.t * Confirmation.t
+    | Confirmed of Transaction.t * SignedTransaction.t * TransactionReceipt.t
     | Failed of OngoingTransactionStatus.t * exn
   include PersistableS with type t := t
   val pre_transaction : t -> PreTransaction.t
@@ -37,7 +37,7 @@ module TransactionStatus : sig
   val operation : t -> Operation.t
 end
 
-type nonce_operation = Next | Reset [@@deriving yojson]
+type nonce_operation = Peek | Next | Reset [@@deriving yojson]
 
 module NonceTracker : sig
   module State : PersistableS with type t = Nonce.t option
@@ -46,6 +46,7 @@ module NonceTracker : sig
      and type context = unit
      and type state = State.t
      and type t = (nonce_operation, Revision.t) Lwter.arr
+  val peek : (address, Revision.t) Lwter.arr
   val next : (address, Revision.t) Lwter.arr
   val reset : (address, unit) Lwter.arr
 end
@@ -85,29 +86,16 @@ module User : PersistentActivityS
    before to send any message on the network *)
 val add_ongoing_transaction : Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr
 
-val confirmation_of_transaction_receipt : TransactionReceipt.t -> Confirmation.t
-
-val block_depth_for_confirmation : Revision.t
-(** How many additional blocks should one wait for before to consider a transaction confirmed
-    after it was included in the blockchain? *)
-
-exception Still_pending
-(** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
-
-val check_confirmation_deep_enough : Confirmation.t -> Confirmation.t Lwt_exn.t
-
-val check_confirmation_deep_enough_bool : Confirmation.t -> bool Lwt_exn.t
-
 val issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr
 (** Issue a pre-transaction as transaction on the Ethereum network, return a tracker *)
 
 val track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr
 (** Track a transaction until it is either confirmed or invalidated *)
 
-val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * Confirmation.t) Lwt_exn.arr
+val check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr
 (** Check that the final transaction status is indeed confirmed, or fail *)
 
-val confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * Confirmation.t) Lwt_exn.arr
+val confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr
 (** Issue a transaction on the Ethereum network, wait for it to be confirmed *)
 
 val transfer_tokens : recipient:Address.t -> TokenAmount.t -> PreTransaction.t
@@ -128,7 +116,7 @@ module Test : sig
   val get_prefunded_address : unit -> Address.t Lwt_exn.t
   (** get the prefunded address on the test network *)
 
-  val display_balance : (string -> string -> 'a) -> Address.t -> TokenAmount.t -> 'a
+  (*  val display_balance : (string -> string -> 'a) -> Address.t -> TokenAmount.t -> 'a *)
   (** display an account having the given balance given a way to print address, optional name and balance *)
 
   val ensure_address_prefunded : Address.t -> TokenAmount.t -> Address.t -> unit Lwt_exn.t
