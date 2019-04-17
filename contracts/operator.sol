@@ -74,9 +74,6 @@ contract Operators is Claims, ClaimTypes, Bonds {
                 _operator, ClaimType.WITHDRAWAL_CLAIM,
                 withdrawal_claim_data(_account, _ticket, _value, _bond, _confirmed_state));
     }
-//                _operator, ClaimType.WITHDRAWAL_CLAIM, _confirmed_state);
-//                withdrawal_claim_data(_account, _ticket, _value, _bond,
-//                withdrawal_claim_data(_account, _ticket, _value, _bond, _confirmed_state));
 
     // TODO: The cost of a legal argument in gas should be statically deduced
     // from the structure of the contract itself.
@@ -89,8 +86,9 @@ contract Operators is Claims, ClaimTypes, Bonds {
             external payable {
         bool test=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
         if (test) {
-          make_claim(withdrawal_claim(
-              _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
+          bytes32 claim = withdrawal_claim(
+                _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state);
+          make_claim(claim);
           emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance);
         }
     }
@@ -103,6 +101,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
             private pure returns(bytes32) {
         return digest_claim(_operator, ClaimType.WITHDRAWAL, bytes32(uint256(_ticket)));
     }
+
 
 
 

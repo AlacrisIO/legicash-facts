@@ -53,7 +53,7 @@ contract Claims {
      *
      * One challenge period is 2h, about 423 blocks at the expected rate of 1 block per 17 s.
      */
-    int constant internal challenge_period_in_seconds = 10;
+    int constant internal challenge_period_in_seconds = 5;
     /* TODO: Replace the challenge period, by the depth of confirmed block.
        At least as an option. This would of course change the solidity code */
 
@@ -98,7 +98,7 @@ contract Claims {
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
     function make_claim(bytes32 _claim) internal {
-        require(claim_status[_claim]==0); // The claim must not have been made before
+//        require(claim_status[_claim]==0); // The claim must not have been made before
         claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
     }
 
