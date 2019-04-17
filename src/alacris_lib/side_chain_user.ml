@@ -83,12 +83,12 @@ let get_contract_address_from_client_exn : unit -> Address.t Lwt_exn.t =
   fun () ->
   match !contract_address_from_client_ref with
   | Some x ->
-     Logging.log "get_contract_address_from_client_exn 1 : x=%s" (Address.to_string x);
+     Logging.log "get_contract_address_from_client_exn 1 : x=%s" (Address.to_0x x);
      Lwt_exn.return x
   | None ->
      Lwt_exn.bind (get_contract_address_from_client_exn_req ())
        (fun x ->
-         Logging.log "get_contract_address_from_client_exn 2 : x=%s" (Address.to_string x);
+         Logging.log "get_contract_address_from_client_exn 2 : x=%s" (Address.to_0x x);
          contract_address_from_client_ref := Some x;
          Lwt_exn.return x)
 
@@ -112,6 +112,7 @@ let wait_for_operator_state_update (contract_address: Address.t)
                                  : Ethereum_chain.Confirmation.t Lwt_exn.t =
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_operator_state_update";
+  Logging.log "wait_for_operator_state_update contract_address=%s" (Address.to_0x contract_address);
   wait_for_contract_event
     contract_address
     [topic_of_state_update]
@@ -139,6 +140,7 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                     (revision:         Revision.t)
                                   : unit Lwt_exn.t =
   Logging.log "Beginning of wait_for_claim_withdrawal_event";
+  Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address);
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
   let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 256; Uint 256] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
@@ -164,6 +166,7 @@ let emit_claim_withdrawal_operation
   fun contract_address sender operator operator_revision value bond digest ->
     let open Lwt_exn in
     Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
+    Logging.log "emit_claim_withdrawal_operation contract_address=%s" (Address.to_0x contract_address);
     let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
     let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
     Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";
@@ -178,6 +181,7 @@ let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t 
   fun contract_address sender operator operator_revision value bond digest ->
   let open Lwt_exn in
   Logging.log "emit_withdraw_operation : beginning of operation";
+  Logging.log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
   let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   let (value_send : TokenAmount.t) = TokenAmount.zero in
@@ -199,7 +203,7 @@ let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t 
 
 let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Address.t) : unit Lwt_exn.t =
   Logging.log "Beginning of post_operation_deposit";
-  Logging.log "contract_address contr_addr=%s" (Address.to_string tc.contract_address);
+  Logging.log "contract_address contr_addr=%s" (Address.to_0x tc.contract_address);
   let (topics : Bytes.t option list) = [topic_of_deposited] in
   let (list_data_type : abi_type list) = [Address; Address; Uint 256; Uint 256] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
@@ -598,7 +602,7 @@ module TransactionTracker = struct
               |> Side_chain_client.post_user_transaction_request
               >>= function
               | Ok (tc : TransactionCommitment.t) ->
-                 Logging.log "Requested: side_chain_user: TrTracker, Ok case tc.contr_addr=%s" (Address.to_string tc.contract_address);
+                 Logging.log "Requested: side_chain_user: TrTracker, Ok case tc.contr_addr=%s" (Address.to_0x tc.contract_address);
                  SignedByOperator tc |> continue
               | Error (error : exn) ->
                  Logging.log "Requested: side_chain_user: exn=%s" (Printexc.to_string error);
@@ -606,12 +610,12 @@ module TransactionTracker = struct
                  invalidate ongoing error)
 
            | SignedByOperator (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, SignedByOperator operation tc.contr_addr=%s" (Address.to_string tc.contract_address);
+             Logging.log "TR_LOOP, SignedByOperator operation tc.contr_addr=%s" (Address.to_0x tc.contract_address);
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
 
            | PostedToRegistry (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, PostedToRegistry operation tc.contr_addr=%s" (Address.to_string tc.contract_address);
+             Logging.log "TR_LOOP, PostedToRegistry operation tc.contr_addr=%s" (Address.to_0x tc.contract_address);
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              (wait_for_operator_state_update tc.contract_address operator
               >>= function
