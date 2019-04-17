@@ -4,6 +4,7 @@ open Types
 open Action
 open Signing
 open Integer
+open Ethereum_chain
 open Ethereum_json_rpc
 open Ethereum_abi
 open Side_chain_server_config
@@ -58,21 +59,23 @@ let retrieve_last_entries (start_block:      Revision.t)
                           (topics:           Bytes.t option list)
                         : (Revision.t * (LogObject.t list)) Lwt_exn.t =
   let open Lwt_exn in
-
+  eth_get_balance (contract_address, BlockParameter.Pending)
+  >>= fun x ->
+  Logging.log "retrieve_last_entries contract address balance=%s" (TokenAmount.to_string x);
+  Lwt_exn.return ()
+  >>= fun () ->
   eth_block_number ()
-    >>= fun (to_block: Revision.t) ->
-      Logging.log "retrieve_last_entries. Before call to eth_get_logs";
-      eth_get_logs { from_block = Some (Block_number start_block)
-                   ; to_block   = Some (Block_number to_block)
-                   ; address    = Some contract_address
-                   ; topics     = Some topics
-                   ; blockhash  = None
-                   }
-
-    >>= fun (recLLO : EthListLogObjects.t) ->
-      Logging.log "retrieve_last_entries, After call to eth_get_logs";
-      return (to_block,recLLO)
-
+  >>= fun (to_block: Revision.t) ->
+  Logging.log "retrieve_last_entries. Before call to eth_get_logs";
+  eth_get_logs { from_block = Some (Block_number start_block)
+               ; to_block   = Some (Block_number to_block)
+               ; address    = Some contract_address
+               ; topics     = Some topics
+               ; blockhash  = None
+    }
+  >>= fun (recLLO : EthListLogObjects.t) ->
+  Logging.log "retrieve_last_entries, After call to eth_get_logs";
+  return (to_block,recLLO)
 
 let retrieve_relevant_list_logs
       (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t list Lwt_exn.t =
