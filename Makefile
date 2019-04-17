@@ -278,11 +278,19 @@ docker-list: ## List available services
 docker-up: ## Start all or c=<name> containers in foreground
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up $(c)
 
+docker-up_ocaml_code: ## Start all or c=<name> containers in foreground
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up alacris_side_chain_manager
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up alacris_client
+
 docker-start: ## Start all or c=<name> containers in background
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up -d $(c)
 
 docker-stop: ## Stop all or c=<name> containers
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) stop $(c)
+
+docker-stop_ocaml_all: ## Stop all or c=<name> containers
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) stop alacris_side_chain_manager
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) stop alacris_client
 
 docker-restart: ## Restart all or c=<name> containers
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) stop $(c)

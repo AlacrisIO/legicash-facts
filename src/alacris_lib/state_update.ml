@@ -18,11 +18,31 @@ type digest_entry =
   ; oper_digest : Digest.t}
 
 
+type request_state_update =
+  | Submit of Digest.t
+  | Commit of unit Lwt.u
+
+(*
+let request_state_update_mailbox : request_state_update Lwt_mvar.t = Lwt_mvar.create_empty()
+
+
+let post_to_mailbox_state_update :  *)
+
+                                                                   
 let init_state : unit -> digest_entry =
   fun () -> {revision = Revision.of_int 0; oper_digest = null_digest}
 
 
 let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
+
+
+
+
+
+
+
+
+
 
 
 let print_contract_account_value : string -> unit Lwt_exn.t =

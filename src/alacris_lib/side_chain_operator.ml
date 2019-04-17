@@ -94,7 +94,6 @@ type account_lens = (OperatorState.t, AccountState.t) Lens.t
 (* type transport_data = Digest.t *)
 type transport_data = (TransactionReceipt.t * Digest.t) option
 
-                  
 type validated_transaction_request =
   [ `Confirm of (TransactionRequest.t * transport_data) * ((Transaction.t * transport_data) * unit Lwt.t) or_exn Lwt.u ]
 
@@ -434,9 +433,11 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
                let ret_val : transport_data = Some (receipt, digest) in
                Lwt_exn.return ret_val
             | Error _error -> bork "Cannot handle error in the post_state_update")) in
-    let fct_b = simple_client inner_transaction_request_mailbox
+    let fct_b : TransactionRequest.t -> Digest.t Lwt.t =
+      fun transreq ->
+      simple_client inner_transaction_request_mailbox
                   (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
-                    `GetCurrentDigest digest_resolver) in
+                    `GetCurrentDigest digest_resolver) transreq in
     (*    Logging.log "post_state_update_request, before simple_client and push function"; *)
     Lwt_exn.bind (Lwt.bind (fct_b transreq) fct_a)
       (fun (trans_data : transport_data) ->
@@ -457,7 +458,7 @@ let fct_trans_hash : transport_data -> (Digest.t * Digest.t) =
   match trans_data with
   | None -> (Digest.zero, Digest.zero)
   | Some (receipt, digest) -> (receipt.transaction_hash, digest)
-    
+
 let make_transaction_commitment : (Transaction.t * transport_data) -> TransactionCommitment.t =
   fun transaction_dig ->
     let (transaction, trans_data) = transaction_dig in
@@ -478,7 +479,7 @@ let make_transaction_commitment : (Transaction.t * transport_data) -> Transactio
       TransactionCommitment.
         { transaction; tx_proof; operator_revision; spending_limit;
           accounts; main_chain_transactions_posted; signature;
-          trans_hash_state_update; state_digest; contract_address }          
+          trans_hash_state_update; state_digest; contract_address }
     | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x tx_revision)
 
 (* Process a user request, with a flag to specify whether it's a forced request
