@@ -28,8 +28,8 @@ let print_contract_account_value : string -> unit Lwt_exn.t =
   fun estr ->
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   let (contr_addr : Address.t) = get_contract_address () in
-  Logging.log "oper_addr=%s" (Address.to_string oper_addr);
-  Logging.log "contr_addr=%s" (Address.to_string contr_addr);
+  Logging.log "oper_addr=%s" (Address.to_0x oper_addr);
+  Logging.log "contr_addr=%s" (Address.to_0x contr_addr);
   Lwt_exn.bind (Ethereum_json_rpc.eth_get_balance (contr_addr, Latest))
     (fun x-> Logging.log "PCAV stage=%s value=%s" estr (TokenAmount.to_string x);
              Lwt_exn.return ())

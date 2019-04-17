@@ -31,6 +31,11 @@ let get_operator_fee_schedule _operator_address =
    Be careful of adjusting everything when you change the type like adding a balance.
  *)
 
+
+let (topic_of_claim_value: Bytes.t option) =
+  topic_of_hash (digest_of_string "ClaimValue(bytes32,uint64)")
+
+
 let (topic_of_deposited: Bytes.t option) =
   topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
 
@@ -41,7 +46,7 @@ let (topic_of_claim_withdrawal: Bytes.t option) =
   topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32,uint256,uint256)")
 
 let (topic_of_withdraw: Bytes.t option) =
-  topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
+  topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32,bytes32)")
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
@@ -134,6 +139,20 @@ let wait_for_operator_state_update (contract_address: Address.t)
     }
 
 
+
+let wait_for_claim_value : Address.t -> Revision.t -> unit Lwt_exn.t =
+  fun contract_address revision ->
+  Logging.log "Beginning of wait_for_claim_value";
+  let open Lwt_exn in
+  let (topics : Bytes.t option list) = [topic_of_claim_value] in
+  let (list_data_type : abi_type list) = [Bytes 32; Uint 64] in
+  let (data_value_search : abi_value option list) = [None; Some (abi_value_from_revision revision)] in
+  wait_for_contract_event contract_address topics list_data_type data_value_search
+  >>= (fun (x : (LogObject.t * (abi_value list))) ->
+      let (_a, b) = x in
+      Logging.log "wait_for_claim_value claim=%s" (print_abi_value_bytes32 (List.nth b 0));
+      Lwt_exn.return ())
+
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                     (_sender:          Address.t)
                                     (operator:         Address.t)
@@ -146,13 +165,14 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      Some (abi_value_from_revision revision);
                                                      None; None; None; None] in
-  Lwt_exn.bind (wait_for_contract_event contract_address topics list_data_type data_value_search)
-    (fun (x : (LogObject.t * (abi_value list))) ->
+  let open Lwt_exn in
+  wait_for_contract_event contract_address topics list_data_type data_value_search
+  >>= (fun (x : (LogObject.t * (abi_value list))) ->
       let (_a, b) = x in
       Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_256 (List.nth b 4));
       Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
       Lwt_exn.return ())
-
+(*  >>= fun () -> wait_for_claim_value contract_address (Revision.of_int 1)*)
 
 let emit_claim_withdrawal_operation
    : Address.t
@@ -254,7 +274,6 @@ let post_claim_withdrawal_operation (tc:       TransactionCommitment.t)
                        tc.tx_proof.key
 
 
-
 (* TODO: should be more like post_withdrawal or execute_withdrawal *)
 let final_withdraw_operation (tc:       TransactionCommitment.t)
                              (sender:   Address.t)
@@ -287,13 +306,15 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
         ; None
         ; None
         ; None
+        ; None
         ]
       in wait_for_contract_event
         tc.contract_address
         [topic_of_withdraw]
-        [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
+        [Address; Uint 64; Uint 256; Uint 256; Bytes 32; Bytes 32]
         data_value_search
-         >>= const ()
+       >>= const ()
+(*    >>= fun _ -> wait_for_claim_value tc.contract_address (Revision.of_int 2)*)
 
 (* TODO: unstub the stubs *)
 let make_rx_header (user:     Address.t)

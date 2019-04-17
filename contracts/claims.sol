@@ -81,7 +81,7 @@ contract Claims {
     /*        return _status >= 3 && _status <= int(now); */
 //    function is_status_accepted(int _status) internal view returns(bool) {
     function is_status_accepted(int _status) internal pure returns(bool) {
-        return _status >= 3;
+        return _status >= 0;
     }
 
     function is_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
@@ -101,7 +101,6 @@ contract Claims {
      */
     function make_claim(bytes32 _claim) internal {
 //        require(claim_status[_claim]==0); // The claim must not have been made before
-//        require(false);
         claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
     }
 

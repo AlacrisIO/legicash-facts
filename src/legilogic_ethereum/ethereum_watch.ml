@@ -11,7 +11,7 @@ open Side_chain_server_config
 
 (* TODO capturing `starting_watch_ref` in a state monad or similar would be a
  * much better approach than using mutable global state *)
-let starting_watch_ref : (Revision.t ref) = ref Revision.zero
+(* let starting_watch_ref : (Revision.t ref) = ref Revision.zero *)
 
 (* 'state is Revision.t *)
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
@@ -79,7 +79,7 @@ let retrieve_last_entries (start_block:      Revision.t)
 
 let retrieve_relevant_list_logs
       (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t list Lwt_exn.t =
-  (*  starting_watch_ref := (Revision.of_int 0); *)
+  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
   let rec fct_downloading (start_block : Revision.t) : LogObject.t list Lwt_exn.t =
     let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in
     Lwt_exn.bind (retrieve_last_entries start_block_p_one contract_address topics)
@@ -102,16 +102,17 @@ let is_matching_data (x_data:        abi_value list)
   let len1 = List.length x_data
   and len2 = List.length x_data_filter
 
-  in if (len1 != len2) then
-    bork "We should have len1 = len2";
-
-  let is_ok_ent (x: abi_value) (x_filter: abi_value option) : bool =
-    match x_filter with | None            -> true
-                        | Some x_filt_val -> equal x_filt_val x
-
-  in not @@ List.exists ((==) false) (List.init len1 @@ fun i ->
-    is_ok_ent (List.nth x_data        i)
-              (List.nth x_data_filter i))
+  in
+  if (len1 != len2) then
+       false
+  else
+    (let is_ok_ent (x: abi_value) (x_filter: abi_value option) : bool =
+       match x_filter with | None            -> true
+                           | Some x_filt_val -> equal x_filt_val x
+     in not @@ List.exists ((==) false) (List.init len1 @@ fun i ->
+        is_ok_ent (List.nth x_data        i)
+          (List.nth x_data_filter i))
+    )
 
 
 let retrieve_relevant_list_logs_data (delay:             float)
@@ -121,7 +122,9 @@ let retrieve_relevant_list_logs_data (delay:             float)
                                      (data_value_search: abi_value option list)
                                    : (LogObject.t * (abi_value list)) list Lwt_exn.t =
   let open Lwt_exn in
-
+  Logging.log "|list_data_type|=%d" (List.length list_data_type);
+  Logging.log "|data_value_search|=%d" (List.length data_value_search);
+  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
   let rec fct_downloading start_block =
     retrieve_last_entries (Revision.add start_block Revision.one)
                           contract_address
@@ -140,7 +143,8 @@ let retrieve_relevant_list_logs_data (delay:             float)
         in if List.length relevant == 0 then
           sleep_delay_exn delay >>= fun () -> fct_downloading start_block'
         else
-          return relevant
+            (Logging.log "|relevant|=%d" (List.length relevant);
+             return relevant)
 
   in fct_downloading !starting_watch_ref
 
@@ -161,8 +165,11 @@ let retrieve_relevant_single_logs_data (delay:             float)
     data_value_search
 
   >>= fun (llogs : (LogObject.t * (abi_value list)) list) ->
-      if List.length llogs > 1 then bork "The length should be exactly 1"
-                               else return (List.hd llogs)
+  let len = List.length llogs in
+  if len > 1 then
+    bork "The length should be exactly 1"
+  else
+    return (List.hd llogs)
 
 
 
@@ -208,6 +215,7 @@ let retrieve_last_entries_group (start_block:      Revision.t)
 
 
 let retrieve_relevant_list_logs_group (delay : float) (contract_address : Address.t) (list_topics : Bytes.t option list list) : EthListLogObjects.t list Lwt_exn.t =
+  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
   let rec fct_downloading (start_block : Revision.t) : EthListLogObjects.t list Lwt_exn.t =
     let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in
     Lwt_exn.bind (retrieve_last_entries_group start_block_p_one contract_address list_topics)

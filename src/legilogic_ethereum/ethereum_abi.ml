@@ -215,6 +215,11 @@ let print_abi_value_256 : abi_value -> string =
   let x_str : string = Nat.to_string x_uint in
   x_str
 
+let print_abi_value_bytes32 : abi_value -> string =
+  fun x ->
+  match x with
+  | Bytes_value bytes -> Bytes.to_string bytes
+  | _ -> bork "Entry should be a bytes32"
 
 
 (*
