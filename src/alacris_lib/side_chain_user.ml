@@ -167,6 +167,12 @@ let emit_claim_withdrawal_operation
     let open Lwt_exn in
     Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
     Logging.log "emit_claim_withdrawal_operation contract_address=%s" (Address.to_0x contract_address);
+    Logging.log "claim_withdrawal, claim: operator=%s" (Address.to_0x operator);
+    Logging.log "claim_withdrawal, claim: sender=%s" (Address.to_0x sender);
+    Logging.log "claim_withdrawal, claim: operator_revision=%s" (Revision.to_string operator_revision);
+    Logging.log "claim_withdrawal, claim: value=%s" (TokenAmount.to_string value);
+    Logging.log "claim_withdrawal, claim: bond=%s" (TokenAmount.to_string bond);
+    Logging.log "claim_withdrawal, claim: digest=%s" (Digest.to_0x digest);
     let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
     let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
     Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";
@@ -182,6 +188,12 @@ let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t 
   let open Lwt_exn in
   Logging.log "emit_withdraw_operation : beginning of operation";
   Logging.log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
+  Logging.log "withdraw, claim: operator=%s" (Address.to_0x operator);
+  Logging.log "withdraw, claim: sender=%s" (Address.to_0x sender);
+  Logging.log "withdraw, claim: operator_revision=%s" (Revision.to_string operator_revision);
+  Logging.log "withdraw, claim: value=%s" (TokenAmount.to_string value);
+  Logging.log "withdraw, claim: bond=%s" (TokenAmount.to_string bond);
+  Logging.log "withdraw, claim: digest=%s" (Digest.to_0x digest);
   let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   let (value_send : TokenAmount.t) = TokenAmount.zero in
@@ -257,15 +269,15 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
          (* TODO: the challenge duration should be in BLOCKS, not in seconds *)
          Logging.log "Beginning of final_withdraw_operation";
          sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
-           (* TODO actually accept challenges and handle accordingly *)
-           >>= fun () -> emit_withdraw_operation
-             tc.contract_address
-             sender
-             operator
-             tc.tx_proof.key
-             withdrawal_amount
-             Side_chain_server_config.bond_value_v
-             tc.state_digest
+         (* TODO actually accept challenges and handle accordingly *)
+         >>= fun () -> emit_withdraw_operation
+                         tc.contract_address
+                         sender
+                         operator
+                         tc.tx_proof.key
+                         withdrawal_amount
+                         Side_chain_server_config.bond_value_v
+                         tc.state_digest
 
   in await_challenge_or_emit
     >>= fun () ->

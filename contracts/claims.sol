@@ -78,8 +78,10 @@ contract Claims {
     }
 
     /** True if a claim is accepted as valid */
-    function is_status_accepted(int _status) internal view returns(bool) {
-        return _status >= 3 && _status <= int(now);
+    /*        return _status >= 3 && _status <= int(now); */
+//    function is_status_accepted(int _status) internal view returns(bool) {
+    function is_status_accepted(int _status) internal pure returns(bool) {
+        return _status >= 3;
     }
 
     function is_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
@@ -98,7 +100,8 @@ contract Claims {
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
     function make_claim(bytes32 _claim) internal {
-        require(claim_status[_claim]==0); // The claim must not have been made before
+//        require(claim_status[_claim]==0); // The claim must not have been made before
+//        require(false);
         claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
     }
 

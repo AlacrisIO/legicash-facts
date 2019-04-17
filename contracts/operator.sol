@@ -74,28 +74,26 @@ contract Operators is Claims, ClaimTypes, Bonds {
                 _operator, ClaimType.WITHDRAWAL_CLAIM,
                 withdrawal_claim_data(_account, _ticket, _value, _bond, _confirmed_state));
     }
-//                _operator, ClaimType.WITHDRAWAL_CLAIM, _confirmed_state);
-//                withdrawal_claim_data(_account, _ticket, _value, _bond,
-//                withdrawal_claim_data(_account, _ticket, _value, _bond, _confirmed_state));
 
     // TODO: The cost of a legal argument in gas should be statically deduced
     // from the structure of the contract itself.
     // TODO the balance needs to be removed eventually from the code because it is here for debugging
     uint256 maximum_withdrawal_challenge_gas = 100*1000;
 
-    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint256 _bond, uint256 _balance);
+    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint256 _bond, uint256 _balance, bytes32 _claim);
 
     function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state)
             external payable {
-        bool test=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
-        if (test) {
-          make_claim(withdrawal_claim(
-              _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
-          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance);
-        }
+//        bool test=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
+//        if (test) {
+          bytes32 claim = withdrawal_claim(
+                _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state);
+          make_claim(claim);
+          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance, claim);
+//        }
     }
 
-    event Withdrawal(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state);
+    event Withdrawal(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state, bytes32 _claim);
 
     // Logging a Withdrawal event allows validators to reject double-withdrawal
     // without keeping the withdrawal claim alive indefinitely.
@@ -110,18 +108,18 @@ contract Operators is Claims, ClaimTypes, Bonds {
             external {
         bytes32 claim = withdrawal_claim(
             _operator, msg.sender, _ticket, _value, _bond, _confirmed_state);
-        if (is_claim_status_accepted(claim)) {
+//        if (is_claim_status_accepted(claim)) {
           // Consume a valid withdrawal claim.
           set_claim_consumed(claim);
 
           // Log the withdrawal so future double-claim attempts can be duly rejected.
-          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
+          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state, claim);
 
           // NB: Should we always transfer money LAST! ?
           // I am not sure this is such a good idea
           // TODO: Should we allow a recipient different from the sender?
           msg.sender.transfer(_value + _bond);
-        }
+//        }
     }
 
 
