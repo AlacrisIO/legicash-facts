@@ -143,8 +143,7 @@ let retrieve_relevant_list_logs_data (delay:             float)
         in if List.length relevant == 0 then
           sleep_delay_exn delay >>= fun () -> fct_downloading start_block'
         else
-          (Logging.log "|only_matches|=%d" (List.length only_matches);
-           Logging.log "|relevant|=%d" (List.length relevant);
+          (Logging.log "|only_matches|=%d   |relevant|=%d" (List.length only_matches) (List.length relevant);
            return relevant)
 
   in fct_downloading !starting_watch_ref

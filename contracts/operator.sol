@@ -63,11 +63,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
         uint256 _bond, // bond deposited with the claim
         bytes32 _confirmed_state) // digest of a confirmed state of the side-chain
             private pure returns(bytes32) {
-//        return keccak256(abi.encodePacked(_account, _ticket, _value, _bond, _confirmed_state));
-//        return keccak256(abi.encodePacked(_account, _ticket, _value, _bond));
-//        return keccak256(abi.encodePacked(_account, _ticket, _value));
-//        return keccak256(abi.encodePacked(_account, _ticket));
-        return keccak256(abi.encodePacked(_account));
+        return keccak256(abi.encodePacked(_account, _ticket, _value, _bond, _confirmed_state));
     }
 
     function withdrawal_claim(

@@ -32,10 +32,6 @@ let get_operator_fee_schedule _operator_address =
  *)
 
 
-let (topic_of_claim_value: Bytes.t option) =
-  topic_of_hash (digest_of_string "ClaimValue(bytes32,uint64)")
-
-
 let (topic_of_deposited: Bytes.t option) =
   topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
 
@@ -140,19 +136,6 @@ let wait_for_operator_state_update (contract_address: Address.t)
 
 
 
-let wait_for_claim_value : Address.t -> Revision.t -> unit Lwt_exn.t =
-  fun contract_address revision ->
-  Logging.log "Beginning of wait_for_claim_value";
-  let open Lwt_exn in
-  let (topics : Bytes.t option list) = [topic_of_claim_value] in
-  let (list_data_type : abi_type list) = [Bytes 32; Uint 64] in
-  let (data_value_search : abi_value option list) = [None; Some (abi_value_from_revision revision)] in
-  wait_for_contract_event contract_address topics list_data_type data_value_search
-  >>= (fun (x : (LogObject.t * (abi_value list))) ->
-      let (_a, b) = x in
-      Logging.log "wait_for_claim_value claim=%s" (print_abi_value_bytes32 (List.nth b 0));
-      Lwt_exn.return ())
-
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                     (_sender:          Address.t)
                                     (operator:         Address.t)
@@ -186,12 +169,6 @@ let emit_claim_withdrawal_operation
     let open Lwt_exn in
     Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
     Logging.log "emit_claim_withdrawal_operation contract_address=%s" (Address.to_0x contract_address);
-    Logging.log "claim_withdrawal, claim: operator=%s" (Address.to_0x operator);
-    Logging.log "claim_withdrawal, claim: sender=%s" (Address.to_0x sender);
-    Logging.log "claim_withdrawal, claim: operator_revision=%s" (Revision.to_string operator_revision);
-    Logging.log "claim_withdrawal, claim: value=%s" (TokenAmount.to_string value);
-    Logging.log "claim_withdrawal, claim: bond=%s" (TokenAmount.to_string bond);
-    Logging.log "claim_withdrawal, claim: digest=%s" (Digest.to_0x digest);
     let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
     let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
     Logging.log "emit_claim_withdrawal_operation : before make_pre_transaction";
@@ -207,12 +184,6 @@ let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t 
   let open Lwt_exn in
   Logging.log "emit_withdraw_operation : beginning of operation";
   Logging.log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
-  Logging.log "withdraw, claim: operator=%s" (Address.to_0x operator);
-  Logging.log "withdraw, claim: sender=%s" (Address.to_0x sender);
-  Logging.log "withdraw, claim: operator_revision=%s" (Revision.to_string operator_revision);
-  Logging.log "withdraw, claim: value=%s" (TokenAmount.to_string value);
-  Logging.log "withdraw, claim: bond=%s" (TokenAmount.to_string bond);
-  Logging.log "withdraw, claim: digest=%s" (Digest.to_0x digest);
   let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   let (value_send : TokenAmount.t) = TokenAmount.zero in
@@ -311,6 +282,7 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
         [topic_of_withdraw]
         [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
         data_value_search
+       >>= const ()
 
 (* TODO: unstub the stubs *)
 let make_rx_header (user:     Address.t)
