@@ -78,10 +78,8 @@ contract Claims {
     }
 
     /** True if a claim is accepted as valid */
-    /*        return _status >= 3 && _status <= int(now); */
-//    function is_status_accepted(int _status) internal view returns(bool) {
-    function is_status_accepted(int _status) internal pure returns(bool) {
-        return _status >= 0;
+    function is_status_accepted(int _status) internal view returns(bool) {
+        return _status >= 3 && _status <= int(now);
     }
 
     function is_claim_status_accepted(bytes32 _claim) internal view returns(bool) {

@@ -63,7 +63,11 @@ contract Operators is Claims, ClaimTypes, Bonds {
         uint256 _bond, // bond deposited with the claim
         bytes32 _confirmed_state) // digest of a confirmed state of the side-chain
             private pure returns(bytes32) {
-        return keccak256(abi.encodePacked(_account, _ticket, _value, _bond, _confirmed_state));
+//        return keccak256(abi.encodePacked(_account, _ticket, _value, _bond, _confirmed_state));
+//        return keccak256(abi.encodePacked(_account, _ticket, _value, _bond));
+//        return keccak256(abi.encodePacked(_account, _ticket, _value));
+//        return keccak256(abi.encodePacked(_account, _ticket));
+        return keccak256(abi.encodePacked(_account));
     }
 
     function withdrawal_claim(
@@ -82,23 +86,18 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
     event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint256 _bond, uint256 _balance);
 
-//    event ClaimValue(bytes32 _claim, uint64 _val);
-
     function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state)
             external payable {
-//        bool test=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
-//        if (test) {
+        bool test=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
+        if (test) {
           bytes32 claim = withdrawal_claim(
                 _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state);
           make_claim(claim);
-
-//          emit ClaimValue(claim, 1);
           emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance);
-//          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance, claim);
-//        }
+        }
     }
 
-    event Withdrawal(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state, bytes32 _claim);
+    event Withdrawal(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state);
 
     // Logging a Withdrawal event allows validators to reject double-withdrawal
     // without keeping the withdrawal claim alive indefinitely.
@@ -119,8 +118,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
           set_claim_consumed(claim);
 
           // Log the withdrawal so future double-claim attempts can be duly rejected.
-//          emit ClaimValue(claim, 2);
-          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state, claim);
+          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
 
           // NB: Should we always transfer money LAST! ?
           // I am not sure this is such a good idea

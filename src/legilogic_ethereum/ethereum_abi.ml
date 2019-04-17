@@ -218,7 +218,7 @@ let print_abi_value_256 : abi_value -> string =
 let print_abi_value_bytes32 : abi_value -> string =
   fun x ->
   match x with
-  | Bytes_value bytes -> Bytes.to_string bytes
+  | Bytes_value bytes -> Hex.unparse_0x_data (Bytes.to_string bytes)
   | _ -> bork "Entry should be a bytes32"
 
 

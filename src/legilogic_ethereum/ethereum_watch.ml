@@ -11,7 +11,7 @@ open Side_chain_server_config
 
 (* TODO capturing `starting_watch_ref` in a state monad or similar would be a
  * much better approach than using mutable global state *)
-(* let starting_watch_ref : (Revision.t ref) = ref Revision.zero *)
+let starting_watch_ref : (Revision.t ref) = ref Revision.zero
 
 (* 'state is Revision.t *)
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
@@ -79,7 +79,7 @@ let retrieve_last_entries (start_block:      Revision.t)
 
 let retrieve_relevant_list_logs
       (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t list Lwt_exn.t =
-  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
+  (*  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in*)
   let rec fct_downloading (start_block : Revision.t) : LogObject.t list Lwt_exn.t =
     let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in
     Lwt_exn.bind (retrieve_last_entries start_block_p_one contract_address topics)
@@ -124,7 +124,7 @@ let retrieve_relevant_list_logs_data (delay:             float)
   let open Lwt_exn in
   Logging.log "|list_data_type|=%d" (List.length list_data_type);
   Logging.log "|data_value_search|=%d" (List.length data_value_search);
-  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
+  (*  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in*)
   let rec fct_downloading start_block =
     retrieve_last_entries (Revision.add start_block Revision.one)
                           contract_address
@@ -143,8 +143,9 @@ let retrieve_relevant_list_logs_data (delay:             float)
         in if List.length relevant == 0 then
           sleep_delay_exn delay >>= fun () -> fct_downloading start_block'
         else
-            (Logging.log "|relevant|=%d" (List.length relevant);
-             return relevant)
+          (Logging.log "|only_matches|=%d" (List.length only_matches);
+           Logging.log "|relevant|=%d" (List.length relevant);
+           return relevant)
 
   in fct_downloading !starting_watch_ref
 
@@ -215,7 +216,7 @@ let retrieve_last_entries_group (start_block:      Revision.t)
 
 
 let retrieve_relevant_list_logs_group (delay : float) (contract_address : Address.t) (list_topics : Bytes.t option list list) : EthListLogObjects.t list Lwt_exn.t =
-  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
+  (*  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in*)
   let rec fct_downloading (start_block : Revision.t) : EthListLogObjects.t list Lwt_exn.t =
     let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in
     Lwt_exn.bind (retrieve_last_entries_group start_block_p_one contract_address list_topics)

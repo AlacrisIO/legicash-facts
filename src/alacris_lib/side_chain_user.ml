@@ -46,7 +46,7 @@ let (topic_of_claim_withdrawal: Bytes.t option) =
   topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32,uint256,uint256)")
 
 let (topic_of_withdraw: Bytes.t option) =
-  topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32,bytes32)")
+  topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
@@ -172,7 +172,6 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
       Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_256 (List.nth b 4));
       Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
       Lwt_exn.return ())
-(*  >>= fun () -> wait_for_claim_value contract_address (Revision.of_int 1)*)
 
 let emit_claim_withdrawal_operation
    : Address.t
@@ -221,7 +220,7 @@ let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t 
   Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value_send
   >>= fun x ->
   Logging.log "emit_withdraw_operation : before confirm_pre_transaction";
-  Ethereum_user.confirm_pre_transaction operator x
+  Ethereum_user.confirm_pre_transaction sender x
   >>= fun (_tx, _, receipt) ->
   Logging.log "emit_withdraw_operation : before eth_get_transaction_receipt";
   Ethereum_json_rpc.eth_get_transaction_receipt receipt.transaction_hash
@@ -306,15 +305,12 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
         ; None
         ; None
         ; None
-        ; None
         ]
       in wait_for_contract_event
         tc.contract_address
         [topic_of_withdraw]
-        [Address; Uint 64; Uint 256; Uint 256; Bytes 32; Bytes 32]
+        [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
         data_value_search
-       >>= const ()
-(*    >>= fun _ -> wait_for_claim_value tc.contract_address (Revision.of_int 2)*)
 
 (* TODO: unstub the stubs *)
 let make_rx_header (user:     Address.t)
