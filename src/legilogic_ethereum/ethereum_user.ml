@@ -608,7 +608,7 @@ module Test = struct
     let open TokenAmount in
     eth_get_balance (address, BlockParameter.Pending)
     >>= fun balance ->
-    Logging.log	"address=%s" (nicknamed_string_of_address address);
+    Logging.log "address=%s" (nicknamed_string_of_address address);
     Logging.log "Now working something balance=%s" (TokenAmount.to_string balance);
     if compare balance amount >= 0 then
       display_balance (printf "Account %s contains %s wei.\n") address balance
