@@ -21,14 +21,33 @@ type digest_entry =
 type request_state_update =
   | Submit of Digest.t
   | Commit of unit Lwt.u
+  | GetLastRevision of Revision.t Lwt.u
+  | GetLastCommit of Digest.t Lwt.u
 
-(*
 let request_state_update_mailbox : request_state_update Lwt_mvar.t = Lwt_mvar.create_empty()
 
+let post_to_mailbox_state_update : Digest.t -> unit Lwt.t =
+  fun digest ->
+  simple_client request_state_update_mailbox
+    (fun (x : unit Lwt.u) -> Submit digest) digest
 
-let post_to_mailbox_state_update :  *)
 
-                                                                   
+let retrieve_last_posted_state : unit -> Digest.t Lwt.t =
+  fun () ->
+  simple_client request_state_update_mailbox
+    (fun (x : Digest.t Lwt.u) -> GetLastCommit ())
+
+let retrieve_last_revision : unit -> Revision.t Lwt.t =
+  fun () ->
+  simple_client request_state_update_mailbox
+    (fun (x : Revision.t Lwt.u) -> GetLastRevision ())
+
+
+let inner_state_update_request_loop =
+  
+
+
+  
 let init_state : unit -> digest_entry =
   fun () -> {revision = Revision.of_int 0; oper_digest = null_digest}
 
