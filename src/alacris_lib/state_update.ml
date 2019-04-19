@@ -15,41 +15,62 @@ open Side_chain_server_config
 
 type digest_entry =
   { revision : Revision.t
-  ; oper_digest : Digest.t}
+  ; digest : Digest.t}
 
 
 type request_state_update =
-  | Submit of Digest.t
-  | Commit of unit Lwt.u
+  | Submit of (Digest.t * unit Lwt.u)
   | GetLastRevision of Revision.t Lwt.u
   | GetLastCommit of Digest.t Lwt.u
 
-let request_state_update_mailbox : request_state_update Lwt_mvar.t = Lwt_mvar.create_empty()
+let request_state_update_mailbox : request_state_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
 let post_to_mailbox_state_update : Digest.t -> unit Lwt.t =
   fun digest ->
   simple_client request_state_update_mailbox
-    (fun (x : unit Lwt.u) -> Submit digest) digest
+    (fun ((x_digest, x_resolver) : (Digest.t * unit Lwt.u)) -> Submit (digest,x_resolver)) digest
 
 
 let retrieve_last_posted_state : unit -> Digest.t Lwt.t =
   fun () ->
   simple_client request_state_update_mailbox
-    (fun (x : Digest.t Lwt.u) -> GetLastCommit ())
+    (fun ((x_unit, x_resolv) : (unit * Digest.t Lwt.u)) -> GetLastCommit x_resolv) ()
 
 let retrieve_last_revision : unit -> Revision.t Lwt.t =
   fun () ->
   simple_client request_state_update_mailbox
-    (fun (x : Revision.t Lwt.u) -> GetLastRevision ())
+    (fun ((x_unit, x_resolv) : (unit * Revision.t Lwt.u)) -> GetLastRevision x_resolv) ()
+
+
 
 
 let inner_state_update_request_loop =
-  
+  let open Lwt in
+  let digest_entry_ref : digest_entry ref = ref {revision=Revision.zero; digest=Digest.zero} in
+  let rec inner_loop : unit -> unit Lwt.t =
+    fun () ->
+    Lwt_mvar.take request_state_update_mailbox
+    >>= function
+    | GetLastRevision (rev_u : Revision.t Lwt.u) ->
+       Logging.log "State_update : GetLastRevision";
+       Lwt.wakeup_later rev_u !digest_entry_ref.revision;
+       inner_loop ()
+    | GetLastCommit (digest_u : Digest.t Lwt.u) ->
+       Logging.log "State_update : GetLastRevision";
+       Lwt.wakeup_later digest_u !digest_entry_ref.digest;
+       inner_loop ()
+    | Submit ((new_digest, notify_u) : (Digest.t * unit Lwt.u)) ->
+       let new_rev = Revision.add !digest_entry_ref.revision Revision.one in
+       let new_digest_entry = {revision=new_rev; digest=new_digest} in
+       digest_entry_ref := new_digest_entry;
+       Lwt.wakeup_later notify_u ();
+       inner_loop ()
+  in inner_loop ()
 
 
-  
+
 let init_state : unit -> digest_entry =
-  fun () -> {revision = Revision.of_int 0; oper_digest = null_digest}
+  fun () -> {revision = Revision.of_int 0; digest = null_digest}
 
 
 let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
