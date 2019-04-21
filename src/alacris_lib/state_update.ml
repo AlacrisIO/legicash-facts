@@ -28,18 +28,18 @@ let request_state_update_mailbox : request_state_update Lwt_mvar.t = Lwt_mvar.cr
 let post_to_mailbox_state_update : Digest.t -> unit Lwt.t =
   fun digest ->
   simple_client request_state_update_mailbox
-    (fun ((x_digest, x_resolver) : (Digest.t * unit Lwt.u)) -> Submit (digest,x_resolver)) digest
+    (fun ((_x_digest, x_resolver) : (Digest.t * unit Lwt.u)) -> Submit (digest,x_resolver)) digest
 
 
 let retrieve_last_posted_state : unit -> Digest.t Lwt.t =
   fun () ->
   simple_client request_state_update_mailbox
-    (fun ((x_unit, x_resolv) : (unit * Digest.t Lwt.u)) -> GetLastCommit x_resolv) ()
+    (fun ((_x_unit, x_resolv) : (unit * Digest.t Lwt.u)) -> GetLastCommit x_resolv) ()
 
 let retrieve_last_revision : unit -> Revision.t Lwt.t =
   fun () ->
   simple_client request_state_update_mailbox
-    (fun ((x_unit, x_resolv) : (unit * Revision.t Lwt.u)) -> GetLastRevision x_resolv) ()
+    (fun ((_x_unit, x_resolv) : (unit * Revision.t Lwt.u)) -> GetLastRevision x_resolv) ()
 
 
 
@@ -89,8 +89,8 @@ let print_contract_account_value : string -> unit Lwt_exn.t =
   fun estr ->
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   let (contr_addr : Address.t) = get_contract_address () in
-  Logging.log "oper_addr=%s" (Address.to_string oper_addr);
-  Logging.log "contr_addr=%s" (Address.to_string contr_addr);
+  Logging.log "oper_addr=%s" (Address.to_0x oper_addr);
+  Logging.log "contr_addr=%s" (Address.to_0x contr_addr);
   Lwt_exn.bind (Ethereum_json_rpc.eth_get_balance (contr_addr, Latest))
     (fun x-> Logging.log "PCAV stage=%s value=%s" estr (TokenAmount.to_string x);
              Lwt_exn.return ())

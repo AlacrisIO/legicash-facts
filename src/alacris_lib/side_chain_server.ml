@@ -30,7 +30,8 @@ let process_request_exn _client_address (in_channel,out_channel) =
     marshaler |> Tag.marshal_result_or_exn |> marshal_string_of_marshal |> arr in
   read_string_from_lwt_io_channel in_channel
   >>= fun x ->
-  Logging.log "After read_string_from_lwt_io_channel x=%s" x;
+  (*  Logging.log "After read_string_from_lwt_io_channel x=%s" x;*)
+  Logging.log "After read_string_from_lwt_io_channel x=(omit)";
   trying (catching_arr ExternalRequest.unmarshal_string) x
   >>= (function
     | Ok (`UserQuery request) ->
@@ -49,7 +50,7 @@ let process_request_exn _client_address (in_channel,out_channel) =
      (e.g. by turning it into a yojson that fulfills the JSON RPC interface) before we close.
   *)
   >>= fun x ->
-  Logging.log "Before writing to write_string_to_lwt_io_channel x=%s" x;
+  Logging.log "Before writing to write_string_to_lwt_io_channel x=(omit)";
   catching (write_string_to_lwt_io_channel out_channel) x
   >>= fun () -> catching_lwt Lwt_io.close in_channel
   >>= fun () -> catching_lwt Lwt_io.close out_channel

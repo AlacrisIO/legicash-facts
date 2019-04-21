@@ -4,6 +4,7 @@ open Types
 open Action
 open Signing
 open Integer
+open Ethereum_chain
 open Ethereum_json_rpc
 open Ethereum_abi
 open Side_chain_server_config
@@ -58,21 +59,23 @@ let retrieve_last_entries (start_block:      Revision.t)
                           (topics:           Bytes.t option list)
                         : (Revision.t * (LogObject.t list)) Lwt_exn.t =
   let open Lwt_exn in
-
+  eth_get_balance (contract_address, BlockParameter.Pending)
+  >>= fun x ->
+  Logging.log "retrieve_last_entries contract address balance=%s" (TokenAmount.to_string x);
+  Lwt_exn.return ()
+  >>= fun () ->
   eth_block_number ()
-    >>= fun (to_block: Revision.t) ->
-      Logging.log "retrieve_last_entries. Before call to eth_get_logs";
-      eth_get_logs { from_block = Some (Block_number start_block)
-                   ; to_block   = Some (Block_number to_block)
-                   ; address    = Some contract_address
-                   ; topics     = Some topics
-                   ; blockhash  = None
-                   }
-
-    >>= fun (recLLO : EthListLogObjects.t) ->
-      Logging.log "retrieve_last_entries, After call to eth_get_logs";
-      return (to_block,recLLO)
-
+  >>= fun (to_block: Revision.t) ->
+  Logging.log "retrieve_last_entries. Before call to eth_get_logs";
+  eth_get_logs { from_block = Some (Block_number start_block)
+               ; to_block   = Some (Block_number to_block)
+               ; address    = Some contract_address
+               ; topics     = Some topics
+               ; blockhash  = None
+    }
+  >>= fun (recLLO : EthListLogObjects.t) ->
+  Logging.log "retrieve_last_entries, After call to eth_get_logs";
+  return (to_block,recLLO)
 
 
 let is_matching_data (x_data:        abi_value list)
@@ -81,16 +84,17 @@ let is_matching_data (x_data:        abi_value list)
   let len1 = List.length x_data
   and len2 = List.length x_data_filter
 
-  in if (len1 != len2) then
-    bork "We should have len1 = len2";
-
-  let is_ok_ent (x: abi_value) (x_filter: abi_value option) : bool =
-    match x_filter with | None            -> true
-                        | Some x_filt_val -> equal x_filt_val x
-
-  in not @@ List.exists ((==) false) (List.init len1 @@ fun i ->
-    is_ok_ent (List.nth x_data        i)
-              (List.nth x_data_filter i))
+  in
+  if (len1 != len2) then
+       false
+  else
+    (let is_ok_ent (x: abi_value) (x_filter: abi_value option) : bool =
+       match x_filter with | None            -> true
+                           | Some x_filt_val -> equal x_filt_val x
+     in not @@ List.exists ((==) false) (List.init len1 @@ fun i ->
+        is_ok_ent (List.nth x_data        i)
+          (List.nth x_data_filter i))
+    )
 
 let string_of_option_digest : Digest.t option -> string =
   fun edig ->
@@ -117,6 +121,8 @@ let retrieve_relevant_list_logs_data (delay:             float)
                                      (data_value_search: abi_value option list)
                                    : (LogObject.t * (abi_value list)) list Lwt_exn.t =
   let open Lwt_exn in
+  Logging.log "|list_data_type|=%d" (List.length list_data_type);
+  Logging.log "|data_value_search|=%d" (List.length data_value_search);
   let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
   let iter_state_ref : (int ref) = ref 0 in
   let rec fct_downloading start_block iter_state =
@@ -154,7 +160,8 @@ let retrieve_relevant_list_logs_data (delay:             float)
                 fct_downloading start_block_in !iter_state_ref
                )
         else
-          return relevant
+          (Logging.log "|only_matches_a|=%d   |only_matches_b|=%d   |relevant|=%d" (List.length only_matches_a) (List.length only_matches_b)  (List.length relevant);
+           return relevant)
 
   in fct_downloading !starting_watch_ref !iter_state_ref
 
@@ -177,8 +184,11 @@ let retrieve_relevant_single_logs_data (delay:             float)
     data_value_search
 
   >>= fun (llogs : (LogObject.t * (abi_value list)) list) ->
-      if List.length llogs > 1 then bork "The length should be exactly 1"
-                               else return (List.hd llogs)
+  let len = List.length llogs in
+  if len > 1 then
+    bork "The length should be exactly 1"
+  else
+    return (List.hd llogs)
 
 
 
