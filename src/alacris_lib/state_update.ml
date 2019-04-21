@@ -117,6 +117,39 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
   return receipt
 
 
+
+
+
+let post_operation_general_kernel_next_version : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+  fun operation sender value ->
+  Logging.log "post_operation_kernel : beginning of function";
+  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
+  Logging.log "post_operation_general_kernel : before make_pre_transaction";
+(*
+  let fct_exn_a : unit -> TransactionTracker.t Lwt_exn.t =
+    fun () ->
+    Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val value
+    >>= fun x_pretrans -> Ethereum_user.add_ongoing_transaction ~sender:sender x_pretrans *)
+  Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val value
+  >>= fun x_pretrans ->
+  Ethereum_user.add_ongoing_transaction sender (Wanted x_pretrans)
+  >>= fun (tracker_key, _, _) ->
+  let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
+  (Lwt.bind promise (function
+  | Ethereum_user.FinalTransactionStatus.Failed (_, error) ->
+     fail error (* bork "Cannot match this" *)
+  | Ethereum_user.FinalTransactionStatus.Confirmed (_transaction, _signed, receipt) ->
+     Logging.log "post_operation_general_kernel : Ok receipt, transaction_hash=%s" (Digest.to_string receipt.transaction_hash);
+     Logging.log "transaction status=%s" (print_status_receipt receipt);
+     Lwt_exn.return receipt))
+
+(*
+  >>= Ethereum_user.check_transaction_confirmed
+  >>= (fun x ->
+    Lwt_exn.return Revision.zero)
+ *)
+
+
 let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
   fun operation sender value ->
   let rec fct_submit : unit -> TransactionReceipt.t Lwt_exn.t =
