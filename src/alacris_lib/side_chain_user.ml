@@ -172,7 +172,7 @@ let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Rev
   fun contract_address sender operator operator_revision value bond digest ->
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
-  post_operation_general operation bond
+  post_operation_general operation sender bond
 
 
 let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
@@ -181,7 +181,7 @@ let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t 
   Logging.log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
   let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
   let (value_send : TokenAmount.t) = TokenAmount.zero in
-  post_operation_general operation value_send
+  post_operation_general operation sender value_send
 
 
 
@@ -489,7 +489,7 @@ let retrieve_of_pre_transaction_in_deposit : Address.t -> TokenAmount.t -> Ongoi
     )
  *)
 
-                        
+
 module TransactionTracker = struct
   module Base = struct
     module Key = struct
