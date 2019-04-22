@@ -158,7 +158,7 @@ let post_state_update_eat_exception : Digest.t -> TransactionReceipt.t option Lw
     | Ok x -> Lwt.return (Some x)
     | _ -> Lwt.return None)
 
-let inner_state_update_request_loop =
+let inner_state_update_request_loop () =
   let open Lwt in
   let digest_entry_ref : digest_entry ref = ref {revision=Revision.zero; digest=Digest.zero} in
   let rec inner_loop : unit -> unit Lwt.t =
@@ -184,6 +184,12 @@ let inner_state_update_request_loop =
   in inner_loop ()
 
 
+let start_state_update_operator () =
+  Lwt.async inner_state_update_request_loop;
+  Lwt.return_unit
+
+
+       
 (* Alert to take care of:
    ---lack of gas
    ---transaction not passed
