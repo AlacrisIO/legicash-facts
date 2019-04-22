@@ -19,16 +19,16 @@ type digest_entry =
 
 
 type request_state_update =
-  | Submit of (Digest.t * unit Lwt.u)
+  | Submit of (Digest.t * TransactionReceipt.t OrExn.t Lwt.u)
   | GetLastRevision of Revision.t Lwt.u
   | GetLastCommit of Digest.t Lwt.u
 
 let request_state_update_mailbox : request_state_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
-let post_to_mailbox_state_update : Digest.t -> unit Lwt.t =
+let post_to_mailbox_state_update : Digest.t -> TransactionReceipt.t OrExn.t Lwt.t =
   fun digest ->
   simple_client request_state_update_mailbox
-    (fun ((_x_digest, x_resolver) : (Digest.t * unit Lwt.u)) -> Submit (digest,x_resolver)) digest
+    (fun ((_x_digest, x_resolver) : (Digest.t * TransactionReceipt.t OrExn.t Lwt.u)) -> Submit (digest,x_resolver)) digest
 
 
 let retrieve_last_posted_state : unit -> Digest.t Lwt.t =
@@ -43,29 +43,6 @@ let retrieve_last_revision : unit -> Revision.t Lwt.t =
 
 
 
-
-let inner_state_update_request_loop =
-  let open Lwt in
-  let digest_entry_ref : digest_entry ref = ref {revision=Revision.zero; digest=Digest.zero} in
-  let rec inner_loop : unit -> unit Lwt.t =
-    fun () ->
-    Lwt_mvar.take request_state_update_mailbox
-    >>= function
-    | GetLastRevision (rev_u : Revision.t Lwt.u) ->
-       Logging.log "State_update : GetLastRevision";
-       Lwt.wakeup_later rev_u !digest_entry_ref.revision;
-       inner_loop ()
-    | GetLastCommit (digest_u : Digest.t Lwt.u) ->
-       Logging.log "State_update : GetLastRevision";
-       Lwt.wakeup_later digest_u !digest_entry_ref.digest;
-       inner_loop ()
-    | Submit ((new_digest, notify_u) : (Digest.t * unit Lwt.u)) ->
-       let new_rev = Revision.add !digest_entry_ref.revision Revision.one in
-       let new_digest_entry = {revision=new_rev; digest=new_digest} in
-       digest_entry_ref := new_digest_entry;
-       Lwt.wakeup_later notify_u ();
-       inner_loop ()
-  in inner_loop ()
 
 
 
@@ -125,11 +102,6 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
   Logging.log "post_operation_kernel : beginning of function";
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   Logging.log "post_operation_general_kernel : before make_pre_transaction";
-(*
-  let fct_exn_a : unit -> TransactionTracker.t Lwt_exn.t =
-    fun () ->
-    Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val value
-    >>= fun x_pretrans -> Ethereum_user.add_ongoing_transaction ~sender:sender x_pretrans *)
   Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val value
   >>= fun x_pretrans ->
   Ethereum_user.add_ongoing_transaction sender (Wanted x_pretrans)
@@ -176,6 +148,40 @@ let post_state_update : Digest.t -> TransactionReceipt.t Lwt_exn.t =
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   post_operation_general operation oper_addr value
+
+
+let post_state_update_eat_exception : Digest.t -> TransactionReceipt.t option Lwt.t =
+  fun digest ->
+  Lwt.bind (post_state_update digest)
+  (fun x_input ->
+    match x_input with
+    | Ok x -> Lwt.return (Some x)
+    | _ -> Lwt.return None)
+
+let inner_state_update_request_loop =
+  let open Lwt in
+  let digest_entry_ref : digest_entry ref = ref {revision=Revision.zero; digest=Digest.zero} in
+  let rec inner_loop : unit -> unit Lwt.t =
+    fun () ->
+    Lwt_mvar.take request_state_update_mailbox
+    >>= function
+    | GetLastRevision (rev_u : Revision.t Lwt.u) ->
+       Logging.log "State_update : GetLastRevision";
+       Lwt.wakeup_later rev_u !digest_entry_ref.revision;
+       inner_loop ()
+    | GetLastCommit (digest_u : Digest.t Lwt.u) ->
+       Logging.log "State_update : GetLastRevision";
+       Lwt.wakeup_later digest_u !digest_entry_ref.digest;
+       inner_loop ()
+    | Submit ((new_digest, notify_u) : (Digest.t * TransactionReceipt.t OrExn.t Lwt.u)) ->
+       let new_rev = Revision.add !digest_entry_ref.revision Revision.one in
+       let new_digest_entry = {revision=new_rev; digest=new_digest} in
+       digest_entry_ref := new_digest_entry;
+       post_state_update new_digest
+       >>= fun ereceipt ->
+       Lwt.wakeup_later notify_u ereceipt;
+       inner_loop ()
+  in inner_loop ()
 
 
 (* Alert to take care of:
