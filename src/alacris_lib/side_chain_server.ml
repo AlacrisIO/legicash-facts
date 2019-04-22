@@ -89,8 +89,9 @@ let sockaddr = Unix.(ADDR_INET (inet_addr_any, Side_chain_server_config.config.p
 let _ =
   Lwt_exn.run
     (fun () ->
-       of_lwt Db.open_connection "alacris_server_db"
-       >>= fun () ->
+      State_update.start_state_update_operator ()
+      >>= fun () -> of_lwt Db.open_connection "alacris_server_db"
+      >>= fun () ->
        Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_string Side_chain_server_config.operator_address);
        Side_chain_action.ensure_side_chain_contract_created Side_chain_server_config.operator_address
        >>= fun contract_address ->
