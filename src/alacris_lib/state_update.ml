@@ -101,7 +101,7 @@ let print_status_receipt : TransactionReceipt.t -> string =
   fun tr -> (TokenAmount.to_string tr.status)
 
 
-let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+let post_operation_general_kernel_old_version : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
   fun operation sender value ->
   Logging.log "post_operation_kernel : beginning of function";
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
@@ -120,7 +120,7 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
 
 
 
-let post_operation_general_kernel_next_version : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
   fun operation sender value ->
   Logging.log "post_operation_kernel : beginning of function";
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
