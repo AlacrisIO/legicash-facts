@@ -209,15 +209,15 @@ let abi_value_to_uint = abi_value_to_uintN 256
 
 
 
-let print_abi_value_256 : abi_value -> string =
+let print_abi_value_uint256 : abi_value -> string =
   fun x ->
   let x_uint = abi_value_to_uint x in
   let x_str : string = Nat.to_string x_uint in
   x_str
 
-let print_abi_value_64 : abi_value -> string =
+let print_abi_value_uint64 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint x in
+  let x_uint = abi_value_to_uint64 x in
   let x_str : string = Nat.to_string x_uint in
   x_str
 

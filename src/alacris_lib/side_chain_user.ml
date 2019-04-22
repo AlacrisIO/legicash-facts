@@ -128,7 +128,7 @@ let wait_for_operator_state_update (contract_address: Address.t)
   let transhash : Digest.t = get_option Digest.zero x_logo.transactionHash in
   Logging.log "wait_for_operator_state_update, trans_hash=%s" (Digest.to_0x trans_hash);
   Logging.log "wait_for_operator_state_update,  transhash=%s" (Digest.to_0x transhash);
-  Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_256 (List.nth x_vals 2));
+  Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_uint256 (List.nth x_vals 2));
 
   (* TODO defaulting to zero is wrong and the presence of `null`s indicates
    * something's broken with the confirmation data; we should instead capture
@@ -166,9 +166,9 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   >>= (fun (x : (LogObject.t * (abi_value list))) ->
     let (_a, b) = x in
     Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length b);
-    Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_256 (List.nth b 4));
-    Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
-    (*    Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_64  (List.nth b 6));*)
+    Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_uint256 (List.nth b 4));
+    Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_uint256 (List.nth b 5));
+    Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth b 6));
     Lwt_exn.return ())
 
 let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
@@ -199,8 +199,8 @@ let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Addres
   Lwt_exn.bind (wait_for_contract_event tc.contract_address None topics list_data_type data_value_search)
     (fun (x : (LogObject.t * (abi_value list))) ->
       let (_a, b) = x in
-      Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_256 (List.nth b 2));
-      Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_256 (List.nth b 3));
+      Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_uint256 (List.nth b 2));
+      Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_uint256 (List.nth b 3));
       Lwt_exn.return ())
 
 
