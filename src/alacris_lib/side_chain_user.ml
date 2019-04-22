@@ -116,6 +116,7 @@ let wait_for_operator_state_update (contract_address: Address.t)
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_operator_state_update";
   Logging.log "wait_for_operator_state_update contract_address=%s" (Address.to_0x contract_address);
+  Logging.log "Before wait_for_contract_event CONTEXT state_update";
   wait_for_contract_event
     contract_address
     (Some trans_hash)
@@ -125,8 +126,8 @@ let wait_for_operator_state_update (contract_address: Address.t)
   >>= fun x ->
   let (x_logo, x_vals) = x in
   let transhash : Digest.t = get_option Digest.zero x_logo.transactionHash in
-  Logging.log "wait_for_operator_state_update, trans_hash=%s" (Digest.to_string trans_hash);
-  Logging.log "wait_for_operator_state_update,  transhash=%s" (Digest.to_string transhash);
+  Logging.log "wait_for_operator_state_update, trans_hash=%s" (Digest.to_0x trans_hash);
+  Logging.log "wait_for_operator_state_update,  transhash=%s" (Digest.to_0x transhash);
   Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_256 (List.nth x_vals 2));
 
   (* TODO defaulting to zero is wrong and the presence of `null`s indicates
@@ -160,13 +161,15 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
                                                      None; None; None; None; None] in
   let (trans_hash_b : Digest.t option) = Some trans_hash in
   let open Lwt_exn in
+  Logging.log "Before wait_for_contract_event CONTEXT claim_withdrawal";
   wait_for_contract_event contract_address trans_hash_b topics list_data_type data_value_search
   >>= (fun (x : (LogObject.t * (abi_value list))) ->
-      let (_a, b) = x in
-      Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_256 (List.nth b 4));
-      Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
-      Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_64  (List.nth b 6));
-      Lwt_exn.return ())
+    let (_a, b) = x in
+    Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length b);
+    Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_256 (List.nth b 4));
+    Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_256 (List.nth b 5));
+    (*    Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_64  (List.nth b 6));*)
+    Lwt_exn.return ())
 
 let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun contract_address sender operator operator_revision value bond digest ->
@@ -192,6 +195,7 @@ let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Addres
   let (list_data_type : abi_type list) = [Address; Address; Uint 256; Uint 256] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      None; None; None] in
+  Logging.log "Before wait_for_contract_event CONTEXT deposit";
   Lwt_exn.bind (wait_for_contract_event tc.contract_address None topics list_data_type data_value_search)
     (fun (x : (LogObject.t * (abi_value list))) ->
       let (_a, b) = x in
@@ -227,6 +231,9 @@ let post_claim_withdrawal_operation (tc:       TransactionCommitment.t)
           sender
           operator
           tc.tx_proof.key
+        >>= fun () ->
+        Logging.log "After the wait_for_claim_withdrawal_event";
+        return ()
 
 
 let final_withdraw_operation_spec (tc:       TransactionCommitment.t)
@@ -257,8 +264,9 @@ let final_withdraw_operation_spec (tc:       TransactionCommitment.t)
         ; None
         ; None
         ; None
-        ]
-      in wait_for_contract_event
+        ] in
+      Logging.log "Before wait_for_contract_event CONTEXT withdraw";
+      wait_for_contract_event
         tc.contract_address
         (Some tr.transaction_hash)
         [topic_of_withdraw]

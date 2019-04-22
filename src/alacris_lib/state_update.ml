@@ -112,7 +112,7 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
   Logging.log "post_operation_general_kernel : before confirm_pre_transaction";
   Ethereum_user.confirm_pre_transaction sender x
   >>= fun (_tx, _confirmation, receipt) ->
-  Logging.log "post_operation_general_kernel : Ok receipt, transaction_hash=%s" (Digest.to_string receipt.transaction_hash);
+  Logging.log "post_operation_general_kernel : Ok receipt, transaction_hash=%s" (Digest.to_0x receipt.transaction_hash);
   Logging.log "transaction status=%s" (print_status_receipt receipt);
   return receipt
 
@@ -139,7 +139,7 @@ let post_operation_general_kernel_next_version : Ethereum_chain.Operation.t -> A
   | Ethereum_user.FinalTransactionStatus.Failed (_, error) ->
      fail error (* bork "Cannot match this" *)
   | Ethereum_user.FinalTransactionStatus.Confirmed (_transaction, _signed, receipt) ->
-     Logging.log "post_operation_general_kernel : Ok receipt, transaction_hash=%s" (Digest.to_string receipt.transaction_hash);
+     Logging.log "post_operation_general_kernel : Ok receipt, transaction_hash=%s" (Digest.to_0x receipt.transaction_hash);
      Logging.log "transaction status=%s" (print_status_receipt receipt);
      Lwt_exn.return receipt))
 
