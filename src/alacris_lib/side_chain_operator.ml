@@ -426,7 +426,8 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
   if lneedupdate then
     let fct_a : Digest.t -> transport_data Lwt_exn.t =
       (fun digest ->
-        Lwt.bind (post_state_update digest)
+        (*        Lwt.bind (post_state_update digest)*)
+        Lwt.bind (post_to_mailbox_state_update digest)
           (fun receipt_exn ->
             match receipt_exn with
             | Ok receipt ->

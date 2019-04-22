@@ -185,6 +185,7 @@ let inner_state_update_request_loop () =
 
 
 let start_state_update_operator () =
+  Logging.log "Beginning of start_state_update_operator";
   Lwt.async inner_state_update_request_loop;
   Lwt_exn.return ()
 
