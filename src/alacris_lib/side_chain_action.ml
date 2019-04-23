@@ -5,6 +5,8 @@ open Action
 open Lwt_exn
 open Legilogic_ethereum
 open Side_chain
+open Side_chain_operator
+open Side_chain_user
 
 let contract_address_key = "alacris.contract-address"
 
@@ -59,7 +61,6 @@ let ensure_side_chain_contract_created (installer_address : Address.t) : Address
   Operator_contract.set_contract_address contract_address;
   return contract_address
 
-(* TODO: re-enable
 module Test = struct
   open Lib.Test
   open Signing.Test
@@ -76,14 +77,19 @@ module Test = struct
   (* deposit, payment and withdrawal test *)
   let%test "deposit_and_payment_and_withdrawal" =
     Signing.Test.register_test_keypairs ();
+
     Side_chain_client.Test.post_user_transaction_request_hook :=
       Side_chain_operator.oper_post_user_transaction_request;
+
     Lwt_exn.run
       (fun () ->
         of_lwt Db.open_connection "unit_test_db" >>= fun () ->
-        get_prefunded_address () >>= fun prefunded_address ->
-        ensure_side_chain_contract_created prefunded_address >>= fun contract_address ->
-        Logging.log "Contract address: %s" (Address.to_0x contract_address);
+
+        (* TODO replace mutable contract address plumbing w/ more elegant +
+         * functional style *)
+        get_contract_address_from_client_exn () >>= fun contract_address ->
+        Operator_contract.set_contract_address contract_address;
+
         fund_accounts () >>= fun () ->
         let operator = trent_address in
         start_operator operator >>= fun () ->
@@ -155,4 +161,3 @@ module Test = struct
         return true)
       ()
 end
-*)
