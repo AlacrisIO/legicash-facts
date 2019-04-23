@@ -232,7 +232,8 @@ let retrieve_relevant_list_logs_group (delay : float) (contract_address : Addres
   in fct_downloading !starting_watch_ref
 
 
-let wait_for_contract_event (contract_address:  Address.t)
+let wait_for_contract_event
+      (contract_address:  Address.t)
       (topics:            Bytes.t option list)
       (list_data_type:    abi_type list)
       (data_value_search: abi_value option list)
