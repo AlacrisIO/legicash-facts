@@ -1,6 +1,7 @@
 # Bibliography
 
-* [Plasma](http://plasma.io),
+* [Plasma](https://plasma.io/),
+  [Plasma Group](https://plasma.group/),
   [ETH Research on Plasma](https://ethresear.ch/search?q=plasma),
   [Construction of a Plasma Chain 0x1](https://blog.omisego.network/construction-of-a-plasma-chain-0x1-614f6ebd1612) ([MVP git](https://github.com/omisego/plasma-mvp.git)),
   [Joseph Poon's talk at Deconomy 2018: "Consensus and Cryptoeconomic Incentive Mechanisms"](https://youtu.be/nZKdy7kZGBc).
@@ -71,6 +72,7 @@
 * Contracts in EVM:
   [opcodes](https://ethereum.stackexchange.com/questions/119/what-opcodes-are-available-for-the-ethereum-evm),
   [old Ethereum block hashes](https://github.com/amiller/ethereum-blockhashes),
+  [Zeppelin: deconstructing a solidity contract](https://blog.zeppelin.solutions/deconstructing-a-solidity-contract-part-ii-creation-vs-runtime-6b9d60ecb44c),
   [Security Audit by QuantStamp](https://quantstamp.com/start),
   [Towards verifying ethereum smart contract bytecode in Isabelle/HOL](https://dl.acm.org/citation.cfm?doid=3176245.3167084),
   [the Parity Light Protocol](https://wiki.parity.io/The-Parity-Light-Protocol-%28PIP%29)
@@ -115,4 +117,24 @@
 
 * Low-level Cryptographic protocols:
   [Threshold-optimal DSA/ECDSA signatures and an application to Bitcoin wallet security](https://eprint.iacr.org/2016/013.pdf)
+
+* Interactive help for Ethereum:
+  [Go Ethereum gitter](https://gitter.im/ethereum/go-ethereum),
+  [Ethereum Magicians](https://ethereum-magicians.org/top/all)...
+
+* Nix: [Overlays](https://nixos.org/nixpkgs/manual/#chap-overlays),
+  [Typing Nix](https://www.tweag.io/posts/2017-05-23-typing-nix.html)
+  ([tix-papers](https://github.com/regnat/tix-papers), [tix](https://github.com/regnat/tix))...
+
+* Formal Method advocacy:
+  [Formally Verified Software in the Real World](https://cacm.acm.org/magazines/2018/10/231372-formally-verified-software-in-the-real-world/fulltext),
+  [What do Formal Methods actually Guarantee?](https://medium.com/alacris/what-do-formal-methods-actually-guarantee-d94ae8802be2)
+
+* Homomorphic encryption:
+  [Reusable Non-Interactive Secure Computation](https://eprint.iacr.org/2018/940.pdf),
+  [Efficent Multi-Party computation toolkit](https://github.com/emp-toolkit),
+  [Jonathan Katz](http://www.cs.umd.edu/~jkatz/papers.html).
+
+* Algorand:
+  [Vault](https://eprint.iacr.org/2018/269.pdf)
 
