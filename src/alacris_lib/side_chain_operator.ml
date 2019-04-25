@@ -424,7 +424,7 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
   let (lneedupdate : bool) = post_state_update_needed_tr transreq in
   (*  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate; *)
   if lneedupdate then
-    let fct_a : Digest.t -> transport_data Lwt_exn.t =
+    let get_transport_data : Digest.t -> transport_data Lwt_exn.t =
       (fun digest ->
         (*        Lwt.bind (post_state_update digest)*)
         Lwt.bind (post_to_mailbox_state_update digest)
@@ -434,13 +434,13 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
                let ret_val : transport_data = Some (receipt, digest) in
                Lwt_exn.return ret_val
             | Error _error -> bork "Cannot handle error in the post_state_update")) in
-    let fct_b : TransactionRequest.t -> Digest.t Lwt.t =
+    let get_state_digest : TransactionRequest.t -> Digest.t Lwt.t =
       fun transreq ->
       simple_client inner_transaction_request_mailbox
                   (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
                     `GetCurrentDigest digest_resolver) transreq in
     (*    Logging.log "post_state_update_request, before simple_client and push function"; *)
-    Lwt_exn.bind (Lwt.bind (fct_b transreq) fct_a)
+    Lwt_exn.bind (Lwt.bind (get_state_digest transreq) get_transport_data)
       (fun (trans_data : transport_data) ->
         let ret_valb : (TransactionRequest.t * transport_data) = (transreq, trans_data) in
         Lwt_exn.return ret_valb)

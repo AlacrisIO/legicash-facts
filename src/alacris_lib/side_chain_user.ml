@@ -135,7 +135,8 @@ let wait_for_operator_state_update (contract_address: Address.t)
    * the possibility of invalid state at the type level and force consuming
    * code to deal with it explicitly and unambiguously.
    * MDS: The transaction_hash and others are "null" when the transaction is pending.
-   * In that case, likely, this can nver happen because we are matching an event.
+   * In that case, likely, this can never happen because we are matching an event.
+   * TODO: Maybe replace the Confirmation by a TransactionCommitment.
    *)
   return Ethereum_chain.Confirmation.
     { transaction_hash  = get_option Digest.zero x_logo.transactionHash
@@ -164,11 +165,11 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   Logging.log "Before wait_for_contract_event CONTEXT claim_withdrawal";
   wait_for_contract_event contract_address trans_hash_b topics list_data_type data_value_search
   >>= (fun (x : (LogObject.t * (abi_value list))) ->
-    let (_a, b) = x in
-    Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length b);
-    Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_uint256 (List.nth b 4));
-    Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_uint256 (List.nth b 5));
-    Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth b 6));
+    let (_log_object, abi_list_val) = x in
+    Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length abi_list_val);
+    Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_uint256 (List.nth abi_list_val 4));
+    Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 5));
+    Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth abi_list_val 6));
     Lwt_exn.return ())
 
 let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
@@ -198,9 +199,9 @@ let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Addres
   Logging.log "Before wait_for_contract_event CONTEXT deposit";
   Lwt_exn.bind (wait_for_contract_event tc.contract_address None topics list_data_type data_value_search)
     (fun (x : (LogObject.t * (abi_value list))) ->
-      let (_a, b) = x in
-      Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_uint256 (List.nth b 2));
-      Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_uint256 (List.nth b 3));
+      let (_log_object, abi_list_val) = x in
+      Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_uint256 (List.nth abi_list_val 2));
+      Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 3));
       Lwt_exn.return ())
 
 
@@ -655,7 +656,7 @@ module TransactionTracker = struct
 
            | PostedToRegistry (tc : TransactionCommitment.t) ->
              Logging.log "TR_LOOP, PostedToRegistry operation tc.contr_addr=%s" (Address.to_0x tc.contract_address);
-             (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
+             (* TODO: add support for Mutual Knowledge Base / "Smart Court Registry" *)
              (wait_for_operator_state_update tc.contract_address operator tc.state_update_transaction_hash
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
