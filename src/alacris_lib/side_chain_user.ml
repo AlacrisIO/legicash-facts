@@ -111,7 +111,7 @@ let get_option : 'a -> 'a option -> 'a =
 
 let wait_for_operator_state_update (contract_address: Address.t)
                                    (operator:         Address.t)
-                                   (trans_hash: Digest.t)
+                                   (transaction_hash: Digest.t)
                                  : Ethereum_chain.Confirmation.t Lwt_exn.t =
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_operator_state_update";
@@ -119,14 +119,14 @@ let wait_for_operator_state_update (contract_address: Address.t)
   Logging.log "Before wait_for_contract_event CONTEXT state_update";
   wait_for_contract_event
     contract_address
-    (Some trans_hash)
+    (Some transaction_hash)
     [topic_of_state_update]
     [Address; Bytes 32; Uint 256; Uint 64]
     [Some (Address_value operator); None; None; None]
   >>= fun x ->
   let (x_logo, x_vals) = x in
   let transhash : Digest.t = get_option Digest.zero x_logo.transactionHash in
-  Logging.log "wait_for_operator_state_update, trans_hash=%s" (Digest.to_0x trans_hash);
+  Logging.log "wait_for_operator_state_update, transaction_hash=%s" (Digest.to_0x transaction_hash);
   Logging.log "wait_for_operator_state_update,  transhash=%s" (Digest.to_0x transhash);
   Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_uint256 (List.nth x_vals 2));
 
@@ -148,7 +148,7 @@ let wait_for_operator_state_update (contract_address: Address.t)
 
 
 let wait_for_claim_withdrawal_event (contract_address: Address.t)
-                                    (trans_hash: Digest.t)
+                                    (transaction_hash: Digest.t)
                                     (_sender:          Address.t)
                                     (operator:         Address.t)
                                     (revision:         Revision.t)
@@ -160,10 +160,10 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      Some (abi_value_from_revision revision);
                                                      None; None; None; None; None] in
-  let (trans_hash_val : Digest.t option) = Some trans_hash in
+  let (transaction_hash_val : Digest.t option) = Some transaction_hash in
   let open Lwt_exn in
   Logging.log "Before wait_for_contract_event CONTEXT claim_withdrawal";
-  wait_for_contract_event contract_address trans_hash_val topics list_data_type data_value_search
+  wait_for_contract_event contract_address transaction_hash_val topics list_data_type data_value_search
   >>= (fun (x : (LogObject.t * (abi_value list))) ->
     let (_log_object, abi_list_val) = x in
     Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length abi_list_val);

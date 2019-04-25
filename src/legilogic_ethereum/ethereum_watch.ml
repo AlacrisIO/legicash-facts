@@ -99,7 +99,7 @@ let is_matching_data (x_data:        abi_value list)
 let string_of_option_digest : Digest.t option -> string =
   fun edig ->
   match edig with
-  | None -> "0xOPTIONAL"
+  | None -> "NONE"
   | Some x -> Digest.to_0x x
 
 
@@ -114,7 +114,7 @@ let print_list_entries : EthListLogObjects.t -> string =
 
 let retrieve_relevant_list_logs_data (delay:             float)
                                      (contract_address:  Address.t)
-                                     (trans_hash: Digest.t option)
+                                     (transaction_hash: Digest.t option)
                                      (topics:            Bytes.t option list)
                                      (list_data_type:    abi_type list)
                                      (data_value_search: abi_value option list)
@@ -130,18 +130,18 @@ let retrieve_relevant_list_logs_data (delay:             float)
                           topics
 
     >>= fun (start_block_in, entries) ->
-        Logging.log "retrieve_relevant trans_hash=%s" (string_of_option_digest trans_hash);
-        Logging.log "List transaction_hashe=%s" (print_list_entries entries);
+        Logging.log "retrieve_relevant transaction_hash=%s" (string_of_option_digest transaction_hash);
+        Logging.log "List transaction_hash=%s" (print_list_entries entries);
         let only_matches_record = flip List.filter entries @@ fun l ->
           is_matching_data (decode_data l.data list_data_type)
                            data_value_search
         in let only_matches_hash = List.filter (fun (l : LogObject.t) ->
-                                 match trans_hash with
+                                 match transaction_hash with
                                  | None -> true
-                                 | Some trans_hash_search ->
+                                 | Some transaction_hash_search ->
                                     (match l.transactionHash with
                                      | None -> true
-                                     | Some trans_hash_log -> Digest.equal trans_hash_log trans_hash_search))
+                                     | Some transaction_hash_log -> Digest.equal transaction_hash_log transaction_hash_search))
                                only_matches_record
         in let relevant = flip List.map only_matches_hash @@ fun l ->
           (l, decode_data l.data list_data_type)
@@ -167,7 +167,7 @@ let retrieve_relevant_list_logs_data (delay:             float)
 
 let retrieve_relevant_single_logs_data (delay:             float)
                                        (contract_address:  Address.t)
-                                       (trans_hash: Digest.t option)
+                                       (transaction_hash: Digest.t option)
                                        (topics:            Bytes.t option list)
                                        (list_data_type:    abi_type list)
                                        (data_value_search: abi_value option list)
@@ -177,7 +177,7 @@ let retrieve_relevant_single_logs_data (delay:             float)
   retrieve_relevant_list_logs_data
     delay
     contract_address
-    trans_hash
+    transaction_hash
     topics
     list_data_type
     data_value_search
@@ -236,7 +236,7 @@ let retrieve_relevant_list_logs_group (delay : float) (contract_address : Addres
 
 
 let wait_for_contract_event (contract_address:  Address.t)
-      (trans_hash:        Digest.t option)
+      (transaction_hash:        Digest.t option)
       (topics:            Bytes.t option list)
       (list_data_type:    abi_type list)
       (data_value_search: abi_value option list)
@@ -246,7 +246,7 @@ let wait_for_contract_event (contract_address:  Address.t)
   retrieve_relevant_single_logs_data
     Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
     contract_address
-    trans_hash
+    transaction_hash
     topics
     list_data_type
     data_value_search
