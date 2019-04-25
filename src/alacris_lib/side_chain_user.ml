@@ -160,10 +160,10 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      Some (abi_value_from_revision revision);
                                                      None; None; None; None; None] in
-  let (trans_hash_b : Digest.t option) = Some trans_hash in
+  let (trans_hash_val : Digest.t option) = Some trans_hash in
   let open Lwt_exn in
   Logging.log "Before wait_for_contract_event CONTEXT claim_withdrawal";
-  wait_for_contract_event contract_address trans_hash_b topics list_data_type data_value_search
+  wait_for_contract_event contract_address trans_hash_val topics list_data_type data_value_search
   >>= (fun (x : (LogObject.t * (abi_value list))) ->
     let (_log_object, abi_list_val) = x in
     Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length abi_list_val);

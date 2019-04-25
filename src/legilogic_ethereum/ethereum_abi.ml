@@ -228,16 +228,6 @@ let print_abi_value_bytes32 : abi_value -> string =
   | _ -> bork "Entry should be a bytes32"
 
 
-(*
-    match x with
-  | Uint_value x_bytes ->
-     let e_len = Bytes.length x_bytes in
-     "string"
-                            (*let x_b = abi_value_to_uint x_bytes in*)
-  (* Nat.to_string x_b*)
-  | _ -> bork "missing code in print_abi_value_256"
- *)
-
 
 (*
 let abi_value_to_intN n evalue =

@@ -105,14 +105,13 @@ let string_of_option_digest : Digest.t option -> string =
 
 let print_list_entries : EthListLogObjects.t -> string =
   fun entries ->
-  let entries_b : LogObject.t list = entries in 
-  let list_str : string list = List.map (fun (x : LogObject.t) -> string_of_option_digest (x.transactionHash)) entries_b in
+  let list_str : string list = List.map (fun (x : LogObject.t) -> string_of_option_digest (x.transactionHash)) entries in
   let estri = "\n" in
   String.concat estri list_str
 
 
 
-            
+
 let retrieve_relevant_list_logs_data (delay:             float)
                                      (contract_address:  Address.t)
                                      (trans_hash: Digest.t option)
@@ -133,18 +132,18 @@ let retrieve_relevant_list_logs_data (delay:             float)
     >>= fun (start_block_in, entries) ->
         Logging.log "retrieve_relevant trans_hash=%s" (string_of_option_digest trans_hash);
         Logging.log "List transaction_hashe=%s" (print_list_entries entries);
-        let only_matches_a = flip List.filter entries @@ fun l ->
+        let only_matches_record = flip List.filter entries @@ fun l ->
           is_matching_data (decode_data l.data list_data_type)
                            data_value_search
-        in let only_matches_b = List.filter (fun (l : LogObject.t) ->
+        in let only_matches_hash = List.filter (fun (l : LogObject.t) ->
                                  match trans_hash with
                                  | None -> true
-                                 | Some trans_hash_a ->
+                                 | Some trans_hash_search ->
                                     (match l.transactionHash with
                                      | None -> true
-                                     | Some trans_hash_b -> Digest.equal trans_hash_a trans_hash_b))
-                               only_matches_a
-        in let relevant = flip List.map only_matches_b @@ fun l ->
+                                     | Some trans_hash_log -> Digest.equal trans_hash_log trans_hash_search))
+                               only_matches_record
+        in let relevant = flip List.map only_matches_hash @@ fun l ->
           (l, decode_data l.data list_data_type)
 
         in if List.length relevant == 0 then
@@ -160,7 +159,7 @@ let retrieve_relevant_list_logs_data (delay:             float)
                 fct_downloading start_block_in !iter_state_ref
                )
         else
-          (Logging.log "|only_matches_a|=%d   |only_matches_b|=%d   |relevant|=%d" (List.length only_matches_a) (List.length only_matches_b)  (List.length relevant);
+          (Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
            return relevant)
 
   in fct_downloading !starting_watch_ref !iter_state_ref
