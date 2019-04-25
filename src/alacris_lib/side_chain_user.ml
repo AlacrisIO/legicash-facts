@@ -134,9 +134,9 @@ let wait_for_operator_state_update (contract_address: Address.t)
    * something's broken with the confirmation data; we should instead capture
    * the possibility of invalid state at the type level and force consuming
    * code to deal with it explicitly and unambiguously.
-   * MDS: The transaction_hash and others are "null" when the transaction is pending.
-   * In that case, likely, this can never happen because we are matching an event.
-   * TODO: Maybe replace the Confirmation by a TransactionCommitment.
+   * TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
+   * but don't return a fake Confirmation. Maybe have separate functions for one
+   * and the other, or for one and the work that remains to do for the other.
    *)
   return Ethereum_chain.Confirmation.
     { transaction_hash  = get_option Digest.zero x_logo.transactionHash
