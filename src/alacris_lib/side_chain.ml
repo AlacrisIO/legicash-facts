@@ -347,7 +347,7 @@ module TransactionCommitment = struct
     ; accounts: Digest.t
     ; main_chain_transactions_posted: Digest.t
     ; signature: Signature.t
-    ; trans_hash_state_update: Digest.t
+    ; state_update_transaction_hash: Digest.t
     ; state_digest: Digest.t
     ; contract_address: Address.t
     }

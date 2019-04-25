@@ -656,7 +656,7 @@ module TransactionTracker = struct
            | PostedToRegistry (tc : TransactionCommitment.t) ->
              Logging.log "TR_LOOP, PostedToRegistry operation tc.contr_addr=%s" (Address.to_0x tc.contract_address);
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
-             (wait_for_operator_state_update tc.contract_address operator tc.trans_hash_state_update
+             (wait_for_operator_state_update tc.contract_address operator tc.state_update_transaction_hash
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
