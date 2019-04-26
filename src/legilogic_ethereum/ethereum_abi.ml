@@ -209,9 +209,15 @@ let abi_value_to_uint = abi_value_to_uintN 256
 
 
 
-let print_abi_value_256 : abi_value -> string =
+let print_abi_value_uint256 : abi_value -> string =
   fun x ->
   let x_uint = abi_value_to_uint x in
+  let x_str : string = Nat.to_string x_uint in
+  x_str
+
+let print_abi_value_uint64 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint64 x in
   let x_str : string = Nat.to_string x_uint in
   x_str
 
@@ -221,16 +227,6 @@ let print_abi_value_bytes32 : abi_value -> string =
   | Bytes_value bytes -> Hex.unparse_0x_data (Bytes.to_string bytes)
   | _ -> bork "Entry should be a bytes32"
 
-
-(*
-    match x with
-  | Uint_value x_bytes ->
-     let e_len = Bytes.length x_bytes in
-     "string"
-                            (*let x_b = abi_value_to_uint x_bytes in*)
-  (* Nat.to_string x_b*)
-  | _ -> bork "missing code in print_abi_value_256"
- *)
 
 
 (*

@@ -73,9 +73,10 @@ contract Claims {
     }
 
     /** Check that a claim is still pending */
+    /*
     function require_claim_pending(bytes32 _claim) internal view {
         require(is_claim_status_pending(claim_status[_claim]));
-    }
+    }*/
 
     /** True if a claim is accepted as valid */
     function is_status_accepted(int _status) internal view returns(bool) {
@@ -87,9 +88,10 @@ contract Claims {
     }
 
     /** Check that a claim is accepted as valid */
+    /*
     function require_claim_accepted(bytes32 _claim) internal view {
         require(is_claim_status_accepted(_claim));
-    }
+    }*/
 
 
     /**
@@ -97,19 +99,22 @@ contract Claims {
      *
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
-    function make_claim(bytes32 _claim) internal {
-        // TODO ensure duplicate claims cannot be submitted and provide
-        // automated tests to detect future regressions
-        // See: https://gitlab.com/legicash/legicash-facts/merge_requests/214/diffs#note_161909798
-        // require(claim_status[_claim]==0); // The claim must not have been made before
-        claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
+    function make_claim(bytes32 _claim) internal returns(uint64) {
+        if (claim_status[_claim]==0) { // The claim must not have been made before
+          claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
+          return 1;
+        }
+        else {
+          return 0;
+        }
     }
 
     /** Reject a pending claim as invalid. */
+    /* TODO: Actually implement the functionality for the rejection of claims.
     function reject_claim(bytes32 _claim) internal {
         require_claim_pending(_claim);
         claim_status[_claim] = REJECTED;
-    }
+    }*/
 
     function set_claim_consumed(bytes32 _claim) internal {
         claim_status[_claim] = CONSUMED;
@@ -117,10 +122,11 @@ contract Claims {
 
 
     /** Check that a claim is valid, then use it up. */
+    /* TODO: implement te rest of the functionality for denying the claims
     function consume_claim(bytes32 _claim) internal {
         require_claim_accepted(_claim);
         set_claim_consumed(_claim);
-    }
+    }*/
 
 
 

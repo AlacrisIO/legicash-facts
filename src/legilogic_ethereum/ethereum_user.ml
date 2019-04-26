@@ -272,6 +272,8 @@ let make_signed_transaction (sender : Address.t) (operation : Operation.t) (valu
   Logging.log "Before the sign_transaction";
   sign_transaction Transaction.{tx_header; operation}
 
+
+
 (* TODO: move as many functions as possible ethereum_transaction ? *)
 
 let nonce_too_low address =
@@ -323,20 +325,22 @@ let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.
     instead of logged and reported, causing a deadlock. *)
 let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, TransactionReceipt.t) Lwt_exn.arr =
   fun (transaction, signed) ->
-    (*Logging.log "Sending and confirming %s %s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);*)
+    Logging.log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
     let sender = transaction.tx_header.sender in
     let hash = signed.SignedTransaction.tx.hash in
     let open Lwt_exn in
     send_raw_transaction sender signed
-    (*>>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)*)
+    >>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)
     >>= Ethereum_json_rpc.eth_get_transaction_receipt
-    (*>>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)*)
+    >>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)
     >>= (function
       | Some receipt -> check_transaction_receipt_status receipt
       | None ->
+        Logging.log "send_and_confirm: None case";
         let nonce = transaction.tx_header.nonce in
         Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
         >>= fun sender_nonce ->
+        Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
         if Nonce.(compare sender_nonce nonce > 0) then
           confirmed_or_known_issue sender hash
         else
@@ -372,8 +376,10 @@ module TransactionTracker = struct
       and continue (status : OngoingTransactionStatus.t) =
         TransactionStatus.Ongoing status |> update
       and finalize (status : FinalTransactionStatus.t) =
+        Logging.log "Ethereum_user: beginning of finalize operation";
         TransactionStatus.Final status |> update
       and invalidate transaction_status error =
+        Logging.log "Ethereum_user: beginning of invalidate operation";
         finalize (Failed (transaction_status, error))
       and loop (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
         (*Logging.log "Stepping into %s" (TransactionStatus.to_yojson_string status);*)
@@ -386,6 +392,7 @@ module TransactionTracker = struct
                | Ok (t,c) -> OngoingTransactionStatus.Signed (t,c) |> continue
                | Error error -> invalidate ongoing error)
            | Signed (transaction, signed) ->
+              Logging.log "Ethereum_User: Signed";
              (transaction, signed)
              |> Lwt_exn.(run_lwt
                            (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None

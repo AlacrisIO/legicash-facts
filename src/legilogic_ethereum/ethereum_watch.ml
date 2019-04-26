@@ -11,7 +11,7 @@ open Side_chain_server_config
 
 (* TODO capturing `starting_watch_ref` in a state monad or similar would be a
  * much better approach than using mutable global state *)
-let starting_watch_ref : (Revision.t ref) = ref Revision.zero
+(* let starting_watch_ref : (Revision.t ref) = ref Revision.zero *)
 
 (* 'state is Revision.t *)
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
@@ -77,24 +77,6 @@ let retrieve_last_entries (start_block:      Revision.t)
   Logging.log "retrieve_last_entries, After call to eth_get_logs";
   return (to_block,recLLO)
 
-let retrieve_relevant_list_logs
-      (delay : float) (contract_address : Address.t) (topics : Bytes.t option list) : LogObject.t list Lwt_exn.t =
-  (*  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in*)
-  let rec fct_downloading (start_block : Revision.t) : LogObject.t list Lwt_exn.t =
-    let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in
-    Lwt_exn.bind (retrieve_last_entries start_block_p_one contract_address topics)
-      (fun (x : (Revision.t * (LogObject.t list))) ->
-        let (x_to, x_llogs) = x in
-        let (len : int) = List.length x_llogs in
-        starting_watch_ref := x_to;
-        if (len == 0) then
-          Lwt_exn.bind (sleep_delay_exn delay) (fun () -> fct_downloading x_to)
-        else
-          Lwt_exn.return x_llogs
-      )
-  in fct_downloading !starting_watch_ref
-
-
 
 let is_matching_data (x_data:        abi_value list)
                      (x_data_filter: abi_value option list)
@@ -109,14 +91,31 @@ let is_matching_data (x_data:        abi_value list)
     (let is_ok_ent (x: abi_value) (x_filter: abi_value option) : bool =
        match x_filter with | None            -> true
                            | Some x_filt_val -> equal x_filt_val x
+
      in not @@ List.exists ((==) false) (List.init len1 @@ fun i ->
         is_ok_ent (List.nth x_data        i)
-          (List.nth x_data_filter i))
+                  (List.nth x_data_filter i))
     )
+
+let string_of_option_digest : Digest.t option -> string =
+  fun edig ->
+  match edig with
+  | None -> "NONE"
+  | Some x -> Digest.to_0x x
+
+
+let print_list_entries : EthListLogObjects.t -> string =
+  fun entries ->
+  let list_str : string list = List.map (fun (x : LogObject.t) -> string_of_option_digest (x.transactionHash)) entries in
+  let estri = "\n" in
+  String.concat estri list_str
+
+
 
 
 let retrieve_relevant_list_logs_data (delay:             float)
                                      (contract_address:  Address.t)
+                                     (transaction_hash: Digest.t option)
                                      (topics:            Bytes.t option list)
                                      (list_data_type:    abi_type list)
                                      (data_value_search: abi_value option list)
@@ -124,33 +123,52 @@ let retrieve_relevant_list_logs_data (delay:             float)
   let open Lwt_exn in
   Logging.log "|list_data_type|=%d" (List.length list_data_type);
   Logging.log "|data_value_search|=%d" (List.length data_value_search);
-  (*  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in*)
-  let rec fct_downloading start_block =
+  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
+  let iter_state_ref : (int ref) = ref 0 in
+  let rec fct_downloading start_block iter_state =
     retrieve_last_entries (Revision.add start_block Revision.one)
                           contract_address
                           topics
 
-      >>= fun (start_block', entries) ->
-        starting_watch_ref := start_block';
-
-        let only_matches = flip List.filter entries @@ fun l ->
+    >>= fun (start_block_in, entries) ->
+        Logging.log "retrieve_relevant transaction_hash=%s" (string_of_option_digest transaction_hash);
+        Logging.log "List transaction_hash=%s" (print_list_entries entries);
+        let only_matches_record = flip List.filter entries @@ fun l ->
           is_matching_data (decode_data l.data list_data_type)
                            data_value_search
-
-        in let relevant = flip List.map only_matches @@ fun l ->
+        in let only_matches_hash = List.filter (fun (l : LogObject.t) ->
+                                 match transaction_hash with
+                                 | None -> true
+                                 | Some transaction_hash_search ->
+                                    (match l.transactionHash with
+                                     | None -> true
+                                     | Some transaction_hash_log -> Digest.equal transaction_hash_log transaction_hash_search))
+                               only_matches_record
+        in let relevant = flip List.map only_matches_hash @@ fun l ->
           (l, decode_data l.data list_data_type)
 
         in if List.length relevant == 0 then
-          sleep_delay_exn delay >>= fun () -> fct_downloading start_block'
+             sleep_delay_exn delay >>= fun () ->
+             if iter_state == 5 then
+               (starting_watch_ref := Revision.zero;
+                iter_state_ref := 0;
+                fct_downloading !starting_watch_ref !iter_state_ref
+               )
+             else
+               (starting_watch_ref := start_block_in;
+                iter_state_ref := iter_state + 1;
+                fct_downloading start_block_in !iter_state_ref
+               )
         else
-          (Logging.log "|only_matches|=%d   |relevant|=%d" (List.length only_matches) (List.length relevant);
+          (Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
            return relevant)
 
-  in fct_downloading !starting_watch_ref
+  in fct_downloading !starting_watch_ref !iter_state_ref
 
 
 let retrieve_relevant_single_logs_data (delay:             float)
                                        (contract_address:  Address.t)
+                                       (transaction_hash: Digest.t option)
                                        (topics:            Bytes.t option list)
                                        (list_data_type:    abi_type list)
                                        (data_value_search: abi_value option list)
@@ -160,6 +178,7 @@ let retrieve_relevant_single_logs_data (delay:             float)
   retrieve_relevant_list_logs_data
     delay
     contract_address
+    transaction_hash
     topics
     list_data_type
     data_value_search
@@ -172,21 +191,6 @@ let retrieve_relevant_single_logs_data (delay:             float)
     return (List.hd llogs)
 
 
-
-let retrieve_relevant_single_logs (delay:            float)
-                                  (contract_address: Address.t)
-                                  (topics:           Bytes.t option list)
-                                : LogObject.t Lwt_exn.t =
-  let open Lwt_exn in
-
-  retrieve_relevant_list_logs
-    delay
-    contract_address
-    topics
-
-  >>= fun (llogs : LogObject.t list) ->
-      if List.length llogs != 1 then bork "The length should be exactly 1"
-                                else Lwt_exn.return (List.hd llogs)
 
 
 (* GROUP cases *)
@@ -215,7 +219,7 @@ let retrieve_last_entries_group (start_block:      Revision.t)
 
 
 let retrieve_relevant_list_logs_group (delay : float) (contract_address : Address.t) (list_topics : Bytes.t option list list) : EthListLogObjects.t list Lwt_exn.t =
-  (*  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in*)
+  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
   let rec fct_downloading (start_block : Revision.t) : EthListLogObjects.t list Lwt_exn.t =
     let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in
     Lwt_exn.bind (retrieve_last_entries_group start_block_p_one contract_address list_topics)
@@ -234,6 +238,7 @@ let retrieve_relevant_list_logs_group (delay : float) (contract_address : Addres
 
 let wait_for_contract_event
       (contract_address:  Address.t)
+      (transaction_hash:  Digest.t option)
       (topics:            Bytes.t option list)
       (list_data_type:    abi_type list)
       (data_value_search: abi_value option list)
@@ -242,6 +247,7 @@ let wait_for_contract_event
   retrieve_relevant_single_logs_data
     Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
     contract_address
+    transaction_hash
     topics
     list_data_type
     data_value_search

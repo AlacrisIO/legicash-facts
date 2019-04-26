@@ -1,0 +1,14 @@
+{ "scheme" : "http",
+  "host" : "alacris-private-mkb-node0",
+  "port" : 8845
+  "topic" : "mkb_side_chain_registry",
+  "committee_size" : 0,
+  "min_interval_insertion_micros" : 0,
+  "total_capacity_mem" : 0,
+  "instant_capacity_mem" : 0,
+  "total_throughput_per_min" : 0,
+  "total_throughput_per_sec" : 0,
+  "retention_time" : 0,
+  "retention_size" : 0,
+  "hash_method" : "Keccak256"
+}

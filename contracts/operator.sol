@@ -24,12 +24,12 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
     // STATE UPDATE
 
-    event StateUpdate(address _operator, bytes32 _confirmed_state, uint256 _balance);
+    event StateUpdate(address _operator, bytes32 _confirmed_state, uint256 _balance, uint64 _res);
 
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state) external {
-        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
-        emit StateUpdate(msg.sender, _new_state, address(this).balance);
+        uint64 res = make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
+        emit StateUpdate(msg.sender, _new_state, address(this).balance, res);
     }
 
     function operator_state(
@@ -80,16 +80,15 @@ contract Operators is Claims, ClaimTypes, Bonds {
     // TODO the balance needs to be removed eventually from the code because it is here for debugging
     uint256 maximum_withdrawal_challenge_gas = 100*1000;
 
-    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint256 _bond, uint256 _balance);
+    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint256 _bond, uint256 _balance, uint64 _res);
 
     function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state)
             external payable {
         bool test=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
         if (test) {
-          bytes32 claim = withdrawal_claim(
-                _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state);
-          make_claim(claim);
-          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance);
+          uint64 res = make_claim(withdrawal_claim(
+              _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
+          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance, res);
         }
     }
 

@@ -348,6 +348,7 @@ module TransactionCommitment : sig
     ; accounts: Digest.t (* From State.t, digest only *)
     ; main_chain_transactions_posted: Digest.t (* From State.t, digest only *)
     ; signature: signature (* Signature of the digest of the state reconstituted from the above *)
+    ; state_update_transaction_hash: Digest.t
     ; state_digest: Digest.t (* Signature put in the state update *)
     ; contract_address: Address.t (* contract address needed for accessing to data *)
     }
@@ -393,4 +394,3 @@ module SignaturePrefix : sig
 end
 
 val initial_fee_schedule : OperatorFeeSchedule.t
-
