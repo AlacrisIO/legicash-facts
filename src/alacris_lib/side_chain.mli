@@ -394,4 +394,3 @@ module SignaturePrefix : sig
 end
 
 val initial_fee_schedule : OperatorFeeSchedule.t
-
