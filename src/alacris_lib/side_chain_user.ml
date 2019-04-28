@@ -118,9 +118,9 @@ let wait_for_operator_state_update (contract_address: Address.t)
   Logging.log "wait_for_operator_state_update contract_address=%s" (Address.to_0x contract_address);
   Logging.log "Before wait_for_contract_event CONTEXT state_update";
   wait_for_contract_event
-    contract_address
-    (Some transaction_hash)
-    [topic_of_state_update]
+    ~contract_address
+    ~transaction_hash:(Some transaction_hash)
+    ~topics:[topic_of_state_update]
     [Address; Bytes 32; Uint 256; Uint 64]
     [Some (Address_value operator); None; None; None]
   >>= fun x ->
@@ -163,7 +163,7 @@ let wait_for_claim_withdrawal_event (contract_address: Address.t)
   let (transaction_hash_val : Digest.t option) = Some transaction_hash in
   let open Lwt_exn in
   Logging.log "Before wait_for_contract_event CONTEXT claim_withdrawal";
-  wait_for_contract_event contract_address transaction_hash_val topics list_data_type data_value_search
+  wait_for_contract_event ~contract_address ~transaction_hash:transaction_hash_val ~topics list_data_type data_value_search
   >>= (fun (x : (LogObject.t * (abi_value list))) ->
     let (_log_object, abi_list_val) = x in
     Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length abi_list_val);
@@ -197,7 +197,7 @@ let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Addres
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      None; None; None] in
   Logging.log "Before wait_for_contract_event CONTEXT deposit";
-  Lwt_exn.bind (wait_for_contract_event tc.contract_address None topics list_data_type data_value_search)
+  Lwt_exn.bind (wait_for_contract_event ~contract_address:tc.contract_address ~transaction_hash:None ~topics list_data_type data_value_search)
     (fun (x : (LogObject.t * (abi_value list))) ->
       let (_log_object, abi_list_val) = x in
       Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_uint256 (List.nth abi_list_val 2));
@@ -268,9 +268,9 @@ let final_withdraw_operation_spec (tc:       TransactionCommitment.t)
         ] in
       Logging.log "Before wait_for_contract_event CONTEXT withdraw";
       wait_for_contract_event
-        tc.contract_address
-        (Some tr.transaction_hash)
-        [topic_of_withdraw]
+        ~contract_address:tc.contract_address
+        ~transaction_hash:(Some tr.transaction_hash)
+        ~topics:[topic_of_withdraw]
         [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
         data_value_search
        >>= const ()

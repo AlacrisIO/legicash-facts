@@ -19,15 +19,14 @@ val sleep_delay_exn : float -> unit Lwt_exn.t
 (** This function allows to wait for a delay (in seconds) before continuing the computation.
     It handles exceptions *)
 
-val retrieve_relevant_list_logs_data : float -> Address.t -> Digest.t option -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t
+val retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t
 (** The computation of the list of logs that match the address and topics. There should
-    be only one matching entry.
-    TODO: named argument for the float. Better description of what the arguments are. *)
+    be only one matching entry, otherwise a bork is emitted *)
 
-val retrieve_relevant_single_logs_data : float -> Address.t -> Digest.t option -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
+val retrieve_relevant_single_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
 (** TODO: named argument for the float. Better description of what the arguments are. *)
 
-val wait_for_contract_event : Address.t -> Digest.t option -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
+val wait_for_contract_event : contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
 (** Waiting for one single event from a specific contract address.
    * We may filter (or not) according to the transaction hash
    * We need to provide the type of all values in the output.

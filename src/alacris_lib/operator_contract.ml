@@ -46,7 +46,8 @@ let pre_deposit ~operator amount contract_address =
 
 
 
-let make_claim_withdrawal_call (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (confirmed_state : Digest.t) : Ethereum_chain.Operation.t =
+let make_claim_withdrawal_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t =
+  fun contract_address  operator  operator_revision  value  confirmed_state ->
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
@@ -56,7 +57,8 @@ let make_claim_withdrawal_call (contract_address : Address.t) (operator : Addres
 
 
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
-let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (operator_revision : Revision.t) (value : TokenAmount.t) (bond : TokenAmount.t) (confirmed_state : Digest.t) : Ethereum_chain.Operation.t =
+let make_withdraw_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t =
+  fun contract_address  operator  operator_revision  value  bond  confirmed_state ->
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
@@ -72,7 +74,8 @@ let make_withdraw_call (contract_address : Address.t) (operator : Address.t) (op
    We have Revision = UInt64
 
  *)
-let make_state_update_call (state_digest : Digest.t) : Ethereum_chain.Operation.t =
+let make_state_update_call : Digest.t -> Ethereum_chain.Operation.t =
+  fun state_digest ->
   let (parameters : 'a list) = [ abi_digest state_digest ] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
