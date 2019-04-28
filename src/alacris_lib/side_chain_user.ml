@@ -261,7 +261,6 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -
        >>= const ()
 
 
-(* TODO: should be more like post_withdrawal or execute_withdrawal *)
 let execute_withdraw_operation : TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
   fun tc  ~sender  ~operator ->
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
@@ -285,8 +284,8 @@ let make_rx_header : Address.t -> Address.t -> Revision.t -> RxHeader.t Lwt.t =
     ; validity_within                     = default_validity_window
     }
 
-let make_user_transaction_request : Address.t -> Address.t -> Revision.t -> UserOperation.t -> SignedUserTransactionRequest.t Lwt_exn.t =
-  fun user  operator  revision  operation ->
+let make_user_transaction_request : user:Address.t -> operator:Address.t -> Revision.t -> UserOperation.t -> SignedUserTransactionRequest.t Lwt_exn.t =
+  fun ~user  ~operator  revision  operation ->
   let open Lwt_exn in
   of_lwt (make_rx_header user operator) revision
 
@@ -573,8 +572,8 @@ module TransactionTracker = struct
              revision_generator ()
              >>= fun (revision : Revision.t) ->
                (make_user_transaction_request
-                  (user:     Address.t)
-                  (operator: Address.t)
+                  ~user
+                  ~operator
                   (revision: Revision.t)
                   (Deposit { deposit_amount
                            ; deposit_fee
@@ -605,12 +604,12 @@ module TransactionTracker = struct
                  invalidate ongoing error)
 
            | SignedByOperator (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, SignedByOperator operation tc.contr_addr=%s" (Address.to_0x tc.contract_address);
+             Logging.log "TR_LOOP, SignedByOperator operation tc.contract_address=%s" (Address.to_0x tc.contract_address);
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
 
            | PostedToRegistry (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, PostedToRegistry operation tc.contr_addr=%s" (Address.to_0x tc.contract_address);
+             Logging.log "TR_LOOP, PostedToRegistry operation tc.contract_address=%s" (Address.to_0x tc.contract_address);
              (* TODO: add support for Mutual Knowledge Base / "Smart Court Registry" *)
              (wait_for_operator_state_update ~contract_address:tc.contract_address ~operator ~transaction_hash:tc.state_update_transaction_hash
               >>= function
@@ -847,7 +846,7 @@ let direct_operation :
       get_user_address ()
 
     >>= fun user ->
-      of_lwt_exn (make_user_transaction_request user operator revision) operation
+      of_lwt_exn (make_user_transaction_request ~user ~operator revision) operation
 
     >>= fun signed_request ->
       let status = OngoingTransactionStatus.Requested signed_request in
