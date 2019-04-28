@@ -145,8 +145,8 @@ let wait_for_operator_state_update : contract_address:Address.t -> operator:Addr
 
 
 
-let wait_for_claim_withdrawal_event : Address.t -> Digest.t -> Address.t -> Address.t -> Revision.t -> unit Lwt_exn.t =
-  fun contract_address transaction_hash _sender operator revision ->
+let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> Revision.t -> unit Lwt_exn.t =
+  fun ~contract_address ~transaction_hash ~operator revision ->
   Logging.log "Beginning of wait_for_claim_withdrawal_event";
   Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address);
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
@@ -166,8 +166,8 @@ let wait_for_claim_withdrawal_event : Address.t -> Digest.t -> Address.t -> Addr
     Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth abi_list_val 6));
     Lwt_exn.return ())
 
-let emit_claim_withdrawal_operation : Address.t -> Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
-  fun contract_address sender operator operator_revision value bond digest ->
+let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
+  fun ~contract_address ~sender ~operator operator_revision ~value ~bond digest ->
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
   post_operation_general operation sender bond
@@ -209,33 +209,31 @@ let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t ->Add
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
         Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
         emit_claim_withdrawal_operation
-           tc.contract_address
-           sender
-           operator
-           tc.tx_proof.key
-           withdrawal_amount
-           Side_chain_server_config.bond_value_v
-           tc.state_digest
-
+          ~contract_address:tc.contract_address
+          ~sender
+          ~operator
+          tc.tx_proof.key
+          ~value:withdrawal_amount
+          ~bond:Side_chain_server_config.bond_value_v
+          tc.state_digest
         >>= fun tr ->
         Logging.log "post_claim_withdrawal_operation status=%s" (print_status_receipt tr);
         wait_for_claim_withdrawal_event
-          tc.contract_address
-          tr.transaction_hash
-          sender
-          operator
+          ~contract_address:tc.contract_address
+          ~transaction_hash:tr.transaction_hash
+          ~operator
           tc.tx_proof.key
         >>= fun () ->
         Logging.log "After the wait_for_claim_withdrawal_event";
         return ()
 
 
-let final_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
+let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
   fun tc  withdrawal_amount  ~sender  ~operator ->
   let open Lwt_exn in
   let await_challenge_or_emit =
     (* TODO: the challenge duration should be in BLOCKS, not in seconds *)
-    Logging.log "Beginning of final_withdraw_operation";
+    Logging.log "Beginning of execute_withdraw_operation";
     sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
     (* TODO actually accept challenges and handle accordingly *)
     >>= fun () -> emit_withdraw_operation
@@ -248,14 +246,11 @@ let final_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> 
                     tc.state_digest
   in await_challenge_or_emit
     >>= fun tr ->
-      Logging.log "final_withdraw_operation_spec status=%s" (print_status_receipt tr);
+      Logging.log "execute_withdraw_operation_spec status=%s" (print_status_receipt tr);
       let (data_value_search: abi_value option list) =
         [ Some (Address_value operator)
         ; Some (abi_value_from_revision tc.tx_proof.key)
-        ; None
-        ; None
-        ; None
-        ] in
+        ; None ; None ; None ] in
       Logging.log "Before wait_for_contract_event CONTEXT withdraw";
       wait_for_contract_event
         ~contract_address:tc.contract_address
@@ -265,13 +260,14 @@ let final_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> 
         data_value_search
        >>= const ()
 
+
 (* TODO: should be more like post_withdrawal or execute_withdrawal *)
-let final_withdraw_operation : TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
+let execute_withdraw_operation : TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
   fun tc  ~sender  ~operator ->
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
   | Deposit _ | Payment _ -> Lwt_exn.return ()
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-     final_withdraw_operation_spec   tc   withdrawal_amount   ~sender   ~operator
+     execute_withdraw_operation_spec   tc   withdrawal_amount   ~sender   ~operator
 
 
 
@@ -643,8 +639,8 @@ module TransactionTracker = struct
              Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
-             Lwt.bind (final_withdraw_operation tc ~sender:user ~operator) (fun _ ->
-                 Logging.log "After final_withdraw_operation";
+             Lwt.bind (execute_withdraw_operation tc ~sender:user ~operator) (fun _ ->
+                 Logging.log "After execute_withdraw_operation";
                  FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |>
                    finalize))
 
