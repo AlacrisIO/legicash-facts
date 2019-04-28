@@ -20,11 +20,11 @@ val sleep_delay_exn : float -> unit Lwt_exn.t
     It handles exceptions *)
 
 val retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t
-(** The computation of the list of logs that match the address and topics. There should
-    be only one matching entry, otherwise a bork is emitted *)
+(** The computation of the list of logs that match the address, topics and the value put *)
 
 val retrieve_relevant_single_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
-(** TODO: named argument for the float. Better description of what the arguments are. *)
+(** Retrieve one single entry from the ethereum log. If there is more than one entry
+    then a bork is emited. *)
 
 val wait_for_contract_event : contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
 (** Waiting for one single event from a specific contract address.

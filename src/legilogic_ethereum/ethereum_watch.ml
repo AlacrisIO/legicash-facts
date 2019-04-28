@@ -110,7 +110,8 @@ let print_list_entries : EthListLogObjects.t -> string =
 
 
 
-
+(* We will iterate over the logs. Search for the ones matching the topics, event values and maybe
+   transaction hash. We iterate until we find at least one entry that matches *)
 let retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t =
   fun ~delay ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
   let open Lwt_exn in
@@ -156,6 +157,9 @@ let retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t
   in fct_downloading !starting_watch_ref !iter_state_ref
 
 
+
+(* We call for the relevant_list logs and then we return one entry if there is just one.
+   If there is more than one, then bork *)
 let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
   fun ~delay  ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search  ->
   let open Lwt_exn in
@@ -176,7 +180,8 @@ let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address
 
 
 
-
+(* We wait for contract event. Only difference is that delay is computed from the
+   input file *)
 let wait_for_contract_event : contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
   fun ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search ->
   Logging.log "Beginning of wait_for_contract_event";

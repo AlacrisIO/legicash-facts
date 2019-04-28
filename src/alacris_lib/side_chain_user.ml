@@ -109,10 +109,8 @@ let get_option : 'a -> 'a option -> 'a =
   | None -> x_val
   | Some x -> x
 
-let wait_for_operator_state_update (contract_address: Address.t)
-                                   (operator:         Address.t)
-                                   (transaction_hash: Digest.t)
-                                 : Ethereum_chain.Confirmation.t Lwt_exn.t =
+let wait_for_operator_state_update : Address.t -> Address.t -> Digest.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
+  fun contract_address operator transaction_hash ->
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_operator_state_update";
   Logging.log "wait_for_operator_state_update contract_address=%s" (Address.to_0x contract_address);
@@ -147,12 +145,8 @@ let wait_for_operator_state_update (contract_address: Address.t)
 
 
 
-let wait_for_claim_withdrawal_event (contract_address: Address.t)
-                                    (transaction_hash: Digest.t)
-                                    (_sender:          Address.t)
-                                    (operator:         Address.t)
-                                    (revision:         Revision.t)
-                                  : unit Lwt_exn.t =
+let wait_for_claim_withdrawal_event : Address.t -> Digest.t -> Address.t -> Address.t -> Revision.t -> unit Lwt_exn.t =
+  fun contract_address transaction_hash _sender operator revision ->
   Logging.log "Beginning of wait_for_claim_withdrawal_event";
   Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address);
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
@@ -189,7 +183,8 @@ let emit_withdraw_operation : Address.t -> Address.t -> Address.t -> Revision.t 
 
 
 
-let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Address.t) : unit Lwt_exn.t =
+let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_exn.t =
+  fun tc operator ->
   Logging.log "Beginning of post_operation_deposit";
   Logging.log "contract_address contr_addr=%s" (Address.to_0x tc.contract_address);
   let (topics : Bytes.t option list) = [topic_of_deposited] in
@@ -205,10 +200,8 @@ let post_operation_deposit (tc:       TransactionCommitment.t) (operator: Addres
       Lwt_exn.return ())
 
 
-let post_claim_withdrawal_operation (tc:       TransactionCommitment.t)
-      (sender: Address.t)
-      (operator: Address.t)
-    : unit Lwt_exn.t =
+let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t ->Address.t -> unit Lwt_exn.t =
+  fun tc  sender  operator ->
   let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
     | Deposit _ -> bork "This part should not occur"
@@ -237,11 +230,8 @@ let post_claim_withdrawal_operation (tc:       TransactionCommitment.t)
         return ()
 
 
-let final_withdraw_operation_spec (tc:       TransactionCommitment.t)
-                             (withdrawal_amount: TokenAmount.t)
-                             (sender:   Address.t)
-                             (operator: Address.t)
-                           : unit Lwt_exn.t =
+let final_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> Address.t -> Address.t -> unit Lwt_exn.t =
+  fun tc  withdrawal_amount  sender  operator ->
   let open Lwt_exn in
   let await_challenge_or_emit =
     (* TODO: the challenge duration should be in BLOCKS, not in seconds *)
@@ -276,10 +266,8 @@ let final_withdraw_operation_spec (tc:       TransactionCommitment.t)
        >>= const ()
 
 (* TODO: should be more like post_withdrawal or execute_withdrawal *)
-let final_withdraw_operation (tc:       TransactionCommitment.t)
-                             (sender:   Address.t)
-                             (operator: Address.t)
-                           : unit Lwt_exn.t =
+let final_withdraw_operation : TransactionCommitment.t -> Address.t -> Address.t -> unit Lwt_exn.t =
+  fun tc  sender  operator ->
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
   | Deposit _ | Payment _ -> Lwt_exn.return ()
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
@@ -288,10 +276,8 @@ let final_withdraw_operation (tc:       TransactionCommitment.t)
 
 
 (* TODO: unstub the stubs *)
-let make_rx_header (user:     Address.t)
-                   (operator: Address.t)
-                   (revision: Revision.t)
-                 : RxHeader.t Lwt.t =
+let make_rx_header : Address.t -> Address.t -> Revision.t -> RxHeader.t Lwt.t =
+  fun user  operator  revision ->
   Lwt.return RxHeader.
     { operator
     ; requester                           = user
@@ -303,11 +289,8 @@ let make_rx_header (user:     Address.t)
     ; validity_within                     = default_validity_window
     }
 
-let make_user_transaction_request (user:      Address.t)
-                                  (operator:  Address.t)
-                                  (revision:  Revision.t)
-                                  (operation: UserOperation.t)
-                                : SignedUserTransactionRequest.t Lwt_exn.t =
+let make_user_transaction_request : Address.t -> Address.t -> Revision.t -> UserOperation.t -> SignedUserTransactionRequest.t Lwt_exn.t =
+  fun user  operator  revision  operation ->
   let open Lwt_exn in
   of_lwt (make_rx_header user operator) revision
 
@@ -586,16 +569,6 @@ module TransactionTracker = struct
                         | Error error -> invalidate ongoing error
                         | Ok (tracker_key, _, _) ->
                            DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)))
-
-             (*
-             let contr_addr = get_contract_address () in
-             let pre_transaction = Operator_contract.pre_deposit ~operator amnt contr_addr in
-             (Ethereum_user.add_ongoing_transaction user (Wanted pre_transaction)
-              >>= function
-                | Error error -> invalidate ongoing error
-                | Ok (tracker_key, _, _) ->
-                  DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)
-              *)
 
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
              Logging.log "TR_LOOP, DepositPosted operation";
