@@ -28,9 +28,8 @@ val retrieve_relevant_single_logs_data : float -> Address.t -> Digest.t option -
 (** TODO: named argument for the float. Better description of what the arguments are. *)
 
 val wait_for_contract_event : Address.t -> Digest.t option -> Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
+(** Waiting for one single event from a specific contract address.
+   * We may filter (or not) according to the transaction hash
+   * We need to provide the type of all values in the output.
+   * For each entry in the event log a search value may be precised *)
 
-val retrieve_last_entries_group : Revision.t -> Address.t -> Bytes.t option list list -> (Revision.t * (LogObject.t list list)) Lwt_exn.t
-(** TODO: named argument for the float. Better description of what the arguments are. *)
-
-val retrieve_relevant_list_logs_group : float -> Address.t -> Bytes.t option list list -> EthListLogObjects.t list Lwt_exn.t
-(** TODO: named argument for the float. Better description of what the arguments are. *)
