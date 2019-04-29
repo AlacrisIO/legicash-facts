@@ -169,7 +169,7 @@ let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_
 let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun ~contract_address ~sender ~operator operator_revision ~value ~bond digest ->
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
-  let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call contract_address operator operator_revision value digest in
+  let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call ~contract_address ~operator operator_revision ~value ~confirmed_state:digest in
   post_operation_general operation sender bond
 
 
@@ -177,7 +177,7 @@ let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> 
   fun ~contract_address  ~sender  ~operator operator_revision  ~value  ~bond digest ->
   Logging.log "emit_withdraw_operation : beginning of operation";
   Logging.log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
-  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call contract_address operator operator_revision value bond digest in
+  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call ~contract_address ~operator operator_revision ~value ~bond ~confirmed_state:digest in
   let (value_send : TokenAmount.t) = TokenAmount.zero in
   post_operation_general operation sender value_send
 
@@ -523,9 +523,9 @@ module TransactionTracker = struct
              let amount = TokenAmount.(add deposit_amount deposit_fee) in
              Lwt.bind
                (Lwt.bind (get_contract_address_from_client ())
-                  (fun x ->
+                  (fun contract_address ->
                     Logging.log "After the get_contract_address";
-                    Lwt.return (Operator_contract.pre_deposit ~operator amount x)))
+                    Lwt.return (Operator_contract.pre_deposit ~operator ~amount ~contract_address)))
                (fun x_pre_transaction ->
                Logging.log "We have x_pre_transaction";
                Lwt.bind (eth_get_balance (user, BlockParameter.Pending))

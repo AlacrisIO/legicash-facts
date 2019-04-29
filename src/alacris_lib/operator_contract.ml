@@ -34,20 +34,21 @@ let get_contract_address () =
 
 (** build the encoding of a call to the "deposit" function of the operator contract
     address argument is the operator *)
-let make_deposit_call : operator:Address.t -> Address.t -> Ethereum_chain.Operation.t =
-  fun ~operator contract_address ->
+let make_deposit_call : operator:Address.t -> contract_address:Address.t -> Ethereum_chain.Operation.t =
+  fun ~operator ~contract_address ->
   let parameters = [ abi_address operator ] in
   let call = encode_function_call { function_name = "deposit"; parameters } in
   Operation.CallFunction (contract_address, call)
 
-let pre_deposit ~operator amount contract_address =
-  let oper = make_deposit_call ~operator contract_address in
+let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address:Address.t -> PreTransaction.t =
+  fun ~operator ~amount ~contract_address ->
+  let oper = make_deposit_call ~operator ~contract_address in
   PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
 
 
 
-let make_claim_withdrawal_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t =
-  fun contract_address  operator  operator_revision  value  confirmed_state ->
+let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> confirmed_state:Digest.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address  ~operator  operator_revision  ~value  ~confirmed_state ->
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
@@ -57,8 +58,8 @@ let make_claim_withdrawal_call : Address.t -> Address.t -> Revision.t -> TokenAm
 
 
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
-let make_withdraw_call : Address.t -> Address.t -> Revision.t -> TokenAmount.t -> TokenAmount.t -> Digest.t -> Ethereum_chain.Operation.t =
-  fun contract_address  operator  operator_revision  value  bond  confirmed_state ->
+let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_state:Digest.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address  ~operator  operator_revision  ~value  ~bond  ~confirmed_state ->
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
