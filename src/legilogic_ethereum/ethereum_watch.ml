@@ -181,8 +181,7 @@ let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address
 
 (* We wait for contract event. Only difference is that delay is computed from the
    input file *)
-let wait_for_contract_event : contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
-  fun ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search ->
+let wait_for_contract_event ~contract_address ~transaction_hash ~topics list_data_type data_value_search =
   Logging.log "Beginning of wait_for_contract_event";
   retrieve_relevant_single_logs_data
     ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
