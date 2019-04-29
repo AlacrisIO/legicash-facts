@@ -85,7 +85,7 @@ and abi_value =
 [@@deriving show]
 
 
-let equal (eval1 : abi_value) (eval2 : abi_value) : bool =
+let rec equal (eval1 : abi_value) (eval2 : abi_value) : bool =
   match eval1 with
   | Uint_value x1 ->
      (match eval2 with
@@ -99,17 +99,52 @@ let equal (eval1 : abi_value) (eval2 : abi_value) : bool =
      (match eval2 with
       | Bool_value x2 -> x1 == x2
       | _ -> false)
+  | String_value x1 ->
+     (match eval2 with
+      | String_value x2 ->(String.equal x1 x2)
+      | _ -> false)
+  | Fixed_value x1 ->
+     (match eval2 with
+      | Fixed_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Ufixed_value x1 ->
+     (match eval2 with
+      | Ufixed_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Bytes_value x1 ->
+     (match eval2 with
+      | Bytes_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Array_value x1 ->
+     (match eval2 with
+      | Array_value x2 -> (let len1 = List.length x1 in
+                           let len2 = List.length x2 in
+                           if (len1 != len2) then
+                             false
+                           else
+                             (not (List.exists (fun i-> not (equal (List.nth x1 i) (List.nth x2 i)))
+                                     (List.init len1 (fun x-> x)))))
+      | _ -> false)
+  | Tuple_value x1 ->
+     (match eval2 with
+      | Tuple_value x2 -> (let len1 = List.length x1 in
+                           let len2 = List.length x2 in
+                           if (len1 != len2) then
+                             false
+                           else
+                             (not (List.exists (fun i-> not (equal (List.nth x1 i) (List.nth x2 i)))
+                                     (List.init len1 (fun x-> x)))))
+      | _ -> false)
+  | Function_value (_x1,_y1) ->
+     (match eval2 with
+      | Function_value (_x2,_y2) -> bork "missing code for the function value case"
+      | _ -> false)
   | Address_value x1 ->
      (match eval2 with
       | Address_value x2 -> let str1 = Address.to_string x1 in
                             let str2 = Address.to_string x2 in
                             (String.equal str1 str2)
       | _ -> false)
-  | Bytes_value x1 ->
-     (match eval2 with
-      | Bytes_value x2 -> (Bytes.equal x1 x2)
-      | _ -> false)
-  | _ -> bork "Missing code"
 
 (* are constraints on types fulfilled *)
 let rec is_valid_type = function
@@ -209,17 +244,52 @@ let abi_value_to_uint = abi_value_to_uintN 256
 
 
 
-let print_abi_value_uint256 : abi_value -> string =
+
+let print_abi_value_uint8 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint x in
-  let x_str : string = Nat.to_string x_uint in
-  x_str
+  let x_uint = abi_value_to_uint8 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint16 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint16 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint24 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint24 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint32 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint32 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint40 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint40 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint48 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint48 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint56 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint56 x in
+  Nat.to_string x_uint
 
 let print_abi_value_uint64 : abi_value -> string =
   fun x ->
   let x_uint = abi_value_to_uint64 x in
-  let x_str : string = Nat.to_string x_uint in
-  x_str
+  Nat.to_string x_uint
+
+
+let print_abi_value_uint256 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint x in
+  Nat.to_string x_uint
 
 let print_abi_value_bytes32 : abi_value -> string =
   fun x ->
@@ -228,30 +298,6 @@ let print_abi_value_bytes32 : abi_value -> string =
   | _ -> bork "Entry should be a bytes32"
 
 
-
-(*
-let abi_value_to_intN n evalue =
-  Logging.log "abi_value_to_intN code has not been written down";
-  12389
-
-let abi_value_to_int8 = abi_value_to_intN 8
-
-let abi_value_to_int16 = abi_value_to_intN 16
-
-let abi_value_to_int24 = abi_value_to_intN 24
-
-let abi_value_to_int32 = abi_value_to_intN 32
-
-let abi_value_to_int40 = abi_value_to_intN 40
-
-let abi_value_to_int48 = abi_value_to_intN 48
-
-let abi_value_to_int56 = abi_value_to_intN 56
-
-let abi_value_to_int64 = abi_value_to_intN 64
-
-let abi_value_to_int = abi_value_to_intN 256
- *)
 
 
 let abi_value_to_address evalue =
@@ -623,8 +669,8 @@ let get_individual_length (etype: abi_type) : int =
 
 
 
-let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (abi_value*int) =
-  (*  Logging.log "Beginning of decode_individual_data init_pos=%i" init_pos;*)
+let decode_individual_data : Bytes.t -> int -> abi_type -> (abi_value*int) =
+  fun data  init_pos  etype  ->
   match etype with
   | Uint m -> let bytes_zer = bytesZero m in
               let bytes_len = Bytes.length bytes_zer in
@@ -658,7 +704,7 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
                let bytes_ret = Bytes.sub data start_ret_pos m in
                let start_padding_pos = end_ret_pos in
                let end_padding_pos = end_ret_pos + padding_len in
-               let fct_check =
+               let fct_check_padding =
                  if (padding_len>0) then
                    let bytes_padding = Bytes.sub data start_padding_pos padding_len in
                    if (bytes_padding != padding) then
@@ -668,7 +714,7 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
                  else
                    true
                in
-               if (fct_check == false) then
+               if (fct_check_padding == false) then
                  Logging.log "decode_individual_data, case 3, step 8";
                (Bytes_value bytes_ret, end_padding_pos)
   | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
@@ -685,16 +731,6 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
 
 
 
-let transcrib_short_int (eval: int) : string =
-  let (lchar : string) = "0123456789abcdef" in
-  let val2 = eval mod 16 in
-  let val1 = (eval - val2) / 16 in
-  let str1 = String.sub lchar val1 1 in
-  let str2 = String.sub lchar val2 1 in
-  let (estr : string) = String.concat "" [str1; str2] in
-  estr
-
-
 
 
 let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
@@ -706,12 +742,6 @@ let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
                          32 - residue
                        else
                          0 in
-  (*  Logging.log "decode_data, total_len=%i sum_size=%i offset=%i" total_len sum_size offset;*)
-  (*
-  let _l_data = List.init total_len (fun (i : int) ->
-                    let (eval : int) = Char.code (Bytes.get data i) in
-                    Logging.log "bytes=%i eval=%i str=%s" i eval (transcrib_short_int eval);
-                    i) in *)
   let padding1 = Bytes.make offset '\000' in
   let padding2 = Bytes.sub data 0 offset in
   let test = Bytes.equal padding1 padding2 in

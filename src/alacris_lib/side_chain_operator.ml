@@ -111,16 +111,19 @@ type operator_service =
 
 let the_operator_service_ref : (operator_service option ref) = ref None
 
-let get_operator_state () : OperatorState.t =
+let get_operator_state : unit -> OperatorState.t =
+  fun () ->
   !the_operator_service_ref
   |> (function Some x -> x | None -> bork "Operator service not started")
   |> fun service -> !(service.state_ref)
 
-let operator_account_lens (address : Address.t) : account_lens =
+let operator_account_lens : Address.t -> account_lens =
+  fun address ->
   OperatorState.lens_current |-- State.lens_accounts
   |-- defaulting_lens (konstant AccountState.empty) (AccountMap.lens address)
 
-let signed_request_requester (rx : UserTransactionRequest.t signed) : Address.t =
+let signed_request_requester : UserTransactionRequest.t signed -> Address.t =
+  fun rx ->
   rx.payload.UserTransactionRequest.rx_header.requester
 
 (** Check that the request is basically well-formed, or else fail
@@ -461,8 +464,7 @@ let fct_transaction_hash : transport_data -> (Digest.t * Digest.t) =
   | Some (receipt, digest) -> (receipt.transaction_hash, digest)
 
 let make_transaction_commitment : (Transaction.t * transport_data) -> TransactionCommitment.t =
-  fun transaction_dig ->
-    let (transaction, trans_data) = transaction_dig in
+  fun (transaction, trans_data) ->
     let OperatorState.{committed} = get_operator_state () in
     let State.{ operator_revision
               ; spending_limit
@@ -499,14 +501,15 @@ let process_user_transaction_request :
   validate_user_transaction_request
   >>> post_state_update_request
   >>> post_validated_transaction_request
-  >>> fun ((transaction_dig, wait_for_commit) : ((Transaction.t * transport_data) * unit Lwt.t)) : TransactionCommitment.t Lwt_exn.t ->
+  >>> fun ((transaction_pair, wait_for_commit) : ((Transaction.t * transport_data) * unit Lwt.t)) : TransactionCommitment.t Lwt_exn.t ->
   let open Lwt in
   wait_for_commit
   >>= fun () ->
-  make_transaction_commitment transaction_dig |> Lwt_exn.return
+  make_transaction_commitment transaction_pair |> Lwt_exn.return
 
 
-let oper_post_user_transaction_request (request: UserTransactionRequest.t signed) : TransactionCommitment.t Lwt_exn.t =
+let oper_post_user_transaction_request : UserTransactionRequest.t signed -> TransactionCommitment.t Lwt_exn.t =
+  fun request ->
   (*stateless_parallelize*) process_user_transaction_request (request, false)
 
 type main_chain_account_state =

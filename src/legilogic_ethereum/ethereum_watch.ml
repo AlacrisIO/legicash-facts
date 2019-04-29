@@ -3,8 +3,6 @@ open Lib
 open Types
 open Action
 open Signing
-open Integer
-open Ethereum_chain
 open Ethereum_json_rpc
 open Ethereum_abi
 open Side_chain_server_config
@@ -53,17 +51,12 @@ let main_chain_block_notification_stream
 (* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
 let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
 
-(* Look for confirmed or not confirmed blocks. NEED TO ADD: NUMBER of confirmation *)
-let retrieve_last_entries (start_block:      Revision.t)
-                          (contract_address: Address.t)
-                          (topics:           Bytes.t option list)
-                        : (Revision.t * (LogObject.t list)) Lwt_exn.t =
+(* Look for some event logs from a starting point from a specific contract address.
+   In return the list of logs matched and the latest block number that was searched.
+   This allows to build iterating systems *)
+let retrieve_last_entries : Revision.t -> contract_address:Address.t -> topics:Bytes.t option list -> (Revision.t * (LogObject.t list)) Lwt_exn.t =
+  fun start_block ~contract_address ~topics ->
   let open Lwt_exn in
-  eth_get_balance (contract_address, BlockParameter.Pending)
-  >>= fun x ->
-  Logging.log "retrieve_last_entries contract address balance=%s" (TokenAmount.to_string x);
-  Lwt_exn.return ()
-  >>= fun () ->
   eth_block_number ()
   >>= fun (to_block: Revision.t) ->
   Logging.log "retrieve_last_entries. Before call to eth_get_logs";
@@ -78,9 +71,13 @@ let retrieve_last_entries (start_block:      Revision.t)
   return (to_block,recLLO)
 
 
-let is_matching_data (x_data:        abi_value list)
-                     (x_data_filter: abi_value option list)
-                   : bool =
+
+(* Given a list of abi values from an event and a filtering system
+   check if the event log matches this. If the length of the filter
+   is different from the length of the values, then returns false
+   since it cannot be matching *)
+let is_matching_data : abi_value list -> abi_value option list -> bool =
+  fun x_data x_data_filter ->
   let len1 = List.length x_data
   and len2 = List.length x_data_filter
 
@@ -97,6 +94,8 @@ let is_matching_data (x_data:        abi_value list)
                   (List.nth x_data_filter i))
     )
 
+
+(* For debugging purpose, printing the digest *)
 let string_of_option_digest : Digest.t option -> string =
   fun edig ->
   match edig with
@@ -112,14 +111,10 @@ let print_list_entries : EthListLogObjects.t -> string =
 
 
 
-
-let retrieve_relevant_list_logs_data (delay:             float)
-                                     (contract_address:  Address.t)
-                                     (transaction_hash: Digest.t option)
-                                     (topics:            Bytes.t option list)
-                                     (list_data_type:    abi_type list)
-                                     (data_value_search: abi_value option list)
-                                   : (LogObject.t * (abi_value list)) list Lwt_exn.t =
+(* We will iterate over the logs. Search for the ones matching the topics, event values and maybe
+   transaction hash. We iterate until we find at least one entry that matches *)
+let retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t =
+  fun ~delay ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
   let open Lwt_exn in
   Logging.log "|list_data_type|=%d" (List.length list_data_type);
   Logging.log "|data_value_search|=%d" (List.length data_value_search);
@@ -127,9 +122,7 @@ let retrieve_relevant_list_logs_data (delay:             float)
   let iter_state_ref : (int ref) = ref 0 in
   let rec fct_downloading start_block iter_state =
     retrieve_last_entries (Revision.add start_block Revision.one)
-                          contract_address
-                          topics
-
+      ~contract_address  ~topics
     >>= fun (start_block_in, entries) ->
         Logging.log "retrieve_relevant transaction_hash=%s" (string_of_option_digest transaction_hash);
         Logging.log "List transaction_hash=%s" (print_list_entries entries);
@@ -162,27 +155,22 @@ let retrieve_relevant_list_logs_data (delay:             float)
         else
           (Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
            return relevant)
-
   in fct_downloading !starting_watch_ref !iter_state_ref
 
 
-let retrieve_relevant_single_logs_data (delay:             float)
-                                       (contract_address:  Address.t)
-                                       (transaction_hash: Digest.t option)
-                                       (topics:            Bytes.t option list)
-                                       (list_data_type:    abi_type list)
-                                       (data_value_search: abi_value option list)
-                                     : (LogObject.t * (abi_value list)) Lwt_exn.t =
-  let open Lwt_exn in
 
+(* We call for the relevant_list logs and then we return one entry if there is just one.
+   If there is more than one, then bork *)
+let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
+  fun ~delay  ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search  ->
+  let open Lwt_exn in
   retrieve_relevant_list_logs_data
-    delay
-    contract_address
-    transaction_hash
-    topics
+    ~delay
+    ~contract_address
+    ~transaction_hash
+    ~topics
     list_data_type
     data_value_search
-
   >>= fun (llogs : (LogObject.t * (abi_value list)) list) ->
   let len = List.length llogs in
   if len > 1 then
@@ -191,64 +179,16 @@ let retrieve_relevant_single_logs_data (delay:             float)
     return (List.hd llogs)
 
 
-
-
-(* GROUP cases *)
-
-
-(* The code below is objectively a hack. It is introduced since array data in
- * LogObject is hard to understand *)
-let retrieve_last_entries_group (start_block:      Revision.t)
-                                (contract_address: Address.t)
-                                (list_topics:      Bytes.t option list list)
-                              : (Revision.t * (LogObject.t list list)) Lwt_exn.t =
-  let open Lwt_exn in
-
-  let f (to_block: Revision.t) : EthListLogObjects.t list Lwt_exn.t =
-    flip list_map_s list_topics @@ fun (x_topic: Bytes.t option list) ->
-      eth_get_logs { from_block = Some (Block_number start_block)
-                   ; to_block   = Some (Block_number to_block)
-                   ; address    = Some contract_address
-                   ; topics     = Some x_topic
-                   ; blockhash  = None
-                   }
-
-  in eth_block_number ()
-    >>= fun to_block -> f to_block
-    >>= fun entries  -> return (to_block, entries)
-
-
-let retrieve_relevant_list_logs_group (delay : float) (contract_address : Address.t) (list_topics : Bytes.t option list list) : EthListLogObjects.t list Lwt_exn.t =
-  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
-  let rec fct_downloading (start_block : Revision.t) : EthListLogObjects.t list Lwt_exn.t =
-    let (start_block_p_one : Revision.t) = (Revision.add start_block Revision.one) in
-    Lwt_exn.bind (retrieve_last_entries_group start_block_p_one contract_address list_topics)
-      (fun (x : (Revision.t * (EthListLogObjects.t list))) ->
-        let (x_to, x_llogs_group) = x in
-        let (list_len : int list) = List.map (fun x -> List.length x) x_llogs_group in
-        let (sum_term : int) = sum_int_list list_len in
-        starting_watch_ref := x_to;
-        if (sum_term == 0) then
-          Lwt_exn.bind (sleep_delay_exn delay) (fun () -> fct_downloading x_to)
-        else
-          Lwt_exn.return x_llogs_group
-      )
-  in fct_downloading !starting_watch_ref
-
-
-let wait_for_contract_event
-      (contract_address:  Address.t)
-      (transaction_hash:  Digest.t option)
-      (topics:            Bytes.t option list)
-      (list_data_type:    abi_type list)
-      (data_value_search: abi_value option list)
-    : (LogObject.t * (abi_value list)) Lwt_exn.t =
+(* We wait for contract event. Only difference is that delay is computed from the
+   input file *)
+let wait_for_contract_event : contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
+  fun ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search ->
   Logging.log "Beginning of wait_for_contract_event";
   retrieve_relevant_single_logs_data
-    Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
-    contract_address
-    transaction_hash
-    topics
+    ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    ~contract_address
+    ~transaction_hash
+    ~topics
     list_data_type
     data_value_search
 

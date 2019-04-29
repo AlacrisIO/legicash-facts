@@ -78,22 +78,6 @@ let print_status_receipt : TransactionReceipt.t -> string =
   fun tr -> (TokenAmount.to_string tr.status)
 
 
-let post_operation_general_kernel_old_version : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operation sender value ->
-  Logging.log "post_operation_kernel : beginning of function";
-  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
-  Logging.log "post_operation_general_kernel : before make_pre_transaction";
-  print_contract_account_value "from post_operation_general_kernel"
-  >>= fun () -> Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val value
-  >>= fun x ->
-  Logging.log "post_operation_general_kernel : before confirm_pre_transaction";
-  Ethereum_user.confirm_pre_transaction sender x
-  >>= fun (_tx, _confirmation, receipt) ->
-  Logging.log "post_operation_general_kernel : Ok receipt, transaction_hash=%s" (Digest.to_0x receipt.transaction_hash);
-  Logging.log "transaction status=%s" (print_status_receipt receipt);
-  return receipt
-
-
 
 
 
@@ -102,9 +86,9 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
   Logging.log "post_operation_kernel : beginning of function";
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   Logging.log "post_operation_general_kernel : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val value
+  Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
   >>= fun x_pretrans ->
-  Ethereum_user.add_ongoing_transaction sender (Wanted x_pretrans)
+  Ethereum_user.add_ongoing_transaction ~user:sender (Wanted x_pretrans)
   >>= fun (tracker_key, _, _) ->
   let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
   (Lwt.bind promise (function
@@ -114,12 +98,6 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
      Logging.log "post_operation_general_kernel : Ok receipt, transaction_hash=%s" (Digest.to_0x receipt.transaction_hash);
      Logging.log "transaction status=%s" (print_status_receipt receipt);
      Lwt_exn.return receipt))
-
-(*
-  >>= Ethereum_user.check_transaction_confirmed
-  >>= (fun x ->
-    Lwt_exn.return Revision.zero)
- *)
 
 
 let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
@@ -193,21 +171,4 @@ let start_state_update_operator () =
 (* Alert to take care of:
    ---lack of gas
    ---transaction not passed
- *)
-(*
-let post_state_update_kernel digest =
-  Logging.log "post_state_update : beginning of function";
-  let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
-  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
-  let (value : TokenAmount.t) = TokenAmount.zero in
-  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
-  Logging.log "post_state_update : before make_pre_transaction";
-  print_contract_account_value "from post_state_update"
-  >>= fun () ->
-    Ethereum_user.make_pre_transaction ~sender:oper_addr operation ?gas_limit:gas_limit_val value
-  >>= fun x ->
-    Logging.log "post_state_update : before confirm_pre_transaction";
-    Ethereum_user.confirm_pre_transaction oper_addr x
-  >>= fun (_, _, {transaction_hash}) ->
-    return transaction_hash
  *)
