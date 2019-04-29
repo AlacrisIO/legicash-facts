@@ -85,7 +85,7 @@ and abi_value =
 [@@deriving show]
 
 
-let equal (eval1 : abi_value) (eval2 : abi_value) : bool =
+let rec equal (eval1 : abi_value) (eval2 : abi_value) : bool =
   match eval1 with
   | Uint_value x1 ->
      (match eval2 with
@@ -99,17 +99,52 @@ let equal (eval1 : abi_value) (eval2 : abi_value) : bool =
      (match eval2 with
       | Bool_value x2 -> x1 == x2
       | _ -> false)
+  | String_value x1 ->
+     (match eval2 with
+      | String_value x2 ->(String.equal x1 x2)
+      | _ -> false)
+  | Fixed_value x1 ->
+     (match eval2 with
+      | Fixed_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Ufixed_value x1 ->
+     (match eval2 with
+      | Ufixed_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Bytes_value x1 ->
+     (match eval2 with
+      | Bytes_value x2 -> (Bytes.equal x1 x2)
+      | _ -> false)
+  | Array_value x1 ->
+     (match eval2 with
+      | Array_value x2 -> (let len1 = List.length x1 in
+                           let len2 = List.length x2 in
+                           if (len1 != len2) then
+                             false
+                           else
+                             (not (List.exists (fun i-> not (equal (List.nth x1 i) (List.nth x2 i)))
+                                     (List.init len1 (fun x-> x)))))
+      | _ -> false)
+  | Tuple_value x1 ->
+     (match eval2 with
+      | Tuple_value x2 -> (let len1 = List.length x1 in
+                           let len2 = List.length x2 in
+                           if (len1 != len2) then
+                             false
+                           else
+                             (not (List.exists (fun i-> not (equal (List.nth x1 i) (List.nth x2 i)))
+                                     (List.init len1 (fun x-> x)))))
+      | _ -> false)
+  | Function_value (_x1,_y1) ->
+     (match eval2 with
+      | Function_value (_x2,_y2) -> bork "missing code for the function value case"
+      | _ -> false)
   | Address_value x1 ->
      (match eval2 with
       | Address_value x2 -> let str1 = Address.to_string x1 in
                             let str2 = Address.to_string x2 in
                             (String.equal str1 str2)
       | _ -> false)
-  | Bytes_value x1 ->
-     (match eval2 with
-      | Bytes_value x2 -> (Bytes.equal x1 x2)
-      | _ -> false)
-  | _ -> bork "Missing code"
 
 (* are constraints on types fulfilled *)
 let rec is_valid_type = function
