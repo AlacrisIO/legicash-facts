@@ -518,28 +518,28 @@ module User = struct
          |> Lens.modify UserState.lens_ongoing_transactions (RevisionSet.add revision))
 end
 
-let user_action : Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr =
-  fun address action input ->
-    SimpleActor.action (User.get_user address) action input
+let user_action : user:Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr =
+  fun ~user action input ->
+    SimpleActor.action (User.get_user user) action input
 
-let add_ongoing_transaction user status =
-  user_action user User.add_transaction status
+let add_ongoing_transaction : user:Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr =
+  fun ~user status ->
+  user_action ~user User.add_transaction status
 
 let issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr =
   fun sender pre ->
   Logging.log "ETHUSR: beginning of issue_pre_transaction";
-  OngoingTransactionStatus.Wanted pre |> add_ongoing_transaction sender
+  OngoingTransactionStatus.Wanted pre |> add_ongoing_transaction ~user:sender
 
 let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr =
   fun (_, promise, _) ->
   Logging.log "ETHUSR: track_transaction, returning promise";
   promise
 
-let check_transaction_confirmed :
-      (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
-  fun x ->
+let check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
+  fun final_transaction_status ->
   Logging.log "ETHUSR: Beginning of check_transaction_confirmed";
-  match x with
+  match final_transaction_status with
   | FinalTransactionStatus.Confirmed (t, s, r) ->
      Logging.log "ETHUSR: check_transaction_confirmed, Case Confirmed";
      return (t, s, r)
@@ -548,9 +548,8 @@ let check_transaction_confirmed :
      Logging.log "ETHUSR: e=%s" (Printexc.to_string e);
      fail (TransactionFailed (t, e))
 
-let confirm_pre_transaction (address: Address.t)
-    : (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
-
+let confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
+  fun address ->
   issue_pre_transaction address
   >>> of_lwt track_transaction
   >>> check_transaction_confirmed
@@ -562,7 +561,7 @@ let transfer_gas_used = TokenAmount.of_int 21000
 let transfer_tokens ~recipient value =
   PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=transfer_gas_used}
 
-let make_pre_transaction ~sender (operation : Operation.t) ?gas_limit (value : TokenAmount.t) : PreTransaction.t Lwt_exn.t =
+let make_pre_transaction ~sender operation ?gas_limit value : PreTransaction.t Lwt_exn.t =
   Logging.log "ETHUSR: Beginning of make_pre_transaction";
   (match gas_limit with
    | Some x -> return x

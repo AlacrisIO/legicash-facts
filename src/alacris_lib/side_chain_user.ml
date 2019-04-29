@@ -545,7 +545,7 @@ module TransactionTracker = struct
                         invalidate ongoing except_ret)
                      else
                        (Logging.log "Before add_ongoing_transaction, operation";
-                        Ethereum_user.add_ongoing_transaction user (Wanted x_pre_transaction)
+                        Ethereum_user.add_ongoing_transaction ~user (Wanted x_pre_transaction)
                         >>= function
                         | Error error -> invalidate ongoing error
                         | Ok (tracker_key, _, _) ->

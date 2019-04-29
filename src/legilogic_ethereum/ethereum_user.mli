@@ -84,7 +84,7 @@ module User : PersistentActivityS
 
 (* TODO: add some [unit Lwt.u] to persist a handle to the transaction
    before to send any message on the network *)
-val add_ongoing_transaction : Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr
+val add_ongoing_transaction : user:Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr
 
 val issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr
 (** Issue a pre-transaction as transaction on the Ethereum network, return a tracker *)

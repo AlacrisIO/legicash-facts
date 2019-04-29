@@ -669,8 +669,8 @@ let get_individual_length (etype: abi_type) : int =
 
 
 
-let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (abi_value*int) =
-  (*  Logging.log "Beginning of decode_individual_data init_pos=%i" init_pos;*)
+let decode_individual_data : Bytes.t -> int -> abi_type -> (abi_value*int) =
+  fun data  init_pos  etype  ->
   match etype with
   | Uint m -> let bytes_zer = bytesZero m in
               let bytes_len = Bytes.length bytes_zer in
@@ -704,7 +704,7 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
                let bytes_ret = Bytes.sub data start_ret_pos m in
                let start_padding_pos = end_ret_pos in
                let end_padding_pos = end_ret_pos + padding_len in
-               let fct_check =
+               let fct_check_padding =
                  if (padding_len>0) then
                    let bytes_padding = Bytes.sub data start_padding_pos padding_len in
                    if (bytes_padding != padding) then
@@ -714,7 +714,7 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
                  else
                    true
                in
-               if (fct_check == false) then
+               if (fct_check_padding == false) then
                  Logging.log "decode_individual_data, case 3, step 8";
                (Bytes_value bytes_ret, end_padding_pos)
   | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in

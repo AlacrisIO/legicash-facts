@@ -86,9 +86,9 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
   Logging.log "post_operation_kernel : beginning of function";
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   Logging.log "post_operation_general_kernel : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender:sender operation ?gas_limit:gas_limit_val value
+  Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
   >>= fun x_pretrans ->
-  Ethereum_user.add_ongoing_transaction sender (Wanted x_pretrans)
+  Ethereum_user.add_ongoing_transaction ~user:sender (Wanted x_pretrans)
   >>= fun (tracker_key, _, _) ->
   let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
   (Lwt.bind promise (function
