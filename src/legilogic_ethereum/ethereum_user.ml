@@ -532,7 +532,7 @@ let issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t
   OngoingTransactionStatus.Wanted pre |> add_ongoing_transaction ~user:sender
 
 let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr =
-  fun (_, promise, _) ->
+  fun (_key_t, promise, _unit_lwt_u) ->
   Logging.log "ETHUSR: track_transaction, returning promise";
   promise
 
