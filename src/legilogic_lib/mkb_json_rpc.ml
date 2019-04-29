@@ -1,5 +1,5 @@
 open Lib
-(*open Action*)
+open Action
 open Yojsoning
 (* open Persisting*)
 open Json_rpc
@@ -58,7 +58,44 @@ let mkb_json_rpc
        json_rpc (Lazy.force mkb_net) method_name result_decoder param_encoder ?timeout ?log params)
 
 
+(*
+  The permanent system
+*)
 
+module TransactionMutualKnowledge = struct 
+  type t = {
+      topic : string
+    }
+  [@@deriving yojson]
+end
+
+
+
+
+
+type request_mkb_update =
+  | Submit of (string * TransactionMutualKnowledge.t OrExn.t Lwt.u)
+
+let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
+
+let post_to_mailbox_state_update : string -> TransactionMutualKnowledge.t OrExn.t Lwt.t =
+  fun str ->
+  simple_client request_mkb_update_mailbox
+    (fun ((_x_digest, x_resolver) : (string * TransactionMutualKnowledge.t OrExn.t Lwt.u)) -> Submit (str,x_resolver)) str
+
+
+
+
+let inner_call_mkb () =
+  let open Lwt in
+  let rec inner_loop : unit -> unit Lwt.t =
+    fun () ->
+    Lwt_mvar.take request_mkb_update_mailbox
+    >>= function
+    | Submit ((new_entry, notify_u) : (string * TransactionMutualKnowledge.t OrExn.t Lwt.u)) ->
+       let (topic, username) = (Lazy.force mkb_topic_user) in
+       inner_loop ()
+  in inner_loop ()
 
 (*
    Some data specific requests
@@ -117,16 +154,3 @@ let mkb_send_data =
   mkb_json_rpc "send_data"
     Digest.of_yojson_exn
     (yojson_4args Address.to_yojson Address.to_yojson Address.to_yojson Address.to_yojson)
-
-(*
-let inner_call_mkb () =
-  let open Lwt in
-  let rec inner_loop : unit -> unit Lwt.t =
-    fun () ->
-    Lwt_mvar.take request_mkb_update_mailbox
-    >>= function
-    | Submit ((new_entry, notify_u) : (String * TransactionMutualKnowledge.t OrExn.t Lwt.u)) ->
-       let topic = 
-       mkb_send_data 
-       in inner_loop 
- *)
