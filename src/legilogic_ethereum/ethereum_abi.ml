@@ -244,17 +244,52 @@ let abi_value_to_uint = abi_value_to_uintN 256
 
 
 
-let print_abi_value_uint256 : abi_value -> string =
+
+let print_abi_value_uint8 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint x in
-  let x_str : string = Nat.to_string x_uint in
-  x_str
+  let x_uint = abi_value_to_uint8 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint16 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint16 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint24 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint24 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint32 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint32 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint40 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint40 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint48 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint48 x in
+  Nat.to_string x_uint
+
+let print_abi_value_uint56 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint56 x in
+  Nat.to_string x_uint
 
 let print_abi_value_uint64 : abi_value -> string =
   fun x ->
   let x_uint = abi_value_to_uint64 x in
-  let x_str : string = Nat.to_string x_uint in
-  x_str
+  Nat.to_string x_uint
+
+
+let print_abi_value_uint256 : abi_value -> string =
+  fun x ->
+  let x_uint = abi_value_to_uint x in
+  Nat.to_string x_uint
 
 let print_abi_value_bytes32 : abi_value -> string =
   fun x ->
