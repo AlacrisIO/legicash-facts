@@ -299,30 +299,6 @@ let print_abi_value_bytes32 : abi_value -> string =
 
 
 
-(*
-let abi_value_to_intN n evalue =
-  Logging.log "abi_value_to_intN code has not been written down";
-  12389
-
-let abi_value_to_int8 = abi_value_to_intN 8
-
-let abi_value_to_int16 = abi_value_to_intN 16
-
-let abi_value_to_int24 = abi_value_to_intN 24
-
-let abi_value_to_int32 = abi_value_to_intN 32
-
-let abi_value_to_int40 = abi_value_to_intN 40
-
-let abi_value_to_int48 = abi_value_to_intN 48
-
-let abi_value_to_int56 = abi_value_to_intN 56
-
-let abi_value_to_int64 = abi_value_to_intN 64
-
-let abi_value_to_int = abi_value_to_intN 256
- *)
-
 
 let abi_value_to_address evalue =
   match evalue with
@@ -755,16 +731,6 @@ let decode_individual_data (data: Bytes.t) (init_pos: int) (etype: abi_type) : (
 
 
 
-let transcrib_short_int (eval: int) : string =
-  let (lchar : string) = "0123456789abcdef" in
-  let val2 = eval mod 16 in
-  let val1 = (eval - val2) / 16 in
-  let str1 = String.sub lchar val1 1 in
-  let str2 = String.sub lchar val2 1 in
-  let (estr : string) = String.concat "" [str1; str2] in
-  estr
-
-
 
 
 let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
@@ -776,12 +742,6 @@ let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
                          32 - residue
                        else
                          0 in
-  (*  Logging.log "decode_data, total_len=%i sum_size=%i offset=%i" total_len sum_size offset;*)
-  (*
-  let _l_data = List.init total_len (fun (i : int) ->
-                    let (eval : int) = Char.code (Bytes.get data i) in
-                    Logging.log "bytes=%i eval=%i str=%s" i eval (transcrib_short_int eval);
-                    i) in *)
   let padding1 = Bytes.make offset '\000' in
   let padding2 = Bytes.sub data 0 offset in
   let test = Bytes.equal padding1 padding2 in
