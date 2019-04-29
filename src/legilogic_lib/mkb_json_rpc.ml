@@ -1,7 +1,7 @@
 open Lib
-open Action
+(*open Action*)
 open Yojsoning
-open Persisting
+(* open Persisting*)
 open Json_rpc
 open Signing
 open Types
@@ -41,6 +41,12 @@ let mkb_net =
   lazy
     (let lazy { scheme; host; port } = mkb_rpc_config in
      Uri.make ~scheme ~host ~port ())
+
+let mkb_topic_user =
+  lazy
+    (let lazy {topic; username } = mkb_rpc_config in
+     (topic, username))
+
 
 let mkb_mutex = Lwt_mutex.create ()
 
@@ -112,5 +118,15 @@ let mkb_send_data =
     Digest.of_yojson_exn
     (yojson_4args Address.to_yojson Address.to_yojson Address.to_yojson Address.to_yojson)
 
-
-    (* let inner_call*)
+(*
+let inner_call_mkb () =
+  let open Lwt in
+  let rec inner_loop : unit -> unit Lwt.t =
+    fun () ->
+    Lwt_mvar.take request_mkb_update_mailbox
+    >>= function
+    | Submit ((new_entry, notify_u) : (String * TransactionMutualKnowledge.t OrExn.t Lwt.u)) ->
+       let topic = 
+       mkb_send_data 
+       in inner_loop 
+ *)

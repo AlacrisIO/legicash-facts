@@ -27,8 +27,6 @@ let () = Printexc.register_printer (function
                 Some str_ret
              | _ -> None)
 
-       
-                      
 (** Type of a JSON-RPC request. *)
 type request =
   { json_rpc_version : string [@key "jsonrpc"] (* Must be "2.0" *)
