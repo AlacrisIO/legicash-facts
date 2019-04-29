@@ -12,11 +12,9 @@ open Digesting
 open Ethereum_json_rpc
 open Side_chain_server_config
 
-
 type digest_entry =
   { revision : Revision.t
   ; digest : Digest.t}
-
 
 type request_state_update =
   | Submit of (Digest.t * TransactionReceipt.t OrExn.t Lwt.u)
