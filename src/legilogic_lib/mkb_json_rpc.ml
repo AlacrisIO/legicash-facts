@@ -30,17 +30,15 @@ type mkb_topic_description =
 
 type mkb_add_registrar =
   { topic : string
-  ; 
-    
+  ;
   }
 [@@deriving of_yojson]
 
-  
+
 type mkb_send_data =
   {
   }
 
-  
 let mkb_rpc_config =
   lazy
     (let config_file = Config.get_config_filename "mkb_config.json" in
