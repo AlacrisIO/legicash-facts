@@ -73,7 +73,6 @@ let post_admin_query_request (request : AdminQueryRequest.t) =
  *)
 
 
-(* Transaction's return TransactionCommitment's *)
 let post_user_transaction_request_to_server (request : UserTransactionRequest.t signed) : TransactionCommitment.t OrExn.t Lwt.t =
   let (external_request : ExternalRequest.t) = `UserTransaction request in
   with_connection (Lazy.force sockaddr)
