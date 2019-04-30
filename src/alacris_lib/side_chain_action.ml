@@ -90,6 +90,14 @@ module Test = struct
         get_contract_address_from_client_exn () >>= fun contract_address ->
         Operator_contract.set_contract_address contract_address;
 
+        (* TODO consolidate integration tests into single entry point with
+         * shared initialization phase rather than leaving them scattered about
+         * the repo. One problem with the present setup is we cannot shut down
+         * the following reactor once flipping it on, meaning we're likely to
+         * encounter subtle time-dependent bugs in future tests (until we
+         * reorganize) *)
+        State_update.start_state_update_operator () >>= fun _ ->
+
         fund_accounts () >>= fun () ->
         let operator = trent_address in
         start_operator operator >>= fun () ->
