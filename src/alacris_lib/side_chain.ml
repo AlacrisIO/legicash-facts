@@ -349,7 +349,6 @@ module TransactionCommitment = struct
     ; signature: Signature.t
     ; state_update_transaction_hash: Digest.t
     ; state_digest: Digest.t
-    ; contract_address: Address.t
     }
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct

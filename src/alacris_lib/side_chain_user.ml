@@ -187,18 +187,20 @@ let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> 
 let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_exn.t =
   fun tc operator ->
   Logging.log "Beginning of post_operation_deposit";
-  Logging.log "contract_address contr_addr=%s" (Address.to_0x tc.contract_address);
   let (topics : Bytes.t option list) = [topic_of_deposited] in
   let (list_data_type : abi_type list) = [Address; Address; Uint 256; Uint 256] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      None; None; None] in
   Logging.log "Before wait_for_contract_event CONTEXT deposit";
-  Lwt_exn.bind (wait_for_contract_event ~contract_address:tc.contract_address ~transaction_hash:None ~topics list_data_type data_value_search)
-    (fun (x : (LogObject.t * (abi_value list))) ->
-      let (_log_object, abi_list_val) = x in
-      Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_uint256 (List.nth abi_list_val 2));
-      Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 3));
-      Lwt_exn.return ())
+  let open Lwt_exn in
+  get_contract_address_from_client_exn ()
+  >>= (fun contract_address ->
+  wait_for_contract_event ~contract_address ~transaction_hash:None ~topics list_data_type data_value_search)
+  >>= (fun (x : (LogObject.t * (abi_value list))) ->
+    let (_log_object, abi_list_val) = x in
+    Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_uint256 (List.nth abi_list_val 2));
+    Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 3));
+    Lwt_exn.return ())
 
 
 let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t ->Address.t -> unit Lwt_exn.t =
@@ -233,36 +235,35 @@ let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t ->Add
 
 let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
   fun tc  withdrawal_amount  ~sender  ~operator ->
+  Logging.log "Beginning of execute_withdraw_operation";
+  (* TODO: the challenge duration should be in BLOCKS, not in seconds *)
+  (* TODO actually accept challenges and handle accordingly *)
   let open Lwt_exn in
-  let await_challenge_or_emit =
-    (* TODO: the challenge duration should be in BLOCKS, not in seconds *)
-    Logging.log "Beginning of execute_withdraw_operation";
-    sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
-    (* TODO actually accept challenges and handle accordingly *)
-    >>= fun () -> get_contract_address_from_client_exn ()
-    >>= fun contract_address -> emit_withdraw_operation
-                    ~contract_address
-                    ~sender
-                    ~operator
-                    tc.tx_proof.key
-                    ~value:withdrawal_amount
-                    ~bond:Side_chain_server_config.bond_value_v
-                    tc.state_digest
-  in await_challenge_or_emit
-    >>= fun tr ->
-      Logging.log "execute_withdraw_operation_spec status=%s" (print_status_receipt tr);
-      let (data_value_search: abi_value option list) =
-        [ Some (Address_value operator)
-        ; Some (abi_value_from_revision tc.tx_proof.key)
-        ; None ; None ; None ] in
-      Logging.log "Before wait_for_contract_event CONTEXT withdraw";
-      wait_for_contract_event
-        ~contract_address:tc.contract_address
-        ~transaction_hash:(Some tr.transaction_hash)
-        ~topics:[topic_of_withdraw]
-        [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
-        data_value_search
-       >>= const ()
+  sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
+  >>= fun () -> get_contract_address_from_client_exn ()
+  >>= fun contract_address ->
+                emit_withdraw_operation
+                  ~contract_address
+                  ~sender
+                  ~operator
+                  tc.tx_proof.key
+                  ~value:withdrawal_amount
+                  ~bond:Side_chain_server_config.bond_value_v
+                  tc.state_digest
+  >>= fun tr ->
+     Logging.log "execute_withdraw_operation_spec status=%s" (print_status_receipt tr);
+     let (data_value_search: abi_value option list) =
+       [ Some (Address_value operator)
+       ; Some (abi_value_from_revision tc.tx_proof.key)
+       ; None ; None ; None ] in
+     Logging.log "Before wait_for_contract_event CONTEXT withdraw";
+     wait_for_contract_event
+       ~contract_address:contract_address
+       ~transaction_hash:(Some tr.transaction_hash)
+       ~topics:[topic_of_withdraw]
+       [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
+       data_value_search
+     >>= const ()
 
 
 let execute_withdraw_operation : TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
