@@ -1,7 +1,9 @@
 { "scheme" : "http",
-  "host" : "alacris-private-mkb-node0",
-  "port" : 8845
+  "main_host" : "localhost",
+  "main_port" : 8805,
+  "list_neighboring_registrar" : [ "Bob" ],
   "topic" : "mkb_side_chain_registry",
+  "username" : "John",
   "committee_size" : 0,
   "min_interval_insertion_micros" : 0,
   "total_capacity_mem" : 0,
