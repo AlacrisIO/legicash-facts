@@ -356,11 +356,11 @@ module OngoingTransactionStatus = struct
     (* for all operations *)
     | Requested        of UserTransactionRequest.t signed
     | SignedByOperator of TransactionCommitment.t
-    | PostedToRegistry of TransactionCommitment.t
+    | PostedToRegistry of TransactionCommitment.t (* MKB commitment needed to be waited for *)
 
     (* for withdrawal only *)
-    | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
+    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
   [@@deriving yojson]
 
   include (YojsonPersistable (struct

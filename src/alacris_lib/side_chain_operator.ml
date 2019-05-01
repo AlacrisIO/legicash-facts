@@ -71,9 +71,6 @@ end
  * system transaction, which e.g. posts a state update to the main chain
    (Which all the time update the main chain.
     We have a batch of operations to put to the main chain.)
-
-
-
    The side-chain has three different (kind of) states:
  * current, the operator's view of itself
  * pending to the main chain, but not yet passed the challenge period

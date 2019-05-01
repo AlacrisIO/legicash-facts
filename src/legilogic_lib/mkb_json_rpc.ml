@@ -94,6 +94,15 @@ type mkb_send_data_type =
   }
 [@@deriving of_yojson]
 
+(*
+type mkb_status_info =
+  { reply : bool
+  ; message : string
+  }
+[@@deriving of_yojson] *)
+
+
+
 let yojson_noargs = fun () -> `Null
 let yojson_0args = fun () -> `List []
 let yojson_singlearg f = fun x -> f x
@@ -118,17 +127,17 @@ let get_mkb_topic_description : mkb_rpc_config_type -> MkbTopicDescription.t =
 
 let mkb_topic_creation =
   mkb_json_rpc "topic_creation"
-    Digest.of_yojson_exn
+    StringT.of_yojson_exn
     (yojson_singlearg MkbTopicDescription.to_yojson)
 
 let mkb_add_registrar =
   mkb_json_rpc "add_registrar"
-    Digest.of_yojson_exn
+    StringT.of_yojson_exn
     (yojson_2args StringT.to_yojson StringT.to_yojson)
 
 let mkb_add_account =
   mkb_json_rpc "add_account"
-    Digest.of_yojson_exn
+    StringT.of_yojson_exn
     (yojson_2args StringT.to_yojson StringT.to_yojson)
 
 let mkb_send_data : (string * string * string * string) -> SendDataResult.t Lwt_exn.t =
