@@ -474,8 +474,8 @@ let make_transaction_commitment : (Transaction.t * transport_data) -> Transactio
     let accounts = dv_digest accounts in
     let signature = committed.signature in
     let main_chain_transactions_posted = dv_digest main_chain_transactions_posted in
-    let (state_update_transaction_hash, state_digest) : (Digest.t * Digest.t) = fct_transaction_hash trans_data in
-    let (contract_address : Address.t) = (get_contract_address ()) in
+    let (state_update_transaction_hash, state_digest) = fct_transaction_hash trans_data in
+    let contract_address = get_contract_address () in
     let tx_revision = transaction.tx_header.tx_revision in
     match TransactionMap.Proof.get tx_revision transactions with
     | Some tx_proof ->

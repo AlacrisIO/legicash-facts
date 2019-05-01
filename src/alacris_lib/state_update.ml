@@ -126,14 +126,6 @@ let post_state_update : Digest.t -> TransactionReceipt.t Lwt_exn.t =
   post_operation_general operation oper_addr value
 
 
-let post_state_update_eat_exception : Digest.t -> TransactionReceipt.t option Lwt.t =
-  fun digest ->
-  Lwt.bind (post_state_update digest)
-  (fun x_input ->
-    match x_input with
-    | Ok x -> Lwt.return (Some x)
-    | _ -> Lwt.return None)
-
 let inner_state_update_request_loop () =
   let open Lwt in
   let digest_entry_ref : digest_entry ref = ref {revision=Revision.zero; digest=Digest.zero} in
