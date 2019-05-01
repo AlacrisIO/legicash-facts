@@ -110,12 +110,13 @@ let get_option : 'a -> 'a option -> 'a =
   | None -> x_val
   | Some x -> x
 
-let wait_for_operator_state_update : contract_address:Address.t -> operator:Address.t -> transaction_hash:Digest.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
-  fun ~contract_address ~operator ~transaction_hash ->
+let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Digest.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
+  fun ~operator ~transaction_hash ->
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_operator_state_update";
-  Logging.log "wait_for_operator_state_update contract_address=%s" (Address.to_0x contract_address);
   Logging.log "Before wait_for_contract_event CONTEXT state_update";
+  get_contract_address_from_client_exn ()
+  >>= fun contract_address ->
   wait_for_contract_event
     ~contract_address
     ~transaction_hash:(Some transaction_hash)
@@ -207,25 +208,27 @@ let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t ->Add
     | Deposit _ -> bork "This part should not occur"
     | Payment _ -> bork "This part should not occur"
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-        Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
-        emit_claim_withdrawal_operation
-          ~contract_address:tc.contract_address
-          ~sender
-          ~operator
-          tc.tx_proof.key
-          ~value:withdrawal_amount
-          ~bond:Side_chain_server_config.bond_value_v
-          tc.state_digest
-        >>= fun tr ->
-        Logging.log "post_claim_withdrawal_operation status=%s" (print_status_receipt tr);
-        wait_for_claim_withdrawal_event
-          ~contract_address:tc.contract_address
-          ~transaction_hash:tr.transaction_hash
-          ~operator
-          tc.tx_proof.key
-        >>= fun () ->
-        Logging.log "After the wait_for_claim_withdrawal_event";
-        return ()
+       Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
+       get_contract_address_from_client_exn ()
+       >>= fun contract_address ->
+       emit_claim_withdrawal_operation
+         ~contract_address
+         ~sender
+         ~operator
+         tc.tx_proof.key
+         ~value:withdrawal_amount
+         ~bond:Side_chain_server_config.bond_value_v
+         tc.state_digest
+       >>= fun tr ->
+       Logging.log "post_claim_withdrawal_operation status=%s" (print_status_receipt tr);
+       wait_for_claim_withdrawal_event
+         ~contract_address
+         ~transaction_hash:tr.transaction_hash
+         ~operator
+         tc.tx_proof.key
+       >>= fun () ->
+       Logging.log "After the wait_for_claim_withdrawal_event";
+       return ()
 
 
 let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
@@ -236,8 +239,9 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -
     Logging.log "Beginning of execute_withdraw_operation";
     sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
     (* TODO actually accept challenges and handle accordingly *)
-    >>= fun () -> emit_withdraw_operation
-                    ~contract_address:tc.contract_address
+    >>= fun () -> get_contract_address_from_client_exn ()
+    >>= fun contract_address -> emit_withdraw_operation
+                    ~contract_address
                     ~sender
                     ~operator
                     tc.tx_proof.key
@@ -596,7 +600,7 @@ module TransactionTracker = struct
               |> Side_chain_client.post_user_transaction_request
               >>= function
               | Ok (tc : TransactionCommitment.t) ->
-                 Logging.log "Requested: side_chain_user: TrTracker, Ok case tc.contr_addr=%s" (Address.to_0x tc.contract_address);
+                 Logging.log "Requested: side_chain_user: TrTracker, Ok case";
                  SignedByOperator tc |> continue
               | Error (error : exn) ->
                  Logging.log "Requested: side_chain_user: exn=%s" (Printexc.to_string error);
@@ -604,14 +608,14 @@ module TransactionTracker = struct
                  invalidate ongoing error)
 
            | SignedByOperator (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, SignedByOperator operation tc.contract_address=%s" (Address.to_0x tc.contract_address);
+             Logging.log "TR_LOOP, SignedByOperator operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
 
            | PostedToRegistry (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, PostedToRegistry operation tc.contract_address=%s" (Address.to_0x tc.contract_address);
+             Logging.log "TR_LOOP, PostedToRegistry operation";
              (* TODO: add support for Mutual Knowledge Base / "Smart Court Registry" *)
-             (wait_for_operator_state_update ~contract_address:tc.contract_address ~operator ~transaction_hash:tc.state_update_transaction_hash
+             (wait_for_operator_state_update ~operator ~transaction_hash:tc.state_update_transaction_hash
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
