@@ -1,5 +1,5 @@
 { "scheme" : "http",
-  "main_host" : "localhost",
+  "main_host" : "alacris-registrar-alice",
   "main_port" : 8805,
   "list_neighboring_registrar" : [ "Bob" ],
   "topic" : "mkb_side_chain_registry",

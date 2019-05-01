@@ -96,6 +96,7 @@ type mkb_send_data_type =
 
 let yojson_noargs = fun () -> `Null
 let yojson_0args = fun () -> `List []
+let yojson_singlearg f = fun x -> f x
 let yojson_1arg f = fun x -> `List [f x]
 let yojson_2args f g = fun (x, y) -> `List [f x; g y]
 let yojson_3args f g h = fun (x, y, z) -> `List [f x; g y; h z]
@@ -104,21 +105,21 @@ let yojson_4args f g h k = fun (x, y, z, t) -> `List [f x; g y; h z; k t]
 
 let get_mkb_topic_description : mkb_rpc_config_type -> MkbTopicDescription.t =
   fun x_mkb_config ->
-  { topic=x_mkb_config.topic;
-    committee_size=x_mkb_config.committee_size;
-    min_interval_insertion_micros=x_mkb_config.min_interval_insertion_micros;
-    total_capacity_mem=x_mkb_config.total_capacity_mem;
-    instant_capacity_mem=x_mkb_config.instant_capacity_mem;
-    total_throughput_per_min=x_mkb_config.total_throughput_per_min;
-    total_throughput_per_sec=x_mkb_config.total_throughput_per_sec;
-    retention_time=x_mkb_config.retention_time;
-    retention_size=x_mkb_config.retention_size;
-    hash_method=x_mkb_config.hash_method}
+  { topic = x_mkb_config.topic;
+    committee_size = x_mkb_config.committee_size;
+    min_interval_insertion_micros = x_mkb_config.min_interval_insertion_micros;
+    total_capacity_mem = x_mkb_config.total_capacity_mem;
+    instant_capacity_mem = x_mkb_config.instant_capacity_mem;
+    total_throughput_per_min = x_mkb_config.total_throughput_per_min;
+    total_throughput_per_sec = x_mkb_config.total_throughput_per_sec;
+    retention_time = x_mkb_config.retention_time;
+    retention_size = x_mkb_config.retention_size;
+    hash_method = x_mkb_config.hash_method}
 
 let mkb_topic_creation =
   mkb_json_rpc "topic_creation"
     Digest.of_yojson_exn
-    (yojson_1arg MkbTopicDescription.to_yojson)
+    (yojson_singlearg MkbTopicDescription.to_yojson)
 
 let mkb_add_registrar =
   mkb_json_rpc "add_registrar"
@@ -144,7 +145,6 @@ let rec mkb_send_data_iterate_fail : (string * string * string * string) -> Send
   | _ -> mkb_send_data_iterate_fail x)
 
 
-  
 (*
   The permanent system
 *)
