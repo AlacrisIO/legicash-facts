@@ -112,12 +112,12 @@ let print_list_entries : EthListLogObjects.t -> string =
 
 (* We will iterate over the logs. Search for the ones matching the topics, event values and maybe
    transaction hash. We iterate until we find at least one entry that matches *)
-let retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t =
-  fun ~delay ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
+let retrieve_relevant_list_logs_data : delay:float -> Revision.t -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (Revision.t * (LogObject.t * (abi_value list)) list) Lwt_exn.t =
+  fun ~delay start_revision ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
   let open Lwt_exn in
   Logging.log "|list_data_type|=%d" (List.length list_data_type);
   Logging.log "|data_value_search|=%d" (List.length data_value_search);
-  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
+  let starting_watch_ref : (Revision.t ref) = ref start_revision in
   let iter_state_ref : (int ref) = ref 0 in
   let rec fct_downloading start_block iter_state =
     retrieve_last_entries (Revision.add start_block Revision.one)
@@ -153,8 +153,25 @@ let retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t
                )
         else
           (Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
-           return relevant)
+           return (start_block_in, relevant))
   in fct_downloading !starting_watch_ref !iter_state_ref
+
+
+(*
+let search_for_state_update_min_revision : contract_address:Address.t -> operator:Address.t -> Revision.t -> Digest.t Lwt_exn.t =
+  fun contract_address  operator  operator_revision ->
+  let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
+  let rec get_matching : Revision.t -> Digest.t Lwt_exn.t =
+    fun start_ref ->
+    let open Lwt_exn in
+    retrieve_relevant_list_logs_data ~delay start_ref ~contract_address ~transaction_hash:None
+      ~topics:[topic_of_state_update]
+      [Address; Bytes 32; Uint 256; Uint 64; Uint 64]
+      [Some (Address_value operator); None; None; None; None]
+    >>= fun ((end_block, llogs) : (Revision.t * (LogObject.t * (abi_value list)) list)) ->
+    
+ *)
+
 
 
 
@@ -163,14 +180,16 @@ let retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t
 let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
   fun ~delay  ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search  ->
   let open Lwt_exn in
+  let start_revision = Revision.zero in
   retrieve_relevant_list_logs_data
     ~delay
+    start_revision
     ~contract_address
     ~transaction_hash
     ~topics
     list_data_type
     data_value_search
-  >>= fun (llogs : (LogObject.t * (abi_value list)) list) ->
+  >>= fun ((_rev, llogs) : (Revision.t * (LogObject.t * (abi_value list)) list)) ->
   let len = List.length llogs in
   if len > 1 then
     bork "The length should be exactly 1"

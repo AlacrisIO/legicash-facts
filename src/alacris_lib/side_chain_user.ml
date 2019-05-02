@@ -37,7 +37,7 @@ let (topic_of_deposited: Bytes.t option) =
   topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
 
 let (topic_of_state_update: Bytes.t option) =
-  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint256,uint64)")
+  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint256,uint64,uint64)")
 
 let (topic_of_claim_withdrawal: Bytes.t option) =
   topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32,uint256,uint256,uint64)")

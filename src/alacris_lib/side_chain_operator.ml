@@ -432,10 +432,15 @@ let inner_state_update_periodic_loop () =
     fun () ->
     retrieve_validated_rev_digest ()
     >>= fun x -> let (x_rev, x_dig) = x in
-                 post_state_update x_dig
+                 post_state_update x_dig x_rev
     >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.period_state_update_f
     >>= fun _ -> inner_loop ()
   in inner_loop ()
+
+let start_state_update_periodic_operator () =
+  Logging.log "Beginning of start_state_update_operator";
+  Lwt.async inner_state_update_periodic_loop;
+  Lwt_exn.return ()
 
 
 let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * transport_data) Lwt_exn.t =

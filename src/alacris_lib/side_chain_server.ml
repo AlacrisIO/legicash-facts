@@ -91,7 +91,8 @@ let _ =
     (fun () ->
       Logging.log "Beginning of side_chain_server";
       Mkb_json_rpc.init_mkb_server ()
-      >>= fun () -> State_update.start_state_update_operator ()
+      (*      >>= fun () -> State_update.start_state_update_operator () *)
+      >>= fun () -> Side_chain_operator.start_state_update_periodic_operator ()
       >>= fun () ->
       Logging.log "Before the Db.open_connection";
       of_lwt Db.open_connection "alacris_server_db"
