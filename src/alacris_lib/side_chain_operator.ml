@@ -730,7 +730,7 @@ let inner_transaction_request_loop =
                         (`Committed (signed_state, notify_batch_committed_u)));
                     OperatorState.save operator_state_to_save
                     >>= fun () -> Db.async_commit notify_ready
-                    >>= fun () -> Mkb_json_rpc.post_to_mkb_mailbox (Digest.to_string (OperatorState.digest operator_state_to_save))
+                    >>= fun () -> Mkb_json_rpc.post_to_mkb_mailbox (OperatorState.digest operator_state_to_save)
                     >>= fun _ -> Lwt.return (operator_state, (batch_id + 1), batch_committed_t))
                  else
                    (Lwt.wakeup_later notify_batch_committed_u ();

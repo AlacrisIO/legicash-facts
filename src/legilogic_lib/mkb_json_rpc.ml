@@ -162,38 +162,40 @@ let rec mkb_send_data_iterate_fail : (string * string * string * string) -> Send
 
 module TransactionMutualKnowledge = struct
   type t = { topic : string
-           ; hash : string
+           ; hash : Digest.t
            }
   [@@deriving yojson]
 end
 
 type request_mkb_update =
-  | Submit of (string * TransactionMutualKnowledge.t Lwt.u)
+  | Submit of (Digest.t * TransactionMutualKnowledge.t Lwt.u)
 
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
-let post_to_mkb_mailbox : string -> TransactionMutualKnowledge.t Lwt.t =
-  fun str ->
+let post_to_mkb_mailbox : Digest.t -> TransactionMutualKnowledge.t Lwt.t =
+  fun digest ->
   simple_client request_mkb_update_mailbox
-    (fun ((_x_digest, x_resolver) : (string * TransactionMutualKnowledge.t Lwt.u)) -> Submit (str,x_resolver)) str
+    (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) -> Submit (digest,x_resolver)) digest
 
 
 
 
 let inner_call_mkb () =
   let open Lwt in
-  let str_start : string = "" in
-  let hash_ref : string ref = ref str_start in
+  let hash_ref : Digest.t ref = ref Digest.zero in
   let rec inner_loop : unit -> unit Lwt.t =
     fun () ->
     Lwt_mvar.take request_mkb_update_mailbox
     >>= function
-    | Submit ((new_entry, notify_u) : (string * TransactionMutualKnowledge.t Lwt.u)) ->
+    | Submit ((new_entry, notify_u) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
        let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
-       mkb_send_data_iterate_fail (mkb_rpc_config_v.topic, mkb_rpc_config_v.username, !hash_ref, new_entry)
+       mkb_send_data_iterate_fail (mkb_rpc_config_v.topic, mkb_rpc_config_v.username,
+                                   (Digest.to_0x !hash_ref),
+                                   (Digest.to_0x new_entry))
        >>= (fun x ->
-         hash_ref := x.hash;
-         Lwt.wakeup_later notify_u {topic=mkb_rpc_config_v.topic; hash=x.hash};
+         let new_digest = Digest.of_0x x.hash in
+         hash_ref := new_digest;
+         Lwt.wakeup_later notify_u {topic=mkb_rpc_config_v.topic; hash=new_digest};
          inner_loop ())
   in inner_loop ()
 
