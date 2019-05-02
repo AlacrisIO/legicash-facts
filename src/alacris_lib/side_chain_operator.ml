@@ -98,7 +98,8 @@ type inner_transaction_request =
   [ validated_transaction_request
   | `Flush of int
   | `Committed of (State.t signed * unit Lwt.u)
-  | `GetCurrentDigest of (Digest.t Lwt.u) ]
+  | `GetCurrentDigest of (Digest.t Lwt.u)
+  | `GetCurrentRevisionDigest of ((Revision.t*Digest.t) OrExn.t Lwt.u) ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -419,6 +420,24 @@ let post_validated_transaction_request :
       `Confirm (request, trans_data))
 
 
+(*let retrieve_validated_rev_digest : unit -> ((Revision.t * Digest.t) unit Lwt.t) Lwt_exn.t =*)
+let retrieve_validated_rev_digest =
+  simple_client inner_transaction_request_mailbox
+    (fun ((_, resolv) : (unit * (Revision.t * Digest.t) OrExn.t Lwt.u)) ->
+      `GetCurrentRevisionDigest resolv)
+
+let inner_state_update_periodic_loop () =
+  let open Lwt_exn in
+  let rec inner_loop : unit -> unit Lwt_exn.t =
+    fun () ->
+    retrieve_validated_rev_digest ()
+    >>= fun x -> let (x_rev, x_dig) = x in
+                 post_state_update x_dig
+    >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.period_state_update_f
+    >>= fun _ -> inner_loop ()
+  in inner_loop ()
+
+
 let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * transport_data) Lwt_exn.t =
   Logging.log "post_state_update_request, beginning of function";
   let (lneedupdate : bool) = post_state_update_needed_tr transreq in
@@ -468,6 +487,8 @@ let make_transaction_commitment : (Transaction.t * transport_data) -> Transactio
               ; accounts
               ; transactions
               ; main_chain_transactions_posted } = committed.payload in
+    Logging.log "make_transaction_commitment operator_revision=%s" (Revision.to_string operator_revision);
+    let state_digest_b : Digest.t = State.digest committed.payload in
     let accounts = dv_digest accounts in
     let signature = committed.signature in
     let main_chain_transactions_posted = dv_digest main_chain_transactions_posted in
@@ -475,13 +496,12 @@ let make_transaction_commitment : (Transaction.t * transport_data) -> Transactio
     let tx_revision = transaction.tx_header.tx_revision in
     match TransactionMap.Proof.get tx_revision transactions with
     | Some tx_proof ->
-       Logging.log "TrCo                  state_digest=%s" (Digest.to_0x state_digest);
-       Logging.log "TrCo main_chain_transaction_posted=%s" (Digest.to_0x main_chain_transactions_posted);
-       Logging.log "TrCo                      accounts=%s" (Digest.to_0x accounts);
-      TransactionCommitment.
-        { transaction; tx_proof; operator_revision; spending_limit;
-          accounts; main_chain_transactions_posted; signature;
-          state_update_transaction_hash; state_digest }
+       Logging.log "TrCo   state_digest=%s" (Digest.to_string state_digest);
+       Logging.log "TrCo state_digest_b=%s" (Digest.to_string state_digest_b);
+       TransactionCommitment.
+       { transaction; tx_proof; operator_revision; spending_limit;
+         accounts; main_chain_transactions_posted; signature;
+         state_update_transaction_hash; state_digest }
     | None -> bork "Transaction %s not found, cannot build commitment!" (Revision.to_0x tx_revision)
 
 (* Process a user request, with a flag to specify whether it's a forced request
@@ -714,6 +734,13 @@ let inner_transaction_request_loop =
                   Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
                   request_batch operator_state size
                (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
+               | `GetCurrentRevisionDigest (rev_digest_resolver : (Revision.t * Digest.t) OrExn.t Lwt.u) ->
+                  Logging.log "inner_transaction_request, CASE : GetCurrentRevisionDigest";
+                  (* Lwt.wakeup_later notify_batch_committed_u (); *)
+                  let digest = (State.digest !operator_state_ref.current) in
+                  let rev_oper = !operator_state_ref.current.operator_revision in
+                  Lwt.wakeup_later rev_digest_resolver (Ok(rev_oper, digest));
+                  request_batch operator_state size
                | `Flush (id : int) ->
                  Logging.log "inner_transaction_request_loop, CASE : Flush";
                  assert (id = batch_id);

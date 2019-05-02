@@ -143,7 +143,7 @@ let mkb_add_registrar =
 
 let mkb_add_account =
   mkb_json_rpc "add_account"
-    StringT.of_yojson_exn
+    SendDataResult.of_yojson_exn
     (yojson_2args StringT.to_yojson StringT.to_yojson)
 
 let mkb_send_data : (string * string * string * string) -> SendDataResult.t Lwt_exn.t =
@@ -231,6 +231,7 @@ let init_mkb_server () =
   mkb_topic_creation mkb_topic_desc
   >>= fun _ -> mkb_add_neighboring_registrar topic list_neighboring_registrar
   >>= fun _ -> mkb_add_account (topic, username)
-  >>= fun _ -> return ()
+  >>= fun _ -> Logging.log "The MKB has been successfully set up";
+               return ()
 
 

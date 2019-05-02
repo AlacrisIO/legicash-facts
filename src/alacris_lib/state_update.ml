@@ -126,6 +126,19 @@ let post_state_update : Digest.t -> TransactionReceipt.t Lwt_exn.t =
   post_operation_general operation oper_addr value
 
 
+(*
+let inner_state_update_periodic_loop () =
+  let open Lwt in
+  let rec inner_loop : unit -> unit Lwt.t =
+    fun () ->
+    Side_chain_operator.retrieve_validated_rev_digest
+    >>= fun x -> post_state_update
+    >>= fun _ -> sleep_delay_exn Side_chain_server_config.period_state_update_f
+    >>= fun () -> inner_loop ()
+  in inner_loop () *)
+
+
+
 let inner_state_update_request_loop () =
   let open Lwt in
   let digest_entry_ref : digest_entry ref = ref {revision=Revision.zero; digest=Digest.zero} in
