@@ -74,8 +74,12 @@ module MkbTopicDescription = struct
   [@@deriving yojson]
 end
 
+
+
+
 module SendDataResult = struct
-  type t = { hash : string
+  type t = { nature : string
+           ; hash : string
            }
   [@@deriving yojson {strict = false}]
   include (YojsonPersistable (struct
