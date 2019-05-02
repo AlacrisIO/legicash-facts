@@ -165,10 +165,12 @@ build_all: $(CONTRACT) force
 test_hello: toplevel $(ML_SOURCES) $(CONTRACT) force
 	$(HIDE) [ "$$(echo 'Printf.printf "%s" (Hex.parse_0x_data "0x48656c6c6f2c20776f726c64210a"); exit 0;;' | ./bin/legicaml -no-version -noprompt -noinit)" = "Hello, world!" ]
 
-### Running unit tests
+### Running unit+integration tests
+# NB: the `-f` flag is necessary to explicitly force re-running the entire
+# suite until we separate integration tests from unit tests
 test: $(ML_SOURCES) $(CONTRACT) $(ETHEREUM_TEST_CONTRACT) force
 	$(SHOW) "Running Alacris tests"
-	$(HIDE) dune runtest -j 1
+	$(HIDE) dune runtest -f -j 1
 
 ### TO RUN OUR INTEGRATION TESTS:
 # 1- Run a private Ethereum network
