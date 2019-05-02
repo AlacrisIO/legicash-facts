@@ -88,9 +88,10 @@ let is_matching_data : abi_value list -> abi_value option list -> bool =
     (let is_ok_ent (x: abi_value) (x_filter: abi_value option) : bool =
        match x_filter with | None            -> true
                            | Some x_filt_val -> equal x_filt_val x
+
      in not @@ List.exists ((==) false) (List.init len1 @@ fun i ->
         is_ok_ent (List.nth x_data        i)
-          (List.nth x_data_filter i))
+                  (List.nth x_data_filter i))
     )
 
 
@@ -178,12 +179,9 @@ let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address
     return (List.hd llogs)
 
 
-
-
 (* We wait for contract event. Only difference is that delay is computed from the
    input file *)
-let wait_for_contract_event : contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
-  fun ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search ->
+let wait_for_contract_event ~contract_address ~transaction_hash ~topics list_data_type data_value_search =
   Logging.log "Beginning of wait_for_contract_event";
   retrieve_relevant_single_logs_data
     ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds

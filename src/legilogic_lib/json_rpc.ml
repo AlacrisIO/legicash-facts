@@ -27,8 +27,6 @@ let () = Printexc.register_printer (function
                 Some str_ret
              | _ -> None)
 
-       
-                      
 (** Type of a JSON-RPC request. *)
 type request =
   { json_rpc_version : string [@key "jsonrpc"] (* Must be "2.0" *)
@@ -198,5 +196,4 @@ module Test = struct
     = Error (Malformed_response
                ("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-1,\"message\":\"foo\"},\"id\":41}",
                 Internal_error "bad id"))
-
 end

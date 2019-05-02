@@ -422,33 +422,26 @@ let post_validated_transaction_request :
       `Confirm (request, trans_data))
 
 
-let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * transport_data) Lwt_exn.t =
-  Logging.log "post_state_update_request, beginning of function";
-  let (lneedupdate : bool) = post_state_update_needed_tr transreq in
-  (*  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate; *)
-  if lneedupdate then
-    let get_transport_data : Digest.t -> transport_data Lwt_exn.t =
-      (fun digest ->
-        (*        Lwt.bind (post_state_update digest)*)
-        Lwt.bind (post_to_mailbox_state_update digest)
-          (fun receipt_exn ->
-            match receipt_exn with
-            | Ok receipt ->
-               let ret_val : transport_data = Some (receipt, digest) in
-               Lwt_exn.return ret_val
-            | Error _error -> bork "Cannot handle error in the post_state_update")) in
-    let get_state_digest : TransactionRequest.t -> Digest.t Lwt.t =
-      fun transreq ->
-      simple_client inner_transaction_request_mailbox
-                  (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
-                    `GetCurrentDigest digest_resolver) transreq in
-    (*    Logging.log "post_state_update_request, before simple_client and push function"; *)
-    Lwt_exn.bind (Lwt.bind (get_state_digest transreq) get_transport_data)
-      (fun (trans_data : transport_data) ->
-        let ret_valb : (TransactionRequest.t * transport_data) = (transreq, trans_data) in
-        Lwt_exn.return ret_valb)
+let post_state_update_request transreq =
+  let open Lwt_exn in
+
+  let state_digest_from t = simple_client
+    inner_transaction_request_mailbox
+    (fun (_, r) -> `GetCurrentDigest r)
+    t
+
+  in let get_transport_data digest = Lwt.bind
+    (post_to_mailbox_state_update digest)
+    (function
+      | Ok receipt -> return @@ Some (receipt, digest)
+      | Error _    -> bork "Cannot handle error in the post_state_update")
+
+  in if post_state_update_needed_tr transreq then
+    Lwt.bind (state_digest_from transreq) get_transport_data
+      >>= fun td -> return (transreq, td)
   else
-    Lwt_exn.return (transreq, None)
+    return (transreq, None)
+
 
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
   function

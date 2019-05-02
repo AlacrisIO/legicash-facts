@@ -8,7 +8,16 @@ echo "Recompile step 1"
 # remove build_dir
 rm -rf _build
 # recompile app
-docker run --rm -i -w $APP_DIR -v $PWD:$APP_DIR -u $(id -u) $DOCKER_IMAGE /bin/bash -c "make run_ethereum_net; make toplevel; make test_hello test;"
+docker run \
+  --rm \
+  -i \
+  -w $APP_DIR \
+  -v $PWD:$APP_DIR \
+  -v ${PWD}/docker/config:${APP_DIR}/config \
+  --network=docker_legicash-demo \
+  -u $(id -u) \
+  $DOCKER_IMAGE \
+  /bin/bash -c "make toplevel test_hello test"
 
 echo "Recompile step 2"
 # recompile app
