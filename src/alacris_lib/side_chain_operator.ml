@@ -475,6 +475,9 @@ let make_transaction_commitment : (Transaction.t * transport_data) -> Transactio
     let tx_revision = transaction.tx_header.tx_revision in
     match TransactionMap.Proof.get tx_revision transactions with
     | Some tx_proof ->
+       Logging.log "TrCo                  state_digest=%s" (Digest.to_0x state_digest);
+       Logging.log "TrCo main_chain_transaction_posted=%s" (Digest.to_0x main_chain_transactions_posted);
+       Logging.log "TrCo                      accounts=%s" (Digest.to_0x accounts);
       TransactionCommitment.
         { transaction; tx_proof; operator_revision; spending_limit;
           accounts; main_chain_transactions_posted; signature;
@@ -727,7 +730,8 @@ let inner_transaction_request_loop =
                         (`Committed (signed_state, notify_batch_committed_u)));
                     OperatorState.save operator_state_to_save
                     >>= fun () -> Db.async_commit notify_ready
-                    >>= fun () -> Lwt.return (operator_state, (batch_id + 1), batch_committed_t))
+                    >>= fun () -> Mkb_json_rpc.post_to_mkb_mailbox (Digest.to_string (OperatorState.digest operator_state_to_save))
+                    >>= fun _ -> Lwt.return (operator_state, (batch_id + 1), batch_committed_t))
                  else
                    (Lwt.wakeup_later notify_batch_committed_u ();
                     Lwt.return (operator_state, (batch_id + 1), batch_committed_t))

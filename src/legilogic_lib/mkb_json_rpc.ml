@@ -94,6 +94,8 @@ type mkb_send_data_type =
   }
 [@@deriving of_yojson]
 
+
+  
 (*
 type mkb_status_info =
   { reply : bool
@@ -170,7 +172,7 @@ type request_mkb_update =
 
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
-let post_to_mailbox_state_update : string -> TransactionMutualKnowledge.t Lwt.t =
+let post_to_mkb_mailbox : string -> TransactionMutualKnowledge.t Lwt.t =
   fun str ->
   simple_client request_mkb_update_mailbox
     (fun ((_x_digest, x_resolver) : (string * TransactionMutualKnowledge.t Lwt.u)) -> Submit (str,x_resolver)) str
@@ -224,3 +226,5 @@ let init_mkb_server () =
   >>= fun _ -> mkb_add_neighboring_registrar topic list_neighboring_registrar
   >>= fun _ -> mkb_add_account (topic, username)
   >>= fun _ -> return ()
+
+
