@@ -1,4 +1,5 @@
-{ "scheme" : "http",
+{ "use_mkb" : 1,
+  "scheme" : "http",
   "main_host" : "alacris-registrar-alice",
   "main_port" : 8805,
   "list_neighboring_registrar" : [ "Bob" ],

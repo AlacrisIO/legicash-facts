@@ -9,7 +9,8 @@ open Types
 
 
 type mkb_rpc_config_type =
-  { scheme : string
+  { use_mkb : int
+  ; scheme : string
   ; main_host : string
   ; main_port : int
   ; list_neighboring_registrar : string list
@@ -99,7 +100,7 @@ type mkb_send_data_type =
 [@@deriving of_yojson]
 
 
-  
+
 (*
 type mkb_status_info =
   { reply : bool
@@ -178,9 +179,13 @@ let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create
 
 let post_to_mkb_mailbox : Digest.t -> TransactionMutualKnowledge.t Lwt.t =
   fun digest ->
-  simple_client request_mkb_update_mailbox
-    (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) -> Submit (digest,x_resolver)) digest
-
+  let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
+  if mkb_rpc_config_v.use_mkb > 0 then
+    simple_client request_mkb_update_mailbox
+      (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
+        Submit (digest,x_resolver)) digest
+  else
+    Lwt.return TransactionMutualKnowledge.{topic = ""; hash=Digest.zero}
 
 
 
@@ -221,17 +226,21 @@ let mkb_add_neighboring_registrar : string -> string list -> unit Lwt_exn.t =
 
 let init_mkb_server () =
   Logging.log "Beginning of init_mkb_server";
-  let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
-  let topic = mkb_rpc_config_v.topic in
-  let username = mkb_rpc_config_v.username in
-  let list_neighboring_registrar = mkb_rpc_config_v.list_neighboring_registrar in
-  let mkb_topic_desc = get_mkb_topic_description mkb_rpc_config_v in
-  Lwt.async inner_call_mkb;
   let open Lwt_exn in
-  mkb_topic_creation mkb_topic_desc
-  >>= fun _ -> mkb_add_neighboring_registrar topic list_neighboring_registrar
-  >>= fun _ -> mkb_add_account (topic, username)
-  >>= fun _ -> Logging.log "The MKB has been successfully set up";
-               return ()
+  let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
+  if mkb_rpc_config_v.use_mkb > 0 then
+    let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
+    let topic = mkb_rpc_config_v.topic in
+    let username = mkb_rpc_config_v.username in
+    let list_neighboring_registrar = mkb_rpc_config_v.list_neighboring_registrar in
+    let mkb_topic_desc = get_mkb_topic_description mkb_rpc_config_v in
+    Lwt.async inner_call_mkb;
+    mkb_topic_creation mkb_topic_desc
+    >>= fun _ -> mkb_add_neighboring_registrar topic list_neighboring_registrar
+    >>= fun _ -> mkb_add_account (topic, username)
+    >>= fun _ -> Logging.log "The MKB has been successfully set up";
+                 return ()
+  else
+    return ()
 
 
