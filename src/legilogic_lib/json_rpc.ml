@@ -20,12 +20,9 @@ exception Rpc_error of error
 exception Malformed_response of string * exn
 exception Bad_status of Code.status_code
 
-let () = Printexc.register_printer (function
-             | Rpc_error e ->
-		let str_err : string = e.message in
-                let str_ret : string = Printf.sprintf "Rpc_error(%s)" str_err in
-                Some str_ret
-             | _ -> None)
+let () = Printexc.register_printer @@ function
+  | Rpc_error e -> Some (Printf.sprintf "Rpc_error(%s)" e.message)
+  | _           -> None
 
 (** Type of a JSON-RPC request. *)
 type request =
