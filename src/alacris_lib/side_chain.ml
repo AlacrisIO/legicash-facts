@@ -347,7 +347,6 @@ module TransactionCommitment = struct
     ; accounts: Digest.t
     ; main_chain_transactions_posted: Digest.t
     ; signature: Signature.t
-    ; state_update_transaction_hash: Digest.t
     ; state_digest: Digest.t
     }
   [@@deriving lens { prefix=true }, yojson, rlp]

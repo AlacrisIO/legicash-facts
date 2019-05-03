@@ -349,8 +349,7 @@ module TransactionCommitment : sig
     
     ; main_chain_transactions_posted: Digest.t (* From State.t, digest only *)
     ; signature: signature (* Signature of the digest of the state reconstituted from the above *)
-    ; state_update_transaction_hash: Digest.t
-    ; state_digest: Digest.t (* Signature put in the state update *)
+    ; state_digest : Digest.t
     }
   [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t

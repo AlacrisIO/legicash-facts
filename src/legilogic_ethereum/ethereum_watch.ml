@@ -157,23 +157,6 @@ let retrieve_relevant_list_logs_data : delay:float -> Revision.t -> contract_add
   in fct_downloading !starting_watch_ref !iter_state_ref
 
 
-(*
-let search_for_state_update_min_revision : contract_address:Address.t -> operator:Address.t -> Revision.t -> Digest.t Lwt_exn.t =
-  fun contract_address  operator  operator_revision ->
-  let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  let rec get_matching : Revision.t -> Digest.t Lwt_exn.t =
-    fun start_ref ->
-    let open Lwt_exn in
-    retrieve_relevant_list_logs_data ~delay start_ref ~contract_address ~transaction_hash:None
-      ~topics:[topic_of_state_update]
-      [Address; Bytes 32; Uint 256; Uint 64; Uint 64]
-      [Some (Address_value operator); None; None; None; None]
-    >>= fun ((end_block, llogs) : (Revision.t * (LogObject.t * (abi_value list)) list)) ->
-    
- *)
-
-
-
 
 (* We call for the relevant_list logs and then we return one entry if there is just one.
    If there is more than one, then bork *)

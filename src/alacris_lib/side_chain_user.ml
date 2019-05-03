@@ -146,6 +146,44 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
 
 
 
+let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
+  fun ~operator  ~operator_revision ->
+  let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
+  let rec get_matching : Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
+    fun start_ref ->
+    let open Lwt_exn in
+    get_contract_address_from_client_exn ()
+    >>= fun contract_address ->
+    retrieve_relevant_list_logs_data ~delay start_ref ~contract_address ~transaction_hash:None
+      ~topics:[topic_of_state_update]
+      [Address; Bytes 32; Uint 256; Uint 64; Uint 64]
+      [Some (Address_value operator); None; None; None; None]
+    >>= fun ((end_block, llogs) : (Revision.t * (LogObject.t * (abi_value list)) list)) ->
+    let llogs_filter = List.filter (fun (_, x_list) ->
+                           let oper_rev = retrieve_revision_from_abi_value (List.nth x_list 4) in
+                           compare oper_rev operator_revision >= 0) llogs in
+    if (List.length llogs_filter > 0) then
+      let (x_logo, x_vals) = List.nth llogs_filter 0 in
+      let transhash : Digest.t = get_option Digest.zero x_logo.transactionHash in
+      Logging.log "search_for_state_update_min_revision,  transhash=%s" (Digest.to_0x transhash);
+      Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth x_vals 2));
+      (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
+       * but don't return a fake Confirmation. Maybe have separate functions for one
+       * and the other, or for one and the work that remains to do for the other.
+       *)
+      return Ethereum_chain.Confirmation.
+      { transaction_hash  = get_option Digest.zero x_logo.transactionHash
+      ; transaction_index = get_option Revision.zero x_logo.transactionIndex
+      ; block_number      = get_option Revision.zero x_logo.blockNumber
+      ; block_hash        = get_option Digest.zero x_logo.blockHash
+      }
+    else
+      (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+       >>= fun () -> get_matching end_block)
+  in get_matching Revision.zero
+
+
+
 let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> Revision.t -> unit Lwt_exn.t =
   fun ~contract_address ~transaction_hash ~operator revision ->
   Logging.log "Beginning of wait_for_claim_withdrawal_event";
@@ -616,7 +654,8 @@ module TransactionTracker = struct
            | PostedToRegistry (tc : TransactionCommitment.t) ->
              Logging.log "TR_LOOP, PostedToRegistry operation";
              (* TODO: add support for Mutual Knowledge Base / "Smart Court Registry" *)
-             (wait_for_operator_state_update ~operator ~transaction_hash:tc.state_update_transaction_hash
+             (search_for_state_update_min_revision ~operator ~operator_revision:tc.operator_revision
+              (* wait_for_operator_state_update ~operator ~transaction_hash:tc.state_update_transaction_hash*)
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
