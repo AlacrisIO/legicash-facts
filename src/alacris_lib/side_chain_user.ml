@@ -482,7 +482,7 @@ module TransactionStatus = struct
 end
 
 exception TransactionFailed of OngoingTransactionStatus.t * exn
-exception NotEnoughFundSec of string
+exception InsufficientFunds of string
 
 let _ = Printexc.register_printer
           (function
@@ -554,45 +554,40 @@ module TransactionTracker = struct
         match status with
         | Ongoing ongoing ->
           let open OngoingTransactionStatus in
+
+          (* TODO break the following out into separate chunks to improve
+           * isolation + readability *)
           (match ongoing with
            | DepositWanted (({ operator
                              ; deposit_amount
                              ; request_guid
                              ; requested_at
                              } as deposit_wanted)
-                            , deposit_fee) ->
-             Logging.log "TR_LOOP, DepositWanted operation";
-             (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
-             let amount = TokenAmount.(add deposit_amount deposit_fee) in
-             Lwt.bind
-               (Lwt.bind (get_contract_address_from_client ())
-                  (fun contract_address ->
-                    Logging.log "After the get_contract_address";
-                    Lwt.return (Operator_contract.pre_deposit ~operator ~amount ~contract_address)))
-               (fun x_pre_transaction ->
-               Logging.log "We have x_pre_transaction";
-               Lwt.bind (eth_get_balance (user, BlockParameter.Pending))
-                 (function
-                  | Error error ->
-                     Logging.log "Error case in eth_get_balance";
-                     invalidate ongoing error
-                  | Ok ebalance ->
-                     Logging.log "Ok case of eth_get_balance";
-                     (* test_compar >= 0 corresponds to ebalance >= amount *)
-                     let test_compar = TokenAmount.(compare ebalance amount) in
-                     Logging.log "test_compar=%i" test_compar;
-                     if test_compar < 0 then
-                       (Logging.log "invalidate case because of not enough balance";
-                        let error_str = Printf.sprintf "Balance %s while trying to deposit %s for a total cost of %s" (TokenAmount.to_string ebalance) (TokenAmount.to_string deposit_amount) (TokenAmount.to_string amount) in
-                        let except_ret : exn = raise (NotEnoughFundSec error_str) in
-                        invalidate ongoing except_ret)
-                     else
-                       (Logging.log "Before add_ongoing_transaction, operation";
-                        Ethereum_user.add_ongoing_transaction ~user (Wanted x_pre_transaction)
-                        >>= function
-                        | Error error -> invalidate ongoing error
-                        | Ok (tracker_key, _, _) ->
-                           DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue)))
+                             , deposit_fee) ->
+              (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
+              let amount = TokenAmount.(add deposit_amount deposit_fee)
+
+              in begin get_contract_address_from_client ()
+                >>= fun contract_address ->
+                  return @@ Operator_contract.pre_deposit ~operator ~amount ~contract_address
+                >>= fun pre_tx ->
+                  eth_get_balance (user, BlockParameter.Pending)
+                >>= function
+                  | Error e -> invalidate ongoing e
+                  | Ok bal  ->
+                    if TokenAmount.(compare bal amount) < 0 then
+                      invalidate ongoing @@ InsufficientFunds (Printf.sprintf
+                        "Balance %s while trying to deposit %s for a total cost of %s"
+                        (TokenAmount.to_string bal)
+                        (TokenAmount.to_string deposit_amount)
+                        (TokenAmount.to_string amount))
+                    else
+                       Ethereum_user.add_ongoing_transaction ~user (Wanted pre_tx)
+                          >>= function
+                            | Error e -> invalidate ongoing e
+                            | Ok (tracker_key, _, _) ->
+                              DepositPosted (deposit_wanted, deposit_fee, tracker_key) |> continue
+              end
 
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
              Logging.log "TR_LOOP, DepositPosted operation";
@@ -606,6 +601,7 @@ module TransactionTracker = struct
                  let txdata = Ethereum_json_rpc.transaction_data_of_signed_transaction signed in
                  let confirmation = Ethereum_json_rpc.TransactionReceipt.to_confirmation receipt in
                  DepositConfirmed (deposit_wanted, deposit_fee, txdata, confirmation) |> continue)
+
            | DepositConfirmed ( { deposit_amount; request_guid; requested_at }
                               , deposit_fee
                               , main_chain_deposit
@@ -626,11 +622,8 @@ module TransactionTracker = struct
                            ; requested_at
                            })
               >>= function
-                | Ok request  -> Requested request |> continue
-                | Error (error : exn) ->
-                   Logging.log "DepositConfirmed: side_chain_user, TrTracker, exn=%s" (Printexc.to_string error);
-                   Logging.log "DepositConfirmed: side_chain_user: TrTracker, Error case";
-                   invalidate ongoing error)
+                | Ok r    -> Requested r |> continue
+                | Error e -> invalidate ongoing e)
 
            | Requested request ->
              Logging.log "TR_LOOP, Requested operation";

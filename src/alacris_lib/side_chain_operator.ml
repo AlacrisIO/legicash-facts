@@ -443,7 +443,6 @@ let start_state_update_periodic_operator () =
   Lwt.async inner_state_update_periodic_loop;
   Lwt_exn.return ()
 
-
 (*
 let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * transport_data) Lwt_exn.t =
   Logging.log "post_state_update_request, beginning of function";
@@ -472,8 +471,6 @@ let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRe
         Lwt_exn.return ret_valb)
   else
     Lwt_exn.return (transreq, None)   *)
-
-
 
 
 

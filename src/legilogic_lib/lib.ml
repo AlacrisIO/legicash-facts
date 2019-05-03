@@ -283,7 +283,7 @@ let rec range a b =
 module Test = struct
   let expect_equal description to_string expected computed =
     if not (computed = expected) then
-      bork "Expected %s to be %s but instead got %s instead"
+      bork "Expected %s to be %s but got %s instead"
         description (to_string expected) (to_string computed)
 
   let expect_string description expected computed =

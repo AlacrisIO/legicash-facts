@@ -1,5 +1,5 @@
 #!/bin/bash
-# Transfer of 10 ethers 
+# Transfer of 10 ethers
 
 PAYLOAD='
 { "sender":       "0x9ccaed210ce8c0cb49c5ad1c4f583406c264ba69"

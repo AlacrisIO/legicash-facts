@@ -133,7 +133,11 @@ module Test = struct
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
   let is_ethereum_net_up =
-    retry ~retry_window:0.05 ~max_window:1.0 ~max_retries:(Some 10) eth_block_number
+    retry
+      ~retry_window:0.05
+      ~max_window:1.0
+      ~max_retries:(Some 10)
+      @@ eth_block_number ?timeout:(Some 1.0)
     >>> const true
 
   let%test "poll-for-testnet" =

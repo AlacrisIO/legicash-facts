@@ -202,5 +202,4 @@ module Test = struct
     = Error (Malformed_response
                ("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-1,\"message\":\"foo\"},\"id\":41}",
                 Internal_error "bad id"))
-
 end
