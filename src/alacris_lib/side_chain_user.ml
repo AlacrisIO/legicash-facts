@@ -75,9 +75,14 @@ end
 let get_contract_address_from_client_exn_req : unit -> Address.t Lwt_exn.t =
   fun () ->
   let open Lwt_exn in
-  UserQueryRequest.Get_contract_address
+  if Side_chain_server_config.config.sidechain_config.use_contract_address_file > 0 then
+    let estr : string = Side_chain_server_config.config.sidechain_config.contract_address in
+    let contr_addr : Address.t = Address.of_0x estr in
+    return contr_addr
+  else
+    UserQueryRequest.Get_contract_address
     |> post_user_query_request
-  >>= fun x ->
+    >>= fun x ->
     return (ContractAddrType.of_yojson_exn x).contract_address
 
 let contract_address_from_client_ref : (Address.t option ref) = ref None
