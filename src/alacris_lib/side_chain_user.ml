@@ -85,7 +85,17 @@ let get_contract_address_from_client_exn_req : unit -> Address.t Lwt_exn.t =
     UserQueryRequest.Get_contract_address
     |> post_user_query_request
     >>= fun x ->
-    return (ContractAddrType.of_yojson_exn x).contract_address
+    let x_contract_address = (ContractAddrType.of_yojson_exn x).contract_address in
+    let x_contract_block_number = (ContractAddrType.of_yojson_exn x).contract_block_number in
+    let blk_param : BlockParameter.t = Block_number x_contract_block_number in
+    Ethereum_json_rpc.(eth_get_code (x_contract_address, blk_param))
+    >>= fun code ->
+    if code = Operator_contract_binary.contract_bytes then
+      return x_contract_address
+    else
+      bork "ALERT: The contract code do not match what we have in the binary file"
+
+
 
 let contract_address_from_client_ref : (Address.t option ref) = ref None
 
