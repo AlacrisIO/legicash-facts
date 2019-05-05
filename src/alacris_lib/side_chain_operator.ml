@@ -608,8 +608,9 @@ let get_2proof tx_revision (operator_state : OperatorState.t) =
 let get_contract_address_yojson () =
   let open Lwt_exn in
   let contr_addr = get_contract_address() in
-  return (`Assoc [("contract_address",Address.to_yojson contr_addr)])
-
+  let contr_block_number = get_contract_block_number() in
+  return (`Assoc [("contract_address",Address.to_yojson contr_addr)
+                 ;("contract_block_number",Revision.to_yojson contr_block_number)])
 
 
 (** Take messages from the user_query_request_mailbox, and process them (TODO: in parallel?) *)

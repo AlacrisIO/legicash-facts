@@ -63,7 +63,9 @@ let get_keypair_of_address user =
 
 module ContractAddrType = struct
   [@warning "-39"]
-  type t = { contract_address : Address.t }
+  type t = { contract_address : Address.t
+           ; contract_block_number : Revision.t
+           }
   [@@deriving yojson {strict = false}]
   include (YojsonPersistable (struct
              type nonrec t = t

@@ -1,6 +1,7 @@
 open Legilogic_lib
 open Lib
 open Signing
+open Types
 open Action
 open Lwt_exn
 open Legilogic_ethereum
@@ -17,7 +18,7 @@ let check_side_chain_contract_created contract_address =
   Ethereum_json_rpc.(eth_get_code (contract_address, BlockParameter.Latest))
   >>= fun code ->
   if code = Operator_contract_binary.contract_bytes then
-    return contract_address
+    return (contract_address, Revision.zero) (* Clearly wrong. We need the revision on input *)
   else
     (let addr = Address.to_0x contract_address in
      Logging.log "Saved contract address %s invalid" addr;
@@ -33,7 +34,7 @@ let check_side_chain_contract_created contract_address =
        (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
      fail Invalid_contract)
 
-let create_side_chain_contract (installer_address : Address.t) : Address.t Lwt_exn.t =
+let create_side_chain_contract (installer_address : Address.t) : (Address.t*Revision.t) Lwt_exn.t =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
   Ethereum_user.create_contract ~sender:installer_address
     ~code:Operator_contract_binary.contract_bytes TokenAmount.zero
@@ -43,10 +44,11 @@ let create_side_chain_contract (installer_address : Address.t) : Address.t Lwt_e
   >>= function
   | None -> bork "No tx receipt for contract creation"
   | Some receipt ->
-    let contract_address = receipt.contract_address |> Option.get in
-    Address.to_0x contract_address
-    |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
-    >>= const contract_address
+     let contract_address = receipt.contract_address |> Option.get in
+     let contract_block_number : Revision.t = receipt.block_number in
+     Address.to_0x contract_address
+     |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
+     >>= const (contract_address, contract_block_number)
 
 
 let ensure_side_chain_contract_created (installer_address : Address.t) : Address.t Lwt_exn.t =
@@ -57,8 +59,9 @@ let ensure_side_chain_contract_created (installer_address : Address.t) : Address
    | None ->
      Logging.log "Not found, creating the contract...";
      create_side_chain_contract installer_address)
-  >>= fun contract_address ->
+  >>= fun (contract_address, contract_block_number) ->
   Operator_contract.set_contract_address contract_address;
+  Operator_contract.set_contract_block_number contract_block_number;
   return contract_address
 
 module Test = struct
