@@ -151,6 +151,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
   let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   let rec get_matching : Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
     fun start_ref ->
+    Logging.log "Passing through get_matching";
     let open Lwt_exn in
     get_contract_address_from_client_exn ()
     >>= fun contract_address ->
@@ -310,7 +311,8 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -
     if List.length x == 0 then
       one_try_emit_withdraw_event_catch ()
     else
-      return ()
+      (Logging.log "EXITING the withdraw operation. Finally over";
+       return ())
   in
   sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
   >>= fun () -> one_try_emit_withdraw_event_catch ()
