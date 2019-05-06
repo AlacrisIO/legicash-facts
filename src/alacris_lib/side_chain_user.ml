@@ -139,7 +139,7 @@ let get_contract_address_from_client_exn : unit -> Address.t Lwt_exn.t =
      Logging.log "get_contract_address_from_client_exn 1 : x=%s" (Address.to_0x x);
      Lwt_exn.return x
   | None ->
-     Lwt_exn.bind (get_contract_address_from_client_exn_req ())
+     Lwt_exn.bind (get_contract_address_from_client_checked_exn_req ())
        (fun x ->
          Logging.log "get_contract_address_from_client_exn 2 : x=%s" (Address.to_0x x);
          contract_address_from_client_ref := Some x;
