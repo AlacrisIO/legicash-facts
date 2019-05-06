@@ -81,7 +81,7 @@ contract Claims {
 
     /** True if a claim is still pending */
     function is_claim_status_pending(int _status) internal view returns(bool) {
-        return _status > int(now);
+        return _status > get_block_number();
     }
 
     /** Check that a claim is still pending */
@@ -92,7 +92,7 @@ contract Claims {
 
     /** True if a claim is accepted as valid */
     function is_status_accepted(int _status) internal view returns(bool) {
-        return _status >= 3 && _status <= int(now);
+        return _status >= 3 && _status <= get_block_number();
     }
 
     function is_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
@@ -113,7 +113,7 @@ contract Claims {
      */
     function make_claim(bytes32 _claim) internal returns(uint64) {
         if (claim_status[_claim]==0) { // The claim must not have been made before
-          claim_status[_claim] = int(now) + challenge_period_in_seconds; // Register the claim
+          claim_status[_claim] = get_block_number() + challenge_period_in_blocks; // Register the claim
           return 1;
         }
         else {
@@ -145,6 +145,6 @@ contract Claims {
 
     /** True if a claim was accepted but is now expired */
     function is_claim_status_expired(int _status) internal view returns(bool) {
-        return _status >= 3 && _status <= int(now) - expiry_delay;
+        return _status >= 3 && _status <= get_block_number() - expiry_delay;
     }
 }
