@@ -91,22 +91,43 @@ let get_contract_address_from_client_exn_req : unit -> Address.t Lwt_exn.t =
        latest contract.
        We need to understand the contruction of the code itself. Apparently the values are prefixed
        one by one but that needs to be understood. *)
-    let x_contract_address = (ContractAddrType.of_yojson_exn x).contract_address in
-    let x_contract_block_number = (ContractAddrType.of_yojson_exn x).contract_block_number in
-    let blk_param : BlockParameter.t = Block_number x_contract_block_number in
-    Logging.log "x_contract_block_number=%s" (Revision.to_string x_contract_block_number);
-    Ethereum_json_rpc.(eth_get_code (x_contract_address, blk_param))
-    >>= fun code ->
-    Logging.log "We have the code. Working with it";
-    if code = Operator_contract_binary.contract_bytes then
-      (Logging.log "Equality case for the code";
-       return x_contract_address)
-    else
-      (Logging.log "Non-Equality case for the code";
-       Logging.log " code1=%s" (Hex.unparse_0x_bytes code);
-       Logging.log " code2=%s" (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
-       bork "ALERT: The contract code do not match what we have in the binary file")
+    return (ContractAddrType.of_yojson_exn x).contract_address
 
+let remove_0x_from_string : string -> string =
+  fun str_in ->
+  let len = String.length str_in in
+  let str_out = String.sub str_in 2 (len-2) in
+  str_out
+
+let get_contract_address_from_client_checked_exn_req : unit -> Address.t Lwt_exn.t =
+  fun () ->
+  let open Lwt_exn in
+  get_contract_address_from_client_exn_req ()
+  >>= fun contract_address ->
+  (* We are in the strange situation that the contract code as obtained from the web3.eth.getCode
+     does not match the Operator_contract_binary.contract_bytes
+     If we decrease the index by 1, then there is no contract. So we clearly download the
+     latest contract.
+     We need to understand the contruction of the code itself. Apparently the values are prefixed
+     one by one but that needs to be understood.
+     Here we check the suffix and this should be ok for now. *)
+  let blk_param : BlockParameter.t = BlockParameter.Latest in
+  Ethereum_json_rpc.(eth_get_code (contract_address, blk_param))
+  >>= fun code ->
+  Logging.log "We have the code. Working with it";
+  let code_red = remove_0x_from_string (Hex.unparse_0x_bytes code) in
+  let contract_code_red = remove_0x_from_string (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes) in
+  let len_red = String.length code_red in
+  let contract_len_red = String.length contract_code_red in
+  let code_red_sub = String.sub code_red (len_red - contract_len_red) contract_len_red in
+  if code_red_sub = contract_code_red then
+    (Logging.log "Equality case for the code";
+     return contract_address)
+  else
+    (Logging.log "Non-Equality case for the code";
+     Logging.log " code1=%s" (Hex.unparse_0x_bytes code);
+     Logging.log " code2=%s" (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
+     bork "ALERT: The contract code do not match what we have in the binary file")
 
 
 let contract_address_from_client_ref : (Address.t option ref) = ref None
