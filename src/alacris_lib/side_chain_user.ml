@@ -88,7 +88,9 @@ let get_contract_address_from_client_exn_req : unit -> Address.t Lwt_exn.t =
     (* We are in the strange situation that the contract code as obtained from the web3.eth.getCode
        does not match the Operator_contract_binary.contract_bytes
        If we decrease the index by 1, then there is no contract. So we clearly download the
-       latest contract *)
+       latest contract.
+       We need to understand the contruction of the code itself. Apparently the values are prefixed
+       one by one but that needs to be understood. *)
     let x_contract_address = (ContractAddrType.of_yojson_exn x).contract_address in
     let x_contract_block_number = (ContractAddrType.of_yojson_exn x).contract_block_number in
     let blk_param : BlockParameter.t = Block_number x_contract_block_number in
