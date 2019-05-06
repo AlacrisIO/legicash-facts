@@ -303,8 +303,8 @@ module State = struct
     let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {accounts; transactions; main_chain_transactions_posted} =
       walk_dependency AccountMap.dependency_walking context accounts
-      >>= (fun () -> walk_dependency TransactionMap.dependency_walking context transactions)
-      >>= (fun () -> walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted)
+      >>= fun () -> walk_dependency TransactionMap.dependency_walking context transactions
+      >>= fun () -> walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end
@@ -347,9 +347,7 @@ module TransactionCommitment = struct
     ; accounts: Digest.t
     ; main_chain_transactions_posted: Digest.t
     ; signature: Signature.t
-    ; state_update_transaction_hash: Digest.t
     ; state_digest: Digest.t
-    ; contract_address: Address.t
     }
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct

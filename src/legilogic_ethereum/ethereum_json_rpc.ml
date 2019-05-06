@@ -41,6 +41,7 @@ let ethereum_json_rpc
     (fun () ->
        json_rpc (Lazy.force ethereum_net) method_name result_decoder param_encoder ?timeout ?log params)
 
+
 let yojson_noargs = fun () -> `Null
 let yojson_0args = fun () -> `List []
 let yojson_1arg f = fun x -> `List [f x]

@@ -299,6 +299,25 @@ let print_abi_value_bytes32 : abi_value -> string =
 
 
 
+let retrieve_revision_from_abi_value : abi_value -> Revision.t =
+  fun x ->
+  let x_uint = abi_value_to_uint64 x in
+  let x_str = Nat.to_string x_uint in
+  let x_rev = Revision.of_string x_str in
+  x_rev
+
+let retrieve_digest_from_abi_value : abi_value -> Digest.t =
+  fun x ->
+  match x with
+  | Bytes_value x_byte ->
+     (let x_str = Bytes.to_string x_byte in
+      let x_dig = Digest.of_big_endian_bits x_str in
+      x_dig)
+  | _ -> bork "Should be a byte32"
+
+
+
+
 
 let abi_value_to_address evalue =
   match evalue with

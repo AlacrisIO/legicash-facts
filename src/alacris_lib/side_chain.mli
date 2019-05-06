@@ -346,11 +346,10 @@ module TransactionCommitment : sig
     ; operator_revision: Revision.t (* From State.t *)
     ; spending_limit: TokenAmount.t (* From State.t *)
     ; accounts: Digest.t (* From State.t, digest only *)
+    
     ; main_chain_transactions_posted: Digest.t (* From State.t, digest only *)
     ; signature: signature (* Signature of the digest of the state reconstituted from the above *)
-    ; state_update_transaction_hash: Digest.t
-    ; state_digest: Digest.t (* Signature put in the state update *)
-    ; contract_address: Address.t (* contract address needed for accessing to data *)
+    ; state_digest : Digest.t
     }
   [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t

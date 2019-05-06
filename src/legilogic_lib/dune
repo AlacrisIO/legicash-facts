@@ -5,7 +5,7 @@
 (library
  (name legilogic_lib)
  (modules
-  lib action config hex logging yojsoning json_rpc get_ip_address
+  lib action config hex logging yojsoning json_rpc mkb_json_rpc get_ip_address
   marshaling integer tag digesting db persisting types signing
   trie merkle_trie)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx ppx_deriving_rlp))

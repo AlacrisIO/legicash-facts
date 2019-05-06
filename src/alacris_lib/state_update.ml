@@ -12,11 +12,9 @@ open Digesting
 open Ethereum_json_rpc
 open Side_chain_server_config
 
-
 type digest_entry =
   { revision : Revision.t
   ; digest : Digest.t}
-
 
 type request_state_update =
   | Submit of (Digest.t * TransactionReceipt.t OrExn.t Lwt.u)
@@ -119,22 +117,16 @@ let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmo
       ) in
   fct_submit ()
 
-let post_state_update : Digest.t -> TransactionReceipt.t Lwt_exn.t =
-  fun digest ->
+let post_state_update : Digest.t -> Revision.t -> TransactionReceipt.t Lwt_exn.t =
+  fun digest operator_revision ->
   Logging.log "post_state_update digest=%s" (Digest.to_0x digest);
-  let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest in
+  let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest operator_revision in
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   post_operation_general operation oper_addr value
 
 
-let post_state_update_eat_exception : Digest.t -> TransactionReceipt.t option Lwt.t =
-  fun digest ->
-  Lwt.bind (post_state_update digest)
-  (fun x_input ->
-    match x_input with
-    | Ok x -> Lwt.return (Some x)
-    | _ -> Lwt.return None)
+
 
 let inner_state_update_request_loop () =
   let open Lwt in
@@ -155,7 +147,8 @@ let inner_state_update_request_loop () =
        let new_rev = Revision.add !digest_entry_ref.revision Revision.one in
        let new_digest_entry = {revision=new_rev; digest=new_digest} in
        digest_entry_ref := new_digest_entry;
-       post_state_update new_digest
+       let revision : Revision.t = Revision.of_int 742 in
+       post_state_update new_digest revision
        >>= fun ereceipt ->
        Lwt.wakeup_later notify_u ereceipt;
        inner_loop ()

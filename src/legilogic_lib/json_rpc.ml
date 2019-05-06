@@ -93,6 +93,7 @@ let internal_error exn =
    let system_error ... = ... -32400 ...
    let transport_error ... = ... -32300 ... *)
 
+
 let make_request : string -> ('a -> yojson) -> 'a -> request Lwt_exn.t =
   fun method_name param_encoder params ->
     (try Ok (param_encoder params) with e -> Error (Malformed_request e))
@@ -154,6 +155,11 @@ let json_rpc server method_name result_decoder param_encoder
     decode_response result_decoder request_id response_str
   in
   Lwt.pick [timeout_thread; post_thread]
+
+let yojson_noargs = fun () -> `Null
+let yojson_0args = fun () -> `List []
+let yojson_1arg f = fun x -> `List [f x]
+let yojson_2args f g = fun (x, y) -> `List [f x; g y]
 
 module Test = struct
 
