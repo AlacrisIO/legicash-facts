@@ -54,8 +54,20 @@ contract Claims {
      * One challenge period is 2h, about 423 blocks at the expected rate of 1 block per 17 s.
      */
     int constant internal challenge_period_in_seconds = 5;
+    int constant internal challenge_period_in_blocks = 2;
     /* TODO: Replace the challenge period, by the depth of confirmed block.
        At least as an option. This would of course change the solidity code */
+
+    function get_block_number() internal view returns(int) {
+      int nbr;
+      assembly {
+        let y := number
+        nbr := y
+      }
+      return nbr;
+    }
+
+
 
 
     /** @dev expiry delay, in seconds.
