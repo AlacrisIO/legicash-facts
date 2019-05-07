@@ -427,7 +427,7 @@ let inner_state_update_periodic_loop () =
     fun () ->
     retrieve_validated_rev_digest ()
     >>= fun (x_rev, x_dig) -> post_state_update x_dig x_rev
-    >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.period_state_update_f
+    >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_f
     >>= fun _ -> inner_loop ()
   in inner_loop ()
 

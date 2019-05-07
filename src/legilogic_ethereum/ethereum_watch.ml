@@ -58,7 +58,9 @@ let retrieve_last_entries : Revision.t -> contract_address:Address.t -> topics:B
   fun start_block ~contract_address ~topics ->
   let open Lwt_exn in
   eth_block_number ()
-  >>= fun (to_block: Revision.t) ->
+  >>= fun current_block ->
+  let block_depth_for_receipt = Side_chain_server_config.minNbBlockConfirm in
+  let to_block = Revision.sub current_block block_depth_for_receipt in
   Logging.log "retrieve_last_entries. Before call to eth_get_logs";
   eth_get_logs { from_block = Some (Block_number start_block)
                ; to_block   = Some (Block_number to_block)
