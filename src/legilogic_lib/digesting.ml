@@ -5,18 +5,15 @@ module Digest = Data256
 type digest = Digest.t
 [@@deriving rlp]
 
-let keccak256_string s =
-  Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
-(* To debug encoding issues in small problems, you can uncomment the following line:
-   |> fun h -> Printf.printf "hash %s <= %s\n%!" (Hex.unparse_hex_string h) (Hex.unparse_hex_string s); h *)
-(* NB: trying to reuse (Cryptokit.Hash.keccak 256) object across calls results in a segfault *)
+let keccak256_string s = Cryptokit.hash_string (Cryptokit.Hash.keccak 256) s
+let digest_of_string s = Digest.of_big_endian_bits (keccak256_string s)
 
-let digest_of_string s =
-  Digest.of_big_endian_bits (keccak256_string s)
 let digest_of_marshal_bytes marshal_bytes x =
   x |> marshal_bytes |> Bytes.to_string |> digest_of_string
+
 let digest_of_marshal marshal =
   digest_of_marshal_bytes (marshal_bytes_of_marshal marshal)
+
 let null_digest = Digest.zero
 
 module type DigestibleS = sig
