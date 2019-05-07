@@ -97,9 +97,9 @@ type validated_transaction_request =
 type inner_transaction_request =
   [ validated_transaction_request
   | `Flush of int
-  | `Committed of (State.t signed * unit Lwt.u)
-  | `GetCurrentDigest of (Digest.t Lwt.u)
-  | `GetCurrentRevisionDigest of ((Revision.t*Digest.t) OrExn.t Lwt.u) ]
+  | `Committed of State.t signed * unit Lwt.u
+  | `GetCurrentDigest of Digest.t Lwt.u
+  | `GetCurrentRevisionDigest of (Revision.t*Digest.t) OrExn.t Lwt.u ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -405,11 +405,6 @@ let effect_validated_user_transaction_request :
       debit_balance (TokenAmount.add withdrawal_amount withdrawal_fee) requester
       >>> accept_fee withdrawal_fee
 
-(*
-let post_state_update_needed_tr (transreq : TransactionRequest.t) : bool =
-  match transreq with
-  | `AdminTransaction _ -> false
-  | `UserTransaction _ -> true   *)
 
 (** TODO: have a server do all the effect_requests sequentially,
     after they have been validated in parallel (well, except that Lwt is really single-threaded *)
@@ -421,8 +416,7 @@ let post_validated_transaction_request :
       `Confirm (request, resolver))
 
 
-(*let retrieve_validated_rev_digest : unit -> ((Revision.t * Digest.t) unit Lwt.t) Lwt_exn.t =*)
-let retrieve_validated_rev_digest =
+let retrieve_validated_rev_digest : unit -> (Revision.t * Digest.t) Lwt_exn.t =
   simple_client inner_transaction_request_mailbox
     (fun ((_, resolv) : (unit * (Revision.t * Digest.t) OrExn.t Lwt.u)) ->
       `GetCurrentRevisionDigest resolv)
@@ -432,8 +426,7 @@ let inner_state_update_periodic_loop () =
   let rec inner_loop : unit -> unit Lwt_exn.t =
     fun () ->
     retrieve_validated_rev_digest ()
-    >>= fun x -> let (x_rev, x_dig) = x in
-                 post_state_update x_dig x_rev
+    >>= fun (x_rev, x_dig) -> post_state_update x_dig x_rev
     >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.period_state_update_f
     >>= fun _ -> inner_loop ()
   in inner_loop ()
@@ -443,37 +436,6 @@ let start_state_update_periodic_operator () =
   Lwt.async inner_state_update_periodic_loop;
   Lwt_exn.return ()
 
-(*
-let post_state_update_request (transreq : TransactionRequest.t) : (TransactionRequest.t * transport_data) Lwt_exn.t =
-  Logging.log "post_state_update_request, beginning of function";
-  let (lneedupdate : bool) = post_state_update_needed_tr transreq in
-  (*  Logging.log "post_state_update_request lneedupdate=%B" lneedupdate; *)
-  if lneedupdate then
-    let get_transport_data : Digest.t -> transport_data Lwt_exn.t =
-      (fun digest ->
-        (*        Lwt.bind (post_state_update digest)*)
-        Lwt.bind (post_to_mailbox_state_update digest)
-          (fun receipt_exn ->
-            match receipt_exn with
-            | Ok receipt ->
-               let ret_val : transport_data = Some (receipt, digest) in
-               Lwt_exn.return ret_val
-            | Error _error -> bork "Cannot handle error in the post_state_update")) in
-    let get_state_digest : TransactionRequest.t -> Digest.t Lwt.t =
-      fun transreq ->
-      simple_client inner_transaction_request_mailbox
-                  (fun ((_request, digest_resolver) : (TransactionRequest.t * Digest.t Lwt.u)) ->
-                    `GetCurrentDigest digest_resolver) transreq in
-    (*    Logging.log "post_state_update_request, before simple_client and push function"; *)
-    Lwt_exn.bind (Lwt.bind (get_state_digest transreq) get_transport_data)
-      (fun (trans_data : transport_data) ->
-        let ret_valb : (TransactionRequest.t * transport_data) = (transreq, trans_data) in
-        Lwt_exn.return ret_valb)
-  else
-    Lwt_exn.return (transreq, None)   *)
-
-
-
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
   function
   | `UserTransaction request ->
@@ -481,12 +443,6 @@ let process_validated_transaction_request : (TransactionRequest.t, Transaction.t
   | `AdminTransaction request ->
     process_admin_transaction_request request
 
-(*
-let fct_transaction_hash : transport_data -> (Digest.t * Digest.t) =
-  fun trans_data ->
-  match trans_data with
-  | None -> (Digest.zero, Digest.zero)
-  | Some (receipt, digest) -> (receipt.transaction_hash, digest)    *)
 
 let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
   fun transaction ->
@@ -504,7 +460,7 @@ let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
     let tx_revision = transaction.tx_header.tx_revision in
     match TransactionMap.Proof.get tx_revision transactions with
     | Some tx_proof ->
-       Logging.log "TrCo   state_digest=%s" (Digest.to_string state_digest);
+       Logging.log "TransactionCommitment   state_digest=%s" (Digest.to_string state_digest);
        TransactionCommitment.
        { transaction; tx_proof; operator_revision; spending_limit;
          accounts; main_chain_transactions_posted; signature;
@@ -636,13 +592,10 @@ let get_2proof tx_revision (operator_state : OperatorState.t) =
     error_json "Cannot provide proof for tx-revision: %s" (Revision.to_string tx_revision)
   | Some proof -> TransactionMap.Proof.to_yojson proof
 
-
 let get_contract_address_yojson () =
   let open Lwt_exn in
   let contr_addr = get_contract_address() in
   return (`Assoc [("contract_address",Address.to_yojson contr_addr)])
-
-
 
 (** Take messages from the user_query_request_mailbox, and process them (TODO: in parallel?) *)
 (*let process_user_query_request : (request : UserQueryRequest.t) : yojson Lwt_exn.t = *)

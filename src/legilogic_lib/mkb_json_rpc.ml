@@ -9,11 +9,11 @@ open Types
 
 
 type mkb_rpc_config_type =
-  { use_mkb : int
+  { use_mkb : bool
   ; scheme : string
   ; main_host : string
   ; main_port : int
-  ; list_neighboring_registrar : string list
+  ; neighboring_registrar_list : string list
   ; topic : string
   ; username : string
   ; committee_size : int
@@ -180,7 +180,7 @@ let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create
 let post_to_mkb_mailbox : Digest.t -> TransactionMutualKnowledge.t Lwt.t =
   fun digest ->
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
-  if mkb_rpc_config_v.use_mkb > 0 then
+  if mkb_rpc_config_v.use_mkb then
     simple_client request_mkb_update_mailbox
       (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
         Submit (digest,x_resolver)) digest
@@ -228,15 +228,15 @@ let init_mkb_server () =
   Logging.log "Beginning of init_mkb_server";
   let open Lwt_exn in
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
-  if mkb_rpc_config_v.use_mkb > 0 then
+  if mkb_rpc_config_v.use_mkb then
     let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
     let topic = mkb_rpc_config_v.topic in
     let username = mkb_rpc_config_v.username in
-    let list_neighboring_registrar = mkb_rpc_config_v.list_neighboring_registrar in
+    let neighboring_registrar_list = mkb_rpc_config_v.neighboring_registrar_list in
     let mkb_topic_desc = get_mkb_topic_description mkb_rpc_config_v in
     Lwt.async inner_call_mkb;
     mkb_topic_creation mkb_topic_desc
-    >>= fun _ -> mkb_add_neighboring_registrar topic list_neighboring_registrar
+    >>= fun _ -> mkb_add_neighboring_registrar topic neighboring_registrar_list
     >>= fun _ -> mkb_add_account (topic, username)
     >>= fun _ -> Logging.log "The MKB has been successfully set up";
                  return ()
