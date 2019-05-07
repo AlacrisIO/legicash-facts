@@ -66,7 +66,7 @@ val commit_hook : string -> (unit -> unit Lwt.t) -> unit Lwt.t
     The finalizer action is associated to a db key identifier,
     and that action should always be the same or otherwise vary monotonically
     for a given key within a given batch (e.g. a growing list of messages to send),
-    so that multiple calls be meaningful; alternatively, the system must ensure
+    so that multiple calls remain meaningful; alternatively, the system must ensure
     that a key only gets registered once per batch.
 
     See commit for a note on post-commit actions in general. *)
