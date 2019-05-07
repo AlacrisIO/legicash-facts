@@ -29,12 +29,9 @@ let yojson_3args f g h = fun (x, y, z) -> `List [f x; g y; h z]
 let yojson_4args f g h k = fun (x, y, z, t) -> `List [f x; g y; h z; k t]
 
 
-let () = Printexc.register_printer (function
-             | Rpc_error e ->
-		let str_err : string = e.message in
-                let str_ret : string = Printf.sprintf "Rpc_error(%s)" str_err in
-                Some str_ret
-             | _ -> None)
+let () = Printexc.register_printer @@ function
+  | Rpc_error e -> Some (Printf.sprintf "Rpc_error(%s)" e.message)
+  | _           -> None
 
 (** Type of a JSON-RPC request. *)
 type request =
