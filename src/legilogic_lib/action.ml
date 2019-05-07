@@ -257,8 +257,10 @@ module Lwt_exn = struct
     | Ok x -> x
     | _    -> bottom ()
 
+  (* Note we're constrained by the `error` type to report only the first
+   * occurrence of failure *)
   let joined_or_fail ls = match with_errs ls with
-    | [Error e; _] -> fail e
+    | Error e :: _ -> fail e
     | _            -> return @@ flattened ls
 
   let list_map_s f ls =
