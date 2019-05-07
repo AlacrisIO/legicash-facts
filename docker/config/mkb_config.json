@@ -2,7 +2,7 @@
   "scheme" : "http",
   "main_host" : "alacris-registrar-alice",
   "main_port" : 8805,
-  "list_neighboring_registrar" : [ "Bob" ],
+  "neighboring_registrar_list" : [ "Bob" ],
   "topic" : "mkb_side_chain_registry",
   "username" : "John",
   "committee_size" : 0,
