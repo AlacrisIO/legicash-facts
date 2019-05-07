@@ -110,15 +110,6 @@ type mkb_status_info =
 
 
 
-let yojson_noargs = fun () -> `Null
-let yojson_0args = fun () -> `List []
-let yojson_singlearg f = fun x -> f x
-let yojson_1arg f = fun x -> `List [f x]
-let yojson_2args f g = fun (x, y) -> `List [f x; g y]
-let yojson_3args f g h = fun (x, y, z) -> `List [f x; g y; h z]
-let yojson_4args f g h k = fun (x, y, z, t) -> `List [f x; g y; h z; k t]
-
-
 let get_mkb_topic_description : mkb_rpc_config_type -> MkbTopicDescription.t =
   fun x_mkb_config ->
   { topic = x_mkb_config.topic;
