@@ -110,6 +110,15 @@ let get_option : 'a -> 'a option -> 'a =
   | None -> x_val
   | Some x -> x
 
+let get_option_bork : 'a option -> 'a =
+  fun x_opt ->
+  match x_opt with
+  | None -> bork "Failure to get the value"
+  | Some x -> x
+
+
+
+
 let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Digest.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
   fun ~operator ~transaction_hash ->
   let open Lwt_exn in
@@ -125,7 +134,7 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
     [Some (Address_value operator); None; None; None]
   >>= fun x ->
   let (x_logo, x_vals) = x in
-  let transhash : Digest.t = get_option Digest.zero x_logo.transactionHash in
+  let transhash : Digest.t = get_option_bork x_logo.transactionHash in
   Logging.log "wait_for_operator_state_update, transaction_hash=%s" (Digest.to_0x transaction_hash);
   Logging.log "wait_for_operator_state_update,  transhash=%s" (Digest.to_0x transhash);
   Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_uint256 (List.nth x_vals 2));
@@ -138,14 +147,25 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
    * and the other, or for one and the work that remains to do for the other.
    *)
   return Ethereum_chain.Confirmation.
-    { transaction_hash  = get_option Digest.zero x_logo.transactionHash
-    ; transaction_index = get_option Revision.zero x_logo.transactionIndex
-    ; block_number      = get_option Revision.zero x_logo.blockNumber
-    ; block_hash        = get_option Digest.zero x_logo.blockHash
+    { transaction_hash  = get_option_bork x_logo.transactionHash
+    ; transaction_index = get_option_bork x_logo.transactionIndex
+    ; block_number      = get_option_bork x_logo.blockNumber
+    ; block_hash        = get_option_bork x_logo.blockHash
     }
 
 
+(* This function search from a revision of the state of the operator with a minimal value
+   of operator_revision.
+   ---
+   TODO:
+   have a pull-enabled centralized push actors watch the chain,
+   filter it according to a hierarchy of criteria, etc., so that
+   1000 waiting tasks don't lead to 1000 concurrent threads
+   redundantly polling the main chain node. Thus,
+   one thread would continually maintain a status of an operator's posted state
+   —at least as long as the client is still actively interested in it.
 
+ *)
 let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
   fun ~operator  ~operator_revision ->
   let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
@@ -154,7 +174,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
     let open Lwt_exn in
     get_contract_address_from_client_exn ()
     >>= fun contract_address ->
-    retrieve_relevant_list_logs_data ~delay start_ref ~contract_address ~transaction_hash:None
+    retrieve_relevant_list_logs_data ~delay ~start_revision:start_ref ~contract_address ~transaction_hash:None
       ~topics:[topic_of_state_update]
       [Address; Bytes 32; Uint 256; Uint 64; Uint 64]
       [Some (Address_value operator); None; None; None; None]
