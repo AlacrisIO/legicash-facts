@@ -16,9 +16,6 @@ RUN make
 # Create new App image
 FROM gcr.io/legicash-demo-1950/legicash-demo/alacris_client_container:v1
 
-# Copy React app from alacris_frontend_build container
-COPY --from=alacris_frontend_build /var/www/app/build /var/www/app/legicash-demo-frontend/build
-
 # Copy binary from previous image
 COPY --from=alacris_client_build /var/www/app/legicash-facts/_build/default/src/alacris_client/side_chain_client.exe /var/www/app/legicash-facts/_run/side_chain_client.exe
 
