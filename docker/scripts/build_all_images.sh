@@ -14,13 +14,22 @@ run() {
 }
 
 echo "Building build prerequisite image"
-run docker build -t gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 -f docker/containers/build-prerequisites/Dockerfile .
+run docker build \
+  --no-cache \
+  -t gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 \
+  -f docker/containers/build-prerequisites/Dockerfile .
 
 echo "Building client runtime prerequisite image"
-run docker build -t gcr.io/legicash-demo-1950/legicash-demo/alacris_client_container:v1 -f docker/containers/alacris_client_container/Dockerfile .
+run docker build \
+  --no-cache \
+  -t gcr.io/legicash-demo-1950/legicash-demo/alacris_client_container:v1 \
+  -f docker/containers/alacris_client_container/Dockerfile .
 
 echo "Building side chain manager runtime prerequisite image"
-run docker build -t gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1 -f docker/containers/alacris_side_chain_manager_container/Dockerfile .
+run docker build \
+  --no-cache \
+  -t gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1 \
+  -f docker/containers/alacris_side_chain_manager_container/Dockerfile .
 
 echo "Cleanup of state and log directories"
 [ -d /tmp/legilogs ] && run rm -rf /tmp/legilogs || true
@@ -32,4 +41,4 @@ echo "Seting permissions"
 run chmod -R a+rwX /tmp/legilogs
 
 echo "Building application images"
-run docker-compose -f docker/docker-compose.yml build
+run docker-compose -f docker/docker-compose.yml build --no-cache
