@@ -1,19 +1,5 @@
 #!/bin/sh
 
-# run the Ethereum test net
-
-#PORT=30303
-#RPCPORT=8545
-#LOGDIR=/var/www/app/alacris-private-ethereum-node/_run/logs/
-#DATADIR=/var/www/app/alacris-private-ethereum-node/_ethereum/
-
-# geth --dev --identity "LegicashEthereumNet" --datadir $LOGDIR \
-#      --nodiscover --maxpeers 0 --rpc --rpcaddr "0.0.0.0" --rpcapi "db,eth,net,debug,web3,light,personal" --rpcport $RPCPORT --rpccorsdomain "*" \
-#      --rpcvhosts "*" --port $PORT --networkid 17 --nat "any" --ipcpath .ethereum/geth.ipc > $LOGDIR/ethereum.log
-
-
-#!/bin/sh -eu
-
 cd "/var/www/app/alacris-private-ethereum-node" # Change to toplevel directory of legicash-facts
 
 LOGDIR=/var/www/app/alacris-private-ethereum-node/_run/logs/

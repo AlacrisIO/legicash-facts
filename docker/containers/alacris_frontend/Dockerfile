@@ -50,10 +50,15 @@ COPY --from=alacris_frontend_build /var/www/app/build /var/www/app/legicash-demo
 RUN groupadd -g 1100 appuser && \
     useradd -r -u 1100 -g appuser appuser
 
-RUN chown -R appuser:appuser /var/www/app/legicash-demo-frontend/build
 
 # Install nginx config
 COPY docker/containers/alacris_frontend/files/conf/nginx/ /etc/nginx/
 COPY docker/containers/alacris_frontend/files/conf/nginx/sites/ /etc/nginx/conf.d/
 
+RUN rm -f /etc/nginx/conf.d/default.conf
+RUN chown -R appuser:appuser /var/www/app/legicash-demo-frontend/build \
+                             /var/cache/nginx \
+                             /var/log/nginx/
+
 EXPOSE 8800
+USER appuser
