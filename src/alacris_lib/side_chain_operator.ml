@@ -421,6 +421,7 @@ let retrieve_validated_rev_digest : unit -> (Revision.t * Digest.t) Lwt_exn.t =
     (fun ((_, resolv) : (unit * (Revision.t * Digest.t) OrExn.t Lwt.u)) ->
       `GetCurrentRevisionDigest resolv)
 
+(* TODO for a state_update_deadline_in_blocks somewhere *)
 let rec inner_state_update_periodic_loop : unit -> unit Lwt_exn.t =
   fun () ->
   let open Lwt_exn in
