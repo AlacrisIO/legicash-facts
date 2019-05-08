@@ -63,6 +63,23 @@ services:
     depends_on:
     - "alacris_side_chain_manager"
 
+  alacris_frontend: # Legicash react frontend app
+    build:
+      context: ..
+      dockerfile: docker/containers/alacris_frontend/Dockerfile
+      args:
+        ENVIRONMENT: ${ENVIRONMENT:-dev}
+        FRONTEND_BRANCH: ${FRONTEND_BRANCH:-master}
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_frontend:${TAG:-v1.1}
+    hostname: "alacris-frontend"
+    container_name: "alacris-frontend"
+    networks:
+      legicash-demo:
+        ipv4_address: 10.5.0.7
+    ports:
+      - "8800:8800"
+    depends_on:
+    - "alacris_side_chain_manager"
   #  stress_tester: # Locust master container
   #    build: containers/stress_tester
   #    image: gcr.io/legicash-demo-1950/legicash-demo/stress_tester:${TAG:-v1.1}

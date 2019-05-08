@@ -1,36 +1,3 @@
-### Build legicash-demo-frontend
-
-FROM node:10.6.0 as alacris_frontend_build
-
-RUN mkdir -p /var/www/app
-WORKDIR /var/www/app
-ENV PATH /var/www/app/node_modules/.bin:$PATH
-
-# Install SSH private key; this is a Gitlab Deploy key
-RUN mkdir -p /root/.ssh/
-ADD docker/containers/alacris_client/files/private_key /root/.ssh/id_rsa
-RUN chmod 400 /root/.ssh/id_rsa
-
-# Make sure domain is accepted
-RUN touch /root/.ssh/known_hosts
-RUN ssh-keyscan gitlab.com >> /root/.ssh/known_hosts
-
-# Set branch to build
-ARG FRONTEND_BRANCH
-ARG ENVIRONMENT
-# Fetch Legicash frontend code
-#RUN git clone -b "${branch}" git@gitlab.com:legicash/legicash-demo-frontend.git /var/www/app
-RUN git clone -b "${FRONTEND_BRANCH}" git@gitlab.com:legicash/legicash-demo-frontend.git /var/www/app
-
-# Change server url, for test
-RUN echo "Building ${FRONTEND_BRANCH} branch of frontend"
-# Install
-RUN npm install --silent
-RUN npm install react-scripts -g --silent
-
-# Build
-RUN npm run build:${ENVIRONMENT}
-
 # Base image
 FROM gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 as alacris_client_build
 
