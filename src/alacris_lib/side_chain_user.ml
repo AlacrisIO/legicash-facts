@@ -104,12 +104,6 @@ let get_contract_address_from_client : unit -> Address.t Lwt.t =
       | Error e -> bork "Error in obtaining the contract_address"
       | Ok x -> Lwt.return x)
 
-let get_option : 'a -> 'a option -> 'a =
-  fun x_val x_opt ->
-  match x_opt with
-  | None -> x_val
-  | Some x -> x
-
 
 let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Digest.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
   fun ~operator ~transaction_hash ->
@@ -175,7 +169,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
                            compare oper_rev operator_revision >= 0) llogs in
     if (List.length llogs_filter > 0) then
       let (log_object, vals) = List.nth llogs_filter 0 in
-      let transhash : Digest.t = get_option Digest.zero log_object.transactionHash in
+      let transhash : Digest.t = Option.get log_object.transactionHash in
       Logging.log "search_for_state_update_min_revision,  transhash=%s" (Digest.to_0x transhash);
       Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
       (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
@@ -183,10 +177,10 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
        * and the other, or for one and the work that remains to do for the other.
        *)
       return Ethereum_chain.Confirmation.
-      { transaction_hash  = get_option Digest.zero log_object.transactionHash
-      ; transaction_index = get_option Revision.zero log_object.transactionIndex
-      ; block_number      = get_option Revision.zero log_object.blockNumber
-      ; block_hash        = get_option Digest.zero log_object.blockHash
+      { transaction_hash  = Option.get log_object.transactionHash
+      ; transaction_index = Option.get log_object.transactionIndex
+      ; block_number      = Option.get log_object.blockNumber
+      ; block_hash        = Option.get log_object.blockHash
       }
     else
       (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
