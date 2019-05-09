@@ -157,9 +157,11 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
  *)
 let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
   fun ~operator  ~operator_revision ->
+  Logging.log "Beginning of search_for_state_update_min_revision  operator=%s operator_revision=%s" (Address.to_0x operator) (Revision.to_string operator_revision);
   let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   let rec get_matching : Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
     fun start_ref ->
+    Logging.log "get_matching with start_rev=%s" (Revision.to_string start_ref);
     let open Lwt_exn in
     get_contract_address_from_client_exn ()
     >>= fun contract_address ->
@@ -655,7 +657,7 @@ module TransactionTracker = struct
              PostedToRegistry tc |> continue
 
            | PostedToRegistry (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, PostedToRegistry operation";
+             Logging.log "TR_LOOP, PostedToRegistry operation tc.operator_revision=%s" (Revision.to_string tc.operator_revision);
              (* TODO: add support for Mutual Knowledge Base / "Smart Court Registry" *)
              (search_for_state_update_min_revision ~operator ~operator_revision:tc.operator_revision
               (* wait_for_operator_state_update ~operator ~transaction_hash:tc.state_update_transaction_hash*)
