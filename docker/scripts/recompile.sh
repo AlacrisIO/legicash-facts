@@ -30,6 +30,7 @@ docker exec alacris-side-chain-manager supervisorctl stop side-chain-server
 echo "Recompile step 4"
 # Copy new code to container
 docker cp ${PWD}$BUILD_DIR/alacris_lib/side_chain_server.exe alacris-client:$APP_DIR/_run/side_chain_server.exe
+
 # Clean side chain manager state
 echo "Deleting side chain manager state"
 docker exec alacris-side-chain-manager rm -rf $APP_DIR/_run/alacris_server_db > /dev/null 2>&1
@@ -39,8 +40,11 @@ docker exec alacris-side-chain-manager supervisorctl start side-chain-server
 
 #stop alacris-client
 docker exec alacris-client supervisorctl stop alacris-client
+
 # copy new code to container
 docker cp ${PWD}$BUILD_DIR/alacris_client/side_chain_client.exe alacris-client:$APP_DIR/_run/side_chain_client.exe
+
+# Clean side chain manager state
 echo "Deleting alacris client state"
 docker exec alacris-client rm -rf $APP_DIR/_run/alacris_client_db > /dev/null 2>&1
 
