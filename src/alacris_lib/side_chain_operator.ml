@@ -136,6 +136,7 @@ let signed_request_requester : UserTransactionRequest.t signed -> Address.t =
 let validate_user_transaction_request :
   (UserTransactionRequest.t signed * bool, TransactionRequest.t) Lwt_exn.arr =
   fun ((signed_request, is_forced) : (UserTransactionRequest.t signed * bool)) ->
+    Logging.log "Beginning of validate_user_transaction_request";
     let {payload=UserTransactionRequest.{ rx_header={ requester; requester_revision }; operation }} =
       signed_request in
     let state = get_operator_state () in

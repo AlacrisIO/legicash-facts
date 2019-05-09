@@ -106,6 +106,7 @@ module Test = struct
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
         let operator = trent_address in
         start_operator operator >>= fun () ->
+        start_state_update_periodic_operator () >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 6";
         let initial_alice_balance = get_alice_balance () in
         let initial_bob_balance = get_bob_balance () in
