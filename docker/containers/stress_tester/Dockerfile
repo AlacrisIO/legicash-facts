@@ -1,5 +1,7 @@
 FROM python:3.6-alpine
 
+LABEL maintainer="vedr@nlebo.com"
+
 COPY files/run-locust.sh files/test-locust.py /
 
 RUN    apk --no-cache add --virtual=.build-dep build-base \

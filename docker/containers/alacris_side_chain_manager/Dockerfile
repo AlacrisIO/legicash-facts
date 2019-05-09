@@ -1,6 +1,8 @@
 # Base image
 FROM gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 as build
 
+LABEL maintainer="vedr@nlebo.com"
+
 USER root
 
 # Copy app source to container and set permissions for appuser
@@ -14,9 +16,6 @@ RUN make
 
 # Create new image
 FROM gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1
-
-# Copy config dir from previous image
-#COPY --from=build /var/www/app/legicash-facts/config/ /var/www/app/legicash-facts/config/
 
 # copy binary the previous image
 COPY --from=build /var/www/app/legicash-facts/_build/default/src/alacris_lib/side_chain_server.exe /var/www/app/legicash-facts/_run/side_chain_server.exe
