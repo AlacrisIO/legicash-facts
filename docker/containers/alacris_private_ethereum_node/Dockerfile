@@ -1,6 +1,9 @@
 # Set the base image (uses Alpine)
 FROM ethereum/client-go
 
+LABEL maintainer="vedr@nlebo.com"
+
+# Install dependencies
 RUN apk update
 RUN apk add bash g++ git make supervisor
 
@@ -8,8 +11,7 @@ RUN apk add bash g++ git make supervisor
 RUN addgroup -g 1100 -S appuser && \
     adduser -u 1100 -S appuser -G appuser
 
-
-# Create supervisord log and Ethereum log dir2
+# Create supervisord log and Ethereum log dir
 RUN mkdir -p /var/www/app/alacris-private-ethereum-node/_run/logs/ && \
     mkdir -p /var/www/app/alacris-private-ethereum-node/_ethereum && \
     touch /tmp/supervisord.log

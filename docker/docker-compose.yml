@@ -20,8 +20,6 @@ services:
     build:
       context: ..
       dockerfile: docker/containers/alacris_side_chain_manager/Dockerfile
-  #    args:
-  #      branch: ${BRANCH}
     image: gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager:${TAG:-v1.1}
     hostname: "alacris-side-chain-manager"
     container_name: "alacris-side-chain-manager"
@@ -40,7 +38,7 @@ services:
     depends_on:
     - "alacris_private_ethereum_node"
 
-  alacris_client: # Legicash-facts application, nginx and scgi/side chain client and frontend
+  alacris_client: # Legicash-facts application, nginx and scgi/side chain
     build:
       context: ..
       dockerfile: docker/containers/alacris_client/Dockerfile
@@ -79,6 +77,7 @@ services:
       - "8800:8800"
     depends_on:
     - "alacris_side_chain_manager"
+
   #  stress_tester: # Locust master container
   #    build: containers/stress_tester
   #    image: gcr.io/legicash-demo-1950/legicash-demo/stress_tester:${TAG:-v1.1}
