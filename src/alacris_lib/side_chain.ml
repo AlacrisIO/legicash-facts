@@ -359,7 +359,7 @@ module TransactionCommitment = struct
 end
 
 
-module Confirmation = struct 
+module Confirmation = struct
   type t = TransactionCommitment.t * Ethereum_chain.Confirmation.t
   [@@deriving yojson, rlp]
 end
