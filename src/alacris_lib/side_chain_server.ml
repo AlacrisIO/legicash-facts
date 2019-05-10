@@ -90,12 +90,14 @@ let _ =
   Lwt_exn.run
     (fun () ->
       Logging.log "Beginning of side_chain_server";
-      State_update.start_state_update_operator ()
+      Mkb_json_rpc.init_mkb_server ()
+      (*      >>= fun () -> State_update.start_state_update_operator () *)
+      >>= fun () -> Side_chain_operator.start_state_update_periodic_operator ()
       >>= fun () ->
       Logging.log "Before the Db.open_connection";
       of_lwt Db.open_connection "alacris_server_db"
       >>= fun () ->
-       Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_string Side_chain_server_config.operator_address);
+       Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
        Side_chain_action.ensure_side_chain_contract_created Side_chain_server_config.operator_address
        >>= fun contract_address ->
        assert (contract_address = Operator_contract.get_contract_address ());

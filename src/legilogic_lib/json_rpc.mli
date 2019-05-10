@@ -37,6 +37,17 @@ val json_rpc
 val exn_to_yojson : exn to_yojson
 val exn_of_yojson : exn of_yojson
 
+
+val yojson_noargs : unit -> yojson
+val yojson_0args : unit -> yojson
+val yojson_1arg : ('a -> yojson) -> 'a -> yojson
+val yojson_singlearg : ('a -> yojson) -> 'a -> yojson
+val yojson_2args : ('a -> yojson) -> ('b -> yojson) -> ('a * 'b) -> yojson
+val yojson_3args : ('a -> yojson) -> ('b -> yojson) -> ('c -> yojson) -> ('a * 'b * 'c) -> yojson
+val yojson_4args : ('a -> yojson) -> ('b -> yojson) -> ('c -> yojson) -> ('d -> yojson) -> ('a * 'b * 'c * 'd) -> yojson
+
+
+
 (** The error codes from and including -32768 to -32000 are reserved for pre-defined errors.
 
     Any code within this range, but not defined explicitly below is reserved
@@ -55,3 +66,5 @@ val parse_error:      exn    -> exn (* -32700 Invalid JSON was received by the s
                                               occurred on the server while parsing the JSON text. *)
 
 (** other Server errrors: -32000 to -32099 *)
+
+

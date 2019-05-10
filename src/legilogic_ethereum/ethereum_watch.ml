@@ -9,7 +9,6 @@ open Side_chain_server_config
 
 (* TODO capturing `starting_watch_ref` in a state monad or similar would be a
  * much better approach than using mutable global state *)
-(* let starting_watch_ref : (Revision.t ref) = ref Revision.zero *)
 
 (* 'state is Revision.t *)
 let stream_of_poller : delay:float -> (unit, 'value, 'state) async_exn_action -> 'state ->
@@ -58,7 +57,9 @@ let retrieve_last_entries : Revision.t -> contract_address:Address.t -> topics:B
   fun start_block ~contract_address ~topics ->
   let open Lwt_exn in
   eth_block_number ()
-  >>= fun (to_block: Revision.t) ->
+  >>= fun current_block ->
+  let block_depth_for_receipt = Side_chain_server_config.minNbBlockConfirm in
+  let to_block = Revision.sub current_block block_depth_for_receipt in
   Logging.log "retrieve_last_entries. Before call to eth_get_logs";
   eth_get_logs { from_block = Some (Block_number start_block)
                ; to_block   = Some (Block_number to_block)
@@ -113,13 +114,13 @@ let print_list_entries : EthListLogObjects.t -> string =
 
 (* We will iterate over the logs. Search for the ones matching the topics, event values and maybe
    transaction hash. We iterate until we find at least one entry that matches *)
-let retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t =
-  fun ~delay ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
+let retrieve_relevant_list_logs_data : delay:float -> start_revision:Revision.t -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (Revision.t * (LogObject.t * abi_value list) list) Lwt_exn.t =
+  fun ~delay ~start_revision ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
   let open Lwt_exn in
   Logging.log "|list_data_type|=%d" (List.length list_data_type);
   Logging.log "|data_value_search|=%d" (List.length data_value_search);
-  let starting_watch_ref : (Revision.t ref) = ref Revision.zero in
-  let iter_state_ref : (int ref) = ref 0 in
+  let starting_watch_ref = ref start_revision in
+  let iter_state_ref = ref 0 in
   let rec fct_downloading start_block iter_state =
     retrieve_last_entries (Revision.add start_block Revision.one)
       ~contract_address  ~topics
@@ -154,7 +155,7 @@ let retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t
                )
         else
           (Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
-           return relevant)
+           return (start_block_in, relevant))
   in fct_downloading !starting_watch_ref !iter_state_ref
 
 
@@ -162,16 +163,18 @@ let retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t
 (* We call for the relevant_list logs and then we return one entry if there is just one.
    If there is more than one, then bork *)
 let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
-  fun ~delay  ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search  ->
+  fun ~delay ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
   let open Lwt_exn in
+  let start_revision = Revision.zero in
   retrieve_relevant_list_logs_data
     ~delay
+    ~start_revision
     ~contract_address
     ~transaction_hash
     ~topics
     list_data_type
     data_value_search
-  >>= fun (llogs : (LogObject.t * (abi_value list)) list) ->
+  >>= fun ((_rev, llogs) : (Revision.t * (LogObject.t * (abi_value list)) list)) ->
   let len = List.length llogs in
   if len > 1 then
     bork "The length should be exactly 1"

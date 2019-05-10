@@ -27,24 +27,11 @@ Code (IaC) approach.
 
 ## Quick start
 **Prerequisites:**
-  - Install and configure the most recent version of the
-    [Cloud SDK](https://cloud.google.com/sdk/docs/),
-    which includes the gcloud command-line tool (use `us-central-1a` region and
-    `legicash-demo-1950` project)
   - Install [Docker](https://docs.docker.com/install/) minimum required version
     `17.12.0-ce`
   - Install [docker-compose](https://docs.docker.com/compose/install/) minimum
     required version `1.16.1`
-  - Get [access to the registries which](https://cloud.google.com/container-registry/docs/access-control)
-    you will be pushing to and pulling from
-  - Configure Docker to use `gcloud` as a credential helper, or are use another
-    [authentication method](https://cloud.google.com/container-registry/docs/advanced-authentication).
-    To use `gcloud` as the crediential helper, run the command:
-    ```bash
-    gcloud auth configure-docker
-    ```
-    NOTE: This step won't be necessary when we go open to world.
-
+ 
 #### Pull build and runtime prerequisites images:
 
 ```bash

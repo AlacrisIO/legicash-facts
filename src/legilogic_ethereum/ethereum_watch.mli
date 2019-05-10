@@ -19,7 +19,7 @@ val sleep_delay_exn : float -> unit Lwt_exn.t
 (** This function allows to wait for a delay (in seconds) before continuing the computation.
     It handles exceptions *)
 
-val retrieve_relevant_list_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) list Lwt_exn.t
+val retrieve_relevant_list_logs_data : delay:float -> start_revision:Revision.t -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (Revision.t * (LogObject.t * (abi_value list)) list) Lwt_exn.t
 (** The computation of the list of logs that match the address, topics and the value put *)
 
 val retrieve_relevant_single_logs_data : delay:float -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t
