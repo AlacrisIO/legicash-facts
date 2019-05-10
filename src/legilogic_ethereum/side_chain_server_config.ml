@@ -52,6 +52,7 @@ module Side_chain_server_config = struct
     { num_timestamps                       : int
     ; delay_wait_ethereum_watch_in_seconds : float
     ; challenge_duration_in_seconds        : int
+    ; state_update_period_in_seconds       : int
     } [@@deriving of_yojson]
 
   type fee_schedule_config_t =
@@ -113,6 +114,8 @@ module Side_chain_server_config = struct
   let (challenge_duration_in_seconds_i : int) = config.sidechain_config.challenge_duration_in_seconds
 
   let (challenge_duration_in_seconds_f : float) = Float.of_int challenge_duration_in_seconds_i
+
+  let (state_update_period_in_seconds_f : float) = Float.of_int config.sidechain_config.state_update_period_in_seconds
 
   (* Recommended default values:
      deposit_fee       = "10000000000000" (* 1e13 wei = 1e-5 ether ~= .24 cent *)

@@ -31,6 +31,17 @@ val json_rpc : Uri.t -> string -> (yojson -> 'a) -> ('b -> yojson) ->
 val exn_to_yojson : exn to_yojson
 val exn_of_yojson : exn of_yojson
 
+
+val yojson_noargs : unit -> yojson
+val yojson_0args : unit -> yojson
+val yojson_1arg : ('a -> yojson) -> 'a -> yojson
+val yojson_singlearg : ('a -> yojson) -> 'a -> yojson
+val yojson_2args : ('a -> yojson) -> ('b -> yojson) -> ('a * 'b) -> yojson
+val yojson_3args : ('a -> yojson) -> ('b -> yojson) -> ('c -> yojson) -> ('a * 'b * 'c) -> yojson
+val yojson_4args : ('a -> yojson) -> ('b -> yojson) -> ('c -> yojson) -> ('d -> yojson) -> ('a * 'b * 'c * 'd) -> yojson
+
+
+
 (** The error codes from and including -32768 to -32000 are reserved for pre-defined errors.
     Any code within this range, but not defined explicitly below is reserved for future use. The error codes are nearly the same as those suggested for XML-RPC at the following url: http://xmlrpc-epi.sourceforge.net/specs/rfc.fault_codes.php
     The remainder of the space is available for application defined errors.
@@ -41,3 +52,5 @@ val method_not_found : string -> exn (* -32601 The method does not exist / is no
 val invalid_params : yojson -> exn (* -32602 Invalid method parameter(s). *)
 val internal_error : exn -> exn (* -32603 Internal JSON-RPC error. *)
 (** other Server errrors: -32000 to -32099 *)
+
+
