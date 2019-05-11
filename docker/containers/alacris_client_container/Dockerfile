@@ -1,6 +1,8 @@
 # Create new image
 FROM ubuntu
 
+LABEL maintainer="vedr@nlebo.com"
+
 # Add non-root user
 RUN groupadd -g 1100 appuser && \
     useradd -r -u 1100 -g appuser appuser

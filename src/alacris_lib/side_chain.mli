@@ -348,20 +348,26 @@ module TransactionCommitment : sig
     ; accounts: Digest.t (* From State.t, digest only *)
     ; main_chain_transactions_posted: Digest.t (* From State.t, digest only *)
     ; signature: signature (* Signature of the digest of the state reconstituted from the above *)
-    ; state_update_transaction_hash: Digest.t
-    ; state_digest: Digest.t (* Signature put in the state update *)
-    ; contract_address: Address.t (* contract address needed for accessing to data *)
+    ; state_digest : Digest.t
     }
   [@@deriving lens { prefix=true }, yojson, rlp]
   include PersistableS with type t := t
 end
+
+
+module Confirmation : sig
+  type t = TransactionCommitment.t * Ethereum_chain.Confirmation.t
+  [@@deriving yojson, rlp]
+end
+
+
 
 (** For now, the side chain contract records in its Ethereum on-chain state claims for state updates,
     so we only need a commitment to a state that was thus updated on-chain.
     In the future, we may or may not want to include a Ethereum_chain.Confirmation.t
     of the state update instead.
 *)
-module Confirmation = TransactionCommitment
+(* module Confirmation = TransactionCommitment *)
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 

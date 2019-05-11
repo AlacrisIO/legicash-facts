@@ -86,11 +86,14 @@ module Test = struct
 
     Lwt_exn.run
       (fun () ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 1";
         of_lwt Db.open_connection "unit_test_db" >>= fun () ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 2";
 
         (* TODO replace mutable contract address plumbing w/ more elegant +
          * functional style *)
         get_contract_address_from_client_exn () >>= fun contract_address ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 3";
         Operator_contract.set_contract_address contract_address;
 
         (* TODO consolidate integration tests into single entry point with
@@ -100,14 +103,19 @@ module Test = struct
          * encounter subtle time-dependent bugs in future tests (until we
          * reorganize) *)
         State_update.start_state_update_operator () >>= fun _ ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 4";
 
         fund_accounts () >>= fun () ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 5";
         let operator = trent_address in
         start_operator operator >>= fun () ->
+        start_state_update_periodic_operator () >>= fun () ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 6";
         let initial_alice_balance = get_alice_balance () in
         let initial_bob_balance = get_bob_balance () in
 
         (* 1- Test deposit *)
+        Logging.log "deposit_and_payment_and_withdrawal, step 7";
         let deposit_amount = TokenAmount.of_string "500000000000000000" in
         User.transaction
           alice_address
@@ -117,12 +125,14 @@ module Test = struct
                         ; request_guid = Types.RequestGuid.nil
                         ; requested_at = Types.Timestamp.now () }
         >>= fun (_commitment, _confirmation) ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 8";
         let alice_balance_after_deposit = get_alice_balance () in
         expect_equal "Alice balance after deposit" TokenAmount.to_string
           alice_balance_after_deposit
           (TokenAmount.add initial_alice_balance deposit_amount);
 
         (* 2- Test payment *)
+        Logging.log "deposit_and_payment_and_withdrawal, step 9";
         let payment_amount = TokenAmount.of_string "170000000000000000" in
         User.transaction
           alice_address
@@ -136,6 +146,7 @@ module Test = struct
                         ; requested_at      = Types.Timestamp.now () }
 
         >>= fun (_commitment2, _confirmation2) ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 10";
         let bob_balance_after_payment = get_bob_balance () in
         expect_equal "Bob balance after payment"
           TokenAmount.to_string
@@ -144,6 +155,7 @@ module Test = struct
         get_operator_fee_schedule trent_address
 
         >>= fun fee_schedule ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 11";
         let payment_fee = payment_fee_for fee_schedule payment_amount in
         let alice_balance_after_payment = get_alice_balance () in
         expect_equal "Alice balance after payment"
@@ -163,6 +175,7 @@ module Test = struct
                            ; requested_at = Types.Timestamp.now () }
 
         >>= fun (_commitment, _confirmation) ->
+        Logging.log "deposit_and_payment_and_withdrawal, step 12";
         let bob_balance_after_withdrawal = get_bob_balance () in
         expect_equal "Bob balance after withdrawal" TokenAmount.to_string
           bob_balance_after_withdrawal

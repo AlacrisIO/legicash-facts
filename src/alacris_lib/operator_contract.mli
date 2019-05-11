@@ -50,6 +50,6 @@ val make_withdraw_call
     arguments: operator address, bond amount, confirmed state
 *)
 
-val make_state_update_call : Digest.t -> Ethereum_chain.Operation.t
+val make_state_update_call : Digest.t -> Revision.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)
 (* TODO: signature from the smart court registry () *)

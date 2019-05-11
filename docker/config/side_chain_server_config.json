@@ -12,9 +12,10 @@
   "sidechain_config" : {
       "num_timestamps" : 100000,
       "delay_wait_ethereum_watch_in_seconds" : 1,
-      "challenge_duration_in_seconds" : 10,
+      "challenge_duration_in_seconds" : 5,
       "use_contract_address_file" : 0,
-      "contract_address" : "0x00000"
+      "contract_address" : "0x00000",
+      "state_update_period_in_seconds" : 25
   },
   "fee_schedule_config" : {
       "deposit_fee" : "10000000000000",
