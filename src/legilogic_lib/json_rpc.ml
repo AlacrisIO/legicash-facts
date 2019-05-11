@@ -164,11 +164,6 @@ let json_rpc server method_name result_decoder param_encoder
   in
   Lwt.pick [timeout_thread; post_thread]
 
-let yojson_noargs = fun () -> `Null
-let yojson_0args = fun () -> `List []
-let yojson_1arg f = fun x -> `List [f x]
-let yojson_2args f g = fun (x, y) -> `List [f x; g y]
-
 module Test = struct
 
   let%test "encode stuff" =

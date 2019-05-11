@@ -77,8 +77,7 @@ let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> Rev
  *)
 let make_state_update_call : Digest.t -> Revision.t -> Ethereum_chain.Operation.t =
   fun state_digest operator_revision ->
-  let (parameters : 'a list) = [ abi_digest state_digest
-                               ; abi_revision operator_revision] in
+  let parameters = [ abi_digest state_digest; abi_revision operator_revision] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 

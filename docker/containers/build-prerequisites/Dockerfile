@@ -3,7 +3,7 @@ FROM ubuntu
 # TODO: before we go to production, use a reproducible build with NixOS instead of Ubuntu
 
 # Original author: Paul Steckler
-MAINTAINER Mathieu Dutour Sikiric <mathieu@legilogic.com>
+LABEL maintainer="vedr@nlebo.com / mathieu@legilogic.com"
 
 # Install Ubuntu packages
 # NB: installing a system's ocaml is just to bootstrap opam without compiling our own ocaml
@@ -29,23 +29,6 @@ RUN groupadd -g 1100 appuser && \
     useradd  -m -r -u 1100 -g appuser appuser
 USER appuser
 WORKDIR /home/appuser
-
-## Install Solidity compiler
-#ENV SOLC_VERSION 0.5.2
-#RUN wget https://github.com/ethereum/solidity/releases/download/v${SOLC_VERSION}/solidity_${SOLC_VERSION}.tar.gz && tar -xvzf solidity_${SOLC_VERSION}.tar.gz && rm solidity_${SOLC_VERSION}.tar.gz
-#RUN cd solidity_${SOLC_VERSION} && ./scripts/install_deps.sh && ./scripts/build.sh
-
-## Install Secp256k1 libraries
-#RUN git clone https://github.com/bitcoin-core/secp256k1.git
-#RUN cd secp256k1 && ./autogen.sh && ./configure --prefix=/usr --enable-module-recovery && make && make install
-
-## Compiling the OCAML 4.07.1 for the sole purpose of compiling opam 2.0.2
-## Create install dir and set permissions
-#RUN mkdir -p /home/appuser/opt
-#RUN wget http://caml.inria.fr/pub/distrib/ocaml-4.07/ocaml-4.07.1.tar.gz && tar -vxzf ocaml-4.07.1.tar.gz && rm ocaml-4.07.1.tar.gz
-#RUN cd ocaml-4.07.1 && ./configure -prefix /home/appuser/opt/ocaml-4.07.1 && make world.opt && make install
-##Let's not put it in the regular PATH, but just modify the PATH during OPAM bootstrap
-##ENV PATH /home/appuser/opt/ocaml-4.07.1/bin:${PATH}
 
 # Compiling OPAM 2.0.2
 RUN wget https://github.com/ocaml/opam/releases/download/2.0.2/opam-full-2.0.2.tar.gz && \

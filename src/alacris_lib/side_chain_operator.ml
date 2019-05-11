@@ -136,6 +136,7 @@ let signed_request_requester : UserTransactionRequest.t signed -> Address.t =
 let validate_user_transaction_request :
   (UserTransactionRequest.t signed * bool, TransactionRequest.t) Lwt_exn.arr =
   fun ((signed_request, is_forced) : (UserTransactionRequest.t signed * bool)) ->
+    Logging.log "Beginning of validate_user_transaction_request";
     let {payload=UserTransactionRequest.{ rx_header={ requester; requester_revision }; operation }} =
       signed_request in
     let state = get_operator_state () in
@@ -421,15 +422,15 @@ let retrieve_validated_rev_digest : unit -> (Revision.t * Digest.t) Lwt_exn.t =
     (fun ((_, resolv) : (unit * (Revision.t * Digest.t) OrExn.t Lwt.u)) ->
       `GetCurrentRevisionDigest resolv)
 
-let inner_state_update_periodic_loop () =
+(* TODO for a state_update_deadline_in_blocks somewhere *)
+let rec inner_state_update_periodic_loop : unit -> unit Lwt_exn.t =
+  fun () ->
   let open Lwt_exn in
-  let rec inner_loop : unit -> unit Lwt_exn.t =
-    fun () ->
-    retrieve_validated_rev_digest ()
-    >>= fun (x_rev, x_dig) -> post_state_update x_dig x_rev
-    >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_f
-    >>= fun _ -> inner_loop ()
-  in inner_loop ()
+  retrieve_validated_rev_digest ()
+  >>= uncurry post_state_update
+  >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+  >>= inner_state_update_periodic_loop
+
 
 let start_state_update_periodic_operator () =
   Logging.log "Beginning of start_state_update_operator";

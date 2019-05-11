@@ -101,9 +101,9 @@ let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmo
   fct_submit ()
 
 
-let post_state_update : Digest.t -> Revision.t -> TransactionReceipt.t Lwt_exn.t =
-  fun digest operator_revision ->
-  Logging.log "post_state_update digest=%s" (Digest.to_0x digest);
+let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
+  fun operator_revision digest ->
+  Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest operator_revision in
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
@@ -132,7 +132,7 @@ let inner_state_update_request_loop () =
        let revision : Revision.t = Revision.of_int 742 in
        (* TODO: Clarify this. The value 742 is here for fun so that we know what problem happen.
         In reality, we need the state revision *)
-       post_state_update new_digest revision
+       post_state_update revision new_digest
        >>= fun ereceipt ->
        Lwt.wakeup_later notify_u ereceipt;
        inner_loop ()

@@ -110,14 +110,6 @@ let get_option : 'a -> 'a option -> 'a =
   | None -> x_val
   | Some x -> x
 
-let get_option_bork : 'a option -> 'a =
-  fun x_opt ->
-  match x_opt with
-  | None -> bork "Failure to get the value"
-  | Some x -> x
-
-
-
 
 let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Digest.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
   fun ~operator ~transaction_hash ->
@@ -133,11 +125,8 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
     [Address; Bytes 32; Uint 256; Uint 64]
     [Some (Address_value operator); None; None; None]
   >>= fun x ->
-  let (x_logo, x_vals) = x in
-  let transhash : Digest.t = get_option_bork x_logo.transactionHash in
-  Logging.log "wait_for_operator_state_update, transaction_hash=%s" (Digest.to_0x transaction_hash);
-  Logging.log "wait_for_operator_state_update,  transhash=%s" (Digest.to_0x transhash);
-  Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_uint256 (List.nth x_vals 2));
+  let (log_object, vals) = x in
+  Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
   (* TODO defaulting to zero is wrong and the presence of `null`s indicates
    * something's broken with the confirmation data; we should instead capture
    * the possibility of invalid state at the type level and force consuming
@@ -147,10 +136,10 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
    * and the other, or for one and the work that remains to do for the other.
    *)
   return Ethereum_chain.Confirmation.
-    { transaction_hash  = get_option_bork x_logo.transactionHash
-    ; transaction_index = get_option_bork x_logo.transactionIndex
-    ; block_number      = get_option_bork x_logo.blockNumber
-    ; block_hash        = get_option_bork x_logo.blockHash
+    { transaction_hash  = Option.get log_object.transactionHash
+    ; transaction_index = Option.get log_object.transactionIndex
+    ; block_number      = Option.get log_object.blockNumber
+    ; block_hash        = Option.get log_object.blockHash
     }
 
 
@@ -168,9 +157,11 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
  *)
 let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
   fun ~operator  ~operator_revision ->
+  Logging.log "Beginning of search_for_state_update_min_revision  operator=%s operator_revision=%s" (Address.to_0x operator) (Revision.to_string operator_revision);
   let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   let rec get_matching : Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
     fun start_ref ->
+    Logging.log "get_matching with start_rev=%s" (Revision.to_string start_ref);
     let open Lwt_exn in
     get_contract_address_from_client_exn ()
     >>= fun contract_address ->
@@ -183,19 +174,19 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
                            let oper_rev = retrieve_revision_from_abi_value (List.nth x_list 4) in
                            compare oper_rev operator_revision >= 0) llogs in
     if (List.length llogs_filter > 0) then
-      let (x_logo, x_vals) = List.nth llogs_filter 0 in
-      let transhash : Digest.t = get_option Digest.zero x_logo.transactionHash in
+      let (log_object, vals) = List.nth llogs_filter 0 in
+      let transhash : Digest.t = get_option Digest.zero log_object.transactionHash in
       Logging.log "search_for_state_update_min_revision,  transhash=%s" (Digest.to_0x transhash);
-      Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth x_vals 2));
+      Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
       (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
        * but don't return a fake Confirmation. Maybe have separate functions for one
        * and the other, or for one and the work that remains to do for the other.
        *)
       return Ethereum_chain.Confirmation.
-      { transaction_hash  = get_option Digest.zero x_logo.transactionHash
-      ; transaction_index = get_option Revision.zero x_logo.transactionIndex
-      ; block_number      = get_option Revision.zero x_logo.blockNumber
-      ; block_hash        = get_option Digest.zero x_logo.blockHash
+      { transaction_hash  = get_option Digest.zero log_object.transactionHash
+      ; transaction_index = get_option Revision.zero log_object.transactionIndex
+      ; block_number      = get_option Revision.zero log_object.blockNumber
+      ; block_hash        = get_option Digest.zero log_object.blockHash
       }
     else
       (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
@@ -666,7 +657,7 @@ module TransactionTracker = struct
              PostedToRegistry tc |> continue
 
            | PostedToRegistry (tc : TransactionCommitment.t) ->
-             Logging.log "TR_LOOP, PostedToRegistry operation";
+             Logging.log "TR_LOOP, PostedToRegistry operation tc.operator_revision=%s" (Revision.to_string tc.operator_revision);
              (* TODO: add support for Mutual Knowledge Base / "Smart Court Registry" *)
              (search_for_state_update_min_revision ~operator ~operator_revision:tc.operator_revision
               (* wait_for_operator_state_update ~operator ~transaction_hash:tc.state_update_transaction_hash*)

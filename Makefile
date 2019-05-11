@@ -15,6 +15,13 @@ SHOW:=@echo
 # use HIDE to run commands invisibly, unless VERBOSE defined
 HIDE:=$(if $(VERBOSE),,@)
 
+# Invoking `NO_CACHE=1 make docker-build` will cause containers to be built
+# from scratch (as we do in CI) but will take considerably longer to complete;
+# by default we skip this option for local development as a convenience
+ifdef NO_CACHE
+NO_CACHE="--no-cache"
+endif
+
 # Our applications recognize this as the top directory for the project, and look for files there
 # at runtime, e.g. for configuration.
 export ALACRIS_HOME:=$(shell pwd)
@@ -266,7 +273,7 @@ docker-build-all:
 	$(HIDE) docker/scripts/build_all_images.sh
 
 docker-build: ## Build all or c=<name> containers in foreground
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(c)
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(NO_CACHE) $(c)
 
 docker-list: ## List available services
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) config --services

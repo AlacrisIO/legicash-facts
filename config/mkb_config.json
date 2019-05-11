@@ -1,0 +1,17 @@
+{ "use_mkb" : false,
+  "scheme" : "http",
+  "main_host" : "alacris-registrar-alice",
+  "main_port" : 8805,
+  "neighboring_registrar_list" : [ "Bob" ],
+  "topic" : "mkb_side_chain_registry",
+  "username" : "John",
+  "committee_size" : 0,
+  "min_interval_insertion_micros" : 0,
+  "total_capacity_mem" : 0,
+  "instant_capacity_mem" : 0,
+  "total_throughput_per_min" : 0,
+  "total_throughput_per_sec" : 0,
+  "retention_time" : 0,
+  "retention_size" : 0,
+  "hash_method" : "Keccak256"
+}
