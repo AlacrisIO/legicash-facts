@@ -10,6 +10,7 @@
    * [alacris_client_container](#alacris_client_container)
    * [alacris_side_chain_manager](#alacris_side_chain_manager)
    * [alacris_client](#alacris_client)
+   * [alacris_frontend](#alacris_frontend)
    * [stress_tester](#stress_tester)
 * [Logs](#logs)
 
@@ -26,30 +27,11 @@ Code (IaC) approach.
 
 ## Quick start
 **Prerequisites:**
-  - Install and configure the most recent version of the
-    [Cloud SDK](https://cloud.google.com/sdk/docs/),
-    which includes the gcloud command-line tool (use `us-central-1a` region and
-    `legicash-demo-1950` project)
   - Install [Docker](https://docs.docker.com/install/) minimum required version
     `17.12.0-ce`
   - Install [docker-compose](https://docs.docker.com/compose/install/) minimum
     required version `1.16.1`
-  - Get [access to the registries which](https://cloud.google.com/container-registry/docs/access-control)
-    you will be pushing to and pulling from
-  - Configure Docker to use `gcloud` as a credential helper, or are use another
-    [authentication method](https://cloud.google.com/container-registry/docs/advanced-authentication).
-    To use `gcloud` as the crediential helper, run the command:
-    ```bash
-    gcloud auth configure-docker
-    ```
-
-#### Build all images
-NOTE: This takes a lot of time to build everything from scratch. Please use
-`docker-pull` and `docker-build` targets instead.
-```bash
-$ make docker-build-all
-```
-
+ 
 #### Pull build and runtime prerequisites images:
 
 ```bash
@@ -63,6 +45,13 @@ Check **docker-compose.yml** file for detailed service configuration.
 $ make docker-build
 ```
 
+#### Build all images
+NOTE: This takes a lot of time to build everything from scratch. Please use
+`docker-pull` and `docker-build` targets instead.
+```bash
+$ make docker-build-all
+```
+
 #### List available containers
 To list all containers run:
 ```bash
@@ -72,7 +61,7 @@ $ make docker-list
 alacris_private_ethereum_node
 alacris_side_chain_manager
 alacris_client
-stress_tester
+alacris_frontend
 
 ```
 
@@ -109,19 +98,7 @@ execute:
 ```bash
 make docker-recompile
 ```
-Output:
-```bash
-$ make docker-recompile
-Recompiling Alacris apps
-side-chain-server: stopped
-Deleting side chain manager state
-side-chain-server: started
-alacris-client: stopped
-Deleting alacris client state
-alacris-client: started
-
-```
-What happens here is that new code gets built and application binaries get
+What happens here is that new code gets built, tests get run and application binaries get
 replaced inside of the container. Something like "deploy to local environment"
 
 
@@ -131,8 +108,10 @@ docker
 ├── config
 │   ├── demo-keys-big.json
 │   ├── demo-keys-small.json
-│   ├── demo-keys-small.json.old
+│   ├── demo-keys-small.json_V1
+│   ├── demo-keys-small.json_V2
 │   ├── ethereum_config.json
+│   ├── mkb_config.json
 │   ├── operator_keys.json
 │   ├── side_chain_client_config.json
 │   └── side_chain_server_config.json
@@ -145,29 +124,33 @@ docker
 │   │       │   │   ├── nginx.conf
 │   │       │   │   ├── scgi_params
 │   │       │   │   └── sites
-│   │       │   │       ├── frontend.conf
 │   │       │   │       └── scgi.conf
-│   │       │   ├── side_chain_client_config.json
 │   │       │   └── supervisord.conf
-│   │       ├── private_key
 │   │       └── scripts
 │   │           ├── run-nginx.sh
 │   │           └── run-scgi.sh
 │   ├── alacris_client_container
 │   │   └── Dockerfile
+│   ├── alacris_frontend
+│   │   ├── Dockerfile
+│   │   └── files
+│   │       ├── conf
+│   │       │   └── nginx
+│   │       │       ├── nginx.conf
+│   │       │       └── sites
+│   │       │           └── frontend.conf
+│   │       └── private_key
 │   ├── alacris_private_ethereum_node
 │   │   ├── Dockerfile
 │   │   └── files
 │   │       ├── conf
 │   │       │   └── supervisord.conf
 │   │       └── scripts
-│   │           ├── run-block-explorer.sh
 │   │           └── run-ethereum.sh
 │   ├── alacris_side_chain_manager
 │   │   ├── Dockerfile
 │   │   └── files
 │   │       ├── conf
-│   │       │   ├── side_chain_server_config.json
 │   │       │   └── supervisord.conf
 │   │       └── scripts
 │   │           ├── prefund.sh
@@ -175,8 +158,7 @@ docker
 │   ├── alacris_side_chain_manager_container
 │   │   └── Dockerfile
 │   ├── build-prerequisites
-│   │   ├── Dockerfile
-│   │   └── files
+│   │   └── Dockerfile
 │   └── stress_tester
 │       ├── Dockerfile
 │       └── files
@@ -204,7 +186,6 @@ the app.
 Legicash-facts side chain client, nginx and scgi run prerequisite. Container
 used for running the app.
 
-
 #### alacris_private_ethereum_node
 To build alacris private ethereum node run the command:
 ```bash
@@ -222,15 +203,25 @@ $ make docker-start c=alacris_side_chain_manager
 ```
 
 ## alacris_client
-Alacris client image accepts 2 parameters. ENVIRONMENT to build for and
-FRONTEND_BRANCH. If none is set on CLI defaults are used. To build alacris
-client run the command:
+To build alacris client run the command:
 ```bash
-$ make docker-build c=alacris_client ENVIRONMENT=dev FRONTEND_BRANCH=my-feature-branch
+$ make docker-build c=alacris_client
 ```
 To start alacris client run the command:
 ```bash
 $ make docker-start c=alacris_client
+```
+
+## alacris_frontend
+Alacris frontend image accepts 2 parameters. ENVIRONMENT to build for and
+FRONTEND_BRANCH. If none is set on CLI defaults are used. To build alacris
+frontend run the command:
+```bash
+$ make docker-build c=alacris_frontend ENVIRONMENT=dev FRONTEND_BRANCH=my-feature-branch
+```
+To start alacris client run the command:
+```bash
+$ make docker-start c=alacris_frontend
 ```
 
 #### stress_tester
@@ -240,6 +231,7 @@ Distributed mode will be added soon.
 ```bash
 $ docker-compose build stress_tester
 ```
+
 ## Connect into containers
 As application user
 ```bash

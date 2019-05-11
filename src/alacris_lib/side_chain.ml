@@ -358,7 +358,12 @@ module TransactionCommitment = struct
   include (TrivialPersistable (PrePersistable) : PersistableS with type t := t)
 end
 
-module Confirmation = TransactionCommitment
+
+module Confirmation = struct
+  type t = TransactionCommitment.t * Ethereum_chain.Confirmation.t
+  [@@deriving yojson, rlp]
+end
+(* module Confirmation = TransactionCommitment *)
 
 type court_clerk_confirmation = {clerk: public_key; signature: signature} [@@deriving lens]
 

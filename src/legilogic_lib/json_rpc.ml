@@ -20,6 +20,15 @@ exception Rpc_error of error
 exception Malformed_response of string * exn
 exception Bad_status of Code.status_code
 
+let yojson_noargs = fun () -> `Null
+let yojson_0args = fun () -> `List []
+let yojson_1arg f = fun x -> `List [f x]
+let yojson_singlearg f = fun x -> f x
+let yojson_2args f g = fun (x, y) -> `List [f x; g y]
+let yojson_3args f g h = fun (x, y, z) -> `List [f x; g y; h z]
+let yojson_4args f g h k = fun (x, y, z, t) -> `List [f x; g y; h z; k t]
+
+
 let () = Printexc.register_printer @@ function
   | Rpc_error e -> Some (Printf.sprintf "Rpc_error(%s)" e.message)
   | _           -> None
@@ -45,7 +54,6 @@ type error_response =
   ; error : error
   ; id : yojson }
 [@@deriving yojson, show]
-
 
 let json_rpc_version = "2.0"
 
@@ -155,11 +163,6 @@ let json_rpc server method_name result_decoder param_encoder
     decode_response result_decoder request_id response_str
   in
   Lwt.pick [timeout_thread; post_thread]
-
-let yojson_noargs = fun () -> `Null
-let yojson_0args = fun () -> `List []
-let yojson_1arg f = fun x -> `List [f x]
-let yojson_2args f g = fun (x, y) -> `List [f x; g y]
 
 module Test = struct
 

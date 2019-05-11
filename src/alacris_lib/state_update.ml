@@ -40,24 +40,11 @@ let retrieve_last_revision : unit -> Revision.t Lwt.t =
     (fun ((_x_unit, x_resolv) : (unit * Revision.t Lwt.u)) -> GetLastRevision x_resolv) ()
 
 
-
-
-
-
 let init_state : unit -> digest_entry =
   fun () -> {revision = Revision.of_int 0; digest = null_digest}
 
 
 let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
-
-
-
-
-
-
-
-
-
 
 
 let print_contract_account_value : string -> unit Lwt_exn.t =
@@ -71,12 +58,8 @@ let print_contract_account_value : string -> unit Lwt_exn.t =
              Lwt_exn.return ())
 
 
-
 let print_status_receipt : TransactionReceipt.t -> string =
   fun tr -> (TokenAmount.to_string tr.status)
-
-
-
 
 
 let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
@@ -117,15 +100,14 @@ let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmo
       ) in
   fct_submit ()
 
-let post_state_update : Digest.t -> Revision.t -> TransactionReceipt.t Lwt_exn.t =
-  fun digest operator_revision ->
-  Logging.log "post_state_update digest=%s" (Digest.to_0x digest);
+
+let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
+  fun operator_revision digest ->
+  Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest operator_revision in
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
   post_operation_general operation oper_addr value
-
-
 
 
 let inner_state_update_request_loop () =
@@ -148,7 +130,9 @@ let inner_state_update_request_loop () =
        let new_digest_entry = {revision=new_rev; digest=new_digest} in
        digest_entry_ref := new_digest_entry;
        let revision : Revision.t = Revision.of_int 742 in
-       post_state_update new_digest revision
+       (* TODO: Clarify this. The value 742 is here for fun so that we know what problem happen.
+        In reality, we need the state revision *)
+       post_state_update revision new_digest
        >>= fun ereceipt ->
        Lwt.wakeup_later notify_u ereceipt;
        inner_loop ()
