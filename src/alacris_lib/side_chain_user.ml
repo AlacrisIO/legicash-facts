@@ -155,7 +155,7 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
    —at least as long as the client is still actively interested in it.
 
  *)
-let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
+let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> (pair_revision_digest * Ethereum_chain.Confirmation.t) Lwt_exn.t =
   fun ~operator  ~operator_revision ->
   Logging.log "Beginning of search_for_state_update_min_revision  operator=%s operator_revision=%s" (Address.to_0x operator) (Revision.to_string operator_revision);
   let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
@@ -176,8 +176,12 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
     if (List.length llogs_filter > 0) then
       let (log_object, vals) = List.nth llogs_filter 0 in
       let transhash : Digest.t = get_option Digest.zero log_object.transactionHash in
+      let operator_revision = retrieve_revision_from_abi_value (List.nth vals 4) in
+      let operator_digest = retrieve_digest_from_abi_value (List.nth vals 1) in
+      let pair_rev_dig = (operator_revision, operator_digest) in
       Logging.log "search_for_state_update_min_revision,  transhash=%s" (Digest.to_0x transhash);
       Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
+      
       (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
        * but don't return a fake Confirmation. Maybe have separate functions for one
        * and the other, or for one and the work that remains to do for the other.

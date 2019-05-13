@@ -28,6 +28,8 @@ let post_to_mailbox_state_update : Digest.t -> TransactionReceipt.t OrExn.t Lwt.
   simple_client request_state_update_mailbox
     (fun ((_x_digest, x_resolver) : (Digest.t * TransactionReceipt.t OrExn.t Lwt.u)) -> Submit (digest,x_resolver)) digest
 
+(** What we need for the system is the pair of Revision and state digest *)
+type pair_revision_digest = Revision.t * Digest.t
 
 let retrieve_last_posted_state : unit -> Digest.t Lwt.t =
   fun () ->

@@ -3,7 +3,7 @@ open Yojsoning
 open Persisting
 open Action
 open Signing
-
+open Types
 open Side_chain
 
 exception Operator_not_found of string
