@@ -155,11 +155,11 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
    —at least as long as the client is still actively interested in it.
 
  *)
-let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> (pair_revision_digest * Ethereum_chain.Confirmation.t) Lwt_exn.t =
+let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> (PairRevisionDigest.t * Ethereum_chain.Confirmation.t) Lwt_exn.t =
   fun ~operator  ~operator_revision ->
   Logging.log "Beginning of search_for_state_update_min_revision  operator=%s operator_revision=%s" (Address.to_0x operator) (Revision.to_string operator_revision);
   let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  let rec get_matching : Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
+  let rec get_matching : Revision.t -> (PairRevisionDigest.t * Ethereum_chain.Confirmation.t) Lwt_exn.t =
     fun start_ref ->
     Logging.log "get_matching with start_rev=%s" (Revision.to_string start_ref);
     let open Lwt_exn in
@@ -179,19 +179,20 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
       let operator_revision = retrieve_revision_from_abi_value (List.nth vals 4) in
       let operator_digest = retrieve_digest_from_abi_value (List.nth vals 1) in
       let pair_rev_dig = (operator_revision, operator_digest) in
-      Logging.log "search_for_state_update_min_revision,  transhash=%s" (Digest.to_0x transhash);
-      Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
-      
+      let eth_confirmation = Ethereum_chain.Confirmation.
+      { transaction_hash  = Option.get log_object.transactionHash
+      ; transaction_index = get_option Revision.zero log_object.transactionIndex
+      ; block_number      = get_option Revision.zero log_object.blockNumber
+      ; block_hash        = get_option Digest.zero log_object.blockHash
+      } in
+      let pair_return = (pair_rev_dig, eth_confirmation) in
       (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
        * but don't return a fake Confirmation. Maybe have separate functions for one
        * and the other, or for one and the work that remains to do for the other.
        *)
-      return Ethereum_chain.Confirmation.
-      { transaction_hash  = get_option Digest.zero log_object.transactionHash
-      ; transaction_index = get_option Revision.zero log_object.transactionIndex
-      ; block_number      = get_option Revision.zero log_object.blockNumber
-      ; block_hash        = get_option Digest.zero log_object.blockHash
-      }
+      Logging.log "search_for_state_update_min_revision,  transhash=%s" (Digest.to_0x transhash);
+      Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
+      return pair_return
     else
       (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
        >>= fun () -> get_matching end_block)
@@ -256,7 +257,7 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
     Lwt_exn.return ())
 
 
-let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t ->Address.t -> unit Lwt_exn.t =
+let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t -> Address.t -> unit Lwt_exn.t =
   fun tc  sender  operator ->
   let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
@@ -666,13 +667,14 @@ module TransactionTracker = struct
              (search_for_state_update_min_revision ~operator ~operator_revision:tc.operator_revision
               (* wait_for_operator_state_update ~operator ~transaction_hash:tc.state_update_transaction_hash*)
               >>= function
-              | Ok (c : Ethereum_chain.Confirmation.t) ->
+              | Ok (c_pair : (PairRevisionDigest.t * Ethereum_chain.Confirmation.t)) ->
+                 let (c_rev_digest, c_confirm) = c_pair in
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
                  | Deposit _ ->
-                    FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
-                 | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
-                 | Withdrawal _ -> PostedToMainChain (tc, c) |> continue)
+                    FinalTransactionStatus.SettledOnMainChain (tc, c_confirm) |> finalize
+                 | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c_confirm) |> finalize
+                 | Withdrawal _ -> PostedToMainChain (tc, c_confirm) |> continue)
               | Error error ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                  invalidate ongoing error)

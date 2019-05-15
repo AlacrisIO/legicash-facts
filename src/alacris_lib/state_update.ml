@@ -29,7 +29,10 @@ let post_to_mailbox_state_update : Digest.t -> TransactionReceipt.t OrExn.t Lwt.
     (fun ((_x_digest, x_resolver) : (Digest.t * TransactionReceipt.t OrExn.t Lwt.u)) -> Submit (digest,x_resolver)) digest
 
 (** What we need for the system is the pair of Revision and state digest *)
-type pair_revision_digest = Revision.t * Digest.t
+module PairRevisionDigest = struct
+  type t = Revision.t * Digest.t
+  [@@deriving yojson {strict = false}]
+end
 
 let retrieve_last_posted_state : unit -> Digest.t Lwt.t =
   fun () ->
@@ -40,7 +43,7 @@ let retrieve_last_revision : unit -> Revision.t Lwt.t =
   fun () ->
   simple_client request_state_update_mailbox
     (fun ((_x_unit, x_resolv) : (unit * Revision.t Lwt.u)) -> GetLastRevision x_resolv) ()
-
+ 
 
 let init_state : unit -> digest_entry =
   fun () -> {revision = Revision.of_int 0; digest = null_digest}
