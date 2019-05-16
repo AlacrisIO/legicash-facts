@@ -221,10 +221,10 @@ let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_
     Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth abi_list_val 6));
     Lwt_exn.return ())
 
-let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
-  fun ~contract_address ~sender ~operator operator_revision ~value ~bond digest ->
+let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
+  fun ~contract_address ~sender ~operator ~operator_revision ~value ~bond digest ->
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
-  let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call ~contract_address ~operator operator_revision ~value ~confirmed_state:digest in
+  let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call ~contract_address ~operator ~operator_revision ~value ~confirmed_state:digest in
   post_operation_general operation sender bond
 
 
@@ -271,7 +271,7 @@ let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t -> Ad
          ~contract_address
          ~sender
          ~operator
-         tc.tx_proof.key
+         ~operator_revision:tc.tx_proof.key
          ~value:withdrawal_amount
          ~bond:Side_chain_server_config.bond_value_v
          tc.state_digest
@@ -414,7 +414,7 @@ module OngoingTransactionStatus = struct
 
     (* for withdrawal only *)
     (* TODO: Create the Confirmation type and clear things up *)
-    | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
+    | PostedToMainChain    of TransactionCommitment.t * PairRevisionDigest.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
     | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
   [@@deriving yojson]
 
@@ -433,7 +433,7 @@ module OngoingTransactionStatus = struct
 
     | SignedByOperator     tc
     | PostedToRegistry     tc
-    | PostedToMainChain    (tc, _)
+    | PostedToMainChain    (tc, _, _)
     | ConfirmedOnMainChain (tc, _)
       -> tc.transaction.tx_request |> TransactionRequest.signed_request |> Option.return
 
@@ -674,12 +674,12 @@ module TransactionTracker = struct
                  | Deposit _ ->
                     FinalTransactionStatus.SettledOnMainChain (tc, c_confirm) |> finalize
                  | Payment _ -> FinalTransactionStatus.SettledOnMainChain (tc, c_confirm) |> finalize
-                 | Withdrawal _ -> PostedToMainChain (tc, c_confirm) |> continue)
+                 | Withdrawal _ -> PostedToMainChain (tc, c_rev_digest, c_confirm) |> continue)
               | Error error ->
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                  invalidate ongoing error)
 
-           | PostedToMainChain ( tc, confirmation ) ->
+           | PostedToMainChain ( tc, _pair_rev_digest, confirmation ) ->
              Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
              (* TODO: wait for confirmation on the main chain and handle lawsuits

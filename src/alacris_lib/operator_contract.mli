@@ -26,7 +26,7 @@ val pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address
 val make_claim_withdrawal_call
    : contract_address:Address.t
   -> operator:Address.t
-  -> Revision.t
+  -> operator_revision:Revision.t
   -> value:TokenAmount.t
   -> confirmed_state:Digest.t
   -> Ethereum_chain.Operation.t
