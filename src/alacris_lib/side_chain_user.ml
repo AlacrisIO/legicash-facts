@@ -181,9 +181,9 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
       let pair_rev_dig = (operator_revision, operator_digest) in
       let eth_confirmation = Ethereum_chain.Confirmation.
       { transaction_hash  = Option.get log_object.transactionHash
-      ; transaction_index = get_option Revision.zero log_object.transactionIndex
-      ; block_number      = get_option Revision.zero log_object.blockNumber
-      ; block_hash        = get_option Digest.zero log_object.blockHash
+      ; transaction_index = Option.get log_object.transactionIndex
+      ; block_number      = Option.get log_object.blockNumber
+      ; block_hash        = Option.get log_object.blockHash
       } in
       let pair_return = (pair_rev_dig, eth_confirmation) in
       (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
@@ -200,14 +200,14 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
 
 
 
-let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> Revision.t -> unit Lwt_exn.t =
-  fun ~contract_address ~transaction_hash ~operator revision ->
+let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> operator_revision:Revision.t -> unit Lwt_exn.t =
+  fun ~contract_address ~transaction_hash ~operator ~operator_revision ->
   Logging.log "Beginning of wait_for_claim_withdrawal_event";
   Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address);
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
   let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 256; Uint 256; Uint 64] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
-                                                     Some (abi_value_from_revision revision);
+                                                     Some (abi_value_from_revision operator_revision);
                                                      None; None; None; None; None] in
   let (transaction_hash_val : Digest.t option) = Some transaction_hash in
   let open Lwt_exn in
@@ -257,8 +257,8 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
     Lwt_exn.return ())
 
 
-let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t -> Address.t -> unit Lwt_exn.t =
-  fun tc  sender  operator ->
+let post_claim_withdrawal_operation : PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
+  fun _pair_rev_digest tc ~sender ~operator ->
   let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
     | Deposit _ -> bork "This part should not occur"
@@ -281,7 +281,7 @@ let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t -> Ad
          ~contract_address
          ~transaction_hash:tr.transaction_hash
          ~operator
-         tc.tx_proof.key
+         ~operator_revision:tc.tx_proof.key
        >>= fun () ->
        Logging.log "After the wait_for_claim_withdrawal_event";
        return ()
@@ -679,13 +679,13 @@ module TransactionTracker = struct
                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                  invalidate ongoing error)
 
-           | PostedToMainChain ( tc, _pair_rev_digest, confirmation ) ->
+           | PostedToMainChain ( tc, pair_rev_digest, confirmation ) ->
              Logging.log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
              (* TODO: wait for confirmation on the main chain and handle lawsuits
                 Right now, no lawsuit *)
 
-             Lwt.bind (post_claim_withdrawal_operation tc user operator) (fun _ ->
+             Lwt.bind (post_claim_withdrawal_operation pair_rev_digest tc ~sender:user ~operator) (fun _ ->
                  Logging.log "After post_claim_withdrawal_operation";
                  ConfirmedOnMainChain (tc, confirmation) |> continue)
 
