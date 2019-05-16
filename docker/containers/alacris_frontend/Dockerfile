@@ -14,6 +14,12 @@ ENV PATH /var/www/app/node_modules/.bin:$PATH
 
 # Make sure domain is accepted
 RUN mkdir -p /home/appuser/.ssh/ && touch /home/appuser/.ssh/known_hosts
+
+# TODO remove the following two lines and delete the private_key file itself
+# when the repo is publicly visible
+ADD docker/containers/alacris_frontend/files/private_key /home/appuser/.ssh/id_rsa
+RUN chmod 400 /home/appuser/.ssh/id_rsa
+
 RUN ssh-keyscan github.com >> /home/appuser/.ssh/known_hosts
 
 RUN chown -R appuser:appuser /var/www/app/
@@ -26,7 +32,9 @@ ARG FRONTEND_BRANCH
 ARG ENVIRONMENT
 
 # Fetch Legicash frontend code
-RUN git clone -b "${FRONTEND_BRANCH}" https://github.com/AlacrisIO/legicash-demo-frontend.git /var/www/app
+# TODO remove the following line and use HTTPS when the repo is publicly visible
+RUN git clone -b "${FRONTEND_BRANCH}" git@github.com:AlacrisIO/legicash-demo-frontend.git /var/www/app
+# RUN git clone -b "${FRONTEND_BRANCH}" https://github.com/AlacrisIO/legicash-demo-frontend.git /var/www/app
 
 # Install
 USER root
