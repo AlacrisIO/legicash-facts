@@ -74,6 +74,7 @@ module Test = struct
   let get_alice_balance () = get_user_balance alice_address
   let get_bob_balance () = get_user_balance bob_address
 
+
   (* deposit, payment and withdrawal test *)
   let%test "deposit_and_payment_and_withdrawal" =
     Signing.Test.register_test_keypairs ();
@@ -104,9 +105,12 @@ module Test = struct
 
         fund_accounts () >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
+        Mkb_json_rpc.init_mkb_server ()
+        >>= fun () -> 
         let operator = trent_address in
-        start_operator operator >>= fun () ->
-        start_state_update_periodic_operator () >>= fun () ->
+        start_operator operator
+        >>= fun () -> start_state_update_periodic_operator ()
+        >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 6";
         let initial_alice_balance = get_alice_balance () in
         let initial_bob_balance = get_bob_balance () in
