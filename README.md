@@ -1,242 +1,230 @@
 # Legicash FaCTS
 
-Legicash FaCTS is a Plasma-style side-chain using the Ethereum main-chain as a "court system",
-with a "smart contract" that uses game semantics for "smart legal arguments",
-and a Shared Knowledge Network as a "smart court registry" to prevent block-withholding attacks,
+Legicash FaCTS is a Plasma-style side-chain using the Ethereum main-chain as a
+"court system", with a "smart contract" that uses game semantics for "smart
+legal arguments", and a Shared Knowledge Network as a "smart court registry" to
+prevent block-withholding attacks,
 
+You may visit our live demo at [wallet.alacris.io](https://wallet.alacris.io/).
 
-## Introduction
 
-### General Design
+## License
 
-This repository is an experimental implementation of the Legicash FaCTS whitepaper,
-[Fast Cryptocurrency Transactions, Securely](http://j.mp/FaCTS),
-by [Legicash](http://legi.cash/).
-For an overview, see also [our articles on Medium](https://medium.com/legi).
+This code is being developed as free software by LegiLogic, Inc. (née
+Legicash), for the sake of Alacris, Ltd., that owns the copyright and publishes
+the code.
 
-### License
+The Legicash FaCTS software is distributed under the GNU Lesser General Public
+License, version 2.1. See the file [LICENSE](LICENSE).  (This is the same
+license as used by the OCaml runtime.)
 
-This code is being developed as free software by LegiLogic, Inc. (née Legicash),
-for the sake of Alacris, Ltd., that owns the copyright and publishes the code.
+## Contributing and getting in touch
 
-The Legicash FaCTS software is distributed under the GNU Lesser General Public License,
-version 2.1. See the file [LICENSE](LICENSE).
-(This is the same license as used by the OCaml runtime.)
+**Pull requests are welcome and appreciated!**
 
-### Compatibility
+If you have any technical questions or comments, or would like to discuss
+proposed changes to the source code before submitting a pull request, please
+don't hesitate to open a GitHub issue and mention @mattaudesse.
 
-So far, we've only tried to build and run the software on Linux x86_64
-using the Debian or Ubuntu distributions.
-It may be possible to build and run it on other platforms;
-we haven't tested it yet, please tell us if you do.
+General inquiries are better served via our [website's](https://alacris.io)
+"Email Us" form.
 
+We also make frequent appearances at blockchain events. Feel free to introduce
+yourself!
 
-## Building it
+Lastly, you should follow our [articles on medium](https://medium.com/alacris)
+to stay apprised of current developments.
 
-### Prerequisites: Our Toolchain
 
-Before you may build this software, you need to install
-a toolchain made of all the prerequisite software at the expected versions.
+## Prerequisites
 
-The simplest way to have the right version of everything installed is
-to use [Docker](https://www.docker.com/).
-If you don't have Docker installed, look at < https://www.docker.com/get-docker >.
+**The recommended way to build and run this codebase is via a set of
+Docker-specific Makefile targets.** To that end, you'll need to ensure at least
+the following components are prepped on your system:
 
-We're using Gitlab CI to build and test our software using Docker.
-Our Continuous Integration uses a custom Docker image with
-the needed software installed on top of Ubuntu.
+- Docker
+- Docker Compose
+- GNU Make version 4.x or greater
+- `git`
+- `bash` version 4.x or greater
+- The [AlacrisIO/mkb repo](https://github.com/AlacrisIO/mkb) (simply `git
+  clone` onto your system)
 
-If you would rather install the needed software manually,
-look at the file [docker/containers/build-prerequisites/Dockerfile](docker/containers/build-prerequisites/Dockerfile)
-to see what's installed in the Docker image.
+**If you're running Linux** then Docker, Docker Compose, and `git` are best
+installed via your distro's package manager (and you almost certainly have a
+suitable version of GNU's Make and a recent `bash` shell already).
 
-#### Using Docker
+**If you're a macOS user** you'll likely want to use either
+[MacPorts](https://www.macports.org/install.php)
+or
+[HomeBrew](https://brew.sh/)
+to install `git`, GNU Make and a modern version of `bash`. Both MacPorts and
+Homebrew provide packages for Docker and Docker Compose as well, or you can
+install the official versions via
+[hub.docker.com](https://hub.docker.com/editions/community/docker-ce-desktop-mac).
 
-You may have to start the docker daemon if it isn't launched automatically by your system:
+**Bear in mind you may also need to substitute `gmake` in place of `make` when
+running on macOS** depending upon how you've configured your system.
 
-    sudo dockerd
+---
 
-You can then download the docker image use by our CI as follows
-(create your docker credentials on docker.com with same email address as used for gitlab.com):
+Note that it's also possible to situate Docker Compose via `pip` in a Python
+sandbox if your package manager lacks an installer or provides an old version
+(e.g. in the case of Debian). **You should prefer a package manager's version
+over this approach unless you're sure it's necessary**.
 
-    docker login ; : only necessary the first time
-    docker pull registry.gitlab.com/legicash/legicash-facts:build-env
+```bash
+# Running the following lines will create a subdirectory named "docker-compose"
+# and install several packages therein rather than polluting your system files
+$ python3 -m venv docker-compose
+$ source docker-compose/bin/activate
+$ pip install --upgrade pip
+$ pip install docker-compose
 
-Or you can re-build it with:
+# Note the non-standard installation path:
+$ which docker-compose
+/some/root/path/docker-compose/bin/docker-compose
 
-    docker build -t registry.gitlab.com/legicash/legicash-facts:build-env docker/containers/build-prerequisites
+# The `docker-compose` program will remain available in *this* shell session
+# until you:
+$ deactivate
 
-And if you re-build it, you can update the gitlab CI image with:
+# ...at which point running:
+$ which docker-compose
+<will return nothing>
 
-    docker push registry.gitlab.com/legicash/legicash-facts:build-env
-
-Beware that Docker builds are not deterministic (they notably depend on ubuntu and opam updates),
-so may not succeed. You may fallback to downloading the image we use (first recipe above).
-Ideally, in the future we'd use NixOS or at least Nix to build our software deterministically.
-
-To run the Docker image, use the following command
-from this repository as current directory:
-
-     docker run -it -v ${PWD}:/legicash-facts registry.gitlab.com/legicash/legicash-facts:build-env /bin/bash
-
-You can give the image a more concise name `legicash-facts` with the command
-
-     docker tag registry.gitlab.com/legicash/legicash-facts:build-env legicash-facts
-
-#### A toolchain outside Docker
-
-You should be able to install our toolchain on top of Debian or Ubuntu (or a chroot containing them)
-by following the recipe in [docker/containers/build-prerequisites/Dockerfile](docker/containers/build-prerequisites/Dockerfile).
-
-Unhappily, the recipe depends on the state not just of Ubuntu but also of OPAM,
-and OPAM sometimes fails to build our dependencies.
-Until we move to Nix, and/or have our own known-working OPAM repository,
-a fallback plan is to extract the `~/.opam/` installation from our Docker CI image
-into your home directory as follows (assuming you downloaded the image already as above):
-
-    docker run -it -v ${HOME}:/home registry.gitlab.com/legicash/legicash-facts:build-env rsync -av --delete /root/.opam/ /home/.opam/
-    sudo chown -R ${USER} ${HOME}/.opam
-
-If you install opam this way rather than the regular way,
-you still need to add the proper opam incantation to your `.zshrc` (mutatis mutandis for other shells):
-
-    . ${HOME}/.opam/opam-init/init.zsh > /dev/null 2> /dev/null || true
-
-### Installing dependencies locally on Mac OS outside of Docker
-
-From within the repository, run the script:
-
-    ./scripts/install-mac-dependencies.sh
-
-### Building the software
-
-Once your toolchain is ready, you can build everything that matters to run our software with:
-
-    make
-
-See the [Makefile](Makefile) for more fine-grained option.
-
-
-## Running it and Testing it
-
-### Starting the software
-
-To experiment with our software, you need four components:
-
-  1. A private ethereum network in which to run the experiments.
-     You can launch it as follows,
-     with state kept in `_ethereum/` and logs in `_run/logs/testnet.log`:
-
-        make run_ethereum_net
-
-  2. A server for the side-chain.
-     You can launch it as follows,
-     with state kept in `_run/alacris_server_db` and logs in `_run/logs/alacris-server.log`:
-
-        make run_side_chain_server
-
-  3. A client for the side-chain.
-     You can launch it as follows,
-     with state kept in `_run/alacris_client_db` and logs in `_run/logs/alacris-client.log`:
-
-        make run_side_chain_client
-
-  4. The nginx webserver as a frontend to the above using the SCGI protocol.
-     You can launch it as follows,
-     with logs in `_run/logs/{access,error,access-alacris}.log`:
-
-        make nginx
-
-### Running unit tests
-
-If you have the ethereum network running (step 1. above), you can run our unit tests with:
-
-    make test
-
-The tests run in our Continuous Integration framework are described in the Gitlab CI YAML file:
-
-    ./.gitlab-ci.yml
-
-### Running integration tests
-
-Once you have all four steps above running, you can run our integration tests with:
-
-    make test_side_chain_client
-
-## Developing it
-
-### Open Source Community
-
-If you'd like to contribute to the LegiLogic and Alacris codebases,
-please submit a Gitlab merge request, and note the following.
-
-### Coding Style
-
-We'll be using `ocp-indent` to keep code well-formatted, but otherwise following the
-[Jane Street coding standards](https://opensource.janestreet.com/standards/).
-See our suggested `.git/hooks/pre-commit` hook in `script/pre-commit`.
-
-As for documentation, all documentation, specification, usage comments should go in `.mli` files.
-`.ml` files should only contain implementation comments, and therefore remain lightly commented.
-
-### Playing with it
-
-After you `make toplevel`, you can use the script in `bin/legicaml`
-to invoke a toplevel with all our code compiled in.
-
-You can build and run our toplevel inside an `rlwrap` wrapper with:
-
-    make repl
-
-Example code you may run includes:
-
-    Printf.printf "%s\n" (Hex.parse_0x_data "0x48656c6c6f2c20776f726c6421");;
-
-### Running individual tests
-
-You can run tests in only one directory with a command like:
-
-```
-dune runtest src/alacris_lib
+# If you'd like to use `docker-compose` again or in another shell session just
+# re-run the init script:
+$ source docker-compose/bin/activate
 ```
 
-To reduce test running time during development,
-comment out the `(inline_tests)` sexp's in the `dune` files
-for the sublibraries you're not concerned with,
-and put a line like
+---
+
+Finally, if you're doing heavy development against the codebase, you may find
+it beneficial to replicate the pre-built Docker environment locally on your
+host machine.  **Be aware that you're entering semi-uncharted territory**, with
+various levels of difficulty based on which OS you're running, and consider the
+following:
+
+- [docker/containers/build-prerequisites/Dockerfile](docker/containers/build-prerequisites/Dockerfile)
+  outlines the majority of steps you'll need to replicate for your system.
+
+- You can refer to the `docker/scripts` directory and our `Makefile` to look up
+  how we perform steps outside of Docker.
+
+- Installing `opam` packages to the default "switch" is a recipe for dependency
+  hell and should by avoided. Instead, please create a new switch whose sole
+  purpose is use by `legicash-facts`.
+
+  Consult the `opam` [docs](https://opam.ocaml.org/doc/Usage.html#opam-switch)
+  for more info.
+
+- Version mismatches will occasionally cause transient bugs or compilation
+  failures until we achieve fully deterministic builds via `nix` or some
+  similar mechanism. Docker helps address this issue to some extent (insofar
+  as it facilitates sharing cached base images) but of course isn't fully
+  immune to the problem either.
+
+  **Our live demo and continuous integration pipelines rely on the Docker
+  images exclusively, so ultimately you may need to take extra steps in forcing
+  your host system to track the Docker images from our registry.**
+
+- It's fine to do local development directly on your host machine, but pull
+  requests are evaluated via the Docker strategy so we ask that you **always
+  run the containerized test suite before submitting code for review** (see
+  test process below).
+
+- If all else fails and you're stuck, feel free to open an issue and we'll try
+  to help.
+
+**Again, we strongly recommend you start with the provided Docker strategy
+first**.
+
+
+## Fetch Docker images from registry
+
+Although it's possible to build a fresh batch of images from scratch, you can
+save about 35 - 45 minutes by running:
+```
+make docker-pull
+```
+
+This will fetch a shared `build-prerequisites` image, another for running a
+private Ethereum node, another for our JavaScript demo frontend, and the
+various backend services comprising a complete `legicash-facts` setup.
+
+*You'll need to run `make docker-pull` in the `mkb` repo as well - see below.*
+
+One shouldn't normally need it, but it's useful to know there's also a `make
+docker-build-all` target which causes each image to be rebuilt from the ground
+up.
+
+
+## Launch the containerized demo environment
+
+Launching the entire environment typically involves multiple shell sessions:
 
 ```
-(inline_tests (flags -only-test src/legilogic_ethereum/ethereum_json_rpc.ml))
+# Spin up the mutual knowledgebase from AlacrisIO/mkb
+
+# In one shell:
+$ cd <mkb/repo/directory>
+$ make docker-pull docker-up
 ```
 
-in the `dune` file which targets your file.
-
-Don't forget to undo these changes before committing!
-
-You can also focus testing on a specific line, e.g.
-
 ```
-src/legilogic_ethereum/ethereum_patricia_merkle.ml:300
+# In another shell:
+$ cd <legicash-facts/repo/directory>
+$ make docker-reset-state docker-build docker-up
 ```
 
-will only run the test starting on line 300.
+This will trigger several initialization steps, such as establishing a private
+Ethereum testnet, creating wallets and prefunding them, spawning a side-chain
+server and client, launching mutual knowledgebase nodes to which they'll
+connect, and so on.
 
-If you uncomment the sexp `(flags (:standard -verbose))` in `./src/dune`,
-a list of all the tests being run will be displayed by `make test`.
+Once the initialization phase has completed you may also access a local version
+of our [wallet.alacris.io](https://wallet.alacris.io) demo at
+http://localhost:8800.
 
-### Performance Testing
+**You should always run `make docker-reset-state` when launching to wipe
+previous history from the testnet**.
 
-See how [Coq does it](https://github.com/coq/coq/blob/master/dev/doc/profiling.txt#L22).
-Basically, call `perf` with `perf report -g fractal,callee --no-children`;
-but it's worth reading the man page to see the options.
+*Note that it's also possible to substitute `make docker-start` for `make
+docker-up` if you'd rather run containers as background daemons, but don't
+forget to `make docker-stop` once finished.*
+
+
+## Run tests and update live containers with latest code
+
+Because we mount the `legicash-facts` repo from your host's file system into
+live containers when running `make docker-up`, it's possible to modify code
+*outside of Docker* and trigger recompilation without tearing down and
+restarting the containers themselves.
+
+While the two shells' `make` steps described above are still running:
+```
+# In a third shell:
+$ cd <legicash-facts/repo/directory>
+$ make docker-recompile
+```
+
+This will cause any updated code to be recompiled, our unit and integration
+tests to be run, and the environment to "cycle" then resume where it left off,
+*but with the updated binaries*.
+
+*Be aware that it's normal for our integration tests to take a few minutes
+before completing*.
+
 
 ## Understanding the Source Code
 
 ### Directory structure
 
 The large-scale structure of the code is suggested by the `Makefile` in the top directory
-and the `dune` files in each directory.
+and the `dune` files in each sub-directory.
 
+* [`contracts/`](contracts/) Source code in Solidity (for now) for the demo contract
 * [`src/`](src/) Source code in OCaml for the demo side-chain.
   In each directory there is a `dune` file that explains which files are where;
   by convention, the files in the dune file ought to be listed in topological dependency order
@@ -244,10 +232,11 @@ and the `dune` files in each directory.
     * [`legilogic_lib`](src/legilogic_lib/): library of mostly general purpose code, including persistence
     * [`legilogic_ethereum`](src/legilogic_ethereum/): library to interface with the ethereum blockchain
     * [`alacris_lib`](src/alacris_lib/): the alacris side-chain and its support
-      (TODO: move all but common code from there to `alacris_client` below and a new `alacris_server` TBD)
     * [`alacris_client`](src/alacris_client/): client for the alacris side-chain
-        * [`nginx`](src/alacris_client/nginx/): nginx configuration for a front-end to the side-chain client.
-* [`contracts`](contracts/) Source code in Solidity (for now) for the demo contract:
+    * [`ppx_deriving_rlp`](src/ppx_deriving_rlp/):
+      automatically derive serializers/deserializers for
+      [RLP](https://github.com/ethereum/wiki/wiki/RLP)
+      enabled types via OCaml PPX
 
 ### Where the meat is
 
