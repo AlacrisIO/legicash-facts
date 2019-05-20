@@ -24,7 +24,8 @@ license as used by the OCaml runtime.)
 
 If you have any technical questions or comments, or would like to discuss
 proposed changes to the source code before submitting a pull request, please
-don't hesitate to open a GitHub issue and mention @mattaudesse.
+don't hesitate to open a GitHub issue and mention
+[@mattaudesse](https://github.com/mattaudesse).
 
 General inquiries are better served via our [website's](https://alacris.io)
 "Email Us" form.
