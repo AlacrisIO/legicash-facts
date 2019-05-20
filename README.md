@@ -250,7 +250,7 @@ and `effect_validated_user_transaction_request` in module `Alacris_lib.Side_chai
 that is defined in files
 [`src/alacris_lib/side_chain_operator.mli`](src/alacris_lib/side_chain_operator.mli) and
 [`src/alacris_lib/side_chain_operator.ml`](src/alacris_lib/side_chain_operator.ml)
-(note the correspondance between OCaml modules and pairs of interface and implementation files).
+(note the correspondence between OCaml modules and pairs of interface and implementation files).
 In a sense, everything else is plumbing around this core functionality.
 
 But already, you see that these core functions are not exported in the `.mli` file, and
