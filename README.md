@@ -255,7 +255,7 @@ In a sense, everything else is plumbing around this core functionality.
 
 But already, you see that these core functions are not exported in the `.mli` file, and
 instead protected by the `post_user_transaction_request` abstraction,
-that filters transaction with the former function, then posts the valid ones to a mailbox,
+that filters transactions with the former function, then posts the valid ones to a mailbox,
 where a single threaded actor runs the `inner_transaction_request_loop` that
 processes them serially.
 To fully understand the control flow for this abstraction, you need to understand:
