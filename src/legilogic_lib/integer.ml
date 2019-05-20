@@ -555,8 +555,8 @@ module UInt64 = struct
   include UIntZable (P)
 end
 
-let sum_int_list =
-  flip List.fold_left 0 @@ fun acc i -> acc + i
+
+let sum_int_list = List.fold_left (+) 0
 
 
 module Test = struct
