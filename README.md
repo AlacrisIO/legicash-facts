@@ -300,7 +300,7 @@ corresponding actions on the main chain.
 This client communicates with the main chain ethereum node (`geth`) with JSON RPC,
 but with the operator using a simple ad hoc TCP/IP protocol
 that simply uses our marshaling to send requests and responses back.
-The front-end interface (in TypeScript, running in the brower)
+The front-end interface (in TypeScript, running in the browser)
 talks with the client using an _ad hoc_ JSON protocol (TODO: make it JSON RPC).
 The client is split between `src/alacris_lib/` and `src/alacris_client/`,
 but hopefully most code should move to `src/alacris_client/` while most
