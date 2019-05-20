@@ -5,6 +5,7 @@ open Types
 open Signing
 open Legilogic_ethereum
 open Ethereum_chain
+open Side_chain
 
 val topic_of_address:  Address.t     -> Bytes.t option
 val topic_of_revision: Revision.t    -> Bytes.t option
@@ -28,7 +29,7 @@ val make_claim_withdrawal_call
   -> operator:Address.t
   -> operator_revision:Revision.t
   -> value:TokenAmount.t
-  -> confirmed_state:Digest.t
+  -> confirmed_pair:PairRevisionDigest.t
   -> Ethereum_chain.Operation.t
 
 val make_withdraw_call

@@ -200,15 +200,21 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
 
 
 
-let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> operator_revision:Revision.t -> unit Lwt_exn.t =
-  fun ~contract_address ~transaction_hash ~operator ~operator_revision ->
+let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> operator_revision:Revision.t -> confirmed_pair:PairRevisionDigest.t -> unit Lwt_exn.t =
+  fun ~contract_address ~transaction_hash ~operator ~operator_revision ~confirmed_pair ->
   Logging.log "Beginning of wait_for_claim_withdrawal_event";
   Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address);
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
-  let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 256; Uint 256; Uint 64] in
+  let (confirmed_revision, confirmed_state) = confirmed_pair in
+  let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 64; Uint 256; Uint 256; Uint 64] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      Some (abi_value_from_revision operator_revision);
-                                                     None; None; None; None; None] in
+                                                     None;
+                                                     Some (abi_value_from_digest confirmed_state);
+                                                     Some (abi_value_from_revision confirmed_revision);
+                                                     None;
+                                                     None;
+                                                     None] in
   let (transaction_hash_val : Digest.t option) = Some transaction_hash in
   let open Lwt_exn in
   Logging.log "Before wait_for_contract_event CONTEXT claim_withdrawal";
@@ -221,10 +227,10 @@ let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_
     Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth abi_list_val 6));
     Lwt_exn.return ())
 
-let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
-  fun ~contract_address ~sender ~operator ~operator_revision ~value ~bond digest ->
+let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> TransactionReceipt.t Lwt_exn.t =
+  fun ~contract_address ~sender ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
-  let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call ~contract_address ~operator ~operator_revision ~value ~confirmed_state:digest in
+  let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call ~contract_address ~operator ~operator_revision ~value ~confirmed_pair in
   post_operation_general operation sender bond
 
 
@@ -258,7 +264,7 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
 
 
 let post_claim_withdrawal_operation : PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
-  fun _pair_rev_digest tc ~sender ~operator ->
+  fun pair_rev_digest tc ~sender ~operator ->
   let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
     | Deposit _ -> bork "This part should not occur"
@@ -274,7 +280,7 @@ let post_claim_withdrawal_operation : PairRevisionDigest.t -> TransactionCommitm
          ~operator_revision:tc.tx_proof.key
          ~value:withdrawal_amount
          ~bond:Side_chain_server_config.bond_value_v
-         tc.state_digest
+         ~confirmed_pair:pair_rev_digest
        >>= fun tr ->
        Logging.log "post_claim_withdrawal_operation status=%s" (print_status_receipt tr);
        wait_for_claim_withdrawal_event
@@ -282,6 +288,7 @@ let post_claim_withdrawal_operation : PairRevisionDigest.t -> TransactionCommitm
          ~transaction_hash:tr.transaction_hash
          ~operator
          ~operator_revision:tc.tx_proof.key
+         ~confirmed_pair:pair_rev_digest
        >>= fun () ->
        Logging.log "After the wait_for_claim_withdrawal_event";
        return ()

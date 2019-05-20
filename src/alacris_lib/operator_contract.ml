@@ -7,6 +7,7 @@ open Signing
 open Legilogic_ethereum
 open Ethereum_chain
 open Ethereum_abi
+open Side_chain
 open Side_chain_server_config
 open Digesting
 
@@ -47,12 +48,14 @@ let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address
 
 
 
-let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> confirmed_state:Digest.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator ~operator_revision ~value ~confirmed_state ->
+let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator ~operator_revision ~value ~confirmed_pair ->
+  let (confirmed_revision, confirmed_state) = confirmed_pair in
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
-                   ; abi_digest confirmed_state ] in
+                   ; abi_digest confirmed_state
+                   ; abi_revision confirmed_revision ] in
   let call = encode_function_call { function_name = "claim_withdrawal"; parameters } in
   Operation.CallFunction (contract_address, call)
 

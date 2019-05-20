@@ -80,15 +80,15 @@ contract Operators is Claims, ClaimTypes, Bonds {
     // TODO the balance needs to be removed eventually from the code because it is here for debugging
     uint256 maximum_withdrawal_challenge_gas = 100*1000;
 
-    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint256 _bond, uint256 _balance, uint64 _res);
+    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint64 _confirmed_revision, uint256 _bond, uint256 _balance, uint64 _res);
 
-    function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state)
+    function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint64 _confirmed_revision)
             external payable {
         bool test=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
         if (test) {
           uint64 res = make_claim(withdrawal_claim(
               _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
-          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance, res);
+          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, _confirmed_revision, msg.value, address(this).balance, res);
         }
     }
 

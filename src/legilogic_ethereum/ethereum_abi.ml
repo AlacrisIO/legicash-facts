@@ -247,49 +247,40 @@ let abi_value_to_uint = abi_value_to_uintN 256
 
 let print_abi_value_uint8 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint8 x in
-  Nat.to_string x_uint
+  Nat.to_string (abi_value_to_uint8 x)
 
 let print_abi_value_uint16 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint16 x in
-  Nat.to_string x_uint
+  Nat.to_string (abi_value_to_uint16 x)
 
 let print_abi_value_uint24 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint24 x in
-  Nat.to_string x_uint
+  Nat.to_string (abi_value_to_uint24 x)
 
 let print_abi_value_uint32 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint32 x in
-  Nat.to_string x_uint
+  Nat.to_string (abi_value_to_uint32 x)
 
 let print_abi_value_uint40 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint40 x in
-  Nat.to_string x_uint
+  Nat.to_string (abi_value_to_uint40 x)
 
 let print_abi_value_uint48 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint48 x in
-  Nat.to_string x_uint
+  Nat.to_string (abi_value_to_uint48 x)
 
 let print_abi_value_uint56 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint56 x in
-  Nat.to_string x_uint
+  Nat.to_string (abi_value_to_uint56 x)
 
 let print_abi_value_uint64 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint64 x in
-  Nat.to_string x_uint
+  Nat.to_string (abi_value_to_uint64 x)
 
 
 let print_abi_value_uint256 : abi_value -> string =
   fun x ->
-  let x_uint = abi_value_to_uint x in
-  Nat.to_string x_uint
+  Nat.to_string (abi_value_to_uint x)
 
 let print_abi_value_bytes32 : abi_value -> string =
   fun x ->
@@ -301,9 +292,7 @@ let print_abi_value_bytes32 : abi_value -> string =
 
 let retrieve_revision_from_abi_value : abi_value -> Revision.t =
   fun x ->
-  let x_uint = abi_value_to_uint64 x in
-  let x_rev = Revision.of_z x_uint in
-  x_rev
+  Revision.of_z (abi_value_to_uint64 x)
 
 let retrieve_digest_from_abi_value : abi_value -> Digest.t =
   fun x ->
@@ -382,12 +371,19 @@ let abi_uint64 = abi_uintN 64
 
 
 
-let abi_value_from_uint64 (evalue : UInt64.t) : abi_value =
+let abi_value_from_uint64 : UInt64.t -> abi_value =
+  fun evalue ->
   Uint_value (big_endian_bytes_of_uint 64 (UInt64.z_of evalue))
 
-let abi_value_from_revision (evalue : Revision.t) : abi_value =
+let abi_value_from_revision : Revision.t -> abi_value =
+  fun evalue ->
   Uint_value (big_endian_bytes_of_uint 64 (Revision.z_of evalue))
 
+let abi_value_from_digest : Digest.t -> abi_value =
+  fun evalue ->
+  let x_str = Digest.to_big_endian_bits evalue in
+  let x_bytes = Bytes.of_string x_str in
+  Bytes_value x_bytes
 
 (* uint is synonym for uint256
    don't use make... because bounds checks will fail,
