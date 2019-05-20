@@ -1,7 +1,8 @@
 
 let treat_individual_claim : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
   fun (x_log, x_abi_list) ->
-  
+  let 
+
 
 let treat_sequence_claims : (LogObject.t * abi_value list) list -> unit Lwt_exn.t =
   fun x_list ->
@@ -27,8 +28,8 @@ let search_fraud : Address.t -> Revision.t -> Revision.t Lwt_exn.t =
     ~contract_address
     ~transaction_hash:None
     ~topics:[topic_of_claim_withdrawal]
-    [Address; Uint 64; Uint 256; Bytes 32; Uint 256; Uint 256; Uint 64]
-    [Some (Address_value operator); None; None; None; None; None; None]
+    [Address; Uint 64; Uint 256; Bytes 32; Uint 64; Uint 256; Uint 256; Uint 64]
+    [Some (Address_value operator); None; None; None; None; None; None; None]
   >>= fun (rev_out, llogs) ->
   treat_sequence_claims llogs
   >>= return rev_out

@@ -61,13 +61,15 @@ let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.
 
 
 (* Here abi_revision = abi_uint64 because Revision = UInt64 *)
-let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_state:Digest.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address  ~operator  operator_revision  ~value  ~bond  ~confirmed_state ->
+let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator operator_revision ~value ~bond ~confirmed_pair ->
+  let (confirmed_revision, confirmed_state) = confirmed_pair in
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
                    ; abi_token_amount bond
-                   ; abi_digest confirmed_state ] in
+                   ; abi_digest confirmed_state
+                   ; abi_revision confirmed_revision ] in
   let call = encode_function_call { function_name = "withdraw"; parameters } in
   Operation.CallFunction (contract_address, call)
 

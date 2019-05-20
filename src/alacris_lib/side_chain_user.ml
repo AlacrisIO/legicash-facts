@@ -234,11 +234,11 @@ let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Addre
   post_operation_general operation sender bond
 
 
-let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
-  fun ~contract_address  ~sender  ~operator operator_revision  ~value  ~bond digest ->
+let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> TransactionReceipt.t Lwt_exn.t =
+  fun ~contract_address ~sender ~operator operator_revision ~value ~bond ~confirmed_pair ->
   Logging.log "emit_withdraw_operation : beginning of operation";
   Logging.log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
-  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call ~contract_address ~operator operator_revision ~value ~bond ~confirmed_state:digest in
+  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call ~contract_address ~operator operator_revision ~value ~bond ~confirmed_pair in
   let (value_send : TokenAmount.t) = TokenAmount.zero in
   post_operation_general operation sender value_send
 
@@ -294,8 +294,8 @@ let post_claim_withdrawal_operation : PairRevisionDigest.t -> TransactionCommitm
        return ()
 
 
-let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
-  fun tc  withdrawal_amount  ~sender  ~operator ->
+let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> confirmed_pair:PairRevisionDigest.t -> unit Lwt_exn.t =
+  fun tc withdrawal_amount ~sender ~operator ~confirmed_pair ->
   Logging.log "Beginning of execute_withdraw_operation";
   (* TODO: the challenge duration should be in BLOCKS, not in seconds *)
   (* TODO actually accept challenges and handle accordingly *)
@@ -310,7 +310,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -
                   tc.tx_proof.key
                   ~value:withdrawal_amount
                   ~bond:Side_chain_server_config.bond_value_v
-                  tc.state_digest
+                  ~confirmed_pair
   >>= fun tr ->
      Logging.log "execute_withdraw_operation_spec status=%s" (print_status_receipt tr);
      let (data_value_search: abi_value option list) =
@@ -327,12 +327,12 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -
      >>= const ()
 
 
-let execute_withdraw_operation : TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
-  fun tc  ~sender  ~operator ->
+let execute_withdraw_operation : TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> confirmed_pair:PairRevisionDigest.t -> unit Lwt_exn.t =
+  fun tc ~sender ~operator ~confirmed_pair ->
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
   | Deposit _ | Payment _ -> Lwt_exn.return ()
   | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-     execute_withdraw_operation_spec   tc   withdrawal_amount   ~sender   ~operator
+     execute_withdraw_operation_spec tc withdrawal_amount ~sender ~operator ~confirmed_pair
 
 
 
@@ -422,7 +422,7 @@ module OngoingTransactionStatus = struct
     (* for withdrawal only *)
     (* TODO: Create the Confirmation type and clear things up *)
     | PostedToMainChain    of TransactionCommitment.t * PairRevisionDigest.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
+    | ConfirmedOnMainChain of TransactionCommitment.t * PairRevisionDigest.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
   [@@deriving yojson]
 
   include (YojsonPersistable (struct
@@ -441,7 +441,7 @@ module OngoingTransactionStatus = struct
     | SignedByOperator     tc
     | PostedToRegistry     tc
     | PostedToMainChain    (tc, _, _)
-    | ConfirmedOnMainChain (tc, _)
+    | ConfirmedOnMainChain (tc, _, _)
       -> tc.transaction.tx_request |> TransactionRequest.signed_request |> Option.return
 
   let signed_request = signed_request_opt >> Option.get
@@ -694,13 +694,14 @@ module TransactionTracker = struct
 
              Lwt.bind (post_claim_withdrawal_operation pair_rev_digest tc ~sender:user ~operator) (fun _ ->
                  Logging.log "After post_claim_withdrawal_operation";
-                 ConfirmedOnMainChain (tc, confirmation) |> continue)
+                 ConfirmedOnMainChain (tc, pair_rev_digest, confirmation) |> continue)
 
-           | ConfirmedOnMainChain (tc, confirmation) ->
+           | ConfirmedOnMainChain (tc, pair_rev_digest, confirmation) ->
              Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
-             Lwt.bind (execute_withdraw_operation tc ~sender:user ~operator) (fun _ ->
+             Lwt.bind (execute_withdraw_operation tc ~sender:user ~operator ~confirmed_pair:pair_rev_digest)
+               (fun _ ->
                  Logging.log "After execute_withdraw_operation";
                  FinalTransactionStatus.SettledOnMainChain (tc, confirmation) |>
                    finalize))

@@ -61,18 +61,21 @@ contract Operators is Claims, ClaimTypes, Bonds {
         uint64 _ticket, // claimed ticket number (revision in the side chain)
         uint256 _value, // claimed value in the ticket
         uint256 _bond, // bond deposited with the claim
-        bytes32 _confirmed_state) // digest of a confirmed state of the side-chain
+        bytes32 _confirmed_state, // digest of a confirmed state of the side-chain
+        uint64 _confirmed_revision)
             private pure returns(bytes32) {
-        return keccak256(abi.encodePacked(_account, _ticket, _value, _bond, _confirmed_state));
+        return keccak256(abi.encodePacked(_account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision));
     }
 
     function withdrawal_claim(
         address _operator, address _account,
-        uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state)
+        uint64 _ticket, uint256 _value, uint256 _bond,
+        bytes32 _confirmed_state,
+        uint64 _confirmed_revision)
             private pure returns(bytes32) {
         return digest_claim(
                 _operator, ClaimType.WITHDRAWAL_CLAIM,
-                withdrawal_claim_data(_account, _ticket, _value, _bond, _confirmed_state));
+                withdrawal_claim_data(_account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision));
     }
 
     // TODO: The cost of a legal argument in gas should be statically deduced
@@ -87,7 +90,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
         bool test=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
         if (test) {
           uint64 res = make_claim(withdrawal_claim(
-              _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
+              _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state, _confirmed_revision));
           emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, _confirmed_revision, msg.value, address(this).balance, res);
         }
     }
@@ -104,10 +107,10 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
 
 
-    function withdraw(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state)
+    function withdraw(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state, uint64 _confirmed_revision)
             external {
         bytes32 claim = withdrawal_claim(
-            _operator, msg.sender, _ticket, _value, _bond, _confirmed_state);
+            _operator, msg.sender, _ticket, _value, _bond, _confirmed_state, _confirmed_revision);
         if (is_claim_status_accepted(claim)) {
           // Consume a valid withdrawal claim.
           set_claim_consumed(claim);
@@ -124,6 +127,25 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
 
     // TODO: challenges and counter-challenges for withdrawal (and then for all other claims)
+
+    function challenge_withdrawal__too_large_revision (
+        address _operator, address _account,
+        uint64 _ticket, uint256 _value, uint256 _bond,
+        bytes32 _confirmed_state, uint64 _confirmed_revision)
+        external
+    {
+      bytes32 claim = withdrawal_claim(_operator, _account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision);
+      if (is_claim_rejectable(claim)) {
+        if (_ticket > _confirmed_revision) {
+          reject_claim(claim);
+          // LAST, send the bond as reward to the sender.
+          // TODO: should we send only half the bond, and burn the rest and/or donate it to a foundation?
+          msg.sender.transfer(_bond);
+        }
+      }
+    }
+
+
 
     /**
      * Challenge a withdrawal claim because its confirmed_state isn't accepted as valid.

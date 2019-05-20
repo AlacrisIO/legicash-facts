@@ -38,7 +38,7 @@ val make_withdraw_call
   -> Revision.t
   -> value:TokenAmount.t
   -> bond:TokenAmount.t
-  -> confirmed_state:Digest.t
+  -> confirmed_pair:PairRevisionDigest.t
   -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "withdraw" function of the operator contract
     arguments: operator address, bond amount, confirmed state

@@ -110,11 +110,14 @@ contract Claims {
     }
 
     /** Reject a pending claim as invalid. */
-    /* TODO: Actually implement the functionality for the rejection of claims.
     function reject_claim(bytes32 _claim) internal {
-        require_claim_pending(_claim);
+        /* require_claim_pending(_claim); */
         claim_status[_claim] = REJECTED;
-    }*/
+    }
+
+    function is_claim_rejectable(bytes32 _claim) internal view returns(bool) {
+      return claim_status[_claim] != REJECTED && claim_status[_claim] != ACCEPTABLE;
+    }
 
     function set_claim_consumed(bytes32 _claim) internal {
         claim_status[_claim] = CONSUMED;
@@ -127,7 +130,6 @@ contract Claims {
         require_claim_accepted(_claim);
         set_claim_consumed(_claim);
     }*/
-
 
 
 
