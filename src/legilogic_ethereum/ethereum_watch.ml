@@ -114,7 +114,15 @@ let print_list_entries : EthListLogObjects.t -> string =
 
 (* We will iterate over the logs. Search for the ones matching the topics, event values and maybe
    transaction hash. We iterate until we find at least one entry that matches *)
-let retrieve_relevant_list_logs_data : delay:float -> start_revision:Revision.t -> max_number_iteration:Revision.t option -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (Revision.t * (LogObject.t * (abi_value list)) list) Lwt_exn.t =
+let retrieve_relevant_list_logs_data :
+      delay:float -> start_revision:Revision.t
+      -> max_number_iteration:Revision.t option
+      -> contract_address:Address.t
+      -> transaction_hash:Digest.t option
+      -> topics:Bytes.t option list
+      -> abi_type list
+      -> abi_value option list
+      -> (Revision.t * (LogObject.t * (abi_value list)) list) Lwt_exn.t =
   fun ~delay ~start_revision ~max_number_iteration ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
   let open Lwt_exn in
   Logging.log "|list_data_type|=%d" (List.length list_data_type);
