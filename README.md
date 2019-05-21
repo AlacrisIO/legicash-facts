@@ -171,16 +171,33 @@ Launching the entire environment typically involves multiple shell sessions:
 # In one shell:
 $ cd <mkb/repo/directory>
 $ make docker-pull docker-up
+
+# You'll know the MKB nodes are ready and awaiting requests when you see a
+# message such as:
+#
+#   INFO success: registrar-alice entered RUNNING state,
+#   process has stayed up for > than 5 seconds (startsecs)
+#
+# for both Alice and Bob registrars.
 ```
 
 ```
 # In another shell (requires host system `sudo` access - see below):
+
+# Wait until the MKB is ready above, then
 $ cd <legicash-facts/repo/directory>
 $ make docker-reset-state docker-build docker-up
+
+# You'll know the `legicash-facts` demo environment is ready and awaiting
+# requests when pre-funding of accounts has completed and you see a message
+# such as:
+#
+#   INFO success: side-chain-server entered RUNNING state,
+#   process has stayed up for > than 5 seconds (startsecs)
 ```
 
 This will trigger several initialization steps, such as establishing a private
-Ethereum testnet, creating wallets and prefunding them, spawning a side-chain
+Ethereum testnet, creating wallets and pre-funding them, spawning a side-chain
 server and client, launching mutual knowledgebase nodes to which they'll
 connect, and so on.
 
@@ -197,6 +214,7 @@ permissions via `sudo` due to the potential mismatch between our containers'
 *Note that it's also possible to substitute `make docker-start` for `make
 docker-up` if you'd rather run containers as background daemons, but don't
 forget to `make docker-stop` once finished.*
+
 
 
 ## Run tests and update live containers with latest code
