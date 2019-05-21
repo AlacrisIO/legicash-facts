@@ -31,7 +31,7 @@ Code (IaC) approach.
     `17.12.0-ce`
   - Install [docker-compose](https://docs.docker.com/compose/install/) minimum
     required version `1.16.1`
- 
+
 #### Pull build and runtime prerequisites images:
 
 ```bash
@@ -189,7 +189,7 @@ used for running the app.
 #### alacris_private_ethereum_node
 To build alacris private ethereum node run the command:
 ```bash
-$ make docker-build c=alacris_private_ethereum_node
+$ make docker-build-geth
 ```
 
 #### alacris_side_chain_manager
@@ -217,7 +217,7 @@ Alacris frontend image accepts 2 parameters. ENVIRONMENT to build for and
 FRONTEND_BRANCH. If none is set on CLI defaults are used. To build alacris
 frontend run the command:
 ```bash
-$ make docker-build c=alacris_frontend ENVIRONMENT=dev FRONTEND_BRANCH=my-feature-branch
+$ make docker-build-frontend ENVIRONMENT=dev FRONTEND_BRANCH=my-feature-branch
 ```
 To start alacris client run the command:
 ```bash

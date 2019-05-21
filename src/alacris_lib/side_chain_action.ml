@@ -106,7 +106,7 @@ module Test = struct
         fund_accounts () >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
         Mkb_json_rpc.init_mkb_server ()
-        >>= fun () -> 
+        >>= fun () ->
         let operator = trent_address in
         start_operator operator
         >>= fun () -> start_state_update_periodic_operator ()
