@@ -15,6 +15,6 @@ module Test = struct
   let _ =
     assert (is_ip_address "127.0.0.1");
     assert (not @@ is_ip_address "harry! 127.0.0.1");
-    assert (inet_addr_from_ip_or_host "127.0.0.1" =
-              inet_addr_from_ip_or_host "localhost")
+    assert (inet_addr_from_ip_or_host "127.0.0.1"
+          = inet_addr_from_ip_or_host "localhost")
 end
