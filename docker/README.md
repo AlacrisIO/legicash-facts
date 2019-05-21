@@ -246,4 +246,3 @@ $ docker exec -ti -u 0 containername bash
 Application logs that are not in `stdout` of running containers are for now
 mounted in `/tmp/legilogs` on local machines until we agree on a final
 destination.
-
