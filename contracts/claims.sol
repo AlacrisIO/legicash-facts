@@ -17,9 +17,9 @@ contract Claims {
      *
      * To each ongoing claim is associated a value, which is interpreted as follows:
      *   strictly positive value =>
-     *     The value is a validity date, in seconds since epoch.
-     *     If value <int(now) then the claim may still be challenged.
-     *     If value >= int(now) then the claim is considered confirmed.
+     *     The value is a validity date, in blocks since the start.
+     *     If value < get_block_number() then the claim may still be challenged.
+     *     If value >= get_block_number() then the claim is considered confirmed.
      *   0 =>
      *     The claim wasn't made yet, OR
      *     the claim was previously made, processed, and garbage collected.
@@ -53,11 +53,9 @@ contract Claims {
      *
      * One challenge period is 2h, about 423 blocks at the expected rate of 1 block per 17 s.
      */
-    int constant internal challenge_period_in_seconds = 5;
     int constant internal challenge_period_in_blocks = 2;
-    /* TODO: Replace the challenge period, by the depth of confirmed block.
-       At least as an option. This would of course change the solidity code */
-
+    
+    /* This code computes the block number for the challenge period */
     function get_block_number() internal view returns(int) {
       int nbr;
       assembly {
