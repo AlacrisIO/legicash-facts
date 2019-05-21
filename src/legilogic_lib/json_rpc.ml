@@ -111,10 +111,10 @@ let make_request method_name encoded params =
       in return {json_rpc_version; method_name; params; id}
 
 let decode_response decoded request_id response =
-    let rec mal exn =
+    let mal exn =
       fail (Malformed_response (response, exn))
 
-    and checking jsonrpc x id =
+    in let checking jsonrpc x id =
       if not (jsonrpc = json_rpc_version) then
         mal (Internal_error "bad json_rpc_version")
       else if not (id = request_id) then
