@@ -44,6 +44,21 @@ val make_withdraw_call
     arguments: operator address, bond amount, confirmed state
 *)
 
+val make_challenge_withdrawal_too_large_revision
+   : contract_address:Address.t
+  -> operator:Address.t
+  -> Revision.t
+  -> value:TokenAmount.t
+  -> bond:TokenAmount.t
+  -> confirmed_pair:PairRevisionDigest.t
+  -> Ethereum_chain.Operation.t
+(** build the encoding of a call to the "challenge_withdrawal_too_large_revision"
+    function of the operator contract arguments:
+    this is a way to provide some challenge 
+*)
+
+
+
 val make_state_update_call : Digest.t -> Revision.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)
 (* TODO: signature from the smart court registry () *)

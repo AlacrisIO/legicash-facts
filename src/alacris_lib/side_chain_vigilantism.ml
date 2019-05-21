@@ -1,7 +1,42 @@
+open Lens.Infix
+
+open Legilogic_lib
+open Action
+open Types
+
+
+open Legilogic_ethereum
+open Ethereum_json_rpc
+open Ethereum_abi
+open Operator_contract
+open Digesting
+open Side_chain
+
+
+
+let treat_individual_claim_bad_ticket : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
+  fun (x_log, x_abi_list) ->
+  let open Lwt_exn in
+  let operation_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 1) in
+  let confirmed_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 4) in
+  if (Revision.compare operation_revision confirmed_revision) > 0 then
+    (let operator = retrieve_address_from_abi_value (List.nth x_abi_list 0) in
+     let value = retrieve_uint256_from_abi_value (List.nth x_abi_list 2) in
+     let confirmed_state = retrieve_digest_from_abi_value (List.nth x_abi_list 3) in
+     let bond = retrieve_uint256_from_abi_value (List.nth x_abi_list 5) in
+     let confirmed_pair : PairRevisionDigest.t = (confirmed_revision, confirmed_state) in
+     let contract_address = get_contract_address () in
+     let oper = make_challenge_withdrawal_too_large_revision contract_address operator operation_revision value bond ~confirmed_pair in
+     let (value_send : TokenAmount.t) = TokenAmount.zero in
+     post_operation_general operation sender value_send
+     >>= fun _ -> return ()
+    )
+  else
+    return ()
 
 let treat_individual_claim : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
-  fun (x_log, x_abi_list) ->
-  let 
+  fun x ->
+  treat_individual_claim_bad_ticket x
 
 
 let treat_sequence_claims : (LogObject.t * abi_value list) list -> unit Lwt_exn.t =
