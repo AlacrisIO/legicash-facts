@@ -174,7 +174,7 @@ $ make docker-pull docker-up
 ```
 
 ```
-# In another shell:
+# In another shell (requires host system `sudo` access - see below):
 $ cd <legicash-facts/repo/directory>
 $ make docker-reset-state docker-build docker-up
 ```
@@ -188,8 +188,11 @@ Once the initialization phase has completed you may also access a local version
 of our [wallet.alacris.io](https://wallet.alacris.io) demo at
 http://localhost:8800.
 
-**You should always run `make docker-reset-state` when launching to wipe
-previous history from the testnet**.
+Because we persist logs, `geth` and `LevelDB` data _outside_ of the containers
+in `/tmp/legilogs`, **you should always run `make docker-reset-state` when
+launching to wipe previous history from the testnet**. This step requires admin
+permissions via `sudo` due to the potential mismatch between our containers'
+`appuser` UID (1100) and your local account's.
 
 *Note that it's also possible to substitute `make docker-start` for `make
 docker-up` if you'd rather run containers as background daemons, but don't
