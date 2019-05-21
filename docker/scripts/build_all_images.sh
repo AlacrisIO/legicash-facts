@@ -31,6 +31,19 @@ run docker build \
   -t gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1 \
   -f docker/containers/alacris_side_chain_manager_container/Dockerfile .
 
+echo "Building Ethereum test network image"
+run docker build \
+  --no-cache \
+  -t gcr.io/legicash-demo-1950/legicash-demo/alacris_private_ethereum_node:v1 \
+  -f docker/containers/alacris_private_ethereum_node/Dockerfile .
+
+echo "Building frontend ${FRONTEND_BRANCH:-master} branch for ${ENVIRONMENT:-dev} env"
+run docker build \
+  --no-cache \
+  -t gcr.io/legicash-demo-1950/legicash-demo/alacris_frontend:v1 \
+  --build-arg FRONTEND_BRANCH="${FRONTEND_BRANCH:-master}" --build-arg ENVIRONMENT="${ENVIRONMENT:-dev}" \
+  -f docker/containers/alacris_frontend/Dockerfile .
+
 echo "Cleanup of state and log directories"
 [ -d /tmp/legilogs ] && run rm -rf /tmp/legilogs || true
 
