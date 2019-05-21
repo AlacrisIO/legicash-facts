@@ -2,8 +2,7 @@ version: "3"
 services:
   # Alacris services
   alacris_private_ethereum_node: # Ethereum test network and block explorer
-    build: containers/alacris_private_ethereum_node
-    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_private_ethereum_node:${TAG:-v1.1}
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_private_ethereum_node:v1
     hostname: "alacris-private-ethereum-node"
     container_name: "alacris-private-ethereum-node"
     volumes:
@@ -42,9 +41,6 @@ services:
     build:
       context: ..
       dockerfile: docker/containers/alacris_client/Dockerfile
-      args:
-        ENVIRONMENT: ${ENVIRONMENT:-dev}
-        FRONTEND_BRANCH: ${FRONTEND_BRANCH:-master}
     image: gcr.io/legicash-demo-1950/legicash-demo/alacris_client:${TAG:-v1.1}
     hostname: "alacris-client"
     container_name: "alacris-client"
@@ -61,13 +57,7 @@ services:
     - "alacris_side_chain_manager"
 
   alacris_frontend: # Legicash react frontend app
-    build:
-      context: ..
-      dockerfile: docker/containers/alacris_frontend/Dockerfile
-      args:
-        ENVIRONMENT: ${ENVIRONMENT:-dev}
-        FRONTEND_BRANCH: ${FRONTEND_BRANCH:-master}
-    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_frontend:${TAG:-v1.1}
+    image: gcr.io/legicash-demo-1950/legicash-demo/alacris_frontend:v1
     hostname: "alacris-frontend"
     container_name: "alacris-frontend"
     networks:

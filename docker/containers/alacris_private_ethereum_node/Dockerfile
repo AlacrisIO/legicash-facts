@@ -17,10 +17,10 @@ RUN mkdir -p /var/www/app/alacris-private-ethereum-node/_run/logs/ && \
     touch /tmp/supervisord.log
 
 # Install run scripts
-ADD files/scripts/run-ethereum.sh /usr/local/bin/run-ethereum
+ADD docker/containers/alacris_private_ethereum_node/files/scripts/run-ethereum.sh /usr/local/bin/run-ethereum
 
 # Install supervisor config
-ADD files/conf/supervisord.conf /etc/supervisord.conf
+ADD docker/containers/alacris_private_ethereum_node/files/conf/supervisord.conf /etc/supervisord.conf
 
 # Set permissions for appuser
 RUN chown -R appuser:appuser /var/www/app/alacris-private-ethereum-node/_run/logs/  \
