@@ -295,7 +295,7 @@ docker-build-frontend: ## Build frontend app image
 	$(HIDE) docker build \
 	  --no-cache \
 	  -t gcr.io/legicash-demo-1950/legicash-demo/alacris_frontend:v1 \
-	  --build-arg FRONTEND_BRANCH=${FRONTEND_BRANCH} --build-arg ENVIRONMENT=${ENVIRONMENT:-dev} \
+	  --build-arg FRONTEND_BRANCH=${FRONTEND_BRANCH} --build-arg ENVIRONMENT=${ENVIRONMENT} \
 	  -f docker/containers/alacris_frontend/Dockerfile .
 
 docker-list: ## List available services
