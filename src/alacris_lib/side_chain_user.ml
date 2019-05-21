@@ -287,7 +287,6 @@ let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t ->Add
 let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
   fun tc  withdrawal_amount  ~sender  ~operator ->
   Logging.log "Beginning of execute_withdraw_operation";
-  (* TODO: the challenge duration should be in BLOCKS, not in seconds *)
   (* TODO actually accept challenges and handle accordingly *)
   let open Lwt_exn in
   let rec one_try_emit_withdraw_event_catch : unit -> unit Lwt_exn.t =
@@ -324,8 +323,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -
       (Logging.log "EXITING the withdraw operation. Finally over";
        return ())
   in
-  sleep_delay_exn Side_chain_server_config.challenge_duration_in_seconds_f
-  >>= fun () -> one_try_emit_withdraw_event_catch ()
+  one_try_emit_withdraw_event_catch ()
 
 
 let execute_withdraw_operation : TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
