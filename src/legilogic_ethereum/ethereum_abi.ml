@@ -289,10 +289,19 @@ let print_abi_value_bytes32 : abi_value -> string =
   | _ -> bork "Entry should be a bytes32"
 
 
+let retrieve_address_from_abi_value : abi_value -> Address.t =
+  fun evalue ->
+  match evalue with
+  | Address_value x -> x
+  | _ -> bork "The input is not an address as required"
 
 let retrieve_revision_from_abi_value : abi_value -> Revision.t =
   fun x ->
   Revision.of_z (abi_value_to_uint64 x)
+
+let retrieve_tokenamount_from_abi_value : abi_value -> TokenAmount.t =
+  fun x ->
+  TokenAmount.of_z (abi_value_to_uint x)
 
 let retrieve_digest_from_abi_value : abi_value -> Digest.t =
   fun x ->
@@ -306,11 +315,6 @@ let retrieve_digest_from_abi_value : abi_value -> Digest.t =
 
 
 
-
-let abi_value_to_address evalue =
-  match evalue with
-  | Address_value x -> x
-  | _ -> bork "The input is not an address as required"
 
 let abi_value_to_bool evalue =
   match evalue with

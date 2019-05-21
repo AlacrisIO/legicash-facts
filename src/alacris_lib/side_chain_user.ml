@@ -28,22 +28,6 @@ open Side_chain
 let get_operator_fee_schedule _operator_address =
   Lwt_exn.return initial_fee_schedule
 
-(* Topics below correspond to events in the operator.sol code
-   Be careful of adjusting everything when you change the type like adding a balance.
- *)
-
-
-let (topic_of_deposited: Bytes.t option) =
-  topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
-
-let (topic_of_state_update: Bytes.t option) =
-  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint256,uint64,uint64)")
-
-let (topic_of_claim_withdrawal: Bytes.t option) =
-  topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32,uint256,uint256,uint64)")
-
-let (topic_of_withdraw: Bytes.t option) =
-  topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
 
 (** TODO: find and justify a good default validity window in number of blocks *)
 let default_validity_window = Duration.of_int 256
@@ -121,7 +105,7 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
   wait_for_contract_event
     ~contract_address
     ~transaction_hash:(Some transaction_hash)
-    ~topics:[topic_of_state_update]
+    ~topics:[Operator_contract.topic_of_state_update]
     [Address; Bytes 32; Uint 256; Uint 64]
     [Some (Address_value operator); None; None; None]
   >>= fun x ->
@@ -338,7 +322,7 @@ let execute_withdraw_operation : TransactionCommitment.t -> sender:Address.t -> 
 
 (* TODO: unstub the stubs *)
 let make_rx_header : Address.t -> Address.t -> Revision.t -> RxHeader.t Lwt.t =
-  fun user  operator  revision ->
+  fun user operator revision ->
   Lwt.return RxHeader.
     { operator
     ; requester                           = user

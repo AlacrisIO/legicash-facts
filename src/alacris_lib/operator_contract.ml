@@ -11,6 +11,9 @@ open Side_chain
 open Side_chain_server_config
 open Digesting
 
+
+
+
 let topic_of_address (addr : Address.t) : Bytes.t option =
   Some (encode_function_parameters [abi_address addr])
 
@@ -22,6 +25,22 @@ let topic_of_amount (amnt : TokenAmount.t) : Bytes.t option =
 
 let topic_of_hash (hash : Digest.t) : Bytes.t option =
   Some (encode_function_parameters [abi_digest hash])
+
+(* Topics below correspond to events in the operator.sol code
+   Be careful of adjusting everything when you change the type like adding a balance.
+ *)
+
+let (topic_of_deposited: Bytes.t option) =
+  topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
+
+let (topic_of_state_update: Bytes.t option) =
+  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint256,uint64,uint64)")
+
+let (topic_of_claim_withdrawal: Bytes.t option) =
+  topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,uint64,bytes32,uint256,uint256,uint64)")
+
+let (topic_of_withdraw: Bytes.t option) =
+  topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
 
 
 
