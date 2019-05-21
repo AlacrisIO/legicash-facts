@@ -31,7 +31,7 @@ Code (IaC) approach.
     `17.12.0-ce`
   - Install [docker-compose](https://docs.docker.com/compose/install/) minimum
     required version `1.16.1`
- 
+
 #### Pull build and runtime prerequisites images:
 
 ```bash
