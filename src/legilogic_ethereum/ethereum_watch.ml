@@ -122,8 +122,8 @@ let retrieve_relevant_list_logs_data : delay:float -> start_revision:Revision.t 
   let starting_watch_ref : (Revision.t ref) = ref start_revision in
   let number_iteration_ref : (Revision.t ref) = ref Revision.zero in
   let iter_state_ref : (int ref) = ref 0 in
-  let rec fct_downloading start_block iter_state =
-    Logging.log "fct_downloading number_iteration=%s" (Revision.to_string !number_iteration_ref);
+  let rec download_entries start_block iter_state =
+    Logging.log "download_entries number_iteration=%s" (Revision.to_string !number_iteration_ref);
     retrieve_last_entries (Revision.add start_block Revision.one)
       ~contract_address  ~topics
     >>= fun (start_block_in, entries) ->
@@ -162,18 +162,18 @@ let retrieve_relevant_list_logs_data : delay:float -> start_revision:Revision.t 
              in
              let (start_in, iter_in) = get_interval () in
              match max_number_iteration with
-             | None -> fct_downloading start_in iter_in
+             | None -> download_entries start_in iter_in
              | Some max_number_iteration_i ->
                 (number_iteration_ref := Revision.(add !number_iteration_ref one);
                  if (Revision.equal !number_iteration_ref max_number_iteration_i) then
                    (Logging.log "Exiting due to too large number of iterations";
                     return (start_block_in, []))
                  else
-                   fct_downloading start_in iter_in)
+                   download_entries start_in iter_in)
            else
              (Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
               return (start_block_in, relevant))
-  in fct_downloading !starting_watch_ref !iter_state_ref
+  in download_entries !starting_watch_ref !iter_state_ref
 
 
 
