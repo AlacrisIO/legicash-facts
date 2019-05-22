@@ -111,7 +111,7 @@ module Side_chain_server_config = struct
 
   let (delay_wait_ethereum_watch_in_seconds : float) = config.sidechain_config.delay_wait_ethereum_watch_in_seconds
 
-  let (challenge_period_in_blocks : int) = config.sidechain_config.challenge_period_in_blocks
+  let (challenge_period_in_blocks : Revision.t) = Revision.of_int config.sidechain_config.challenge_period_in_blocks
 
   let (state_update_period_in_seconds_f : float) = Float.of_int config.sidechain_config.state_update_period_in_seconds
 
