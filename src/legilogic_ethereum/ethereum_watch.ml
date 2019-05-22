@@ -47,8 +47,25 @@ let main_chain_block_notification_stream
 
 
 
+
 (* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
 let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
+
+
+
+let wait_for_min_block_depth : Revision.t -> unit Lwt_exn.t =
+  fun min_block_depth ->
+  let open Lwt_exn in
+  let rec check_current_depth : unit -> unit Lwt_exn.t =
+    fun () ->
+    eth_block_number ()
+    >>= fun x ->
+    if x > min_block_depth then
+      return ()
+    else
+      (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+       >>= fun () -> check_current_depth ())
+  in check_current_depth ()
 
 (* Look for some event logs from a starting point from a specific contract address.
    In return the list of logs matched and the latest block number that was searched.

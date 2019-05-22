@@ -19,6 +19,12 @@ val sleep_delay_exn : float -> unit Lwt_exn.t
 (** This function allows to wait for a delay (in seconds) before continuing the computation.
     It handles exceptions *)
 
+val wait_for_min_block_depth : Revision.t -> unit Lwt_exn.t
+(** We wait for a specific block depth. If it fails, we retry 1 second later and so on *)
+
+
+
+
 val retrieve_relevant_list_logs_data :
   delay:float
   -> start_revision:Revision.t

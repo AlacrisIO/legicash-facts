@@ -287,43 +287,36 @@ let post_claim_withdrawal_operation : TransactionCommitment.t -> Address.t ->Add
 let execute_withdraw_operation_spec : TransactionCommitment.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
   fun tc  withdrawal_amount  ~sender  ~operator ->
   Logging.log "Beginning of execute_withdraw_operation";
-  (* TODO actually accept challenges and handle accordingly *)
   let open Lwt_exn in
-  let rec one_try_emit_withdraw_event_catch : unit -> unit Lwt_exn.t =
-    fun () ->
-    get_contract_address_from_client_exn ()
-    >>= fun contract_address ->
-    emit_withdraw_operation
-      ~contract_address
-      ~sender
-      ~operator
-      tc.tx_proof.key
-      ~value:withdrawal_amount
-      ~bond:Side_chain_server_config.bond_value_v
-      tc.state_digest
-    >>= fun tr ->
-    Logging.log "execute_withdraw_operation_spec status=%s" (print_status_receipt tr);
-    let (data_value_search: abi_value option list) =
-      [ Some (Address_value operator)
-      ; Some (abi_value_from_revision tc.tx_proof.key)
-      ; None ; None ; None ] in
-    retrieve_relevant_list_logs_data
-      ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
-      ~start_revision:Revision.zero
-      ~max_number_iteration:(Some (Revision.of_int 10))
-      ~contract_address
-       ~transaction_hash:(Some tr.transaction_hash)
-       ~topics:[topic_of_withdraw]
-       [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
-       data_value_search
-    >>= fun (_, x) ->
-    if List.length x == 0 then
-      one_try_emit_withdraw_event_catch ()
-    else
-      (Logging.log "EXITING the withdraw operation. Finally over";
-       return ())
-  in
-  one_try_emit_withdraw_event_catch ()
+  let min_block_length = Revision.zero in
+  wait_for_min_block_depth min_block_length
+  >>= fun () -> get_contract_address_from_client_exn ()
+  >>= fun contract_address ->
+  emit_withdraw_operation
+    ~contract_address
+    ~sender
+    ~operator
+    tc.tx_proof.key
+    ~value:withdrawal_amount
+    ~bond:Side_chain_server_config.bond_value_v
+    tc.state_digest
+  >>= fun tr ->
+  Logging.log "execute_withdraw_operation_spec status=%s" (print_status_receipt tr);
+  let (data_value_search: abi_value option list) =
+    [ Some (Address_value operator)
+    ; Some (abi_value_from_revision tc.tx_proof.key)
+    ; None ; None ; None ] in
+  retrieve_relevant_list_logs_data
+    ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    ~start_revision:Revision.zero
+    ~max_number_iteration:None
+    ~contract_address
+    ~transaction_hash:(Some tr.transaction_hash)
+    ~topics:[topic_of_withdraw]
+    [Address; Uint 64; Uint 256; Uint 256; Bytes 32]
+    data_value_search
+  >>= fun (_, x) ->
+  return ()
 
 
 let execute_withdraw_operation : TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
