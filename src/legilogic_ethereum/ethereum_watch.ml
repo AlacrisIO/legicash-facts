@@ -7,7 +7,7 @@ open Ethereum_json_rpc
 open Ethereum_abi
 open Side_chain_server_config
 
-(* TODO capturing `starting_watch_ref` in a state monad or similar would be a
+(* TODO capturing start_revision in a state monad
  * much better approach than using mutable global state *)
 
 (* 'state is Revision.t *)
@@ -113,7 +113,11 @@ let print_list_entries : EthListLogObjects.t -> string =
 
 
 (* We will iterate over the logs. Search for the ones matching the topics, event values and maybe
-   transaction hash. We iterate until we find at least one entry that matches *)
+   transaction hash. 
+   There are two options:
+   ---We iterate until we find at least one entry that matches.
+   ---We have a maximum number of iteration and exit when failing.
+ *)
 let retrieve_relevant_list_logs_data :
       delay:float -> start_revision:Revision.t
       -> max_number_iteration:Revision.t option
@@ -127,10 +131,8 @@ let retrieve_relevant_list_logs_data :
   let open Lwt_exn in
   Logging.log "|list_data_type|=%d" (List.length list_data_type);
   Logging.log "|data_value_search|=%d" (List.length data_value_search);
-  let starting_watch_ref : (Revision.t ref) = ref start_revision in
   let number_iteration_ref : (Revision.t ref) = ref Revision.zero in
-  let iter_state_ref : (int ref) = ref 0 in
-  let rec download_entries start_block iter_state =
+  let rec download_entries start_block =
     Logging.log "download_entries number_iteration=%s" (Revision.to_string !number_iteration_ref);
     retrieve_last_entries (Revision.add start_block Revision.one)
       ~contract_address  ~topics
@@ -155,33 +157,19 @@ let retrieve_relevant_list_logs_data :
            if List.length relevant == 0 then
              sleep_delay_exn delay
              >>= fun () ->
-             let get_interval : unit -> (Revision.t * int) =
-               fun () ->
-               if iter_state == 5 then
-                 (starting_watch_ref := Revision.zero;
-                  iter_state_ref := 0;
-                  (!starting_watch_ref, !iter_state_ref)
-                 )
-               else
-                 (starting_watch_ref := start_block_in;
-                  iter_state_ref := iter_state + 1;
-                  (start_block_in, !iter_state_ref)
-                 )
-             in
-             let (start_in, iter_in) = get_interval () in
              match max_number_iteration with
-             | None -> download_entries start_in iter_in
+             | None -> download_entries start_block_in
              | Some max_number_iteration_i ->
                 (number_iteration_ref := Revision.(add !number_iteration_ref one);
                  if (Revision.equal !number_iteration_ref max_number_iteration_i) then
                    (Logging.log "Exiting due to too large number of iterations";
                     return (start_block_in, []))
                  else
-                   download_entries start_in iter_in)
+                   download_entries start_block_in)
            else
              (Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
               return (start_block_in, relevant))
-  in download_entries !starting_watch_ref !iter_state_ref
+  in download_entries start_revision
 
 
 
