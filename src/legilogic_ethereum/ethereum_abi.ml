@@ -722,7 +722,7 @@ let decode_individual_data : Bytes.t -> int -> abi_type -> (abi_value*int) =
                let bytes_ret = Bytes.sub data start_ret_pos m in
                let start_padding_pos = end_ret_pos in
                let end_padding_pos = end_ret_pos + padding_len in
-               let fct_check_padding =
+               let check_padding =
                  if (padding_len>0) then
                    let bytes_padding = Bytes.sub data start_padding_pos padding_len in
                    if (bytes_padding != padding) then
@@ -732,7 +732,7 @@ let decode_individual_data : Bytes.t -> int -> abi_type -> (abi_value*int) =
                  else
                    true
                in
-               if (fct_check_padding == false) then
+               if (check_padding == false) then
                  Logging.log "decode_individual_data, case 3, step 8";
                (Bytes_value bytes_ret, end_padding_pos)
   | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in

@@ -63,6 +63,7 @@ let search_fraud : contract_address:Address.t -> operator:Address.t -> Revision.
   retrieve_relevant_list_logs_data
     ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
     ~start_revision:rev_in
+    ~max_number_iteration:None
     ~contract_address
     ~transaction_hash:None
     ~topics:[topic_of_claim_withdrawal]

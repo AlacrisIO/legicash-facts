@@ -7,7 +7,7 @@ open Ethereum_json_rpc
 open Ethereum_abi
 open Side_chain_server_config
 
-(* TODO capturing `starting_watch_ref` in a state monad or similar would be a
+(* TODO capturing start_revision in a state monad
  * much better approach than using mutable global state *)
 
 (* 'state is Revision.t *)
@@ -47,8 +47,25 @@ let main_chain_block_notification_stream
 
 
 
+
 (* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
 let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
+
+
+
+let wait_for_min_block_depth : Revision.t -> unit Lwt_exn.t =
+  fun min_block_depth ->
+  let open Lwt_exn in
+  let rec check_current_depth : unit -> unit Lwt_exn.t =
+    fun () ->
+    eth_block_number ()
+    >>= fun x ->
+    if x > min_block_depth then
+      return ()
+    else
+      (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+       >>= fun () -> check_current_depth ())
+  in check_current_depth ()
 
 (* Look for some event logs from a starting point from a specific contract address.
    In return the list of logs matched and the latest block number that was searched.
@@ -113,15 +130,27 @@ let print_list_entries : EthListLogObjects.t -> string =
 
 
 (* We will iterate over the logs. Search for the ones matching the topics, event values and maybe
-   transaction hash. We iterate until we find at least one entry that matches *)
-let retrieve_relevant_list_logs_data : delay:float -> start_revision:Revision.t -> contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (Revision.t * (LogObject.t * abi_value list) list) Lwt_exn.t =
-  fun ~delay ~start_revision ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
+   transaction hash. 
+   There are two options:
+   ---We iterate until we find at least one entry that matches.
+   ---We have a maximum number of iteration and exit when failing.
+ *)
+let retrieve_relevant_list_logs_data :
+      delay:float -> start_revision:Revision.t
+      -> max_number_iteration:Revision.t option
+      -> contract_address:Address.t
+      -> transaction_hash:Digest.t option
+      -> topics:Bytes.t option list
+      -> abi_type list
+      -> abi_value option list
+      -> (Revision.t * (LogObject.t * (abi_value list)) list) Lwt_exn.t =
+  fun ~delay ~start_revision ~max_number_iteration ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
   let open Lwt_exn in
   Logging.log "|list_data_type|=%d" (List.length list_data_type);
   Logging.log "|data_value_search|=%d" (List.length data_value_search);
-  let starting_watch_ref = ref start_revision in
-  let iter_state_ref = ref 0 in
-  let rec fct_downloading start_block iter_state =
+  let number_iteration_ref : (Revision.t ref) = ref Revision.zero in
+  let rec download_entries start_block =
+    Logging.log "download_entries number_iteration=%s" (Revision.to_string !number_iteration_ref);
     retrieve_last_entries (Revision.add start_block Revision.one)
       ~contract_address  ~topics
     >>= fun (start_block_in, entries) ->
@@ -141,22 +170,23 @@ let retrieve_relevant_list_logs_data : delay:float -> start_revision:Revision.t 
         in let relevant = flip List.map only_matches_hash @@ fun l ->
           (l, decode_data l.data list_data_type)
 
-        in if List.length relevant == 0 then
-             sleep_delay_exn delay >>= fun () ->
-             if iter_state == 5 then
-               (starting_watch_ref := Revision.zero;
-                iter_state_ref := 0;
-                fct_downloading !starting_watch_ref !iter_state_ref
-               )
-             else
-               (starting_watch_ref := start_block_in;
-                iter_state_ref := iter_state + 1;
-                fct_downloading start_block_in !iter_state_ref
-               )
-        else
-          (Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
-           return (start_block_in, relevant))
-  in fct_downloading !starting_watch_ref !iter_state_ref
+           in
+           if List.length relevant == 0 then
+             sleep_delay_exn delay
+             >>= fun () ->
+             match max_number_iteration with
+             | None -> download_entries start_block_in
+             | Some max_number_iteration_i ->
+                (number_iteration_ref := Revision.(add !number_iteration_ref one);
+                 if (Revision.equal !number_iteration_ref max_number_iteration_i) then
+                   (Logging.log "Exiting due to too large number of iterations";
+                    return (start_block_in, []))
+                 else
+                   download_entries start_block_in)
+           else
+             (Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
+              return (start_block_in, relevant))
+  in download_entries start_revision
 
 
 
@@ -169,6 +199,7 @@ let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address
   retrieve_relevant_list_logs_data
     ~delay
     ~start_revision
+    ~max_number_iteration:None
     ~contract_address
     ~transaction_hash
     ~topics
@@ -184,7 +215,8 @@ let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address
 
 (* We wait for contract event. Only difference is that delay is computed from the
    input file *)
-let wait_for_contract_event ~contract_address ~transaction_hash ~topics list_data_type data_value_search =
+let wait_for_contract_event : contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
+  fun  ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search ->
   Logging.log "Beginning of wait_for_contract_event";
   retrieve_relevant_single_logs_data
     ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
