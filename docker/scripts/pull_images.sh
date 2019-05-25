@@ -14,7 +14,7 @@ run() {
   fi
 }
 
-for i in build-prerequisites:v1 alacris_client_container:v1 alacris_side_chain_manager_container:v1;
+for i in build-prerequisites alacris_client_container alacris_side_chain_manager_container alacris_frontend alacris_private_ethereum_node;
   do
-run docker pull gcr.io/legicash-demo-1950/legicash-demo/$i;
+run docker pull gcr.io/legicash-demo-1950/legicash-demo/$i:v1;
 done
