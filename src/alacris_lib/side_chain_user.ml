@@ -252,6 +252,7 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
 let post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t =
   fun ~confirmed_pair tc ~sender ~operator ->
   let open Lwt_exn in
+  Logging.log "Beginning of post_claim_withdrawal_operation";
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
     | Deposit _ -> bork "This part should not occur"
     | Payment _ -> bork "This part should not occur"
