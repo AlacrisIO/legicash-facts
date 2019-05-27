@@ -42,6 +42,9 @@ let (topic_of_claim_withdrawal: Bytes.t option) =
 let (topic_of_withdraw: Bytes.t option) =
   topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
 
+let (topic_of_rejected_claim_status: Bytes.t option) =
+  topic_of_hash (digest_of_string "RejectedClaimStatus(uint64)")
+
 
 
 let contract_address = ref Address.zero
@@ -79,9 +82,12 @@ let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.
   Operation.CallFunction (contract_address, call)
 
 
-(* Here abi_revision = abi_uint64 because Revision = UInt64 *)
-let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator operator_revision ~value ~bond ~confirmed_pair ->
+
+
+
+(* The generic code which is repeated since many calls have the same structure *)
+let make_operation_related_withdraw : name_oper:String.t -> contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+  fun ~name_oper ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
   let (confirmed_revision, confirmed_state) = confirmed_pair in
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
@@ -89,21 +95,29 @@ let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> Rev
                    ; abi_token_amount bond
                    ; abi_digest confirmed_state
                    ; abi_revision confirmed_revision ] in
-  let call = encode_function_call { function_name = "withdraw"; parameters } in
+  let call = encode_function_call { function_name = name_oper; parameters } in
   Operation.CallFunction (contract_address, call)
 
 
-let make_challenge_withdrawal_too_large_revision : contract_address:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator operator_revision ~value ~bond ~confirmed_pair ->
-  let (confirmed_revision, confirmed_state) = confirmed_pair in
-  let parameters = [ abi_address operator
-                   ; abi_revision operator_revision
-                   ; abi_token_amount value
-                   ; abi_token_amount bond
-                   ; abi_digest confirmed_state
-                   ; abi_revision confirmed_revision ] in
-  let call = encode_function_call { function_name = "challenge_withdrawal__too_large_revision"; parameters } in
-  Operation.CallFunction (contract_address, call)
+let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
+  let name_oper = "withdraw" in
+  make_operation_related_withdraw ~name_oper ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair
+
+
+let make_challenge_withdrawal_too_large_revision : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
+  let name_oper = "challenge_withdrawal__too_large_revision" in
+  make_operation_related_withdraw ~name_oper ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair
+
+
+
+let make_operation_has_claim_been_rejected : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
+  let name_oper = "challenge_withdrawal__too_large_revision" in
+  make_operation_related_withdraw ~name_oper ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair
+
+
 
 
 (* calls the "claim_state_update" that calls "make_claim" that works with a mapping

@@ -82,6 +82,11 @@ contract Claims {
         return _status > get_block_number();
     }
 
+    function is_claim_rejected(bytes32 _claim) internal view returns(bool) {
+      return claim_status[_claim] == REJECTED;
+    }
+
+
     /** Check that a claim is still pending */
     /*
     function require_claim_pending(bytes32 _claim) internal view {

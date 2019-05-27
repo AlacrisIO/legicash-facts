@@ -56,10 +56,12 @@ let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
 let wait_for_min_block_depth : Revision.t -> unit Lwt_exn.t =
   fun min_block_depth ->
   let open Lwt_exn in
+  Logging.log "wait_for_min_block_depth target=%s" (Revision.to_string min_block_depth);
   let rec check_current_depth : unit -> unit Lwt_exn.t =
     fun () ->
     eth_block_number ()
     >>= fun x ->
+    Logging.log "check_current_depth found=%s min_block_depth=%s" (Revision.to_string x) (Revision.to_string min_block_depth);
     if x > min_block_depth then
       return ()
     else

@@ -62,12 +62,12 @@ let print_status_receipt : TransactionReceipt.t -> string =
   fun tr -> (TokenAmount.to_string tr.status)
 
 
-let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operation sender value ->
+let post_operation_general_kernel : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value_send:TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+  fun ~operation ~sender ~value_send ->
   Logging.log "post_operation_kernel : beginning of function";
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
   Logging.log "post_operation_general_kernel : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
+  Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value_send
   >>= fun x_pretrans ->
   Ethereum_user.add_ongoing_transaction ~user:sender (Wanted x_pretrans)
   >>= fun (tracker_key, _, _) ->
@@ -81,11 +81,11 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
      Lwt_exn.return receipt))
 
 
-let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operation sender value ->
+let post_operation_general : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value_send:TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+  fun ~operation ~sender ~value_send ->
   let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
     fun () ->
-    Lwt.bind (post_operation_general_kernel operation sender value)
+    Lwt.bind (post_operation_general_kernel ~operation ~sender ~value_send)
       (function
        | Error _error -> Logging.log "post_operation_general, Error case";
                          Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ())
@@ -104,10 +104,10 @@ let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmo
 let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun operator_revision digest ->
   Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
-  let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest operator_revision in
-  let (value : TokenAmount.t) = TokenAmount.zero in
-  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
-  post_operation_general operation oper_addr value
+  let operation = make_state_update_call digest operator_revision in
+  let value_send = TokenAmount.zero in
+  let oper_addr = Side_chain_server_config.operator_address in
+  post_operation_general ~operation ~sender:oper_addr ~value_send
 
 
 let inner_state_update_request_loop () =

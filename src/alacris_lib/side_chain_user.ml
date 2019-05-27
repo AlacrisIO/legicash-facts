@@ -105,11 +105,10 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
   wait_for_contract_event
     ~contract_address
     ~transaction_hash:(Some transaction_hash)
-    ~topics:[Operator_contract.topic_of_state_update]
+    ~topics:[topic_of_state_update]
     [Address; Bytes 32; Uint 256; Uint 64]
     [Some (Address_value operator); None; None; None]
-  >>= fun x ->
-  let (log_object, vals) = x in
+  >>= fun (log_object, vals) ->
   Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
   (* TODO defaulting to zero is wrong and the presence of `null`s indicates
    * something's broken with the confirmation data; we should instead capture
@@ -217,16 +216,16 @@ let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Addre
   fun ~contract_address ~sender ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
   Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call ~contract_address ~operator ~operator_revision ~value ~confirmed_pair in
-  post_operation_general operation sender bond
+  post_operation_general ~operation ~sender ~value_send:bond
 
 
 let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> TransactionReceipt.t Lwt_exn.t =
   fun ~contract_address ~sender ~operator operator_revision ~value ~bond ~confirmed_pair ->
   Logging.log "emit_withdraw_operation : beginning of operation";
   Logging.log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
-  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call ~contract_address ~operator operator_revision ~value ~bond ~confirmed_pair in
+  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair in
   let (value_send : TokenAmount.t) = TokenAmount.zero in
-  post_operation_general operation sender value_send
+  post_operation_general ~operation ~sender ~value_send
 
 
 
@@ -240,13 +239,43 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
   Logging.log "Before wait_for_contract_event CONTEXT deposit";
   let open Lwt_exn in
   get_contract_address_from_client_exn ()
-  >>= (fun contract_address ->
-  wait_for_contract_event ~contract_address ~transaction_hash:None ~topics list_data_type data_value_search)
-  >>= (fun (x : (LogObject.t * (abi_value list))) ->
-    let (_log_object, abi_list_val) = x in
+  >>= fun contract_address ->
+  wait_for_contract_event ~contract_address ~transaction_hash:None ~topics list_data_type data_value_search
+  >>= fun (_log_object, abi_list_val) ->
     Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_uint256 (List.nth abi_list_val 2));
     Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 3));
-    Lwt_exn.return ())
+    return ()
+
+
+
+
+let get_claim_withdrawal_status : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t =
+  fun ~confirmed_pair tc ~sender ~operator ->
+  let open Lwt_exn in
+  match (tc.transaction.tx_request |> TransactionRequest.request).operation with
+    | Deposit _ -> bork "This part should not occur"
+    | Payment _ -> bork "This part should not occur"
+    | Withdrawal {withdrawal_amount; withdrawal_fee} ->
+       Logging.log "Beginning of get_claim_withdrawal_status, withdrawal";
+       get_contract_address_from_client_exn ()
+       >>= fun contract_address ->
+       let bond = Side_chain_server_config.bond_value_v in
+       let operator_revision : Revision.t = tc.tx_proof.key in
+       let value = withdrawal_amount in
+       let (operation : Ethereum_chain.Operation.t) = make_operation_has_claim_been_rejected ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair in
+       post_operation_general ~operation ~sender ~value_send:TokenAmount.zero
+       >>= fun tr ->
+       Logging.log "get_claim_withdrawal_status status=%s" (print_status_receipt tr);
+       let (topics : Bytes.t option list) = [topic_of_rejected_claim_status] in
+       let (list_data_type : abi_type list) = [Uint 64; Uint 256; Bytes 32; Uint 64; Uint 256; Uint 256; Uint 64] in
+       let (data_value_search : abi_value option list) = [None] in
+       let (transaction_hash_val : Digest.t option) = Some tr.transaction_hash in
+       wait_for_contract_event ~contract_address ~transaction_hash:transaction_hash_val ~topics list_data_type data_value_search
+       >>= fun (log_object, abi_list_val) ->
+       Logging.log "Now exiting the get_claim_withdrawal_event |b|=%d" (List.length abi_list_val);
+       let claim_withdrawal_status : Revision.t = retrieve_revision_from_abi_value (List.nth abi_list_val 0) in
+       return claim_withdrawal_status
+
 
 
 let post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t =
@@ -277,7 +306,7 @@ let post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t ->
          ~operator_revision:tc.tx_proof.key
          ~confirmed_pair
        >>= fun block_nbr ->
-       Logging.log "After the wait_for_claim_withdrawal_event";
+       Logging.log "After the wait_for_claim_withdrawal_event block_nbr=%s" (Revision.to_string block_nbr);
        return block_nbr
 
 let post_claim_withdrawal_operation : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt.t =
@@ -296,6 +325,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revis
   wait_for_min_block_depth min_block_length
   >>= fun () -> get_contract_address_from_client_exn ()
   >>= fun contract_address ->
+                Logging.log "Before emit_withdraw_operation";
                 emit_withdraw_operation
                   ~contract_address
                   ~sender

@@ -18,18 +18,17 @@ open State_update
 let treat_individual_claim_bad_ticket : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
   fun (_x_log, x_abi_list) ->
   let open Lwt_exn in
-  let operation_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 1) in
+  let operator_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 1) in
   let confirmed_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 4) in
-  if (Revision.compare operation_revision confirmed_revision) > 0 then
+  if (Revision.compare operator_revision confirmed_revision) > 0 then
     (let operator = retrieve_address_from_abi_value (List.nth x_abi_list 0) in
      let value = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 2) in
      let confirmed_state = retrieve_digest_from_abi_value (List.nth x_abi_list 3) in
      let bond = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 5) in
      let confirmed_pair : PairRevisionDigest.t = (confirmed_revision, confirmed_state) in
      let contract_address = get_contract_address () in
-     let oper = make_challenge_withdrawal_too_large_revision ~contract_address ~operator operation_revision ~value ~bond ~confirmed_pair in
-     let (value_send : TokenAmount.t) = TokenAmount.zero in
-     post_operation_general oper operator value_send
+     let operation = make_challenge_withdrawal_too_large_revision ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair in
+     post_operation_general ~operation ~sender:operator ~value_send:TokenAmount.zero
      >>= fun _ -> return ()
     )
   else
@@ -109,3 +108,92 @@ let start_vigilantism_state_update_operator () =
   Logging.log "Beginning of the inner_vigilant_thread";
   Lwt.async inner_vigilant_thread;
   Lwt_exn.return ()
+
+
+module Test = struct
+  open Lib.Test
+  open Signing.Test
+  open Ethereum_user.Test
+  open Side_chain_operator.Test
+
+  let%test "move logs aside" = Logging.set_log_file "test.log"; true
+
+
+
+  (* deposit, payment and withdrawal test *)
+  let%test "deposit_withdraw_wrong_operator_version" =
+    Signing.Test.register_test_keypairs ();
+    Side_chain_client.Test.post_user_transaction_request_hook :=
+      Side_chain_operator.oper_post_user_transaction_request;
+
+    Lwt_exn.run
+      (fun () ->
+        Logging.log "deposit_withdraw_wrong_operator_version, step 1";
+        of_lwt Db.open_connection "unit_test_db"
+        >>= fun () ->
+        Logging.log "deposit_withdraw_wrong_operator_version, step 2";
+        (* TODO replace mutable contract address plumbing w/ more elegant +
+         * functional style *)
+        get_contract_address_from_client_exn ()
+        >>= fun contract_address ->
+        Logging.log "deposit_withdraw_wrong_operator_version, step 3";
+        Operator_contract.set_contract_address contract_address;
+        State_update.start_state_update_operator ()
+        >>= fun _ ->
+        Logging.log "deposit_withdraw_wrong_operator_version, step 4";
+        fund_accounts ()
+        >>= fun () ->
+        Logging.log "deposit_withdraw_wrong_operator_version, step 5";
+        Mkb_json_rpc.init_mkb_server ()
+        >>= fun () ->
+        let operator = trent_address in
+        start_operator operator
+        >>= fun () -> start_vigilantism_state_update_operator ()
+        >>= fun () -> start_state_update_periodic_operator ()
+        >>= fun () ->
+	Logging.log "deposit_withdraw_wrong_operator_version, step 7";
+        let deposit_amount = TokenAmount.of_string "500000000000000000" in
+        User.transaction
+          alice_address
+          deposit
+          DepositWanted.{ operator
+                        ; deposit_amount
+                        ; request_guid = Types.RequestGuid.nil
+                        ; requested_at = Types.Timestamp.now () }
+        >>= fun (_commitment, _confirmation) ->
+        Logging.log "Making the fake transaction that should be rejected";
+        let state_digest = Digest.zero in
+        let signature = Signature.zero in
+        let key = Revision.of_int 10 in
+        let trie = Digest.zero in
+        let leaf = Digest.zero in
+        let steps = [] in
+        let tx_proof = Proof.{key; trie; leaf; steps} in
+        let spending_limit = TokenAmount.zero in
+        let accounts = Digest.zero in
+        let main_chain_transactions_posted = Digest.zero in
+        let admin_trans_req = (StateUpdate (Revision.zero, Digest.zero)) in
+        let tx_request : TransactionRequest.t = `AdminTransactionRequest admin_trans_req in
+        let tx_revision = Revision.zero in
+        let updated_limit = TokenAmount.zero in
+        let tx_header : TxHeader.t = TxHeader.{tx_revision; updated_limit} in
+        let trans : Transaction.t = Transaction.{tx_header; tx_request} in
+        let tc : TransactionCommitment.t =
+          TransactionCommitment.{ transaction; tx_proof; operator_revision; spending_limit;
+                                  accounts; main_chain_transactions_posted; signature;
+                                  state_digest } in
+        let confirmed_pair = {Revision.zero; Digest.zero} in
+        post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender ~operator
+        >>= fun block_nbr ->
+        let addi_term = (Revision.add Side_chain_server_config.challenge_period_in_blocks (Revision.of_int 10)) in
+        let min_block_length =  (Revision.add block_nbr addi_term) in
+        wait_for_min_block_depth min_block_length
+        >>= fun () -> 
+        get_claim_withdrawal_status ~confirmed_pair tc ~sender ~operator
+        >>= fun ret_value ->
+        if (Revision.equal ret_value (Revision.of_int 1)) then
+          return true
+        else
+          return false)
+      ()
+end
