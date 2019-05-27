@@ -10,8 +10,10 @@ open Ethereum_json_rpc
 open Ethereum_abi
 open Ethereum_watch
 open Operator_contract
-open Side_chain
 open State_update
+open Side_chain
+open Side_chain_operator
+open Side_chain_user
 
 
 
@@ -125,7 +127,8 @@ module Test = struct
     Signing.Test.register_test_keypairs ();
     Side_chain_client.Test.post_user_transaction_request_hook :=
       Side_chain_operator.oper_post_user_transaction_request;
-
+    let open Lwt_exn in
+    let open Merkle_trie in
     Lwt_exn.run
       (fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 1";
@@ -160,35 +163,38 @@ module Test = struct
                         ; deposit_amount
                         ; request_guid = Types.RequestGuid.nil
                         ; requested_at = Types.Timestamp.now () }
-        >>= fun (_commitment, _confirmation) ->
+        >>= fun (commitment, _confirmation) ->
         Logging.log "Making the fake transaction that should be rejected";
         let state_digest = Digest.zero in
-        let signature = Signature.zero in
+        let signature = commitment.signature in
         let key = Revision.of_int 10 in
         let trie = Digest.zero in
         let leaf = Digest.zero in
         let steps = [] in
-        let tx_proof = Proof.{key; trie; leaf; steps} in
+        (*        let tx_proof = Proof.{key; trie; leaf; steps} in*)
         let spending_limit = TokenAmount.zero in
         let accounts = Digest.zero in
         let main_chain_transactions_posted = Digest.zero in
-        let admin_trans_req = (StateUpdate (Revision.zero, Digest.zero)) in
+        (*        let admin_trans_req : = (StateUpdate of (Revision.zero, Digest.zero)) in
         let tx_request : TransactionRequest.t = `AdminTransactionRequest admin_trans_req in
         let tx_revision = Revision.zero in
         let updated_limit = TokenAmount.zero in
-        let tx_header : TxHeader.t = TxHeader.{tx_revision; updated_limit} in
-        let trans : Transaction.t = Transaction.{tx_header; tx_request} in
+        let tx_header : TxHeader.t = TxHeader.{tx_revision; updated_limit} in *)
+        let transaction : Transaction.t = commitment.transaction in
+        let operator_revision = Revision.zero in
         let tc : TransactionCommitment.t =
-          TransactionCommitment.{ transaction; tx_proof; operator_revision; spending_limit;
+          TransactionCommitment.{ transaction; tx_proof={key; trie; leaf; steps};
+                                  operator_revision; spending_limit;
                                   accounts; main_chain_transactions_posted; signature;
                                   state_digest } in
-        let confirmed_pair = {Revision.zero; Digest.zero} in
+        let confirmed_pair = (Revision.zero, Digest.zero) in
+        let sender = trent_address in
         post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender ~operator
         >>= fun block_nbr ->
         let addi_term = (Revision.add Side_chain_server_config.challenge_period_in_blocks (Revision.of_int 10)) in
         let min_block_length =  (Revision.add block_nbr addi_term) in
         wait_for_min_block_depth min_block_length
-        >>= fun () -> 
+        >>= fun () ->
         get_claim_withdrawal_status ~confirmed_pair tc ~sender ~operator
         >>= fun ret_value ->
         if (Revision.equal ret_value (Revision.of_int 1)) then

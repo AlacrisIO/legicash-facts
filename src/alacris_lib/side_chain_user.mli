@@ -265,3 +265,8 @@ val payment : (PaymentWanted.t, TransactionTracker.t) UserAsyncAction.arr
 *)
 
 val get_contract_address_from_client_exn : unit -> Address.t Lwt_exn.t
+
+
+val post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t
+
+val get_claim_withdrawal_status : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t

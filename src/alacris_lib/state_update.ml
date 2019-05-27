@@ -105,9 +105,8 @@ let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t
   fun operator_revision digest ->
   Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
   let operation = make_state_update_call digest operator_revision in
-  let value_send = TokenAmount.zero in
   let oper_addr = Side_chain_server_config.operator_address in
-  post_operation_general ~operation ~sender:oper_addr ~value_send
+  post_operation_general ~operation ~sender:oper_addr ~value_send:TokenAmount.zero
 
 
 let inner_state_update_request_loop () =
