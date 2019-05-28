@@ -37,9 +37,9 @@ let process_request_exn _client_address (in_channel,out_channel) =
     | Ok (`UserQuery request) ->
        Logging.log "process_request_exn : UserQuery";
        (oper_post_user_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
-    | Ok (`UserTransaction request) ->
+    | Ok (`UserTransaction signed_request) ->
        Logging.log "process_request_exn : UserTransaction";
-      (oper_post_user_transaction_request request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
+      (oper_post_user_transaction_request signed_request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
     | Ok (`AdminQuery request) ->
        Logging.log "process_request_exn : AdminQuery";
       (oper_post_admin_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)

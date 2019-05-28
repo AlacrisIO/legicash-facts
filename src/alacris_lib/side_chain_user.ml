@@ -253,8 +253,8 @@ let get_claim_withdrawal_status : confirmed_pair:PairRevisionDigest.t -> Transac
   fun ~confirmed_pair tc ~sender ~operator ->
   let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
-    | Deposit _ -> bork "This part should not occur"
-    | Payment _ -> bork "This part should not occur"
+    | Deposit _ -> bork "get_claim_withdrawal_status error. Calling for Deposit"
+    | Payment _ -> bork "get_claim_withdrawal_status error. Calling for Payment"
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
        Logging.log "Beginning of get_claim_withdrawal_status, withdrawal";
        get_contract_address_from_client_exn ()
@@ -283,8 +283,8 @@ let post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t ->
   let open Lwt_exn in
   Logging.log "Beginning of post_claim_withdrawal_operation";
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
-    | Deposit _ -> bork "This part should not occur"
-    | Payment _ -> bork "This part should not occur"
+    | Deposit _ -> bork "post_claim_withdrawal_operation_exn error. Calling for Deposit"
+    | Payment _ -> bork "post_claim_withdrawal_operation_exn error. Calling for Payment"
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
        Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
        get_contract_address_from_client_exn ()

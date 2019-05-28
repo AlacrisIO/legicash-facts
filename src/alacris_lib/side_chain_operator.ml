@@ -487,8 +487,8 @@ let process_user_transaction_request :
 
 
 let oper_post_user_transaction_request : UserTransactionRequest.t signed -> TransactionCommitment.t Lwt_exn.t =
-  fun request ->
-  (*stateless_parallelize*) process_user_transaction_request (request, false)
+  fun signed_request ->
+  (*stateless_parallelize*) process_user_transaction_request (signed_request, false)
 
 type main_chain_account_state =
   { address : Address.t

@@ -112,6 +112,12 @@ let start_vigilantism_state_update_operator () =
   Lwt_exn.return ()
 
 
+let get_keypair_of_address_noexn : Address.t -> keypair =
+  fun address ->
+  match get_keypair_of_address address with
+  | Ok x -> x
+  | Error _ -> Lib.bork "Failed to find address"
+
 module Test = struct
   open Signing.Test
   open Ethereum_user.Test
@@ -146,12 +152,17 @@ module Test = struct
         Logging.log "deposit_withdraw_wrong_operator_version, step 5";
         Mkb_json_rpc.init_mkb_server ()
         >>= fun () ->
+        Logging.log "deposit_withdraw_wrong_operator_version, step 6";
         let operator = trent_address in
         start_operator operator
-        >>= fun () -> start_vigilantism_state_update_operator ()
-        >>= fun () -> start_state_update_periodic_operator ()
+(*        >>= fun () ->
+        Logging.log "deposit_withdraw_wrong_operator_version, step 7";
+        start_vigilantism_state_update_operator () *)
         >>= fun () ->
-	Logging.log "deposit_withdraw_wrong_operator_version, step 7";
+        Logging.log "deposit_withdraw_wrong_operator_version, step 8";
+        start_state_update_periodic_operator ()
+        >>= fun () ->
+	Logging.log "deposit_withdraw_wrong_operator_version, step 9";
         let deposit_amount = TokenAmount.of_string "500000000000000000" in
         User.transaction
           alice_address
@@ -161,23 +172,41 @@ module Test = struct
                         ; request_guid = Types.RequestGuid.nil
                         ; requested_at = Types.Timestamp.now () }
         >>= fun (commitment, _confirmation) ->
+	Logging.log "deposit_withdraw_wrong_operator_version, step 10";
         Logging.log "Making the fake transaction that should be rejected";
+        let withdrawal_amount = TokenAmount.of_string "100000000000000000" in
+        let withdrawal_fee = TokenAmount.of_string "100000000000000" in
+        let pre_oper : UserOperation.withdrawal_details = {withdrawal_amount
+                        ; withdrawal_fee
+                        ; request_guid = Types.RequestGuid.nil
+                        ; requested_at = Types.Timestamp.now () } in
+        let withdraw : UserOperation.t = Withdrawal pre_oper in
+        let rx_header = RxHeader.{
+              operator=Address.zero
+              ; requester= Address.zero
+              ; requester_revision=Revision.zero
+              ; confirmed_main_chain_state_digest=Digest.zero
+              ; confirmed_main_chain_state_revision=Revision.zero
+              ; confirmed_side_chain_state_digest=Digest.zero
+              ; confirmed_side_chain_state_revision=Revision.zero
+              ; validity_within=Duration.zero } in
+        let keypair = get_keypair_of_address_noexn alice_address in
+        let user_trans_req : UserTransactionRequest.t = {rx_header; operation=withdraw} in
+        let user_trans_req_sign : UserTransactionRequest.t signed = SignedUserTransactionRequest.make keypair user_trans_req in
+        let tx_request : TransactionRequest.t = `UserTransaction user_trans_req_sign in
+        let tx_revision = Revision.zero in
+        let updated_limit = TokenAmount.zero in
+        let tx_header : TxHeader.t = TxHeader.{tx_revision; updated_limit} in
+        let transaction : Transaction.t = {tx_header; tx_request} in
         let state_digest = Digest.zero in
         let signature = commitment.signature in
         let key = Revision.of_int 10 in
         let trie = Digest.zero in
         let leaf = Digest.zero in
         let steps = [] in
-        (*        let tx_proof = Proof.{key; trie; leaf; steps} in*)
         let spending_limit = TokenAmount.zero in
         let accounts = Digest.zero in
         let main_chain_transactions_posted = Digest.zero in
-        (*        let admin_trans_req : = (StateUpdate of (Revision.zero, Digest.zero)) in
-        let tx_request : TransactionRequest.t = `AdminTransactionRequest admin_trans_req in
-        let tx_revision = Revision.zero in
-        let updated_limit = TokenAmount.zero in
-        let tx_header : TxHeader.t = TxHeader.{tx_revision; updated_limit} in *)
-        let transaction : Transaction.t = commitment.transaction in
         let operator_revision = Revision.zero in
         let tc : TransactionCommitment.t =
           TransactionCommitment.{ transaction; tx_proof={key; trie; leaf; steps};
@@ -188,12 +217,15 @@ module Test = struct
         let sender = trent_address in
         post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender ~operator
         >>= fun block_nbr ->
+	Logging.log "deposit_withdraw_wrong_operator_version, step 11";
         let addi_term = (Revision.add Side_chain_server_config.challenge_period_in_blocks (Revision.of_int 10)) in
         let min_block_length =  (Revision.add block_nbr addi_term) in
         wait_for_min_block_depth min_block_length
         >>= fun () ->
+	Logging.log "deposit_withdraw_wrong_operator_version, step 12";
         get_claim_withdrawal_status ~confirmed_pair tc ~sender ~operator
         >>= fun ret_value ->
+	Logging.log "deposit_withdraw_wrong_operator_version, step 13";
         if (Revision.equal ret_value (Revision.of_int 1)) then
           return true
         else
