@@ -113,10 +113,8 @@ let start_vigilantism_state_update_operator () =
 
 
 module Test = struct
-  open Lib.Test
   open Signing.Test
   open Ethereum_user.Test
-  open Side_chain_operator.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
@@ -128,7 +126,6 @@ module Test = struct
     Side_chain_client.Test.post_user_transaction_request_hook :=
       Side_chain_operator.oper_post_user_transaction_request;
     let open Lwt_exn in
-    let open Merkle_trie in
     Lwt_exn.run
       (fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 1";
