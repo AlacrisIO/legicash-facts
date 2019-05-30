@@ -297,7 +297,17 @@ module Lwt_exn = struct
                   input
         else
           Lwt.return (Error e)
+
+  let rec infinite_retry action input =
+    let open Lwt in
+    action input
+    >>= function
+    | Ok x -> return x
+    | Error _ -> infinite_retry action input
+
 end
+
+
 
 module type StatefulErrableActionS = sig
   include StateMonadS
