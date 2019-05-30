@@ -406,7 +406,7 @@ module TransactionTracker = struct
                                    return (Error NonceTooLow)
                                  | Error TransactionRejected ->
                                    Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
-                                   Lwt_exn.return (Error TransactionRejected)
+                                   return (Error TransactionRejected)
                                  | Error e ->
                                    Logging.log "ETHUSR: TransactionTracker, Error e";
                                    fail e))))

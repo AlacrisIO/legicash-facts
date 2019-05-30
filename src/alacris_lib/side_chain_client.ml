@@ -93,8 +93,8 @@ let post_user_transaction_request_to_server : UserTransactionRequest.t signed ->
 let post_user_transaction_request_hook = ref post_user_transaction_request_to_server
 
 
-let post_user_transaction_request (request : UserTransactionRequest.t signed) =
-  request |> !post_user_transaction_request_hook
+let post_user_transaction_request (signed_request : UserTransactionRequest.t signed) =
+  signed_request |> !post_user_transaction_request_hook
 
 module Test = struct
   let post_query_hook = post_query_hook

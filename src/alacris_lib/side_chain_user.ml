@@ -286,9 +286,11 @@ let post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t ->
     | Deposit _ -> bork "post_claim_withdrawal_operation_exn error. Calling for Deposit"
     | Payment _ -> bork "post_claim_withdrawal_operation_exn error. Calling for Payment"
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-       Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
+       Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal operator=%s" (Address.to_0x operator);
+       Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal sender=%s" (Address.to_0x sender);
        get_contract_address_from_client_exn ()
        >>= fun contract_address ->
+       Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal contract_address=%s" (Address.to_0x contract_address);
        emit_claim_withdrawal_operation
          ~contract_address
          ~sender

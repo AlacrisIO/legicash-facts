@@ -214,8 +214,9 @@ module Test = struct
                                   accounts; main_chain_transactions_posted; signature;
                                   state_digest } in
         let confirmed_pair = (Revision.zero, Digest.zero) in
-        let sender = trent_address in
-        post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender ~operator
+        Logging.log "deposit_withdraw_wrong_operator_version, step 10 address=%s" (Address.to_0x operator);
+        Logging.log "deposit_withdraw_wrong_operator_version, step 10 alice_address=%s" (Address.to_0x alice_address);
+        post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender:alice_address ~operator
         >>= fun block_nbr ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 11";
         let addi_term = (Revision.add Side_chain_server_config.challenge_period_in_blocks (Revision.of_int 10)) in
@@ -223,7 +224,7 @@ module Test = struct
         wait_for_min_block_depth min_block_length
         >>= fun () ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 12";
-        get_claim_withdrawal_status ~confirmed_pair tc ~sender ~operator
+        get_claim_withdrawal_status ~confirmed_pair tc ~sender:alice_address ~operator
         >>= fun ret_value ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 13";
         if (Revision.equal ret_value (Revision.of_int 1)) then
