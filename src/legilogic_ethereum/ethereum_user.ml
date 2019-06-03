@@ -11,6 +11,7 @@ open Json_rpc
 open Trie
 
 open Ethereum_chain
+open Ethereum_watch
 open Ethereum_json_rpc
 open Ethereum_transaction
 
@@ -281,10 +282,24 @@ let nonce_too_low address =
   (* TODO: Send Notification to end-user via UI! *)
   Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
 
+let rec get_transaction_receipt_reattempt : Digest.t -> TransactionReceipt.t option Lwt_exn.t =
+  fun hash ->
+  let open Lwt_exn in
+  Ethereum_json_rpc.eth_get_transaction_receipt hash
+  >>= fun receipt ->
+  match receipt with
+  | None -> (let eper : float = Float.of_int 1 in
+             sleep_delay_exn eper
+             >>= fun () -> get_transaction_receipt_reattempt hash)
+  | Some x -> return (Some x)
+
+
 let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt_exn.arr =
   fun sender hash ->
+  Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE, beginning";
   let open Lwter in
-  Ethereum_json_rpc.eth_get_transaction_receipt hash
+  (*  Ethereum_json_rpc.eth_get_transaction_receipt hash*)
+  get_transaction_receipt_reattempt hash
   >>= function
   | Ok None ->
      Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok None";
@@ -331,7 +346,8 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, Transac
     let open Lwt_exn in
     send_raw_transaction sender signed
     >>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)
-    >>= Ethereum_json_rpc.eth_get_transaction_receipt
+    (*    >>= Ethereum_json_rpc.eth_get_transaction_receipt *)
+    >>= get_transaction_receipt_reattempt 
     >>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)
     >>= (function
       | Some receipt -> check_transaction_receipt_status receipt
