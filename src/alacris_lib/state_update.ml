@@ -83,22 +83,22 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
 
 let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
   fun operation sender value ->
-  let rec fct_submit : unit -> TransactionReceipt.t Lwt_exn.t =
+  let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
     fun () ->
     Lwt.bind (post_operation_general_kernel operation sender value)
       (function
        | Error _error -> Logging.log "post_operation_general, Error case";
-                         Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> fct_submit ())
+                         Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ())
        | Ok ereceipt ->
           (let str = print_status_receipt ereceipt in
            let str_succ = "1" in
            if String.equal str str_succ then
              Lwt_exn.return ereceipt
            else
-             Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> fct_submit ())
+             Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ())
           )
       ) in
-  fct_submit ()
+  submit_operation ()
 
 
 let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =

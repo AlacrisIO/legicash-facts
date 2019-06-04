@@ -34,7 +34,7 @@ exception Assertion_failed of string
 
 (** This is the standard notion of Functor as in Haskell, Scala, and other OCaml libraries,
     and distantly related to the notion of "functor" in the OCaml module system.
-    Actually, from a Categorical perspective, it's a endofunctor in the category Type of types,
+    Actually, from a Categorical perspective, it's an endofunctor in the category Type of types,
     i.e. a functor from Type to Type itself.
     TODO: use an actual Monad library, possibly the one from Jane Street.
     It applies to List, Option, Monad, ErrorMonad, etc.
@@ -250,7 +250,7 @@ module StateMonad (State: TypeS) : StateMonadS
    and type ('i, 'o) readonly = 'i -> State.t -> 'o
 
 (** Translation of Lwt monadic notation to ours, for consistency.
-    The name "Lwter" is a a bad pun on "Lwt" and "Later"; it sounds like a kluge,
+    The name "Lwter" is a bad pun on "Lwt" and "Later"; it sounds like a kluge,
     which is exactly what it is:
     This is not an alternative to Lwt, just a thin layer above,
     slightly "better" suited for our purposes,
@@ -420,21 +420,6 @@ val sequentialize : ('i, 'o, 'state) async_action -> 'state -> ('i, 'o) Lwter.ar
     return a client Lwt arrow that provides sequentialized access to the action arrow *)
 val stateless_sequentialize : ('i, 'o) Lwter.arr -> ('i, 'o) Lwter.arr
 
-(*
-   (** Given a mailbox for messages being a pair of input and output-co-promise,
-   and given an Lwt arrow return a background thread that processes those messages in parallel.
-   In a given process, you might as well do without a mailbox, but if you have to have a mailbox anyway...
- *)
-
-   val stateless_parallel_server : ('i * 'o Lwt.u) Lwt_mvar.t -> ('i, 'o) Lwter.arr -> _ Lwt.t
-
-   (** Given a Lwt arrow, return a client Lwt arrow that does the same thing,
-   but going through the bottleneck of a mailbox.
-   In a given process, you might as well do without the entire mailbox thing! *)
-   val stateless_parallelize : ('i, 'o) Lwter.arr -> ('i, 'o) Lwter.arr
-
-*)
-
 (* reading, writing strings from Lwt_io channels *)
 
 val read_string_from_lwt_io_channel : ?count:int -> Lwt_io.input_channel -> string Lwt_exn.t
@@ -513,15 +498,16 @@ val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_cha
 *)
 module type SimpleActorS = sig
   type 'state t
-  val poke : 'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
-  val action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
-  val peek : 'state t -> 'state
-  val peek_action : 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+  val poke:        'state t -> ('state, 'state) Lwter.arr -> unit Lwt.t
+  val action:      'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
+  val peek:        'state t -> 'state
+  val peek_action: 'state t -> ('i, 'o, 'state) async_action -> ('i, 'o) Lwter.arr
 end
 
 module SimpleActor : sig
   include SimpleActorS
-  val make : ?mailbox:(('state, 'state) Lwter.arr Lwt_mvar.t)
-    -> ?wrapper:(('state, 'state) Lwter.arr -> ('state, 'state) Lwter.arr)
-    -> 'state -> 'state t
+  val make: ?mailbox:(('state, 'state) Lwter.arr Lwt_mvar.t)
+         -> ?wrapper:(('state, 'state) Lwter.arr
+         -> ('state, 'state) Lwter.arr)
+         -> 'state -> 'state t
 end
