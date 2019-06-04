@@ -1,5 +1,6 @@
 open Legilogic_lib
 open Lib
+open Hex
 open Signing
 open Types
 open Action
@@ -17,7 +18,12 @@ exception Invalid_contract
 let check_side_chain_contract_created contract_address =
   Ethereum_json_rpc.(eth_get_code (contract_address, BlockParameter.Latest))
   >>= fun code ->
-  if code = Operator_contract_binary.contract_bytes then
+  let code_red = remove_0x_from_string (Hex.unparse_0x_bytes code) in
+  let contract_code_red = remove_0x_from_string (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes) in
+  let len_red = String.length code_red in
+  let contract_len_red = String.length contract_code_red in
+  let code_red_sub = String.sub code_red (len_red - contract_len_red) contract_len_red in
+  if code_red_sub = contract_code_red then
     return (contract_address, Revision.zero) (* Clearly wrong. We need the revision on input *)
   else
     (let addr = Address.to_0x contract_address in

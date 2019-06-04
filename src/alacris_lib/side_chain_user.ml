@@ -2,6 +2,7 @@ open Lens.Infix
 
 open Legilogic_lib
 open Lib
+open Hex
 open Action
 open Yojsoning
 open Marshaling
@@ -93,11 +94,6 @@ let get_contract_address_from_client_exn_req : unit -> Address.t Lwt_exn.t =
        one by one but that needs to be understood. *)
     return (ContractAddrType.of_yojson_exn x).contract_address
 
-let remove_0x_from_string : string -> string =
-  fun str_in ->
-  let len = String.length str_in in
-  let str_out = String.sub str_in 2 (len-2) in
-  str_out
 
 let get_contract_address_from_client_checked_exn_req : unit -> Address.t Lwt_exn.t =
   fun () ->
