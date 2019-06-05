@@ -111,12 +111,18 @@ let get_contract_address_from_client_checked_exn_req : unit -> Address.t Lwt_exn
   Ethereum_json_rpc.(eth_get_code (contract_address, blk_param))
   >>= fun code ->
   Logging.log "We have the code. Working with it";
+  Logging.log " code1=%s" (Hex.unparse_0x_bytes code);
+  Logging.log " code2=%s" (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
+  (* code1 is a substring of code2. code2 is obtained by appending some value at the beginning
+     as a prefix *)
   let code_red = remove_0x_from_string (Hex.unparse_0x_bytes code) in
   let contract_code_red = remove_0x_from_string (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes) in
   let len_red = String.length code_red in
   let contract_len_red = String.length contract_code_red in
-  let code_red_sub = String.sub code_red (len_red - contract_len_red) contract_len_red in
-  if code_red_sub = contract_code_red then
+  Logging.log "We have len_red=%i contract_len_red=%i" len_red contract_len_red;
+  let contract_code_red_sub = String.sub contract_code_red (contract_len_red - len_red) len_red in
+  Logging.log "We have code_red_sub";
+  if code_red = contract_code_red_sub then
     (Logging.log "Equality case for the code";
      return contract_address)
   else

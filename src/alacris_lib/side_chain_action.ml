@@ -18,12 +18,20 @@ exception Invalid_contract
 let check_side_chain_contract_created contract_address =
   Ethereum_json_rpc.(eth_get_code (contract_address, BlockParameter.Latest))
   >>= fun code ->
+  Logging.log "check_side_chain_contract_created, step 1";
+  let len_code = String.length (Hex.unparse_0x_bytes code) in
+  Logging.log "check_side_chain_contract_created, step 2 len_code=%i" len_code;
   let code_red = remove_0x_from_string (Hex.unparse_0x_bytes code) in
+  Logging.log "check_side_chain_contract_created, step 3";
   let contract_code_red = remove_0x_from_string (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes) in
+  Logging.log "check_side_chain_contract_created, step 4";
   let len_red = String.length code_red in
+  Logging.log "check_side_chain_contract_created, step 5";
   let contract_len_red = String.length contract_code_red in
-  let code_red_sub = String.sub code_red (len_red - contract_len_red) contract_len_red in
-  if code_red_sub = contract_code_red then
+  Logging.log "check_side_chain_contract_created, step 6 len_red=%i contract_len_red=%i" len_red contract_len_red;
+  let contract_code_red_sub = String.sub contract_code_red (contract_len_red - len_red) len_red in
+  Logging.log "check_side_chain_contract_created, step 7";
+  if code_red = contract_code_red_sub then
     return (contract_address, Revision.zero) (* Clearly wrong. We need the revision on input *)
   else
     (let addr = Address.to_0x contract_address in
