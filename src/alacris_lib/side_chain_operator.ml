@@ -38,8 +38,14 @@ module OperatorState = struct
     let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {committed; current} =
       let open Lwt in
+      Logging.log "side_chain_operator, walk_dependencies, step 1";
       walk_dependency SignedState.dependency_walking context committed
-      >>= fun () -> walk_dependency State.dependency_walking context current
+      >>= fun () ->
+      Logging.log "side_chain_operator, walk_dependencies, step 2";
+      walk_dependency State.dependency_walking context current
+      >>= fun () ->
+      Logging.log "side_chain_operator, walk_dependencies, step 3";
+      return ()
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end
@@ -49,18 +55,26 @@ module OperatorState = struct
     "LCFS0001" ^ (Address.to_big_endian_bits operator_address)
   let save operator_state =
     let open Lwt in
+    Logging.log "Beginning of side_chain_operator / save";
     save operator_state (* <-- use inherited binding *)
     >>= fun () ->
+    Logging.log "Beginning of side_chain_operator / digest commit";
     let address = operator_state.keypair.address in
+    Logging.log "side_chain_operator / save / address=%s" (Address.to_0x address);
     let key = operator_state_key address in
+    let e_str : string = (Digest.to_string (digest operator_state)) in
+    Logging.log "side_chain_operator LCFS save digest=%s" e_str;
     Db.put key (Digest.to_big_endian_bits (digest operator_state))
   let load operator_address =
+    Logging.log "Beginning of side_chain_operator / load";
+    Logging.log "side_chain_operator / load / operator_address=%s" (Address.to_0x operator_address);
     operator_address |> operator_state_key |> Db.get
     |> (function
-      | Some x -> x
-      | None -> raise (Operator_not_found
-                         (Printf.sprintf "Operator %s not found in the database"
-                            (Address.to_0x operator_address))))
+        | Some x -> Logging.log "OK case of side_chain_operator/load";
+                    x
+        | None -> raise (Operator_not_found
+                           (Printf.sprintf "Operator %s not found in the database"
+                              (Address.to_0x operator_address))))
     |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
 end
 
@@ -752,27 +766,31 @@ let initial_operator_state address =
 (* TODO: make it a PersistentActivity. *)
 (* TODO: don't create a new operator unless explicitly requested? *)
 let start_operator address =
+  Logging.log "start_operator, begin";
   let open Lwt_exn in
   match !the_operator_service_ref with
   | Some x ->
-    if Address.equal x.address address then
-      (Logging.log "Operator service already running for address %s, not starting another one"
-         (Address.to_0x address);
-       return ())
-    else
-      bork "Cannot start a operator service for address %s because there's already one for %s"
-        (Address.to_0x address) (Address.to_0x x.address)
+     Logging.log "start_operator, Some x";
+     if Address.equal x.address address then
+       (Logging.log "Operator service already running for address %s, not starting another one"
+          (Address.to_0x address);
+        return ())
+     else
+       bork "Cannot start a operator service for address %s because there's already one for %s"
+         (Address.to_0x address) (Address.to_0x x.address)
   | None ->
-    let operator_state =
-      (* TODO: don't create a new operator unless explicitly requested? *)
-      try
-        OperatorState.load address
-      with Not_found -> initial_operator_state address
-    in
-    let state_ref = ref operator_state in
-    the_operator_service_ref := Some { address; state_ref };
-    Lwt.async (const state_ref >>> inner_transaction_request_loop);
-    Lwt_exn.return ()
+     Logging.log "start_operator, None, address=%s" (Address.to_0x address);
+     let operator_state =
+       (* TODO: don't create a new operator unless explicitly requested? *)
+       try
+         OperatorState.load address
+       with Not_found -> Logging.log "Using initial_operator_state";
+                         initial_operator_state address
+     in
+     let state_ref = ref operator_state in
+     the_operator_service_ref := Some { address; state_ref };
+     Lwt.async (const state_ref >>> inner_transaction_request_loop);
+     Lwt_exn.return ()
 
 
 (* Need to create a thread, persistent activity

@@ -354,7 +354,12 @@ module Signed (P : PersistableRlpS) = struct
     let rlping = signed_rlping P.rlping
     let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context x =
+      let open Lwt in
+      Logging.log "Signed(P) beginning of walk_dependencies";
       walk_dependency P.dependency_walking context x.payload
+      >>= fun () ->
+      Logging.log "Signed(P) ending of walk_dependencies";
+      return ()
     let make_persistent = normal_persistent
   end
   include Persistable(Pre)
