@@ -62,37 +62,11 @@ let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
 
-module ContractAddrType = struct
-  [@warning "-39"]
-  type t = { contract_address : Address.t
-           ; contract_block_number : Revision.t
-           }
-  [@@deriving yojson {strict = false}]
-  include (YojsonPersistable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : (PersistableS with type t := t))
-end
-
 
 let get_contract_address_from_client_exn_req : unit -> Address.t Lwt_exn.t =
   fun () ->
-  let open Lwt_exn in
-  if Side_chain_server_config.config.sidechain_config.use_contract_address_file > 0 then
-    let estr : string = Side_chain_server_config.config.sidechain_config.contract_address in
-    let contr_addr : Address.t = Address.of_0x estr in
-    return contr_addr
-  else
-    UserQueryRequest.Get_contract_address
-    |> post_user_query_request
-    >>= fun x ->
-    (* We are in the strange situation that the contract code as obtained from the web3.eth.getCode
-       does not match the Operator_contract_binary.contract_bytes
-       If we decrease the index by 1, then there is no contract. So we clearly download the
-       latest contract.
-       We need to understand the contruction of the code itself. Apparently the values are prefixed
-       one by one but that needs to be understood. *)
-    return (ContractAddrType.of_yojson_exn x).contract_address
+  let contract_address = Lazy.force contract_address_client in
+  Lwt_exn.return contract_address
 
 
 let get_contract_address_from_client_checked_exn_req : unit -> Address.t Lwt_exn.t =

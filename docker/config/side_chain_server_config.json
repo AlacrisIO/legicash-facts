@@ -13,8 +13,6 @@
       "num_timestamps" : 100000,
       "delay_wait_ethereum_watch_in_seconds" : 1,
       "challenge_period_in_blocks" : 2,
-      "use_contract_address_file" : 0,
-      "contract_address" : "0x00000",
       "state_update_period_in_seconds" : 25
   },
   "fee_schedule_config" : {

@@ -52,8 +52,6 @@ module Side_chain_server_config = struct
     { num_timestamps                       : int
     ; delay_wait_ethereum_watch_in_seconds : float
     ; challenge_period_in_blocks           : int
-    ; use_contract_address_file            : int
-    ; contract_address                     : string
     ; state_update_period_in_seconds       : int
     } [@@deriving of_yojson]
 
