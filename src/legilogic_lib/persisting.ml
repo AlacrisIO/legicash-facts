@@ -51,6 +51,7 @@ let db_string_of_digest digest =
   digest |> content_addressed_storage_key |> Db.get |> Option.get
 
 let db_value_of_digest unmarshal_string digest =
+  Logging.log "persisting calling db_value_of_digest";
   digest |> db_string_of_digest |> unmarshal_string
 
 (** TODO: have a version that computes the digest from the marshal_string *)

@@ -139,13 +139,18 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
     let make_persistent x y = normal_persistent x y
     let walk_dependencies _methods context = function
       | Leaf {value} ->
-        walk_dependency Value.dependency_walking context value
-      | Empty -> Lwt.return_unit
+         Logging.log "merkle_trie, walk_dependencies, case 1";
+         walk_dependency Value.dependency_walking context value
+      | Empty ->
+         Logging.log "merkle_trie, walk_dependencies, case 2";
+         Lwt.return_unit
       | Branch {left; right} ->
-        walk_dependency !t_dependency_walking context left
-        >>= (fun () -> walk_dependency !t_dependency_walking context right)
+         Logging.log "merkle_trie, walk_dependencies, case 3";
+         walk_dependency !t_dependency_walking context left
+         >>= (fun () -> walk_dependency !t_dependency_walking context right)
       | Skip {child} ->
-        walk_dependency !t_dependency_walking context child
+         Logging.log "merkle_trie, walk_dependencies, case 4";
+         walk_dependency !t_dependency_walking context child
     let yojsoning = {to_yojson=bottom;of_yojson=bottom}
   end
   module Trie = PersistableRlp(PreTrie)
