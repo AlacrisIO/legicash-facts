@@ -107,7 +107,7 @@ module Test = struct
 
         (* TODO replace mutable contract address plumbing w/ more elegant +
          * functional style *)
-        get_contract_address_from_client_exn () >>= fun contract_address ->
+        get_contract_address_for_client_exn () >>= fun contract_address ->
         Logging.log "deposit_and_payment_and_withdrawal, step 3";
         Operator_contract.set_contract_address contract_address;
 
