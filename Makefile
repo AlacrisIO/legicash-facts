@@ -22,6 +22,14 @@ ifdef NO_CACHE
 NO_CACHE="--no-cache"
 endif
 
+ifndef FRONTEND_BRANCH
+override FRONTEND_BRANCH = master
+endif
+
+ifndef ENVIRONMENT
+override ENVIRONMENT = dev
+endif
+
 # Our applications recognize this as the top directory for the project, and look for files there
 # at runtime, e.g. for configuration.
 export ALACRIS_HOME:=$(shell pwd)
@@ -274,6 +282,21 @@ docker-build-all:
 
 docker-build: ## Build all or c=<name> containers in foreground
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(NO_CACHE) $(c)
+
+docker-build-geth: ## Build private ethereum node
+	$(SHOW) "Building Ethereum test network image"
+	$(HIDE) docker build \
+	  --no-cache \
+	  -t gcr.io/legicash-demo-1950/legicash-demo/alacris_private_ethereum_node:v1 \
+	  -f docker/containers/alacris_private_ethereum_node/Dockerfile .
+
+docker-build-frontend: ## Build frontend app image
+	$(SHOW) "Building frontend ${FRONTEND_BRANCH} branch for ${ENVIRONMENT} env"
+	$(HIDE) docker build \
+	  --no-cache \
+	  -t gcr.io/legicash-demo-1950/legicash-demo/alacris_frontend:v1 \
+	  --build-arg FRONTEND_BRANCH=${FRONTEND_BRANCH} --build-arg ENVIRONMENT=${ENVIRONMENT} \
+	  -f docker/containers/alacris_frontend/Dockerfile .
 
 docker-list: ## List available services
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) config --services

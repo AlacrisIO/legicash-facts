@@ -74,7 +74,7 @@ module OngoingTransactionStatus : sig
     | SignedByOperator     of TransactionCommitment.t
     | PostedToRegistry     of TransactionCommitment.t
     | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Ethereum_chain.Confirmation.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * Revision.t * Ethereum_chain.Confirmation.t
 
   include PersistableS with type t := t
 

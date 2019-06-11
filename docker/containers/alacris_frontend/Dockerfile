@@ -12,13 +12,8 @@ RUN mkdir -p /var/www/app
 WORKDIR /var/www/app
 ENV PATH /var/www/app/node_modules/.bin:$PATH
 
-# Install SSH private key; this is a Gitlab Deploy key
-RUN mkdir -p /home/appuser/.ssh/
-ADD docker/containers/alacris_frontend/files/private_key /home/appuser/.ssh/id_rsa
-RUN chmod 400 /home/appuser/.ssh/id_rsa
-
 # Make sure domain is accepted
-RUN touch /home/appuser/.ssh/known_hosts
+RUN mkdir -p /home/appuser/.ssh/ && touch /home/appuser/.ssh/known_hosts
 RUN ssh-keyscan github.com >> /home/appuser/.ssh/known_hosts
 
 RUN chown -R appuser:appuser /var/www/app/
@@ -30,8 +25,7 @@ USER appuser
 ARG FRONTEND_BRANCH
 ARG ENVIRONMENT
 
-# Fetch Legicash frontend code
-RUN git clone -b "${FRONTEND_BRANCH}" git@github.com:AlacrisIO/legicash-demo-frontend.git /var/www/app
+RUN git clone -b "${FRONTEND_BRANCH}" https://github.com/AlacrisIO/legicash-demo-frontend.git /var/www/app
 
 # Install
 USER root

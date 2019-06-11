@@ -13,10 +13,13 @@ let keccak256_string s =
 
 let digest_of_string s =
   Digest.of_big_endian_bits (keccak256_string s)
+
 let digest_of_marshal_bytes marshal_bytes x =
   x |> marshal_bytes |> Bytes.to_string |> digest_of_string
+
 let digest_of_marshal marshal =
   digest_of_marshal_bytes (marshal_bytes_of_marshal marshal)
+
 let null_digest = Digest.zero
 
 module type DigestibleS = sig

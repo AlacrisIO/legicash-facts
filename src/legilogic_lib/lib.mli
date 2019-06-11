@@ -42,16 +42,16 @@ val zcompose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c
 val (>>) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
 
 (** Currying and uncurrying *)
-val curry : ('a * 'b -> 'c) -> 'a -> 'b -> 'c
-val uncurry : ('a -> 'b -> 'c) -> 'a * 'b -> 'c
-val curry3 : ('a * 'b * 'c -> 'd) -> 'a -> 'b -> 'c -> 'd
-val uncurry3 : ('a -> 'b -> 'c -> 'd) -> 'a * 'b * 'c -> 'd
-val curry4 : ('a * 'b * 'c * 'd -> 'e) -> 'a -> 'b -> 'c -> 'd -> 'e
-val uncurry4 : ('a -> 'b -> 'c -> 'd -> 'e) -> 'a * 'b * 'c * 'd -> 'e
+val curry:    ('a  * 'b -> 'c)             -> 'a -> 'b -> 'c
+val uncurry:  ('a -> 'b -> 'c)             -> 'a  * 'b -> 'c
+val curry3:   ('a  * 'b  * 'c -> 'd)       -> 'a -> 'b -> 'c -> 'd
+val uncurry3: ('a -> 'b -> 'c -> 'd)       -> 'a  * 'b  * 'c -> 'd
+val curry4:   ('a  * 'b  * 'c  * 'd -> 'e) -> 'a -> 'b -> 'c -> 'd -> 'e
+val uncurry4: ('a -> 'b -> 'c -> 'd -> 'e) -> 'a  * 'b  * 'c  * 'd -> 'e
 
-val pair : 'a -> 'b -> 'a * 'b
-val triple : 'a -> 'b -> 'c -> 'a * 'b * 'c
-val quadruple : 'a -> 'b -> 'c -> 'd -> 'a * 'b * 'c * 'd
+val pair:      'a -> 'b ->             'a * 'b
+val triple:    'a -> 'b -> 'c ->       'a * 'b * 'c
+val quadruple: 'a -> 'b -> 'c -> 'd -> 'a * 'b * 'c * 'd
 
 val singleton: 'a -> 'a list
 
@@ -97,9 +97,8 @@ module Result : sig
   type ('ok, 'error) t = ('ok, 'error) result
 
   (** Result as the error monad, applicative, etc., over the Ok clause *)
-  val return : 'ok -> ('ok, 'error) t
-
-  val fail : 'error -> ('ok, 'error) t
+  val return: 'ok    -> ('ok, 'error) t
+  val fail:   'error -> ('ok, 'error) t
 
   val bind : ('a, 'err) result -> ('a -> ('b, 'err) result) -> ('b, 'err) result
 
@@ -293,8 +292,9 @@ module type MapS = sig
 
   (** Zipping through a Map *)
   type (+'a) step
-  val step_map : ('a -> 'b) -> 'a step -> 'b step
   type (+'a) path
+
+  val step_map: ('a -> 'b) -> 'a step -> 'b step
   val path_map: ('a -> 'b) -> 'a path -> 'b path
 
   exception Inconsistent_path
@@ -406,10 +406,10 @@ module type MapS = sig
   val split: key -> t -> t * value option * t
 
   (* 4.07.0 and later *)
-  val to_seq : t -> (key * value) Seq.t
-  val to_seq_from : key -> t -> (key * value) Seq.t
-  val add_seq : (key * value) Seq.t -> t -> t
-  val of_seq : (key * value) Seq.t -> t
+  val to_seq:      t -> (key * value) Seq.t
+  val to_seq_from: key -> t -> (key * value) Seq.t
+  val add_seq:     (key * value) Seq.t -> t -> t
+  val of_seq:      (key * value) Seq.t -> t
 
   val lens : key -> (t, value) Lens.t
 
@@ -417,15 +417,17 @@ module type MapS = sig
 end
 
 val defaulting_lens : (unit -> 'b) -> ('a, 'b) Lens.t -> ('a, 'b) Lens.t
-(** Assuming that the lens raises Not_found if the value is not found, and then using the provided default, modify the value found (or the default) and put it back in the object *)
+(** Assuming that the lens raises Not_found if the value is not found, and then
+  * using the provided default, modify the value found (or the default) and put
+  * it back in the object *)
 
 val seq_append : 'a Seq.t -> 'a Seq.t -> 'a Seq.t
 (** same as Extlib.Seq.append from OCaml batteries *)
 
 module type ShowableS = sig
   type t
-  val pp : Format.formatter -> t -> unit
-  val show : t -> string
+  val pp:   Format.formatter -> t -> unit
+  val show: t -> string
 end
 
 val string_reverse : string -> string
@@ -438,8 +440,8 @@ end
 module type WrapS = sig
   type t
   type value
-  val get : t -> value
-  val make : value -> t
+  val get:  t -> value
+  val make: value -> t
 end
 
 module IdWrapType : WrapTypeS with type +'a t = 'a
