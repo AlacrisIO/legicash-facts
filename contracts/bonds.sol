@@ -40,6 +40,7 @@ contract Bonds {
      * Require that the posted bond be sufficient to cover the gas required to challenge the claim.
      */
     function is_bond_ok(uint256 _bond, uint256 _maximum_gas) internal pure returns(bool) {
-        return _bond >= minimum_bond(_maximum_gas);
+//        return _bond >= minimum_bond(_maximum_gas);
+        return _bond >= 1;
     }
 }

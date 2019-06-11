@@ -66,7 +66,7 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
   fun operation sender value ->
   Logging.log "post_operation_kernel : beginning of function";
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
-  Logging.log "post_operation_general_kernel : before make_pre_transaction";
+  Logging.log "post_operation_general_kernel : before make_pre_transaction value=%s" (TokenAmount.to_string value);
   Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
   >>= fun x_pretrans ->
   Ethereum_user.add_ongoing_transaction ~user:sender (Wanted x_pretrans)

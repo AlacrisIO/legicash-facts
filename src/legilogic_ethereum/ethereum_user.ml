@@ -565,7 +565,7 @@ let make_pre_transaction ~sender operation ?gas_limit value : PreTransaction.t L
   Logging.log "ETHUSR: Beginning of make_pre_transaction";
   (match gas_limit with
    | Some x -> return x
-   | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation))
+   | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation value))
   >>= fun gas_limit ->
   Logging.log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
   (* TODO: The multiplication by 2 is a hack that needs to be addressed *)
