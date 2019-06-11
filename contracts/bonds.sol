@@ -21,7 +21,7 @@ contract Bonds {
         // a somewhat conservative value for May 2018 (when the median is about 10).
         // But NOT a future-proof value.
         // TODO: dynamic configuration? Migrate to a new contract before this gets too bad?
-        return 100*1000*1000*1000;
+        return 100*1000*1000*1000 wei;
     }
 
     /**
@@ -40,7 +40,6 @@ contract Bonds {
      * Require that the posted bond be sufficient to cover the gas required to challenge the claim.
      */
     function is_bond_ok(uint256 _bond, uint256 _maximum_gas) internal pure returns(bool) {
-//        return _bond >= minimum_bond(_maximum_gas);
-        return _bond >= 1;
+        return _bond >= minimum_bond(_maximum_gas);
     }
 }

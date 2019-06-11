@@ -84,8 +84,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
     function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state)
             external payable {
-        bool test = is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
-        require(test);
+        require(is_bond_ok(msg.value, maximum_withdrawal_challenge_gas));
         uint64 res = make_claim(withdrawal_claim(
             _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state));
         emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, msg.value, address(this).balance, res);
