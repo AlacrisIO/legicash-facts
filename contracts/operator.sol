@@ -106,18 +106,17 @@ contract Operators is Claims, ClaimTypes, Bonds {
             external {
         bytes32 claim = withdrawal_claim(
             _operator, msg.sender, _ticket, _value, _bond, _confirmed_state);
-        if (is_claim_status_accepted(claim)) {
-          // Consume a valid withdrawal claim.
-          set_claim_consumed(claim);
+        require(is_claim_status_accepted(claim));
+        // Consume a valid withdrawal claim.
+        set_claim_consumed(claim);
 
-          // Log the withdrawal so future double-claim attempts can be duly rejected.
-          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
+        // Log the withdrawal so future double-claim attempts can be duly rejected.
+        emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
 
-          // NB: Should we always transfer money LAST! ?
-          // I am not sure this is such a good idea
-          // TODO: Should we allow a recipient different from the sender?
-          msg.sender.transfer(_value + _bond);
-        }
+        // NB: Should we always transfer money LAST! ?
+        // I am not sure this is such a good idea
+        // TODO: Should we allow a recipient different from the sender?
+        msg.sender.transfer(_value + _bond);
     }
 
 
