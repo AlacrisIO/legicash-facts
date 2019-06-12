@@ -15,7 +15,14 @@ val set_contract_address : Address.t -> unit
 (** set the address of the contract on Ethereum
     TODO: use a fixed address, obviating this call (?) *)
 
+val set_contract_block_number : Revision.t -> unit
+(** set the block under which the contract is stored on Ethereum *)
+
 val get_contract_address : unit -> Address.t
+(** get the contract address of the contract on Ethereum
+    TODO: use a fixed address, obviating this call *)
+
+val get_contract_block_number : unit -> Revision.t
 (** set the address of the contract on Ethereum
     TODO: use a fixed address, obviating this call *)
 

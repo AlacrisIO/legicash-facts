@@ -12,12 +12,15 @@ let keccak256_string s =
 (* NB: trying to reuse (Cryptokit.Hash.keccak 256) object across calls results in a segfault *)
 
 let digest_of_string s =
+  Logging.log "digesting : Using the digest_of_string";
   Digest.of_big_endian_bits (keccak256_string s)
 
 let digest_of_marshal_bytes marshal_bytes x =
+  Logging.log "digesting : Using the digest_of_marshal_bytes";
   x |> marshal_bytes |> Bytes.to_string |> digest_of_string
 
 let digest_of_marshal marshal =
+  Logging.log "digesting : Using the digest_of_marshal";
   digest_of_marshal_bytes (marshal_bytes_of_marshal marshal)
 
 let null_digest = Digest.zero

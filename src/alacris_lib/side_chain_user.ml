@@ -2,6 +2,7 @@ open Lens.Infix
 
 open Legilogic_lib
 open Lib
+open Hex
 open Action
 open Yojsoning
 open Marshaling
@@ -61,44 +62,62 @@ let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
 
-module ContractAddrType = struct
-  [@warning "-39"]
-  type t = { contract_address : Address.t }
-  [@@deriving yojson {strict = false}]
-  include (YojsonPersistable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
-           end) : (PersistableS with type t := t))
-end
 
-
-let get_contract_address_from_client_exn_req : unit -> Address.t Lwt_exn.t =
+let get_contract_address_for_client_checked_exn_req : unit -> Address.t Lwt_exn.t =
   fun () ->
   let open Lwt_exn in
-  UserQueryRequest.Get_contract_address
-    |> post_user_query_request
-  >>= fun x ->
-    return (ContractAddrType.of_yojson_exn x).contract_address
+  let contract_address = Lazy.force contract_address_for_client in
+  (* We are in the strange situation that the contract code as obtained from the web3.eth.getCode
+     does not match the Operator_contract_binary.contract_bytes
+     If we decrease the block_number by 1, then there is no contract. So we clearly download the
+     latest contract.
+     We need to understand the construction of the code itself. Apparently the values are prefixed
+     one by one but that needs to be understood.
+     Here we check the suffix and this should be ok for now. *)
+  let blk_param : BlockParameter.t = BlockParameter.Latest in
+  Ethereum_json_rpc.(eth_get_code (contract_address, blk_param))
+  >>= fun code ->
+  Logging.log "We have the code. Working with it";
+  Logging.log " code1=%s" (Hex.unparse_0x_bytes code);
+  Logging.log " code2=%s" (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
+  (* code1 is a substring of code2. code2 is obtained by appending some value at the beginning
+     as a prefix *)
+  let code_red = remove_0x_from_string (Hex.unparse_0x_bytes code) in
+  let contract_code_red = remove_0x_from_string (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes) in
+  let len_red = String.length code_red in
+  let contract_len_red = String.length contract_code_red in
+  Logging.log "We have len_red=%i contract_len_red=%i" len_red contract_len_red;
+  let contract_code_red_sub = String.sub contract_code_red (contract_len_red - len_red) len_red in
+  Logging.log "We have code_red_sub";
+  if code_red = contract_code_red_sub then
+    (Logging.log "Equality case for the code";
+     return contract_address)
+  else
+    (Logging.log "Non-Equality case for the code";
+     Logging.log " code1=%s" (Hex.unparse_0x_bytes code);
+     Logging.log " code2=%s" (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
+     bork "ALERT: The contract code does not match what we have in the binary file")
 
-let contract_address_from_client_ref : (Address.t option ref) = ref None
 
-let get_contract_address_from_client_exn : unit -> Address.t Lwt_exn.t =
+let contract_address_for_client_ref : (Address.t option ref) = ref None
+
+let get_contract_address_for_client_exn : unit -> Address.t Lwt_exn.t =
   fun () ->
-  match !contract_address_from_client_ref with
+  match !contract_address_for_client_ref with
   | Some x ->
-     Logging.log "get_contract_address_from_client_exn 1 : x=%s" (Address.to_0x x);
+     Logging.log "get_contract_address_for_client_exn 1 : x=%s" (Address.to_0x x);
      Lwt_exn.return x
   | None ->
-     Lwt_exn.bind (get_contract_address_from_client_exn_req ())
+     Lwt_exn.bind (get_contract_address_for_client_checked_exn_req ())
        (fun x ->
-         Logging.log "get_contract_address_from_client_exn 2 : x=%s" (Address.to_0x x);
-         contract_address_from_client_ref := Some x;
+         Logging.log "get_contract_address_for_client_exn 2 : x=%s" (Address.to_0x x);
+         contract_address_for_client_ref := Some x;
          Lwt_exn.return x)
 
-let get_contract_address_from_client : unit -> Address.t Lwt.t =
+let get_contract_address_for_client : unit -> Address.t Lwt.t =
   fun () ->
   Lwt.bind
-    (get_contract_address_from_client_exn ())
+    (get_contract_address_for_client_exn ())
     (fun x ->
       match x with
       | Error e -> bork "Error in obtaining the contract_address"
@@ -110,7 +129,7 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
   let open Lwt_exn in
   Logging.log "Beginning of wait_for_operator_state_update";
   Logging.log "Before wait_for_contract_event CONTEXT state_update";
-  get_contract_address_from_client_exn ()
+  get_contract_address_for_client_exn ()
   >>= fun contract_address ->
   wait_for_contract_event
     ~contract_address
@@ -157,7 +176,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
     fun start_ref ->
     Logging.log "get_matching with start_rev=%s" (Revision.to_string start_ref);
     let open Lwt_exn in
-    get_contract_address_from_client_exn ()
+    get_contract_address_for_client_exn ()
     >>= fun contract_address ->
     retrieve_relevant_list_logs_data ~delay ~start_revision:start_ref
       ~max_number_iteration:None
@@ -238,7 +257,7 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
                                                      None; None; None] in
   Logging.log "Before wait_for_contract_event CONTEXT deposit";
   let open Lwt_exn in
-  get_contract_address_from_client_exn ()
+  get_contract_address_for_client_exn ()
   >>= (fun contract_address ->
   wait_for_contract_event ~contract_address ~transaction_hash:None ~topics list_data_type data_value_search)
   >>= (fun (x : (LogObject.t * (abi_value list))) ->
@@ -256,7 +275,7 @@ let post_claim_withdrawal_operation_exn : TransactionCommitment.t -> sender:Addr
     | Payment _ -> bork "This part should not occur"
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
        Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
-       get_contract_address_from_client_exn ()
+       get_contract_address_for_client_exn ()
        >>= fun contract_address ->
        emit_claim_withdrawal_operation
          ~contract_address
@@ -292,7 +311,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revis
   let open Lwt_exn in
   let min_block_length = (Revision.add block_nbr Side_chain_server_config.challenge_period_in_blocks) in
   wait_for_min_block_depth min_block_length
-  >>= fun () -> get_contract_address_from_client_exn ()
+  >>= fun () -> get_contract_address_for_client_exn ()
   >>= fun contract_address ->
   emit_withdraw_operation
     ~contract_address
@@ -585,7 +604,7 @@ module TransactionTracker = struct
               (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
               let amount = TokenAmount.(add deposit_amount deposit_fee)
 
-              in begin get_contract_address_from_client ()
+              in begin get_contract_address_for_client ()
                 >>= fun contract_address ->
                   return @@ Operator_contract.pre_deposit ~operator ~amount ~contract_address
                 >>= fun pre_tx ->

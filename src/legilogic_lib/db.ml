@@ -178,6 +178,7 @@ let start_server ~db_name ~db () =
       else
         Lwt_mvar.take db_mailbox >>= function
         | Put {key;value} ->
+          Logging.log "key=(omit) value=(omit)";
           LevelDB.Batch.put batch key value;
           inner_loop ~ready ~triggered ~held
 
@@ -271,6 +272,7 @@ let has_key key =
   LevelDB.mem (the_db ()) key
 
 let get key =
+  Logging.log "Db.get access for key=(omit)";
   LevelDB.get (the_db ()) key
 (* Uncomment the following to spy on db read accesses:
     |> function
@@ -286,6 +288,7 @@ let get key =
 *)
 
 let put key value =
+  Logging.log "Db.put key=(omit) value=(omit)";
   Put {key; value} |> request
 
 let put_many list =

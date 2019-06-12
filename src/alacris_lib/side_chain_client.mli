@@ -17,8 +17,11 @@ val post_user_transaction_request : (UserTransactionRequest.t signed, Transactio
 (** send transaction request to side chain over TCP/IP *)
 
 val operator_address : Address.t Lazy.t
-(* Address of the configured operator for the current client.
-   TODO: actually support more than one operator in the client. *)
+(** Address of the configured operator for the current client. *)
+(*  TODO: actually support more than one operator in the client. *)
+
+val contract_address_for_client : Address.t Lazy.t
+(** Address of the contract address for the current client. *)
 
 module Test : sig
   val post_query_hook : (Query.t, yojson) Lwt_exn.arr ref
