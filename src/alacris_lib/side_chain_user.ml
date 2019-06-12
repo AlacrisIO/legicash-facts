@@ -24,7 +24,7 @@ open Digesting
 
 open Side_chain
 
-let side_chain_user_log = true
+let side_chain_user_log = false
 
 (** TODO: query the network, whatever, and find the fee schedule *)
 let get_operator_fee_schedule _operator_address =
