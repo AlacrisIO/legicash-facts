@@ -678,7 +678,7 @@ let get_individual_length (etype: abi_type) : int =
   | Address -> 32
   | Bytes m -> let padding_len = 32 - m in
                if (padding_len < 0) then
-                 Logging.log "The array bytes is too long";
+                 bork "The array bytes is too long";
                32
   | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
             let len = Bytes.length bytes_val_one in
@@ -733,7 +733,7 @@ let decode_individual_data : Bytes.t -> int -> abi_type -> (abi_value*int) =
                    true
                in
                if (check_padding == false) then
-                 Logging.log "decode_individual_data, case 3, step 8";
+                 bork "decode_individual_data, case 3, step 8";
                (Bytes_value bytes_ret, end_padding_pos)
   | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
             let bytes_val_zero = big_endian_bytes_of_uint 8 Nat.zero in
@@ -763,19 +763,15 @@ let decode_data (data: Bytes.t) (list_type : abi_type list) : abi_value list =
   let padding1 = Bytes.make offset '\000' in
   let padding2 = Bytes.sub data 0 offset in
   let test = Bytes.equal padding1 padding2 in
-  (*  Logging.log "test=%B" test; *)
   if (test == false) then
-    Logging.log "We should have padding1 = padding2";
+    bork "We should have padding1 = padding2";
   let (pos : int ref) = ref offset in
   let (list_ret: abi_value list) = List.map (fun etype ->
-      (*      Logging.log "decode_data, before call to decode_individual_data"; *)
       let (abi_val, next_pos) = decode_individual_data data !pos etype in
-      (*      Logging.log "decode_data, after call to decode_individual_data next_pos=%i" next_pos;*)
       pos := next_pos;
       abi_val) list_type in
-  (*  Logging.log "Now checking the length pos=%i total_len=%i" !pos total_len;*)
   if (!pos != total_len) then
-    Logging.log "The data array size does not match !pos=%i total_len=%i" (!pos) total_len;
+    bork "The data array size does not match !pos=%i total_len=%i" (!pos) total_len;
   list_ret
 
 

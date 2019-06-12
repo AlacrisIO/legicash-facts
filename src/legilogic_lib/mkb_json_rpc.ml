@@ -3,10 +3,10 @@ open Action
 open Yojsoning
 open Persisting
 open Json_rpc
-(* open Signing *)
 open Types
 
 
+let mkb_json_rpc_log = true
 
 type mkb_rpc_config_type =
   { use_mkb : bool
@@ -49,7 +49,6 @@ let mkb_mutex = Lwt_mutex.create ()
 
 let mkb_json_rpc
       method_name result_decoder param_encoder ?timeout ?log params =
-  Logging.log "MKB json rpc method_name=%s" method_name;
   Lwt_mutex.with_lock mkb_mutex
     (fun () ->
        json_rpc (Lazy.force mkb_net) method_name result_decoder param_encoder ?timeout ?log params)
@@ -149,7 +148,9 @@ let rec mkb_send_data_iterate_fail : (string * string * string * string) -> Send
   Lwt.bind (mkb_send_data x)
   (function
   | Ok x -> Lwt.return x
-  | _ -> mkb_send_data_iterate_fail x)
+  | _ -> if mkb_json_rpc_log then
+           Logging.log "Reiterating mkb_send_data in case of failure";
+         mkb_send_data_iterate_fail x)
 
 
 (*
@@ -216,7 +217,8 @@ let mkb_add_neighboring_registrar : string -> string list -> unit Lwt_exn.t =
   in individual_addition 0
 
 let init_mkb_server () =
-  Logging.log "Beginning of init_mkb_server";
+  if mkb_json_rpc_log then
+    Logging.log "Beginning of init_mkb_server";
   let open Lwt_exn in
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
   if mkb_rpc_config_v.use_mkb then
@@ -229,7 +231,8 @@ let init_mkb_server () =
     mkb_topic_creation mkb_topic_desc
     >>= fun _ -> mkb_add_neighboring_registrar topic neighboring_registrar_list
     >>= fun _ -> mkb_add_account (topic, username)
-    >>= fun _ -> Logging.log "The MKB has been successfully set up";
+    >>= fun _ -> if mkb_json_rpc_log then
+                   Logging.log "The MKB has been successfully set up";
                  return ()
   else
     return ()

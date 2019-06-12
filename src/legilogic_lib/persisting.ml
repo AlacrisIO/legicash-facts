@@ -20,7 +20,8 @@ let normal_persistent f x = f x
 
 let already_persistent _fun _x = Lwt.return_unit
 
-let no_dependencies _methods _context _x = Lwt.return_unit
+let no_dependencies _methods _context _x =
+  Lwt.return_unit
 
 let walk_dependency methods context x =
   context.walk methods context x
@@ -28,8 +29,10 @@ let walk_dependency methods context x =
 let one_dependency f methods _methods context x =
   walk_dependency methods context (f x)
 
+(*
 let seq_dependencies dep1 dep2 methods context x =
   dep1 methods context x >>= (fun () -> dep2 methods context x)
+ *)
 
 let dependency_walking_not_implemented =
   { digest= bottom; marshal_string= bottom; make_persistent= bottom; walk_dependencies= bottom }
@@ -50,17 +53,22 @@ let db_value_of_digest unmarshal_string digest =
 let saving_walker methods context x =
   methods.make_persistent
     (fun x ->
-       let key = x |> methods.digest |> content_addressed_storage_key in
-       if Db.has_key key then
-         Lwt.return_unit
-       else
-         (methods.walk_dependencies methods context x >>=
-          (fun () -> Db.put key (methods.marshal_string x))))
+      let key = x |> methods.digest |> content_addressed_storage_key in
+      if Db.has_key key then
+        Lwt.return_unit
+      else
+        (methods.walk_dependencies methods context x >>=
+         (fun () ->
+           Db.put key (methods.marshal_string x)
+           >>= fun () ->
+           Lwt.return_unit
+    )))
     x
 
 let saving_context = { walk = saving_walker }
 
-let save_of_dependency_walking methods x = walk_dependency methods saving_context x
+let save_of_dependency_walking methods x =
+  walk_dependency methods saving_context x
 
 module type PrePersistableDependencyS = sig
   type t
@@ -177,7 +185,8 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
   let db_key key = key_prefix ^ (Key.marshal_string key)
   let saving (db_key : string) (state : state) : state Lwt.t =
     State.walk_dependencies State.dependency_walking saving_context state >>= fun () ->
-    State.marshal_string state |> Db.put db_key >>= const state
+    State.marshal_string state |> Db.put db_key >>=
+      const state
   let resume (context: context) (key : key) (current_state: state) : activity =
     (*Logging.log "RESUME prefix %s key %s state %s" key_prefix (Key.to_yojson_string key) (State.to_yojson_string initial_state);*)
     let activity = make_activity context key (saving (db_key key)) current_state in
@@ -186,18 +195,17 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
     Hashtbl.replace table key activity;
     activity
   let make context key init =
-    (*Logging.log "MAKE prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
     let db_key = db_key key in
     match Db.get db_key with
     | Some _ -> Lib.bork "object with key %s %s already created!" key_prefix (Key.to_yojson_string key)
     | None -> init (saving db_key) >>= fun state -> return (resume context key state)
   let get context key =
-    (*Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
+    (*    Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
     let db_key = db_key key in
     (match Hashtbl.find_opt table key with
      | Some x -> x
      | None ->
-       let state =
+        let state =
          match Db.get db_key with
          | Some s -> (try State.unmarshal_string s with
              e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"

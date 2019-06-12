@@ -12,6 +12,8 @@ open Digesting
 open Ethereum_json_rpc
 open Side_chain_server_config
 
+let state_update_log = false
+
 type digest_entry =
   { revision : Revision.t
   ; digest : Digest.t}
@@ -47,16 +49,6 @@ let init_state : unit -> digest_entry =
 let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
 
 
-let print_contract_account_value : string -> unit Lwt_exn.t =
-  fun estr ->
-  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
-  let (contr_addr : Address.t) = get_contract_address () in
-  Logging.log "oper_addr=%s" (Address.to_0x oper_addr);
-  Logging.log "contr_addr=%s" (Address.to_0x contr_addr);
-  Lwt_exn.bind (Ethereum_json_rpc.eth_get_balance (contr_addr, Latest))
-    (fun x-> Logging.log "PCAV stage=%s value=%s" estr (TokenAmount.to_string x);
-             Lwt_exn.return ())
-
 
 let print_status_receipt : TransactionReceipt.t -> string =
   fun tr -> (TokenAmount.to_string tr.status)
@@ -64,9 +56,9 @@ let print_status_receipt : TransactionReceipt.t -> string =
 
 let process_ethereum_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
   fun operation sender value ->
-  Logging.log "post_operation_kernel : beginning of function";
-  let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
-  Logging.log "process_ethereum_operation_kernel : before make_pre_transaction value=%s" (TokenAmount.to_string value);
+  let gas_limit_val = None in (* Some kind of arbitrary choice *)
+  if state_update_log then
+    Logging.log "post_operation_general_kernel : before make_pre_transaction";
   Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
   >>= fun x_pretrans ->
   Ethereum_user.add_ongoing_transaction ~user:sender (Wanted x_pretrans)
@@ -76,8 +68,8 @@ let process_ethereum_operation_kernel : Ethereum_chain.Operation.t -> Address.t 
   | Ethereum_user.FinalTransactionStatus.Failed (_, error) ->
      fail error (* bork "Cannot match this" *)
   | Ethereum_user.FinalTransactionStatus.Confirmed (_transaction, _signed, receipt) ->
-     Logging.log "process_ethereum_operation_kernel : Ok receipt, transaction_hash=%s" (Digest.to_0x receipt.transaction_hash);
-     Logging.log "transaction status=%s" (print_status_receipt receipt);
+     if state_update_log then
+       Logging.log "transaction status=%s" (print_status_receipt receipt);
      Lwt_exn.return receipt))
 
 
@@ -95,7 +87,8 @@ let process_ethereum_operation : Ethereum_chain.Operation.t
          if String.equal str str_succ then
            Lwt_exn.return ereceipt
          else
-           (Logging.log "receipt is not 1, ereceipt=%s" str;
+           (if state_update_log then
+              Logging.log "receipt is not 1, ereceipt=%s" str;
             Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ()))
         )
       ) in
@@ -104,10 +97,11 @@ let process_ethereum_operation : Ethereum_chain.Operation.t
 
 let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun operator_revision digest ->
-  Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
-  let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest operator_revision in
-  let (value : TokenAmount.t) = TokenAmount.zero in
-  let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
+  if state_update_log then
+    Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
+  let operation = make_state_update_call digest operator_revision in
+  let value = TokenAmount.zero in
+  let oper_addr = Side_chain_server_config.operator_address in
   process_ethereum_operation operation oper_addr value
 
 
@@ -119,11 +113,9 @@ let inner_state_update_request_loop () =
     Lwt_mvar.take request_state_update_mailbox
     >>= function
     | GetLastRevision (rev_u : Revision.t Lwt.u) ->
-       Logging.log "State_update : GetLastRevision";
        Lwt.wakeup_later rev_u !digest_entry_ref.revision;
        inner_loop ()
     | GetLastCommit (digest_u : Digest.t Lwt.u) ->
-       Logging.log "State_update : GetLastRevision";
        Lwt.wakeup_later digest_u !digest_entry_ref.digest;
        inner_loop ()
     | Submit ((new_digest, notify_u) : (Digest.t * TransactionReceipt.t OrExn.t Lwt.u)) ->
@@ -141,7 +133,8 @@ let inner_state_update_request_loop () =
 
 
 let start_state_update_operator () =
-  Logging.log "Beginning of start_state_update_operator";
+  if state_update_log then
+    Logging.log "Beginning of start_state_update_operator";
   Lwt.async inner_state_update_request_loop;
   Lwt_exn.return ()
 

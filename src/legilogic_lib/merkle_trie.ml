@@ -139,13 +139,14 @@ module MerkleTrieType (Key : UIntS) (Value : PersistableRlpS)
     let make_persistent x y = normal_persistent x y
     let walk_dependencies _methods context = function
       | Leaf {value} ->
-        walk_dependency Value.dependency_walking context value
-      | Empty -> Lwt.return_unit
+         walk_dependency Value.dependency_walking context value
+      | Empty ->
+         Lwt.return_unit
       | Branch {left; right} ->
-        walk_dependency !t_dependency_walking context left
-        >>= (fun () -> walk_dependency !t_dependency_walking context right)
+         walk_dependency !t_dependency_walking context left
+         >>= (fun () -> walk_dependency !t_dependency_walking context right)
       | Skip {child} ->
-        walk_dependency !t_dependency_walking context child
+         walk_dependency !t_dependency_walking context child
     let yojsoning = {to_yojson=bottom;of_yojson=bottom}
   end
   module Trie = PersistableRlp(PreTrie)
