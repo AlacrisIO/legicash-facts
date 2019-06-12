@@ -3,7 +3,8 @@
 open Legilogic_lib
 open Types
 open Signing
-
+open Action
+open Lib
 open Legilogic_ethereum
 open Ethereum_chain
 open Ethereum_abi
@@ -21,6 +22,21 @@ let topic_of_amount (amnt : TokenAmount.t) : Bytes.t option =
 
 let topic_of_hash (hash : Digest.t) : Bytes.t option =
   Some (encode_function_parameters [abi_digest hash])
+
+
+let retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Digest.t * Revision.t) Lwt_exn.t =
+  fun transaction_hash ->
+  let open Lwt_exn in
+  Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
+  >>= function
+  | None -> bork "No tx receipt for contract creation"
+  | Some receipt ->
+     let contract_address = Option.get receipt.contract_address in
+     let contract_block_number = receipt.block_number in
+     Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
+     >>= fun trans ->
+     let code_hash = Digesting.digest_of_string (Bytes.to_string trans.input) in
+     return (contract_address, code_hash, transaction_hash, contract_block_number)
 
 
 let operator_contract_log = false

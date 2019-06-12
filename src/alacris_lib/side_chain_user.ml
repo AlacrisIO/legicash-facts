@@ -2,7 +2,6 @@ open Lens.Infix
 
 open Legilogic_lib
 open Lib
-open Hex
 open Action
 open Yojsoning
 open Marshaling
@@ -65,37 +64,32 @@ let get_keypair_of_address user =
 
 
 
+let test_equality_quadruple : (Address.t * Digest.t * Digest.t * Revision.t) -> (Address.t * Digest.t * Digest.t * Revision.t) -> bool =
+  fun (a_adr, a_diga, a_digb, a_rev) (b_adr, b_diga, b_digb, b_rev) ->
+  let result = ref false in
+  if not (String.equal (Address.to_string a_adr) (Address.to_string b_adr)) then
+    result := false;
+  if not (String.equal (Digest.to_string a_diga) (Digest.to_string b_diga)) then
+    result := false;
+  if not (String.equal (Digest.to_string a_digb) (Digest.to_string b_digb)) then
+    result := false;
+  if not (Revision.equal a_rev b_rev) then
+    result := false;
+  !result
+
+
 let get_contract_address_for_client_checked_exn_req : unit -> Address.t Lwt_exn.t =
   fun () ->
   let open Lwt_exn in
-  let contract_address = Lazy.force contract_address_for_client in
-  (* We are in the strange situation that the contract code as obtained from the web3.eth.getCode
-     does not match the Operator_contract_binary.contract_bytes
-     If we decrease the block_number by 1, then there is no contract. So we clearly download the
-     latest contract.
-     We need to understand the construction of the code itself. Apparently the values are prefixed
-     one by one but that needs to be understood.
-     Here we check the suffix and this should be ok for now. *)
-  let blk_param : BlockParameter.t = BlockParameter.Latest in
-  Ethereum_json_rpc.(eth_get_code (contract_address, blk_param))
-  >>= fun code ->
-  if side_chain_user_log then
-    Logging.log "We have the code. Working with it";
-  (* code1 is a substring of code2. code2 is obtained by appending some value at the beginning
-     as a prefix *)
-  let code_red = remove_0x_from_string (Hex.unparse_0x_bytes code) in
-  let contract_code_red = remove_0x_from_string (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes) in
-  let len_red = String.length code_red in
-  let contract_len_red = String.length contract_code_red in
-  let contract_code_red_sub = String.sub contract_code_red (contract_len_red - len_red) len_red in
-  if code_red = contract_code_red_sub then
-    (Logging.log "Equality case for the code";
-     return contract_address)
+  let e_quad = Lazy.force contract_address_info_for_client in
+  let (contract_address, _, creation_hash, _) = e_quad in
+  Operator_contract.retrieve_contract_address_quadruple creation_hash
+  >>= fun f_quad ->
+  let result = test_equality_quadruple e_quad f_quad in
+  if result then
+    return contract_address
   else
-    (Logging.log "Non-Equality case for the code";
-     Logging.log " code1=%s" (Hex.unparse_0x_bytes code);
-     Logging.log " code2=%s" (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
-     bork "ALERT: The contract code does not match what we have in the binary file")
+    bork "inconsistent input for the contract"
 
 
 let contract_address_for_client_ref : (Address.t option ref) = ref None

@@ -1,5 +1,4 @@
 open Legilogic_lib
-open Lib
 open Hex
 open Signing
 open Types
@@ -41,26 +40,19 @@ let check_side_chain_contract_created contract_address =
      fail Invalid_contract)
 
 
+
+
 let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) Lwt_exn.t =
   fun transaction_hash ->
-  Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
-  >>= function
-  | None -> bork "No tx receipt for contract creation"
-  | Some receipt ->
-     let contract_address = receipt.contract_address |> Option.get in
-     let contract_block_number : Revision.t = receipt.block_number in
-     Logging.log "contract_address=%s" (Address.to_string contract_address);
-     Logging.log "transaction_hash=%s" (Digest.to_string transaction_hash);
-     Logging.log "block_number=%s" (Revision.to_string contract_block_number);
-     return ()
-     >>= fun () ->
-     Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
-     >>= fun trans ->
-     let digest = Digesting.digest_of_string (Bytes.to_string trans.input) in
-     Logging.log "code_hash=%s" (Digest.to_hex_string digest);
-     Address.to_0x contract_address
-     |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
-     >>= const (contract_address, contract_block_number)
+  Operator_contract.retrieve_contract_address_quadruple transaction_hash
+  >>= fun (contract_address, code_hash, creation_hash, creation_block) ->
+  Logging.log "contract_address=%s" (Address.to_0x contract_address);
+  Logging.log "code_hash=%s" (Digest.to_0x code_hash);
+  Logging.log "creation_hash=%s" (Digest.to_0x creation_hash);
+  Logging.log "creation_block=%s" (Revision.to_string creation_block);
+  Address.to_0x contract_address
+  |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
+  >>= const (contract_address, creation_block)
 
 let create_side_chain_contract (installer_address : Address.t) : (Address.t*Revision.t) Lwt_exn.t =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
