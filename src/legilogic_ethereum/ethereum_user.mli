@@ -112,6 +112,19 @@ val call_function : sender:Address.t -> contract:Address.t -> call:Bytes.t
                     -> PreTransaction.t Lwt_exn.t
 (** Return a PreTransaction to call a function; asynchronous *)
 
+
+val print_status_receipt : TransactionReceipt.t -> string
+
+  
+val post_operation : Ethereum_chain.Operation.t
+                     -> Address.t
+                     -> TokenAmount.t
+                     -> TransactionReceipt.t Lwt_exn.t
+(** We take a general operation, a sending address an amount of value and we process
+    it completely till we obtain TransactionReceipt *)
+
+
+
 module Test : sig
   val get_prefunded_address : unit -> Address.t Lwt_exn.t
   (** get the prefunded address on the test network *)

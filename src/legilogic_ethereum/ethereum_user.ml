@@ -619,6 +619,49 @@ let create_contract ~sender ~code ?gas_limit value =
 let call_function ~sender ~contract ~call ?gas_limit value =
   make_pre_transaction ~sender (Operation.CallFunction (contract, call)) ?gas_limit value
 
+let print_status_receipt : TransactionReceipt.t -> string =
+  fun tr -> (TokenAmount.to_string tr.status)
+
+let post_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+  fun operation sender value ->
+  let gas_limit_val = None in (* Some kind of arbitrary choice *)
+  if ethereum_user_log then
+    Logging.log "post_operation_general_kernel : before make_pre_transaction";
+  make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
+  >>= fun x_pretrans ->
+  add_ongoing_transaction ~user:sender (Wanted x_pretrans)
+  >>= fun (tracker_key, _, _) ->
+  let (_, promise, _) = TransactionTracker.get () tracker_key in
+  (Lwt.bind promise (function
+  | FinalTransactionStatus.Failed (_, error) ->
+     fail error (* bork "Cannot match this" *)
+  | FinalTransactionStatus.Confirmed (_transaction, _signed, receipt) ->
+     if ethereum_user_log then
+       Logging.log "transaction status=%s" (print_status_receipt receipt);
+     Lwt_exn.return receipt))
+
+let post_operation : Ethereum_chain.Operation.t
+                          -> Address.t
+                          -> TokenAmount.t
+                          -> TransactionReceipt.t Lwt_exn.t =
+  fun operation sender value ->
+  let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
+    fun () ->
+    Lwt_exn.bind (post_operation_kernel operation sender value)
+      (fun ereceipt ->
+        (let str = print_status_receipt ereceipt in
+         let str_succ = "1" in
+         if String.equal str str_succ then
+           Lwt_exn.return ereceipt
+         else
+           (if ethereum_user_log then
+              Logging.log "receipt is not 1, ereceipt=%s" str;
+            Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ()))
+        )
+      ) in
+  submit_operation ()
+
+
 module Test = struct
   open Lwt_exn
   (* open Hex *)
