@@ -24,7 +24,7 @@ open Digesting
 
 open Side_chain
 
-let side_chain_user_log = false
+let side_chain_user_log = true
 
 (** TODO: query the network, whatever, and find the fee schedule *)
 let get_operator_fee_schedule _operator_address =
@@ -66,15 +66,27 @@ let get_keypair_of_address user =
 
 let test_equality_quadruple : (Address.t * Digest.t * Digest.t * Revision.t) -> (Address.t * Digest.t * Digest.t * Revision.t) -> bool =
   fun (a_adr, a_diga, a_digb, a_rev) (b_adr, b_diga, b_digb, b_rev) ->
-  let result = ref false in
+  let result = ref true in
   if not (String.equal (Address.to_string a_adr) (Address.to_string b_adr)) then
-    result := false;
+    (if side_chain_user_log then
+       Logging.log "Equality failure at contract_address a=%s b=%s" (Address.to_string a_adr) (Address.to_string b_adr);
+     result := false
+    );
   if not (String.equal (Digest.to_string a_diga) (Digest.to_string b_diga)) then
-    result := false;
+    (if side_chain_user_log then
+       Logging.log "Equality failure at code_hash a=%s b=%s" (Digest.to_string a_diga) (Digest.to_string b_diga);
+     result := false
+    );
   if not (String.equal (Digest.to_string a_digb) (Digest.to_string b_digb)) then
-    result := false;
+    (if side_chain_user_log then
+       Logging.log "Equality failure at transaction_hash a=%s b=%s" (Digest.to_string a_digb) (Digest.to_string b_digb);
+     result := false
+    );
   if not (Revision.equal a_rev b_rev) then
-    result := false;
+    (if side_chain_user_log then
+       Logging.log "Equality failure at block_number a=%s b=%s" (Revision.to_string a_rev) (Revision.to_string b_rev);
+     result := false
+    );
   !result
 
 
@@ -86,10 +98,16 @@ let get_contract_address_for_client_checked_exn_req : unit -> Address.t Lwt_exn.
   Operator_contract.retrieve_contract_address_quadruple creation_hash
   >>= fun f_quad ->
   let result = test_equality_quadruple e_quad f_quad in
+  Logging.log "result ? %B" result;
   if result then
-    return contract_address
+    (if side_chain_user_log then
+       Logging.log "contract_address retrieve successfully";
+     return contract_address
+    )
   else
-    bork "inconsistent input for the contract"
+    (if side_chain_user_log then
+       Logging.log "Error case for contract_address retrieval";
+    bork "inconsistent input for the contract")
 
 
 let contract_address_for_client_ref : (Address.t option ref) = ref None
@@ -208,9 +226,9 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
 let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> Revision.t -> Revision.t Lwt_exn.t =
   fun ~contract_address ~transaction_hash ~operator revision ->
   if side_chain_user_log then
-    Logging.log "Beginning of wait_for_claim_withdrawal_event";
-  if side_chain_user_log then
-    Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address);
+    (Logging.log "Beginning of wait_for_claim_withdrawal_event";
+     Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address)
+    );
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
   let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 256; Uint 256; Uint 64] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
@@ -223,13 +241,11 @@ let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_
   wait_for_contract_event ~contract_address ~transaction_hash:transaction_hash_val ~topics list_data_type data_value_search
   >>= fun (log_object, abi_list_val) ->
   if side_chain_user_log then
-    Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length abi_list_val);
-  if side_chain_user_log then
-    Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_uint256 (List.nth abi_list_val 4));
-  if side_chain_user_log then
-    Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 5));
-  if side_chain_user_log then
-    Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth abi_list_val 6));
+    (Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length abi_list_val);
+     Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_uint256 (List.nth abi_list_val 4));
+     Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 5));
+     Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth abi_list_val 6))
+    );
   let block_nbr = Option.get log_object.blockNumber in
   return block_nbr
 
