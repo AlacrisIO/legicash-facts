@@ -264,4 +264,4 @@ val payment : (PaymentWanted.t, TransactionTracker.t) UserAsyncAction.arr
    val collect_account_liquidation_funds : (unit, Ethereum_chain.Transaction.t) UserAsyncAction.arr
 *)
 
-val get_contract_address_from_client_exn : unit -> Address.t Lwt_exn.t
+val get_contract_address_for_client_exn : unit -> Address.t Lwt_exn.t
