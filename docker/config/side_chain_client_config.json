@@ -1,6 +1,9 @@
 { "host" : "alacris-side-chain-manager",
   "port" : 8095,
   "contract_address": "0xd1fe5c3cee55cdbcc2a39e0af40de214a8f11add",
+  "code_hash": "0x00000",
+  "creation_hash": "0x0000",
+  "creation_block": 45,
   "operator": {
       "nickname": "Trent",
       "address": "0xf47408143d327e4bc6a87ef4a70a4e0af09b9a1c"

@@ -126,6 +126,30 @@ module TransactionParameters = struct
       gas= Some gas_limit; gas_price = Some gas_price; value = Some value; nonce= Some nonce }
 end
 
+
+(*
+module TransactionResult = struct
+  type t =
+    { hash: Digest.t
+    ; nonce: Nonce.t
+    ; block_hash: Digest.t option [@key "blockHash"] [@default None]
+    ; block_number: Revision.t option [@key "blockNumber"] [@default None]
+    ; transaction_index: Revision.t option [@key "transactionIndex"] [@default None]
+    ; from: Address.t [@default None]
+    ; to_: Address.t option [@key "to"] [@default None]
+    ; value: TokenAmount.t
+    ; gas_price: TokenAmount.t [@key "gasPrice"]
+    ; gas: TokenAmount.t
+    ; input: Yojsoning.Bytes.t }
+  [@@deriving yojson {strict = false}, show]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson;of_yojson}
+           end) : (PersistableS with type t := t))
+end
+ *)
+
+
 module TransactionInformation = struct
   type t =
     { hash: Digest.t
@@ -422,6 +446,13 @@ let eth_get_code =
     Yojsoning.Bytes.of_yojson_exn
     (yojson_2args Address.to_yojson BlockParameter.to_yojson)
 (** Returns the code of given address (and block) *)
+
+(*
+let eth_get_transaction =
+  ethereum_json_rpc "eth_getTransaction"
+    TransactionResult.of_yojson_exn
+    (yojson_1arg Digest.to_yojson) *)
+(** Returns a transaction (big object) by the hash code *)
 
 let eth_get_transaction_by_hash =
   ethereum_json_rpc "eth_getTransactionByHash"

@@ -18,6 +18,9 @@ type side_chain_client_config =
   { host : string
   ; port : int
   ; contract_address : string
+  ; code_hash : string
+  ; creation_hash : string
+  ; creation_block : int
   ; operator : operator_config
   } [@@deriving of_yojson]
 
