@@ -49,7 +49,6 @@ let mkb_mutex = Lwt_mutex.create ()
 
 let mkb_json_rpc
       method_name result_decoder param_encoder ?timeout ?log params =
-  Logging.log "MKB json rpc method_name=%s" method_name;
   Lwt_mutex.with_lock mkb_mutex
     (fun () ->
        json_rpc (Lazy.force mkb_net) method_name result_decoder param_encoder ?timeout ?log params)

@@ -21,15 +21,12 @@ let normal_persistent f x = f x
 let already_persistent _fun _x = Lwt.return_unit
 
 let no_dependencies _methods _context _x =
-  Logging.log "A call to no_dependencies";
   Lwt.return_unit
 
 let walk_dependency methods context x =
-  Logging.log "persisting : walk_dependency";
   context.walk methods context x
 
 let one_dependency f methods _methods context x =
-  Logging.log "persisting : one_dependency";
   walk_dependency methods context (f x)
 
 (*
@@ -43,38 +40,27 @@ let dependency_walking_not_implemented =
 let content_addressed_storage_prefix = "K256"
 
 let content_addressed_storage_key digest =
-  Logging.log "persisting : content_addressed_storage_key digest=%s" (Digest.to_string digest);
   content_addressed_storage_prefix ^ Digest.to_big_endian_bits digest
 
 let db_string_of_digest digest =
-  Logging.log "persisting db_string_of_digest";
   digest |> content_addressed_storage_key |> Db.get |> Option.get
 
 let db_value_of_digest unmarshal_string digest =
-  Logging.log "persisting calling db_value_of_digest, BEGIN";
-  let u = unmarshal_string (db_string_of_digest digest) in
-  Logging.log "persisting calling db_value_of_digest, END";
-  u
-(*  digest |> db_string_of_digest |> unmarshal_string *)
+  digest |> db_string_of_digest |> unmarshal_string
 
 (** TODO: have a version that computes the digest from the marshal_string *)
 (** Have both content- and intent- addressed storage in the same framework *)
 let saving_walker methods context x =
-  Logging.log "saving_walker, step 1";
   methods.make_persistent
     (fun x ->
-      Logging.log "saving_walker, step 2";
       let key = x |> methods.digest |> content_addressed_storage_key in
       if Db.has_key key then
         Lwt.return_unit
       else
-        (Logging.log "saving_walker, step 3";
-         methods.walk_dependencies methods context x >>=
+        (methods.walk_dependencies methods context x >>=
          (fun () ->
-           Logging.log "saving_walker, step 4";
            Db.put key (methods.marshal_string x)
            >>= fun () ->
-           Logging.log "saving_walker, step 5";
            Lwt.return_unit
     )))
     x
@@ -82,7 +68,6 @@ let saving_walker methods context x =
 let saving_context = { walk = saving_walker }
 
 let save_of_dependency_walking methods x =
-  Logging.log "Beginning of save_of_dependency_walking";
   walk_dependency methods saving_context x
 
 module type PrePersistableDependencyS = sig
@@ -199,9 +184,7 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
   let table = Hashtbl.create 8 (* TODO: make it a weak reference table with Weak.create *)
   let db_key key = key_prefix ^ (Key.marshal_string key)
   let saving (db_key : string) (state : state) : state Lwt.t =
-    Logging.log "persisting : saving, step 1";
     State.walk_dependencies State.dependency_walking saving_context state >>= fun () ->
-    Logging.log "persisting : saving, step 2";
     State.marshal_string state |> Db.put db_key >>=
       const state
   let resume (context: context) (key : key) (current_state: state) : activity =
@@ -212,21 +195,17 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
     Hashtbl.replace table key activity;
     activity
   let make context key init =
-    Logging.log "PersistentActivity call of make";
-    Logging.log "MAKE prefix %s key %s" key_prefix (Key.to_yojson_string key);
     let db_key = db_key key in
     match Db.get db_key with
     | Some _ -> Lib.bork "object with key %s %s already created!" key_prefix (Key.to_yojson_string key)
     | None -> init (saving db_key) >>= fun state -> return (resume context key state)
   let get context key =
-    Logging.log "PersistentActivitiy call to get";
-    Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);
+    (*    Logging.log "GET prefix %s key %s" key_prefix (Key.to_yojson_string key);*)
     let db_key = db_key key in
     (match Hashtbl.find_opt table key with
      | Some x -> x
      | None ->
         let state =
-          Logging.log "Before call to Db.get";
          match Db.get db_key with
          | Some s -> (try State.unmarshal_string s with
              e -> Lib.bork "Failed to load %s %s: corrupted database content %s, %s"

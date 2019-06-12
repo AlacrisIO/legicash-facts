@@ -35,8 +35,10 @@ let ethereum_net =
 let ethereum_mutex = Lwt_mutex.create ()
 
 let ethereum_json_rpc
-      method_name result_decoder param_encoder ?timeout ?log params =
-  Logging.log "ETH json rpc method_name=%s" method_name;
+      method_name result_decoder param_encoder ?timeout
+      ?log params =
+  if !rpc_log then
+    Logging.log "ETH json rpc method_name=%s" method_name;
   Lwt_mutex.with_lock ethereum_mutex
     (fun () ->
        json_rpc (Lazy.force ethereum_net) method_name result_decoder param_encoder ?timeout ?log params)

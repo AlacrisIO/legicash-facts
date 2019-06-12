@@ -23,6 +23,8 @@ let topic_of_hash (hash : Digest.t) : Bytes.t option =
   Some (encode_function_parameters [abi_digest hash])
 
 
+let operator_contract_log = false
+
 
 let contract_address = ref Address.zero
 let contract_block_number = ref Revision.zero
@@ -32,11 +34,13 @@ let set_contract_address address = contract_address := address
 let set_contract_block_number blk_number = contract_block_number := blk_number
 
 let get_contract_address () =
-  Logging.log "get_contract_address : contract_address=%s" (Address.to_0x !contract_address);
+  if operator_contract_log then
+    Logging.log "get_contract_address : contract_address=%s" (Address.to_0x !contract_address);
   !contract_address
 
 let get_contract_block_number () =
-  Logging.log "get_contract_address : contract_block_number=%s" (Revision.to_string !contract_block_number);
+  if operator_contract_log then
+    Logging.log "get_contract_block_number : contract_block_number=%s" (Revision.to_string !contract_block_number);
   !contract_block_number
 
 (** build the encoding of a call to the "deposit" function of the operator contract

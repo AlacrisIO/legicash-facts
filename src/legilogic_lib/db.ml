@@ -25,6 +25,8 @@ open Marshaling
 open Action
 open Lwter
 
+let db_log = false
+
 type db = LevelDB.db
 type batch = LevelDB.writebatch
 
@@ -138,7 +140,8 @@ let check_connection () =
 (* TODO break `start_server` into bite-sized chunks for readability's sake *)
 let start_server ~db_name ~db () =
   let open Lwt in
-  Logging.log "Opening LevelDB connection to db %s" db_name;
+  if db_log then
+    Logging.log "Opening LevelDB connection to db %s" db_name;
   let transaction_counter = ref 0 in
 
   let rec outer_loop batch_id previous () =
@@ -178,7 +181,8 @@ let start_server ~db_name ~db () =
       else
         Lwt_mvar.take db_mailbox >>= function
         | Put {key;value} ->
-          Logging.log "key=(omit) value=(omit)";
+          if db_log then
+            Logging.log "key=(omit) value=(omit)";
           LevelDB.Batch.put batch key value;
           inner_loop ~ready ~triggered ~held
 
@@ -233,7 +237,8 @@ let open_connection db_name =
   match !the_connection_ref with
   | Some x ->
     if x.db_name = db_name then
-      (Logging.log "Process already has a LevelDB connection to db %s, won't start another one" db_name;
+      (if db_log then
+         Logging.log "Process already has a LevelDB connection to db %s, won't start another one" db_name;
        Lwt.return_unit)
     else
       bork "Cannot start a LevelDB connection to db %s because there's already one to %s"
@@ -272,7 +277,8 @@ let has_key key =
   LevelDB.mem (the_db ()) key
 
 let get key =
-  Logging.log "Db.get access for key=(omit)";
+  if db_log then
+    Logging.log "Db.get access for key=(omit)";
   LevelDB.get (the_db ()) key
 (* Uncomment the following to spy on db read accesses:
     |> function
@@ -288,7 +294,8 @@ let get key =
 *)
 
 let put key value =
-  Logging.log "Db.put key=(omit) value=(omit)";
+  if db_log then
+    Logging.log "Db.put key=(omit) value=(omit)";
   Put {key; value} |> request
 
 let put_many list =
