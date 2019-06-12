@@ -93,6 +93,16 @@ module TransactionCondition = struct
            end) : (PersistableS with type t := t))
 end
 
+let some_value_or_null : TokenAmount.t -> TokenAmount.t option =
+  fun value ->
+  if (TokenAmount.equal value TokenAmount.zero) then
+    None
+  else
+    Some value
+
+
+
+
 module TransactionParameters = struct
   type t =
     { from: Address.t
@@ -114,7 +124,7 @@ module TransactionParameters = struct
       | Operation.TransferTokens recipient -> (Some recipient, None)
       | Operation.CreateContract code -> (None, Some code)
       | Operation.CallFunction (recipient, data) -> (Some recipient, Some data) in
-    { from= sender; to_; gas= None; gas_price = None; value =(Some value) ; data ; nonce= None; condition= None }
+    { from= sender; to_; gas= None; gas_price = None; value =(some_value_or_null value) ; data ; nonce= None; condition= None }
 
   let of_pre_transaction sender PreTransaction.{operation; gas_limit; value} =
     {(of_operation sender operation value) with gas = Some gas_limit; value = Some value}

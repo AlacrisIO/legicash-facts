@@ -62,11 +62,11 @@ let print_status_receipt : TransactionReceipt.t -> string =
   fun tr -> (TokenAmount.to_string tr.status)
 
 
-let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+let process_ethereum_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
   fun operation sender value ->
   Logging.log "post_operation_kernel : beginning of function";
   let (gas_limit_val : TokenAmount.t option) = None in (* Some kind of arbitrary choice *)
-  Logging.log "post_operation_general_kernel : before make_pre_transaction value=%s" (TokenAmount.to_string value);
+  Logging.log "process_ethereum_operation_kernel : before make_pre_transaction value=%s" (TokenAmount.to_string value);
   Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
   >>= fun x_pretrans ->
   Ethereum_user.add_ongoing_transaction ~user:sender (Wanted x_pretrans)
@@ -76,19 +76,19 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
   | Ethereum_user.FinalTransactionStatus.Failed (_, error) ->
      fail error (* bork "Cannot match this" *)
   | Ethereum_user.FinalTransactionStatus.Confirmed (_transaction, _signed, receipt) ->
-     Logging.log "post_operation_general_kernel : Ok receipt, transaction_hash=%s" (Digest.to_0x receipt.transaction_hash);
+     Logging.log "process_ethereum_operation_kernel : Ok receipt, transaction_hash=%s" (Digest.to_0x receipt.transaction_hash);
      Logging.log "transaction status=%s" (print_status_receipt receipt);
      Lwt_exn.return receipt))
 
 
-let post_operation_general : Ethereum_chain.Operation.t
+let process_ethereum_operation : Ethereum_chain.Operation.t
                           -> Address.t
                           -> TokenAmount.t
                           -> TransactionReceipt.t Lwt_exn.t =
   fun operation sender value ->
   let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
     fun () ->
-    Lwt_exn.bind (post_operation_general_kernel operation sender value)
+    Lwt_exn.bind (process_ethereum_operation_kernel operation sender value)
       (fun ereceipt ->
         (let str = print_status_receipt ereceipt in
          let str_succ = "1" in
@@ -108,7 +108,7 @@ let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t
   let (operation : Ethereum_chain.Operation.t) = make_state_update_call digest operator_revision in
   let (value : TokenAmount.t) = TokenAmount.zero in
   let (oper_addr : Address.t) = Side_chain_server_config.operator_address in
-  post_operation_general operation oper_addr value
+  process_ethereum_operation operation oper_addr value
 
 
 let inner_state_update_request_loop () =
