@@ -50,6 +50,8 @@ let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) L
   Logging.log "code_hash=%s" (Digest.to_0x code_hash);
   Logging.log "creation_hash=%s" (Digest.to_0x creation_hash);
   Logging.log "creation_block=%s" (Revision.to_string creation_block);
+  Logging.log "E N T R I E S to put in the side_chain_client_config.json file";
+  Logging.log "  \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": %s," (Address.to_0x contract_address) (Digest.to_0x code_hash) (Digest.to_0x creation_hash) (Revision.to_string creation_block);
   Address.to_0x contract_address
   |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
   >>= const (contract_address, creation_block)
