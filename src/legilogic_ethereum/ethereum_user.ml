@@ -14,6 +14,8 @@ open Ethereum_chain
 open Ethereum_json_rpc
 open Ethereum_transaction
 
+let ethereum_user_log = false
+
 (* TODO: A much better state machine to get wanted transactions confirmed.
 
    It is a very bad idea to have more than one ongoing transaction in the mempool:
@@ -230,7 +232,8 @@ module NonceTracker = struct
           | (Next, None) ->
             reset () >>= next
           | (Next, Some nonce) ->
-             Logging.log "ETHUSR: NonceTracker nonce=%s" (Revision.to_string nonce);
+             if ethereum_user_log then
+               Logging.log "ETHUSR: NonceTracker nonce=%s" (Revision.to_string nonce);
              next nonce
   end
   include PersistentActivity(Base)
@@ -244,24 +247,29 @@ let make_tx_header (sender, value, gas_limit) : TxHeader.t Lwt_exn.t =
   (* TODO: get gas price and nonce from geth *)
   eth_gas_price () >>= fun gas_price ->
   of_lwt NonceTracker.next sender >>= fun nonce ->
-  Logging.log "ETHUSR: make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
+  if ethereum_user_log then
+    Logging.log "ETHUSR: make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
   return TxHeader.{sender; nonce; gas_price; gas_limit; value}
 
 exception Missing_password
 
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
-  Logging.log "ETHUSR: Beginning of sign_transaction";
+  if ethereum_user_log then
+    Logging.log "ETHUSR: Beginning of sign_transaction";
   let address = transaction.tx_header.sender in
   (try return (keypair_of_address address).password with
    | Not_found ->
-      Logging.log "ETHUSR: Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
+      if ethereum_user_log then
+        Logging.log "ETHUSR: Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
       fail Missing_password)
   >>= fun password ->
-  Logging.log "ETHUSR: Before personal_sign_transaction";
+  if ethereum_user_log then
+    Logging.log "ETHUSR: Before personal_sign_transaction";
   personal_sign_transaction (TransactionParameters.of_transaction transaction, password)
   >>= fun signed ->
-  Logging.log "ETHUSR: Before final return in sign_transaction";
+  if ethereum_user_log then
+    Logging.log "ETHUSR: Before final return in sign_transaction";
   return (transaction, signed)
 
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
@@ -269,7 +277,8 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_
 let make_signed_transaction (sender : Address.t) (operation : Operation.t) (value : TokenAmount.t) (gas_limit : TokenAmount.t) : (Transaction.t * SignedTransaction.t) Lwt_exn.t =
   make_tx_header (sender, value, gas_limit)
   >>= fun tx_header ->
-  Logging.log "Before the sign_transaction";
+  if ethereum_user_log then
+    Logging.log "Before the sign_transaction";
   sign_transaction Transaction.{tx_header; operation}
 
 
@@ -277,7 +286,8 @@ let make_signed_transaction (sender : Address.t) (operation : Operation.t) (valu
 (* TODO: move as many functions as possible ethereum_transaction ? *)
 
 let nonce_too_low address =
-  Logging.log "ETHUSR: nonce too low for %s" (nicknamed_string_of_address address);
+  if ethereum_user_log then
+    Logging.log "ETHUSR: nonce too low for %s" (nicknamed_string_of_address address);
   (* TODO: Send Notification to end-user via UI! *)
   Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
 
@@ -287,20 +297,24 @@ let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt
   Ethereum_json_rpc.eth_get_transaction_receipt hash
   >>= function
   | Ok None ->
-     Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok None";
+     if ethereum_user_log then
+       Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok None";
      nonce_too_low sender
   | Ok (Some receipt) ->
-     Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok (Some receipt)";
+     if ethereum_user_log then
+       Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok (Some receipt)";
      check_transaction_receipt_status receipt
   | Error e ->
-     Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Error e";
+     if ethereum_user_log then
+       Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Error e";
      Lwt_exn.fail e
 
 exception Replacement_transaction_underpriced
 
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
-    Logging.log "ETHUSR: send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);
+    if ethereum_user_log then
+      Logging.log "ETHUSR: send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);
     match signed with
     | SignedTransaction.{raw;tx={hash}} ->
       Lwter.bind (eth_send_raw_transaction raw)
@@ -325,22 +339,31 @@ let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.
     instead of logged and reported, causing a deadlock. *)
 let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, TransactionReceipt.t) Lwt_exn.arr =
   fun (transaction, signed) ->
-    Logging.log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
+    if ethereum_user_log then
+      Logging.log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
     let sender = transaction.tx_header.sender in
     let hash = signed.SignedTransaction.tx.hash in
     let open Lwt_exn in
     send_raw_transaction sender signed
-    >>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)
+    >>= (fun hash ->
+      if ethereum_user_log then
+        Logging.log "sent txhash=%s" (Digest.to_hex_string hash);
+      return hash)
     >>= Ethereum_json_rpc.eth_get_transaction_receipt
-    >>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)
+    >>= (fun receipt ->
+      if ethereum_user_log then
+        Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson);
+      return receipt)
     >>= (function
       | Some receipt -> check_transaction_receipt_status receipt
       | None ->
-        Logging.log "send_and_confirm: None case";
+        if ethereum_user_log then
+          Logging.log "send_and_confirm: None case";
         let nonce = transaction.tx_header.nonce in
         Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
         >>= fun sender_nonce ->
-        Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
+        if ethereum_user_log then
+          Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
         if Nonce.(compare sender_nonce nonce > 0) then
           confirmed_or_known_issue sender hash
         else
@@ -376,10 +399,12 @@ module TransactionTracker = struct
       and continue (status : OngoingTransactionStatus.t) =
         TransactionStatus.Ongoing status |> update
       and finalize (status : FinalTransactionStatus.t) =
-        Logging.log "Ethereum_user: beginning of finalize operation";
+        if ethereum_user_log then
+          Logging.log "Ethereum_user: beginning of finalize operation";
         TransactionStatus.Final status |> update
       and invalidate transaction_status error =
-        Logging.log "Ethereum_user: beginning of invalidate operation";
+        if ethereum_user_log then
+          Logging.log "Ethereum_user: beginning of invalidate operation";
         finalize (Failed (transaction_status, error))
       and loop (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
         (*Logging.log "Stepping into %s" (TransactionStatus.to_yojson_string status);*)
@@ -392,33 +417,41 @@ module TransactionTracker = struct
                | Ok (t,c) -> OngoingTransactionStatus.Signed (t,c) |> continue
                | Error error -> invalidate ongoing error)
            | Signed (transaction, signed) ->
-              Logging.log "Ethereum_User: Signed";
+              if ethereum_user_log then
+                Logging.log "Ethereum_User: Signed";
              (transaction, signed)
              |> Lwt_exn.(run_lwt
                            (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
                               (trying send_and_confirm_transaction
                                >>> (function
                                  | Ok receipt ->
-                                   Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
+                                   if ethereum_user_log then
+                                     Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
                                    return (Ok receipt)
                                  | Error NonceTooLow ->
-                                   Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
+                                   if ethereum_user_log then
+                                     Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
                                    return (Error NonceTooLow)
                                  | Error TransactionRejected ->
-                                   Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
+                                   if ethereum_user_log then
+                                     Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
                                    Lwt_exn.return (Error TransactionRejected)
                                  | Error e ->
-                                   Logging.log "ETHUSR: TransactionTracker, Error e";
+                                   if ethereum_user_log then
+                                     Logging.log "ETHUSR: TransactionTracker, Error e";
                                    fail e))))
              >>= (function
                | Ok receipt ->
-                 Logging.log "ETHUSR: TransactionTracker, Ok receipt B";
+                 if ethereum_user_log then
+                   Logging.log "ETHUSR: TransactionTracker, Ok receipt B";
                  FinalTransactionStatus.Confirmed (transaction, signed, receipt) |> finalize
                | Error NonceTooLow ->
-                 Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow B";
+                 if ethereum_user_log then
+                   Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow B";
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
                | Error error ->
-                 Logging.log "ETHUSR: TransactionTracker, Error error";
+                 if ethereum_user_log then
+                   Logging.log "ETHUSR: TransactionTracker, Error error";
                  invalidate ongoing error))
         | Final x -> return x in
       key, (ready >>= fun () -> loop state), notify_ready
@@ -528,24 +561,28 @@ let add_ongoing_transaction : user:Address.t -> (OngoingTransactionStatus.t, Tra
 
 let issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr =
   fun sender pre ->
-  Logging.log "ETHUSR: beginning of issue_pre_transaction";
+  if ethereum_user_log then
+    Logging.log "ETHUSR: beginning of issue_pre_transaction";
   OngoingTransactionStatus.Wanted pre |> add_ongoing_transaction ~user:sender
 
 let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr =
   fun (_key_t, promise, _unit_lwt_u) ->
-  Logging.log "ETHUSR: track_transaction, returning promise";
+  if ethereum_user_log then
+    Logging.log "ETHUSR: track_transaction, returning promise";
   promise
 
 let check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
   fun final_transaction_status ->
-  Logging.log "ETHUSR: Beginning of check_transaction_confirmed";
+  if ethereum_user_log then
+    Logging.log "ETHUSR: Beginning of check_transaction_confirmed";
   match final_transaction_status with
   | FinalTransactionStatus.Confirmed (t, s, r) ->
-     Logging.log "ETHUSR: check_transaction_confirmed, Case Confirmed";
+     if ethereum_user_log then
+       Logging.log "ETHUSR: check_transaction_confirmed, Case Confirmed";
      return (t, s, r)
   | FinalTransactionStatus.Failed (t, e) ->
-     Logging.log "ETHUSR: check_transaction_confirmed, Case Failed";
-     Logging.log "ETHUSR: e=%s" (Printexc.to_string e);
+     if ethereum_user_log then
+       Logging.log "ETHUSR: check_transaction_confirmed, Case Failed e=%s" (Printexc.to_string e);
      fail (TransactionFailed (t, e))
 
 let confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
@@ -562,15 +599,18 @@ let transfer_tokens ~recipient value =
   PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=transfer_gas_used}
 
 let make_pre_transaction ~sender operation ?gas_limit value : PreTransaction.t Lwt_exn.t =
-  Logging.log "ETHUSR: Beginning of make_pre_transaction";
+  if ethereum_user_log then
+    Logging.log "ETHUSR: Beginning of make_pre_transaction";
   (match gas_limit with
    | Some x -> return x
    | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation))
   >>= fun gas_limit ->
-  Logging.log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
+  if ethereum_user_log then
+    Logging.log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
   (* TODO: The multiplication by 2 is a hack that needs to be addressed *)
   let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
-  Logging.log "ETHUSR: gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
+  if ethereum_user_log then
+    Logging.log "ETHUSR: gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
   return PreTransaction.{operation; value; gas_limit=gas_limit_n_fold}
 
 let create_contract ~sender ~code ?gas_limit value =

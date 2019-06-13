@@ -5,11 +5,16 @@ open Types
 open Signing
 open Legilogic_ethereum
 open Ethereum_chain
+open Action
 
 val topic_of_address:  Address.t     -> Bytes.t option
 val topic_of_revision: Revision.t    -> Bytes.t option
 val topic_of_amount:   TokenAmount.t -> Bytes.t option
 val topic_of_hash:     Digest.t      -> Bytes.t option
+
+
+val retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Digest.t * Revision.t) Lwt_exn.t
+
 
 val set_contract_address : Address.t -> unit
 (** set the address of the contract on Ethereum

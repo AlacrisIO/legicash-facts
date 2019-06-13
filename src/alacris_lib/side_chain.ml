@@ -301,17 +301,11 @@ module State = struct
     type nonrec t = t
     let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {accounts; transactions; main_chain_transactions_posted} =
-      Logging.log "side_chain, walk_dependencies, step 1 digest(accounts)=%s" (Digest.to_string (AccountMap.digest accounts));
       walk_dependency AccountMap.dependency_walking context accounts
       >>= fun () ->
-      Logging.log "side_chain, walk_dependencies, step 2 digest(transactions)=%s" (Digest.to_string (TransactionMap.digest transactions));
       walk_dependency TransactionMap.dependency_walking context transactions
       >>= fun () ->
-      Logging.log "side_chain, walk_dependencies, step 3";
       walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted
-      >>= fun () ->
-      Logging.log "side_chain, walk_dependencies, step 4";
-      Lwt.return ()
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end

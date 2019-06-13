@@ -3,6 +3,7 @@
 open Side_chain
 
 open Legilogic_lib
+open Types
 open Action
 open Signing
 open Yojsoning
@@ -20,7 +21,7 @@ val operator_address : Address.t Lazy.t
 (** Address of the configured operator for the current client. *)
 (*  TODO: actually support more than one operator in the client. *)
 
-val contract_address_for_client : Address.t Lazy.t
+val contract_address_info_for_client : (Address.t * Digest.t * Digest.t * Revision.t) Lazy.t
 (** Address of the contract address for the current client. *)
 
 module Test : sig

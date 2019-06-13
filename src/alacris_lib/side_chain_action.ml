@@ -1,5 +1,4 @@
 open Legilogic_lib
-open Lib
 open Hex
 open Signing
 open Types
@@ -18,19 +17,11 @@ exception Invalid_contract
 let check_side_chain_contract_created contract_address =
   Ethereum_json_rpc.(eth_get_code (contract_address, BlockParameter.Latest))
   >>= fun code ->
-  Logging.log "check_side_chain_contract_created, step 1";
-  let len_code = String.length (Hex.unparse_0x_bytes code) in
-  Logging.log "check_side_chain_contract_created, step 2 len_code=%i" len_code;
   let code_red = remove_0x_from_string (Hex.unparse_0x_bytes code) in
-  Logging.log "check_side_chain_contract_created, step 3";
   let contract_code_red = remove_0x_from_string (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes) in
-  Logging.log "check_side_chain_contract_created, step 4";
   let len_red = String.length code_red in
-  Logging.log "check_side_chain_contract_created, step 5";
   let contract_len_red = String.length contract_code_red in
-  Logging.log "check_side_chain_contract_created, step 6 len_red=%i contract_len_red=%i" len_red contract_len_red;
   let contract_code_red_sub = String.sub contract_code_red (contract_len_red - len_red) len_red in
-  Logging.log "check_side_chain_contract_created, step 7";
   if code_red = contract_code_red_sub then
     return (contract_address, Revision.zero) (* Clearly wrong. We need the revision on input *)
   else
@@ -48,21 +39,28 @@ let check_side_chain_contract_created contract_address =
        (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
      fail Invalid_contract)
 
+
+
+
+let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) Lwt_exn.t =
+  fun transaction_hash ->
+  Operator_contract.retrieve_contract_address_quadruple transaction_hash
+  >>= fun (contract_address, code_hash, creation_hash, creation_block) ->
+  Logging.log "contract_address=%s" (Address.to_0x contract_address);
+  Logging.log "code_hash=%s" (Digest.to_0x code_hash);
+  Logging.log "creation_hash=%s" (Digest.to_0x creation_hash);
+  Logging.log "creation_block=%s" (Revision.to_string creation_block);
+  Address.to_0x contract_address
+  |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
+  >>= const (contract_address, creation_block)
+
 let create_side_chain_contract (installer_address : Address.t) : (Address.t*Revision.t) Lwt_exn.t =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
   Ethereum_user.create_contract ~sender:installer_address
     ~code:Operator_contract_binary.contract_bytes TokenAmount.zero
   >>= Ethereum_user.confirm_pre_transaction installer_address
   >>= fun (_tx, _, confirmation) ->
-  Ethereum_json_rpc.eth_get_transaction_receipt confirmation.transaction_hash
-  >>= function
-  | None -> bork "No tx receipt for contract creation"
-  | Some receipt ->
-     let contract_address = receipt.contract_address |> Option.get in
-     let contract_block_number : Revision.t = receipt.block_number in
-     Address.to_0x contract_address
-     |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
-     >>= const (contract_address, contract_block_number)
+  print_and_retrieve_transaction_hash confirmation.transaction_hash
 
 
 let ensure_side_chain_contract_created (installer_address : Address.t) : Address.t Lwt_exn.t =

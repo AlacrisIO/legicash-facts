@@ -38,14 +38,9 @@ module OperatorState = struct
     let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {committed; current} =
       let open Lwt in
-      Logging.log "side_chain_operator, walk_dependencies, step 1";
       walk_dependency SignedState.dependency_walking context committed
       >>= fun () ->
-      Logging.log "side_chain_operator, walk_dependencies, step 2";
       walk_dependency State.dependency_walking context current
-      >>= fun () ->
-      Logging.log "side_chain_operator, walk_dependencies, step 3";
-      return ()
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end
@@ -55,23 +50,15 @@ module OperatorState = struct
     "LCFS0001" ^ (Address.to_big_endian_bits operator_address)
   let save operator_state =
     let open Lwt in
-    Logging.log "Beginning of side_chain_operator / save";
     save operator_state (* <-- use inherited binding *)
     >>= fun () ->
-    Logging.log "Beginning of side_chain_operator / digest commit";
     let address = operator_state.keypair.address in
-    Logging.log "side_chain_operator / save / address=%s" (Address.to_0x address);
     let key = operator_state_key address in
-    let e_str : string = (Digest.to_string (digest operator_state)) in
-    Logging.log "side_chain_operator LCFS save digest=%s" e_str;
     Db.put key (Digest.to_big_endian_bits (digest operator_state))
   let load operator_address =
-    Logging.log "Beginning of side_chain_operator / load";
-    Logging.log "side_chain_operator / load / operator_address=%s" (Address.to_0x operator_address);
     operator_address |> operator_state_key |> Db.get
     |> (function
-        | Some x -> Logging.log "OK case of side_chain_operator/load";
-                    x
+        | Some x -> x
         | None -> raise (Operator_not_found
                            (Printf.sprintf "Operator %s not found in the database"
                               (Address.to_0x operator_address))))
@@ -150,7 +137,6 @@ let signed_request_requester : UserTransactionRequest.t signed -> Address.t =
 let validate_user_transaction_request :
   (UserTransactionRequest.t signed * bool, TransactionRequest.t) Lwt_exn.arr =
   fun ((signed_request, is_forced) : (UserTransactionRequest.t signed * bool)) ->
-    Logging.log "Beginning of validate_user_transaction_request";
     let {payload=UserTransactionRequest.{ rx_header={ requester; requester_revision }; operation }} =
       signed_request in
     let state = get_operator_state () in
@@ -166,7 +152,7 @@ let validate_user_transaction_request :
            UNTIL WE IMPROVE THE SIDE CHAIN USER SOFTWARE
            TODO - Fix the side_chain_user and endpoints/actions code, then re-enable this check. *)
       let open Revision in
-      Logging.log "requester_revision=%s account_revision=%s" (Revision.to_string requester_revision) (Revision.to_string account_revision);
+      (*      Logging.log "requester_revision=%s account_revision=%s" (Revision.to_string requester_revision) (Revision.to_string account_revision); *)
       check (requester_revision = (add account_revision one) || true) (* <-- TODO: REMOVE the || true *)
         (fun () ->
            Printf.sprintf "You made a request with revision %s but the next expected revision is %s"
@@ -447,7 +433,7 @@ let rec inner_state_update_periodic_loop : unit -> unit Lwt_exn.t =
 
 
 let start_state_update_periodic_operator () =
-  Logging.log "Beginning of start_state_update_operator";
+  Logging.log "Beginning of start_state_update_periodic_operator";
   Lwt.async inner_state_update_periodic_loop;
   Lwt_exn.return ()
 
@@ -467,7 +453,6 @@ let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
               ; accounts
               ; transactions
               ; main_chain_transactions_posted } = committed.payload in
-    Logging.log "make_transaction_commitment operator_revision=%s" (Revision.to_string operator_revision);
     let state_digest : Digest.t = State.digest committed.payload in
     let accounts = dv_digest accounts in
     let signature = committed.signature in
@@ -475,7 +460,6 @@ let make_transaction_commitment : Transaction.t -> TransactionCommitment.t =
     let tx_revision = transaction.tx_header.tx_revision in
     match TransactionMap.Proof.get tx_revision transactions with
     | Some tx_proof ->
-       Logging.log "TransactionCommitment   state_digest=%s" (Digest.to_string state_digest);
        TransactionCommitment.
        { transaction; tx_proof; operator_revision; spending_limit;
          accounts; main_chain_transactions_posted; signature;
@@ -651,7 +635,6 @@ let inner_transaction_request_loop =
     return (!operator_state_ref, 0, Lwt.return_unit)
     >>= forever
           (fun ((operator_state, batch_id, previous) : (OperatorAsyncAction.state * int * unit Lwt.t)) ->
-            Logging.log "inner_transaction_request_loop, beginning of lambda";
              (* The promise sent back to requesters, that they have to wait on
                 for their confirmation's batch to have been committed,
                 and our private resolver for this batch. *)
@@ -673,17 +656,14 @@ let inner_transaction_request_loop =
                Lwt_mvar.take inner_transaction_request_mailbox
                >>= function
                | `Confirm ((request_signed, continuation) : (TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u)) ->
-                 Logging.log "inner_transaction_request_loop, CASE : Confirm";
                  process_validated_transaction_request request_signed operator_state
                  |> fun ((confirmation_or_exn, new_operator_state) : (Transaction.t OrExn.t * OperatorAsyncAction.state)) ->
                  operator_state_ref := new_operator_state;
                  (match confirmation_or_exn with
                   | Error e ->
-                    Logging.log "inner_transaction_request_loop, error case";
                     Lwt.wakeup_later continuation (Error e);
                     request_batch new_operator_state size
                   | Ok confirmation ->
-                    Logging.log "inner_transaction_request_loop, Ok case";
                     Lwt.wakeup_later continuation (Ok (confirmation, batch_committed_t));
                     let new_size = increment_capped max_int size in
                     if new_size = Side_chain_server_config.batch_size_trigger_in_requests then
@@ -696,20 +676,17 @@ let inner_transaction_request_loop =
                                                 Lwt.return_unit);
                     request_batch new_operator_state new_size)
                | `GetCurrentDigest (digest_resolver : Digest.t Lwt.u) ->
-                  Logging.log "inner_transaction_request, CASE : GetCurrentDigest";
                   (* Lwt.wakeup_later notify_batch_committed_u (); *)
                   Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
                   request_batch operator_state size
                (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
                | `GetCurrentRevisionDigest (rev_digest_resolver : (Revision.t * Digest.t) OrExn.t Lwt.u) ->
-                  Logging.log "inner_transaction_request, CASE : GetCurrentRevisionDigest";
                   (* Lwt.wakeup_later notify_batch_committed_u (); *)
                   let digest = (State.digest !operator_state_ref.current) in
                   let rev_oper = !operator_state_ref.current.operator_revision in
                   Lwt.wakeup_later rev_digest_resolver (Ok(rev_oper, digest));
                   request_batch operator_state size
                | `Flush (id : int) ->
-                 Logging.log "inner_transaction_request_loop, CASE : Flush";
                  assert (id = batch_id);
                  if size > 0 then
                    (let ((ready, notify_ready) : (unit Lwt.t * unit Lwt.u)) = Lwt.task () in
@@ -730,7 +707,6 @@ let inner_transaction_request_loop =
                    (Lwt.wakeup_later notify_batch_committed_u ();
                     Lwt.return (operator_state, (batch_id + 1), batch_committed_t))
                | `Committed ((signed_state, previous_notify_batch_committed_u) : (State.t signed * unit Lwt.u)) ->
-                 Logging.log "inner_transaction_request_loop, CASE : Committed";
                  let new_operator_state =
                    OperatorState.lens_committed.set signed_state operator_state in
                  operator_state_ref := new_operator_state;
@@ -758,26 +734,20 @@ let initial_operator_state address =
 (* TODO: make it a PersistentActivity. *)
 (* TODO: don't create a new operator unless explicitly requested? *)
 let start_operator address =
-  Logging.log "start_operator, begin";
   let open Lwt_exn in
   match !the_operator_service_ref with
   | Some x ->
-     Logging.log "start_operator, Some x";
      if Address.equal x.address address then
-       (Logging.log "Operator service already running for address %s, not starting another one"
-          (Address.to_0x address);
-        return ())
+       return ()
      else
        bork "Cannot start a operator service for address %s because there's already one for %s"
          (Address.to_0x address) (Address.to_0x x.address)
   | None ->
-     Logging.log "start_operator, None, address=%s" (Address.to_0x address);
      let operator_state =
        (* TODO: don't create a new operator unless explicitly requested? *)
        try
          OperatorState.load address
-       with Not_found -> Logging.log "Using initial_operator_state";
-                         initial_operator_state address
+       with Not_found -> initial_operator_state address
      in
      let state_ref = ref operator_state in
      the_operator_service_ref := Some { address; state_ref };
