@@ -305,7 +305,7 @@ let post_claim_withdrawal_operation_exn : TransactionCommitment.t -> sender:Addr
          tc.state_digest
        >>= fun tr ->
        if side_chain_user_log then
-         Logging.log "post_claim_withdrawal_operation status=%s" (Ethereum_user.print_status_receipt tr);
+         Logging.log "post_claim_withdrawal_operation status=%B" (Ethereum_user.get_status_receipt tr);
        wait_for_claim_withdrawal_event
          ~contract_address
          ~transaction_hash:tr.transaction_hash
@@ -344,7 +344,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revis
     tc.state_digest
   >>= fun tr ->
   if side_chain_user_log then
-    Logging.log "execute_withdraw_operation_spec status=%s" (Ethereum_user.print_status_receipt tr);
+    Logging.log "execute_withdraw_operation_spec status=%B" (Ethereum_user.get_status_receipt tr);
   let (data_value_search: abi_value option list) =
     [ Some (Address_value operator)
     ; Some (abi_value_from_revision tc.tx_proof.key)
