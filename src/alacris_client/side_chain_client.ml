@@ -17,7 +17,7 @@ open Actions
 (* Side_chain also has a Request module *)
 module Request = Scgi.Request
 
-let side_chain_client_log = false
+let side_chain_client_log = true
 
 let _ = Config.set_application_name "alacris"
 (* let _ = set_log_file "logs/alacris-client.log" *)

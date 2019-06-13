@@ -13,6 +13,8 @@ open Legilogic_ethereum
 open Side_chain_server_config
 module TokenAmount = Ethereum_chain.TokenAmount
 
+let side_chain_log = true
+
 module Invoice = struct
   [@warning "-39-32"]
   type t = {recipient: Address.t; amount: TokenAmount.t; memo: string}
@@ -301,11 +303,21 @@ module State = struct
     type nonrec t = t
     let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {accounts; transactions; main_chain_transactions_posted} =
+      if side_chain_log then
+        Logging.log "side_chain: State, step 1";
       walk_dependency AccountMap.dependency_walking context accounts
       >>= fun () ->
+      if side_chain_log then
+        Logging.log "side_chain: State, step 2";
       walk_dependency TransactionMap.dependency_walking context transactions
       >>= fun () ->
+      if side_chain_log then
+        Logging.log "side_chain: State, step 3";
       walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted
+      >>= fun () ->
+      if side_chain_log then
+        Logging.log "side_chain: State, step 4";
+      Lwt.return ()
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end
