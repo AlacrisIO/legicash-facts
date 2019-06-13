@@ -70,7 +70,7 @@ module TransactionParameters : sig
     ; nonce: Nonce.t option (* Integer of a nonce. This allows to overwrite your own pending transactions that use the same nonce. *)
     ; condition: TransactionCondition.t option } (* Conditional submission of the transaction. Can be either an integer block number { block: 1 } or UTC timestamp (in seconds) { time: 1491290692 } or null. *)
   include PersistableS with type t := t
-  val of_operation : Address.t -> Operation.t -> TokenAmount.t -> t
+  val of_operation : Address.t -> Operation.t -> TokenAmount.t option -> t
   val of_pre_transaction : Address.t -> PreTransaction.t -> t
   val of_transaction : Transaction.t -> t
 end

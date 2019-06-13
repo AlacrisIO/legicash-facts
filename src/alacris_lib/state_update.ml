@@ -4,7 +4,6 @@ open Action
 open Types
 
 open Legilogic_ethereum
-open Side_chain
 open Operator_contract
 open Digesting
 open Ethereum_json_rpc
@@ -54,9 +53,8 @@ let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t
   if state_update_log then
     Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
   let operation = make_state_update_call digest operator_revision in
-  let value = TokenAmount.zero in
   let oper_addr = Side_chain_server_config.operator_address in
-  Ethereum_user.post_operation operation oper_addr value
+  Ethereum_user.post_operation ~operation ~sender:oper_addr ~value:None
 
 
 let inner_state_update_request_loop () =

@@ -70,12 +70,12 @@ let make_deposit_call : operator:Address.t -> contract_address:Address.t -> Ethe
 let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address:Address.t -> PreTransaction.t =
   fun ~operator ~amount ~contract_address ->
   let oper = make_deposit_call ~operator ~contract_address in
-  PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
+  PreTransaction.{operation=oper; value=(Some amount); gas_limit=Side_chain_server_config.deposit_gas_limit}
 
 
 
 let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> confirmed_state:Digest.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address  ~operator  operator_revision  ~value  ~confirmed_state ->
+  fun ~contract_address ~operator operator_revision ~value ~confirmed_state ->
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value

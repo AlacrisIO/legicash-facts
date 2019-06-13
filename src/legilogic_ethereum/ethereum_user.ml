@@ -243,12 +243,20 @@ module NonceTracker = struct
   let next address = get () address Next
 end
 
-let make_tx_header (sender, value, gas_limit) : TxHeader.t Lwt_exn.t =
+let print_value : TokenAmount.t option -> string =
+  fun value ->
+  match value with
+  | None -> "0"
+  | Some x -> TokenAmount.to_string x
+
+
+let make_tx_header : Address.t -> TokenAmount.t option -> TokenAmount.t -> TxHeader.t Lwt_exn.t =
+  fun sender value gas_limit ->
   (* TODO: get gas price and nonce from geth *)
   eth_gas_price () >>= fun gas_price ->
   of_lwt NonceTracker.next sender >>= fun nonce ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
+    Logging.log "ETHUSR: make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (print_value value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
   return TxHeader.{sender; nonce; gas_price; gas_limit; value}
 
 exception Missing_password
@@ -274,8 +282,9 @@ let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_
 
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
     from given address, with given operation, value and gas_limit *)
-let make_signed_transaction (sender : Address.t) (operation : Operation.t) (value : TokenAmount.t) (gas_limit : TokenAmount.t) : (Transaction.t * SignedTransaction.t) Lwt_exn.t =
-  make_tx_header (sender, value, gas_limit)
+let make_signed_transaction : Address.t -> Operation.t -> TokenAmount.t option -> TokenAmount.t -> (Transaction.t * SignedTransaction.t) Lwt_exn.t =
+  fun sender operation value gas_limit ->
+  make_tx_header sender value gas_limit
   >>= fun tx_header ->
   if ethereum_user_log then
     Logging.log "Before the sign_transaction";
@@ -598,7 +607,7 @@ let transfer_gas_used = TokenAmount.of_int 21000
 let transfer_tokens ~recipient value =
   PreTransaction.{operation=(Operation.TransferTokens recipient); value; gas_limit=transfer_gas_used}
 
-let make_pre_transaction ~sender operation ?gas_limit value : PreTransaction.t Lwt_exn.t =
+let make_pre_transaction ~sender operation ?gas_limit ~value : PreTransaction.t Lwt_exn.t =
   if ethereum_user_log then
     Logging.log "ETHUSR: Beginning of make_pre_transaction";
   (match gas_limit with
@@ -606,28 +615,28 @@ let make_pre_transaction ~sender operation ?gas_limit value : PreTransaction.t L
    | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation value))
   >>= fun gas_limit ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
+    Logging.log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (print_value value);
   (* TODO: The multiplication by 2 is a hack that needs to be addressed *)
   let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
   if ethereum_user_log then
     Logging.log "ETHUSR: gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
   return PreTransaction.{operation; value; gas_limit=gas_limit_n_fold}
 
-let create_contract ~sender ~code ?gas_limit value =
-  make_pre_transaction ~sender (Operation.CreateContract code) ?gas_limit value
+let create_contract ~sender ~code ?gas_limit ~value =
+  make_pre_transaction ~sender (Operation.CreateContract code) ?gas_limit ~value
 
-let call_function ~sender ~contract ~call ?gas_limit value =
-  make_pre_transaction ~sender (Operation.CallFunction (contract, call)) ?gas_limit value
+let call_function ~sender ~contract ~call ?gas_limit ~value =
+  make_pre_transaction ~sender (Operation.CallFunction (contract, call)) ?gas_limit ~value
 
 let print_status_receipt : TransactionReceipt.t -> string =
   fun tr -> (TokenAmount.to_string tr.status)
 
-let post_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+let post_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t option -> TransactionReceipt.t Lwt_exn.t =
   fun operation sender value ->
   let gas_limit_val = None in (* Some kind of arbitrary choice *)
   if ethereum_user_log then
     Logging.log "post_operation_general_kernel : before make_pre_transaction";
-  make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
+  make_pre_transaction ~sender operation ?gas_limit:gas_limit_val ~value
   >>= fun x_pretrans ->
   add_ongoing_transaction ~user:sender (Wanted x_pretrans)
   >>= fun (tracker_key, _, _) ->
@@ -640,11 +649,8 @@ let post_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmou
        Logging.log "transaction status=%s" (print_status_receipt receipt);
      Lwt_exn.return receipt))
 
-let post_operation : Ethereum_chain.Operation.t
-                          -> Address.t
-                          -> TokenAmount.t
-                          -> TransactionReceipt.t Lwt_exn.t =
-  fun operation sender value ->
+let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value:(TokenAmount.t option) -> TransactionReceipt.t Lwt_exn.t =
+  fun ~operation ~sender ~value ->
   let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
     fun () ->
     Lwt_exn.bind (post_operation_kernel operation sender value)
@@ -660,6 +666,12 @@ let post_operation : Ethereum_chain.Operation.t
         )
       ) in
   submit_operation ()
+
+let option_resolution : 'a -> 'a option -> 'a =
+  fun val_return val_opt ->
+  match val_opt with
+  | None -> val_return
+  | Some x -> x
 
 
 module Test = struct
@@ -706,7 +718,7 @@ module Test = struct
         display_balance (printf "Account %s only contains %s wei. Funding.\n") address balance
         >>= fun () ->
         Logging.log "Before transfer_tokens";
-        transfer_tokens ~recipient:address (sub amount balance)
+        transfer_tokens ~recipient:address (Some (sub amount balance))
         |> confirm_pre_transaction prefunded_address
         >>= fun _ ->
         Logging.log "Before call to eth_get_balance";
@@ -727,6 +739,7 @@ module Test = struct
     list_iter_s (ensure_test_account ?min_balance prefunded_address)
       [("Alice", alice_keys); ("Bob", bob_keys); ("Trent", trent_keys)]
 
+
   (** Has a transaction given by a hash successfully executed,
       and does the Ethereum network report information that match what we expected? *)
   [@@@warning "-32"]
@@ -740,11 +753,12 @@ module Test = struct
     Ethereum_json_rpc.eth_get_transaction_by_hash transaction_hash
     >>= fun info ->
     let tx_header = transaction.tx_header in
+    let tx_header_val = option_resolution TokenAmount.zero tx_header.value in
     assert (info.from = Some tx_header.sender);
     assert (info.nonce = tx_header.nonce);
     assert (TokenAmount.compare info.gas tx_header.gas_limit <= 0);
     assert (TokenAmount.compare info.gas_price tx_header.gas_price <= 0);
-    assert (TokenAmount.compare info.value tx_header.value = 0);
+    assert (TokenAmount.compare info.value tx_header_val = 0);
     assert (match transaction.operation with (* operation-specific checks *)
             | TransferTokens recipient_address -> info.to_ = Some recipient_address
             | CreateContract data -> info.input = data
@@ -814,14 +828,14 @@ module Test = struct
         get_prefunded_address ()
         >>= fun sender ->
         let code = test_contract_code () in
-        create_contract ~sender ~code ?gas_limit:None TokenAmount.zero
+        create_contract ~sender ~code ?gas_limit:None ~value:None
         >>= confirm_pre_transaction sender
         >>= (function | (_, _, {contract_address=(Some contract)}) -> return contract
                       | _ -> bork "Failed to create contract")
         >>= fun contract ->
         Logging.log "SUBTEST: call contract function hello with no argument\n";
         let call = encode_function_call { function_name = "hello"; parameters = [] } in
-        call_function ~sender ~contract ~call TokenAmount.zero
+        call_function ~sender ~contract ~call  ~value:None
         >>= confirm_pre_transaction sender
         >>= fun (tx, _, {block_number}) ->
         eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
@@ -830,7 +844,7 @@ module Test = struct
         Logging.log "SUBTEST: call contract function mul42 with one number argument\n";
         let call = encode_function_call
                      { function_name = "mul42"; parameters = [ abi_uint (Z.of_int 47) ] } in
-         call_function ~sender ~contract ~call TokenAmount.zero
+         call_function ~sender ~contract ~call ~value:None
          >>= confirm_pre_transaction sender
          >>= fun (tx, _, {block_number}) ->
          eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
@@ -845,7 +859,7 @@ module Test = struct
          let call = encode_function_call
                       { function_name = "greetings";
                         parameters = [ abi_string "Croesus" ] } in
-         call_function ~sender ~contract ~call TokenAmount.zero
+         call_function ~sender ~contract ~call ~value:None
          >>= confirm_pre_transaction sender
          >>= fun (tx, _, {block_number; logs}) ->
          let receipt_log = list_only_element logs in

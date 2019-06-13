@@ -48,6 +48,12 @@ let decode_int_string n =
 let decode (RlpEncoding s) =
   Rlp_decode.rlp_item_of_rlp s
 
+let amount_or_zero : TokenAmount.t option -> TokenAmount.t =
+  fun val_opt ->
+  match val_opt with
+  | None -> TokenAmount.zero
+  | Some x -> x
+
 (* convert transaction record to rlp_item suitable for encoding
    TODO: make that our marshaling strategy.
 *)
@@ -58,7 +64,7 @@ let rlp_of_transaction transaction =
   let nonce = Nonce.to_big_endian_bits tx_header.nonce in
   let gas_price = TokenAmount.to_big_endian_bits tx_header.gas_price in
   let gas_limit = TokenAmount.to_big_endian_bits tx_header.gas_limit in
-  let value = TokenAmount.to_big_endian_bits tx_header.value in
+  let value = TokenAmount.to_big_endian_bits (amount_or_zero tx_header.value) in
   let toaddr, data =
     match transaction.operation with
     | TransferTokens to_address -> (Address.to_big_endian_bits to_address, "")
@@ -245,7 +251,7 @@ module Test = struct
                ; nonce= Nonce.zero
                ; gas_price= TokenAmount.of_int 20000000000
                ; gas_limit= TokenAmount.of_int 100000
-               ; value= TokenAmount.of_int 1000 } in
+               ; value= Some (TokenAmount.of_int 1000) } in
     let operation =
       Operation.CallFunction
         ( Address.of_0x "0x687422eea2cb73b5d3e242ba5456b782919afc85"
