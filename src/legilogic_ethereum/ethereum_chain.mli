@@ -34,7 +34,7 @@ module TxHeader : sig
     ; nonce: Nonce.t
     ; gas_price: TokenAmount.t
     ; gas_limit: TokenAmount.t
-    ; value: TokenAmount.t option}
+    ; value: TokenAmount.t}
   [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
 end
@@ -54,7 +54,7 @@ module Operation : sig
 end
 
 module PreTransaction : sig
-  type t = {operation: Operation.t; value: TokenAmount.t option; gas_limit: TokenAmount.t}
+  type t = {operation: Operation.t; value: TokenAmount.t; gas_limit: TokenAmount.t}
   [@@deriving rlp]
   include PersistableS with type t := t
 end

@@ -58,7 +58,7 @@ let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) L
 
 let create_side_chain_contract (installer_address : Address.t) : (Address.t*Revision.t) Lwt_exn.t =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
-  Ethereum_user.create_contract ~sender:installer_address ~code:Operator_contract_binary.contract_bytes ?gas_limit:None ~value:None
+  Ethereum_user.create_contract ~sender:installer_address ~code:Operator_contract_binary.contract_bytes ?gas_limit:None ~value:TokenAmount.zero
   >>= Ethereum_user.confirm_pre_transaction installer_address
   >>= fun (_tx, _, confirmation) ->
   print_and_retrieve_transaction_hash confirmation.transaction_hash

@@ -70,7 +70,7 @@ let make_deposit_call : operator:Address.t -> contract_address:Address.t -> Ethe
 let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address:Address.t -> PreTransaction.t =
   fun ~operator ~amount ~contract_address ->
   let oper = make_deposit_call ~operator ~contract_address in
-  PreTransaction.{operation=oper; value=(Some amount); gas_limit=Side_chain_server_config.deposit_gas_limit}
+  PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
 
 
 

@@ -77,7 +77,7 @@ module TxHeader = struct
            ; nonce: Nonce.t
            ; gas_price: TokenAmount.t
            ; gas_limit: TokenAmount.t
-           ; value: TokenAmount.t option}
+           ; value: TokenAmount.t}
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
@@ -106,7 +106,7 @@ end
 
 module PreTransaction = struct
   [@warning "-39"]
-  type t = {operation: Operation.t; value: TokenAmount.t option; gas_limit: TokenAmount.t}
+  type t = {operation: Operation.t; value: TokenAmount.t; gas_limit: TokenAmount.t}
   [@@deriving yojson, rlp]
   include (YojsonPersistable (struct
              type nonrec t = t

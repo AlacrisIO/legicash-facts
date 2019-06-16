@@ -253,7 +253,7 @@ let post_claim_withdrawal_operation : contract_address:Address.t -> sender:Addre
   if side_chain_user_log then
     Logging.log "post_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let operation = make_claim_withdrawal_call ~contract_address ~operator operator_revision ~value ~confirmed_state:digest in
-  Ethereum_user.post_operation ~operation ~sender ~value:(Some bond)
+  Ethereum_user.post_operation ~operation ~sender ~value:bond
 
 
 let post_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
@@ -261,7 +261,7 @@ let post_withdraw_operation : contract_address:Address.t -> sender:Address.t -> 
   if side_chain_user_log then
     Logging.log "post_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
   let operation = make_withdraw_call ~contract_address ~operator operator_revision ~value ~bond ~confirmed_state:digest in
-  Ethereum_user.post_operation ~operation ~sender ~value:None
+  Ethereum_user.post_operation ~operation ~sender ~value:TokenAmount.zero
 
 
 
