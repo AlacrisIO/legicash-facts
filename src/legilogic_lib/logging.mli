@@ -4,6 +4,7 @@ val operator_contract_log : bool
 val mkb_json_rpc_log : bool
 val side_chain_user_log : bool
 val side_chain_log : bool
+val side_chain_operator_log : bool
 val side_chain_client_log : bool
 val side_chain_server_log : bool
 val state_update_log : bool

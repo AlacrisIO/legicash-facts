@@ -3,8 +3,9 @@ open Lib
 
 let operator_contract_log = true
 let mkb_json_rpc_log = true
-let side_chain_user_log = true
 let side_chain_log = true
+let side_chain_user_log = true
+let side_chain_operator_log = true
 let side_chain_client_log = true
 let side_chain_server_log = true
 let state_update_log = true

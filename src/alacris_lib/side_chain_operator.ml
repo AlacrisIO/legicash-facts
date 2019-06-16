@@ -39,9 +39,17 @@ module OperatorState = struct
     let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {committed; current} =
       let open Lwt in
+      if side_chain_operator_log then
+        log "side_chain_operator, walk_dependencies step 1";
       walk_dependency SignedState.dependency_walking context committed
       >>= fun () ->
+      if side_chain_operator_log then
+        log "side_chain_operator, walk_dependencies step 2";
       walk_dependency State.dependency_walking context current
+      >>= fun () ->
+      if side_chain_operator_log then
+        log "side_chain_operator, walk_dependencies step 3";
+      return ()
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end
@@ -51,12 +59,22 @@ module OperatorState = struct
     "LCFS0001" ^ (Address.to_big_endian_bits operator_address)
   let save operator_state =
     let open Lwt in
+    if side_chain_operator_log then
+      log "side_chain_operator, save, step 1";
     save operator_state (* <-- use inherited binding *)
     >>= fun () ->
+    if side_chain_operator_log then
+      log "side_chain_operator, save, step 2";
     let address = operator_state.keypair.address in
     let key = operator_state_key address in
     Db.put key (Digest.to_big_endian_bits (digest operator_state))
+    >>= fun () ->
+    if side_chain_operator_log then
+      log "side_chain_operator, save, step 3";
+    return ()
   let load operator_address =
+    if side_chain_operator_log then
+      log "side_chain_operator, load, step 1";
     operator_address |> operator_state_key |> Db.get
     |> (function
         | Some x -> x
@@ -64,6 +82,10 @@ module OperatorState = struct
                            (Printf.sprintf "Operator %s not found in the database"
                               (Address.to_0x operator_address))))
     |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
+    |> fun x ->
+       if side_chain_operator_log then
+         log "side_chain_operator, load, step 2";
+       x
 end
 
 (* TODO:

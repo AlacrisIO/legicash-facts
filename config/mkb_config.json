@@ -1,4 +1,4 @@
-{ "use_mkb" : true,
+{ "use_mkb" : false,
   "scheme" : "http",
   "main_host" : "alacris-registrar-alice",
   "main_port" : 8805,
