@@ -342,7 +342,6 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, Transac
       log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
     let sender = transaction.tx_header.sender in
     let hash = signed.SignedTransaction.tx.hash in
-    let operation = transaction.operation in
     let open Lwt_exn in
     send_raw_transaction sender signed
     >>= (fun hash ->
