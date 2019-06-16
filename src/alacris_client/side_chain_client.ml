@@ -7,7 +7,6 @@ open Logging
 open Types
 open Action
 open Lwter (* TODO: use Lwt_exn *)
-
 open Alacris_lib
 open Side_chain
 
@@ -17,7 +16,6 @@ open Actions
 (* Side_chain also has a Request module *)
 module Request = Scgi.Request
 
-let side_chain_client_log = true
 
 let _ = Config.set_application_name "alacris"
 (* let _ = set_log_file "logs/alacris-client.log" *)
@@ -60,7 +58,7 @@ type address_json =
   } [@@deriving yojson]
 
 let handle_lwt_exception exn =
-  Logging.log "Got LWT exception: %s"
+  log "Got LWT exception: %s"
     (Printexc.to_string exn)
 
 (* port and address must match "scgi_pass" in nginx/conf/scgi.conf *)
@@ -136,19 +134,19 @@ let _ =
         match api_call with
         | "balances" ->
           if side_chain_client_log then
-            Logging.log "GET /api/balances";
+            log "GET /api/balances";
           get_all_balances_on_trent ()
           >>= return_result id
 
         | "tps" ->
           if side_chain_client_log then
-            Logging.log "GET /api/tps";
+            log "GET /api/tps";
           get_transaction_rate_on_trent ()
           |> ok_json id
 
         | "proof" ->
           if side_chain_client_log then
-            Logging.log "GET /api/proof";
+            log "GET /api/proof";
           (match Request.param request "tx-revision" with
            | Some param -> (
                try
@@ -163,7 +161,7 @@ let _ =
 
         | "thread" ->
           if side_chain_client_log then
-            Logging.log "GET /api/thread";
+            log "GET /api/thread";
           (match Request.param request "id" with
              Some param ->
              (try
@@ -184,7 +182,7 @@ let _ =
 
       let (=->) deserialized f =
         if side_chain_client_log then
-          Logging.log "POST /api/%s" api_call;
+          log "POST /api/%s" api_call;
         let err500 m = internal_error_response id m in
         match (deserialized json) with
           (* NB it's good security practice to prevent implementation details
@@ -234,7 +232,7 @@ let _ =
 
         | "recent_transactions" ->
           if side_chain_client_log then
-            Logging.log "POST /api/recent_transactions";
+            log "POST /api/recent_transactions";
           let maybe_limit_string = Request.param request "limit" in
           let invalid_limit      = Some (Revision.zero) in
           let maybe_limit =
@@ -261,7 +259,7 @@ let _ =
 
         | "sleep" ->
           if side_chain_client_log then
-            Logging.log "POST /api/sleep";
+            log "POST /api/sleep";
           (try
              Lwt_unix.sleep 1.0 >>= (fun () -> ok_json id (`Int 42))
            with

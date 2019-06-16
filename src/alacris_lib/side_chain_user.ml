@@ -12,6 +12,7 @@ open Merkle_trie
 open Json_rpc
 open Trie
 open Side_chain_client
+open Logging
 
 open Legilogic_ethereum
 open Side_chain_server_config
@@ -23,8 +24,6 @@ open Operator_contract
 open Digesting
 
 open Side_chain
-
-let side_chain_user_log = true
 
 (** TODO: query the network, whatever, and find the fee schedule *)
 let get_operator_fee_schedule _operator_address =

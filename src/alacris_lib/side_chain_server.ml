@@ -6,7 +6,7 @@ open Lwt_exn
 open Marshaling
 open Types
 open Signing
-
+open Logging
 open Alacris_lib
 open Legilogic_ethereum
 open Side_chain
@@ -18,8 +18,6 @@ let _ =
 
 let _init_random =
   Random.self_init
-
-let side_chain_server_log = false
 
   
 (* TODO: pass request id, so we can send a JSON RPC style reply? *)

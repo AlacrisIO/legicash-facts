@@ -3,6 +3,7 @@ open Cohttp_lwt_unix
 
 open Lib
 open Yojsoning
+open Logging
 open Action
 open Lwt_exn
 
@@ -59,7 +60,6 @@ let json_rpc_version = "2.0"
 (* Global counter to correlate responses and answers in logs. *)
 let id_counter  = make_counter ()
 let rpc_timeout = 10.0
-let rpc_log     = ref false
 
 let exn_to_yojson = function
   | Rpc_error e -> error_to_yojson e
@@ -145,7 +145,7 @@ let json_rpc server
              result_decoder
              param_encoder
              ?(timeout=rpc_timeout)
-             ?(log=(!rpc_log))
+             ?(log=rpc_log)
              params =
 
   let process r =

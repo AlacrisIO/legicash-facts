@@ -4,9 +4,7 @@ open Yojsoning
 open Persisting
 open Json_rpc
 open Types
-
-
-let mkb_json_rpc_log = true
+open Logging
 
 type mkb_rpc_config_type =
   { use_mkb : bool

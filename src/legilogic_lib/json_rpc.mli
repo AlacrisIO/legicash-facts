@@ -20,9 +20,6 @@ exception Bad_status         of Code.status_code (* We can't make sense of the R
 (** Default RPC timeout, in seconds *)
 val rpc_timeout : float
 
-(** Should we log all RPC calls by default? *)
-val rpc_log : bool ref
-
 (** Run the call given by the JSON, the Lwt_exn way. *)
 val json_rpc
    : Uri.t

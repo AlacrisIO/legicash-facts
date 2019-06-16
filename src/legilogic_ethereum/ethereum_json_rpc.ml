@@ -5,6 +5,7 @@ open Yojsoning
 open Persisting
 open Json_rpc
 open Signing
+open Logging
 open Types
 
 open Ethereum_chain
@@ -37,7 +38,7 @@ let ethereum_mutex = Lwt_mutex.create ()
 let ethereum_json_rpc
       method_name result_decoder param_encoder ?timeout
       ?log params =
-  if !rpc_log then
+  if rpc_log then
     Logging.log "ETH json rpc method_name=%s" method_name;
   Lwt_mutex.with_lock ethereum_mutex
     (fun () ->

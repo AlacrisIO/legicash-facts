@@ -11,6 +11,7 @@ open Ethereum_abi
 open Side_chain_server_config
 open Digesting
 
+
 let topic_of_address (addr : Address.t) : Bytes.t option =
   Some (encode_function_parameters [abi_address addr])
 
@@ -39,7 +40,6 @@ let retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Di
      return (contract_address, code_hash, transaction_hash, contract_block_number)
 
 
-let operator_contract_log = false
 
 
 let contract_address = ref Address.zero
@@ -50,12 +50,12 @@ let set_contract_address address = contract_address := address
 let set_contract_block_number blk_number = contract_block_number := blk_number
 
 let get_contract_address () =
-  if operator_contract_log then
+  if Logging.operator_contract_log then
     Logging.log "get_contract_address : contract_address=%s" (Address.to_0x !contract_address);
   !contract_address
 
 let get_contract_block_number () =
-  if operator_contract_log then
+  if Logging.operator_contract_log then
     Logging.log "get_contract_block_number : contract_block_number=%s" (Revision.to_string !contract_block_number);
   !contract_block_number
 

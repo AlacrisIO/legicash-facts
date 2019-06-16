@@ -1,5 +1,20 @@
 open Lib
 
+
+let operator_contract_log = true
+let mkb_json_rpc_log = true
+let side_chain_user_log = true
+let side_chain_log = true
+let side_chain_client_log = true
+let side_chain_server_log = false
+let state_update_log = false
+let ethereum_user_log = false
+let ethereum_watch_log = false
+let db_log = false
+let persisting_log = false
+let rpc_log = true
+
+
 let log_channel = ref stderr
 
 let set_log_channel x = log_channel := x

@@ -24,8 +24,7 @@ open Lib
 open Marshaling
 open Action
 open Lwter
-
-let db_log = false
+open Logging
 
 type db = LevelDB.db
 type batch = LevelDB.writebatch

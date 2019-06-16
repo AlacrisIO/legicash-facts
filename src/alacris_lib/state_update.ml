@@ -2,7 +2,7 @@ open Legilogic_lib
 open Signing
 open Action
 open Lwt_exn
-
+open Logging
 open Types
 
 open Legilogic_ethereum
@@ -11,8 +11,6 @@ open Operator_contract
 open Digesting
 open Ethereum_json_rpc
 open Side_chain_server_config
-
-let state_update_log = false
 
 type digest_entry =
   { revision : Revision.t

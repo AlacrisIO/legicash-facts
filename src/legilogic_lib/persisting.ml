@@ -1,12 +1,11 @@
 (** Persisting Data *)
 open Lib
+open Logging
 open Action
 open Lwter
 open Yojsoning
 open Marshaling
 open Digesting
-
-let persisting_log = false
 
 
 (** Walking across the dependencies of an object *)
