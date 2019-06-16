@@ -28,7 +28,7 @@ module Side_chain_server_config = struct
     |> OrString.get
     |> fun { nickname; keypair } ->
     let address = keypair.address in
-    (* Logging.log "Using operator keypair %S %s" nickname (Address.to_0x address);*)
+    (* log "Using operator keypair %S %s" nickname (Address.to_0x address);*)
     register_keypair nickname keypair;
     address
 

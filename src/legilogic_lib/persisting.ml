@@ -24,17 +24,17 @@ let already_persistent _fun _x = Lwt.return_unit
 
 let no_dependencies _methods _context _x =
   if persisting_log then
-    Logging.log "persisting: no_dependencies";
+    log "persisting: no_dependencies";
   Lwt.return_unit
 
 let walk_dependency methods context x =
   if persisting_log then
-    Logging.log "persisting: walk_dependency";
+    log "persisting: walk_dependency";
   context.walk methods context x
 
 let one_dependency f methods _methods context x =
   if persisting_log then
-    Logging.log "persisting: one_dependency";
+    log "persisting: one_dependency";
   walk_dependency methods context (f x)
 
 (*
@@ -49,20 +49,20 @@ let content_addressed_storage_prefix = "K256"
 
 let content_addressed_storage_key digest =
   if persisting_log then
-    Logging.log "persisting: content_addressed_storage_key";
+    log "persisting: content_addressed_storage_key";
   content_addressed_storage_prefix ^ Digest.to_big_endian_bits digest
 
 let db_string_of_digest digest =
   if persisting_log then
-    Logging.log "persisting: db_string_of_digest";
+    log "persisting: db_string_of_digest";
   digest |> content_addressed_storage_key |> Db.get |> Option.get
 
 let db_value_of_digest unmarshal_string digest =
   if persisting_log then
-    Logging.log "persisting: db_value_of_digest, BEGIN";
+    log "persisting: db_value_of_digest, BEGIN";
   let u = unmarshal_string (db_string_of_digest digest) in
   if persisting_log then
-    Logging.log "persisting: db_value_of_digest, END";
+    log "persisting: db_value_of_digest, END";
   u
   (*  digest |> db_string_of_digest |> unmarshal_string *)
 
@@ -70,29 +70,29 @@ let db_value_of_digest unmarshal_string digest =
 (** Have both content- and intent- addressed storage in the same framework *)
 let saving_walker methods context x =
   if persisting_log then
-    Logging.log "persisting: saving_walker, step 1";
+    log "persisting: saving_walker, step 1";
   methods.make_persistent
     (fun x ->
       if persisting_log then
-        Logging.log "persisting: saving_walker, step 2";
+        log "persisting: saving_walker, step 2";
       let key = x |> methods.digest |> content_addressed_storage_key in
       if persisting_log then
-        Logging.log "persisting: saving_walker, step 3";
+        log "persisting: saving_walker, step 3";
       if Db.has_key key then
         (if persisting_log then
-           Logging.log "persisting: saving_walker, step 4";
+           log "persisting: saving_walker, step 4";
          Lwt.return_unit)
       else
         (if persisting_log then
-           Logging.log "persisting: saving_walker, step 5";
+           log "persisting: saving_walker, step 5";
          methods.walk_dependencies methods context x >>=
            (fun () ->
              if persisting_log then
-               Logging.log "persisting: saving_walker, step 6";
+               log "persisting: saving_walker, step 6";
              Db.put key (methods.marshal_string x)
              >>= fun () ->
              if persisting_log then
-               Logging.log "persisting: saving_walker, step 7";
+               log "persisting: saving_walker, step 7";
              Lwt.return_unit
     )))
     x
@@ -101,7 +101,7 @@ let saving_context = { walk = saving_walker }
 
 let save_of_dependency_walking methods x =
   if persisting_log then
-    Logging.log "persisting: save_of_dependency_walking";
+    log "persisting: save_of_dependency_walking";
   walk_dependency methods saving_context x
 
 module type PrePersistableDependencyS = sig
@@ -223,7 +223,7 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
       const state
   let resume (context: context) (key : key) (current_state: state) : activity =
     if persisting_log then
-      Logging.log "persisting: PersistingActivity, resume";
+      log "persisting: PersistingActivity, resume";
     let activity = make_activity context key (saving (db_key key)) current_state in
     (if Hashtbl.mem table key then
        Lib.bork "object with key ~s ~s already resumed!" key_prefix (Key.to_yojson_string key));
@@ -231,14 +231,14 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
     activity
   let make context key init =
     if persisting_log then
-      Logging.log "persisting: PersistingActivity, make";
+      log "persisting: PersistingActivity, make";
     let db_key = db_key key in
     match Db.get db_key with
     | Some _ -> Lib.bork "object with key %s %s already created!" key_prefix (Key.to_yojson_string key)
     | None -> init (saving db_key) >>= fun state -> return (resume context key state)
   let get context key =
     if persisting_log then
-      Logging.log "persisting: PersistingActivity, get";
+      log "persisting: PersistingActivity, get";
     let db_key = db_key key in
     (match Hashtbl.find_opt table key with
      | Some x -> x
@@ -250,5 +250,5 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
                     key_prefix (Key.to_yojson_string key) (Hex.unparse_0x_data s) (Printexc.to_string e))
          | None -> make_default_state context key in
        resume context key state)
-    (*|> fun obj -> Logging.log "GOT prefix %s key %s obj %d" key_prefix (Key.to_yojson_string key) (0 + Obj.magic obj); obj*)
+    (*|> fun obj -> log "GOT prefix %s key %s obj %d" key_prefix (Key.to_yojson_string key) (0 + Obj.magic obj); obj*)
 end

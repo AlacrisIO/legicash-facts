@@ -68,22 +68,22 @@ let test_equality_quadruple : (Address.t * Digest.t * Digest.t * Revision.t) -> 
   let result = ref true in
   if not (String.equal (Address.to_string a_adr) (Address.to_string b_adr)) then
     (if side_chain_user_log then
-       Logging.log "Equality failure at contract_address a=%s b=%s" (Address.to_string a_adr) (Address.to_string b_adr);
+       log "Equality failure at contract_address a=%s b=%s" (Address.to_string a_adr) (Address.to_string b_adr);
      result := false
     );
   if not (String.equal (Digest.to_string a_diga) (Digest.to_string b_diga)) then
     (if side_chain_user_log then
-       Logging.log "Equality failure at code_hash a=%s b=%s" (Digest.to_string a_diga) (Digest.to_string b_diga);
+       log "Equality failure at code_hash a=%s b=%s" (Digest.to_string a_diga) (Digest.to_string b_diga);
      result := false
     );
   if not (String.equal (Digest.to_string a_digb) (Digest.to_string b_digb)) then
     (if side_chain_user_log then
-       Logging.log "Equality failure at transaction_hash a=%s b=%s" (Digest.to_string a_digb) (Digest.to_string b_digb);
+       log "Equality failure at transaction_hash a=%s b=%s" (Digest.to_string a_digb) (Digest.to_string b_digb);
      result := false
     );
   if not (Revision.equal a_rev b_rev) then
     (if side_chain_user_log then
-       Logging.log "Equality failure at block_number a=%s b=%s" (Revision.to_string a_rev) (Revision.to_string b_rev);
+       log "Equality failure at block_number a=%s b=%s" (Revision.to_string a_rev) (Revision.to_string b_rev);
      result := false
     );
   !result
@@ -97,15 +97,15 @@ let get_contract_address_for_client_checked_exn_req : unit -> Address.t Lwt_exn.
   Operator_contract.retrieve_contract_address_quadruple creation_hash
   >>= fun f_quad ->
   let result = test_equality_quadruple e_quad f_quad in
-  Logging.log "result ? %B" result;
+  log "result ? %B" result;
   if result then
     (if side_chain_user_log then
-       Logging.log "contract_address retrieve successfully";
+       log "contract_address retrieve successfully";
      return contract_address
     )
   else
     (if side_chain_user_log then
-       Logging.log "Error case for contract_address retrieval";
+       log "Error case for contract_address retrieval";
     bork "inconsistent input for the contract")
 
 
@@ -146,7 +146,7 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
   >>= fun x ->
   let (log_object, vals) = x in
   if side_chain_user_log then
-    Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
+    log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
   (* TODO defaulting to zero is wrong and the presence of `null`s indicates
    * something's broken with the confirmation data; we should instead capture
    * the possibility of invalid state at the type level and force consuming
@@ -178,7 +178,7 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
 let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
   fun ~operator  ~operator_revision ->
   if side_chain_user_log then
-    Logging.log "Beginning of search_for_state_update_min_revision  operator=%s operator_revision=%s" (Address.to_0x operator) (Revision.to_string operator_revision);
+    log "Beginning of search_for_state_update_min_revision  operator=%s operator_revision=%s" (Address.to_0x operator) (Revision.to_string operator_revision);
   let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
   let rec get_matching : Revision.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
     fun start_ref ->
@@ -198,7 +198,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
     if (List.length llogs_filter > 0) then
       let (log_object, vals) = List.nth llogs_filter 0 in
       if side_chain_user_log then
-        Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
+        log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
       (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
        * but don't return a fake Confirmation. Maybe have separate functions for one
        * and the other, or for one and the work that remains to do for the other.
@@ -219,8 +219,8 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
 let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> Revision.t -> Revision.t Lwt_exn.t =
   fun ~contract_address ~transaction_hash ~operator revision ->
   if side_chain_user_log then
-    (Logging.log "Beginning of wait_for_claim_withdrawal_event";
-     Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address)
+    (log "Beginning of wait_for_claim_withdrawal_event";
+     log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address)
     );
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
   let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 256; Uint 256; Uint 64] in
@@ -230,14 +230,14 @@ let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_
   let (transaction_hash_val : Digest.t option) = Some transaction_hash in
   let open Lwt_exn in
   if side_chain_user_log then
-    Logging.log "Before wait_for_contract_event CONTEXT claim_withdrawal";
+    log "Before wait_for_contract_event CONTEXT claim_withdrawal";
   wait_for_contract_event ~contract_address ~transaction_hash:transaction_hash_val ~topics list_data_type data_value_search
   >>= fun (log_object, abi_list_val) ->
   if side_chain_user_log then
-    (Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length abi_list_val);
-     Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_uint256 (List.nth abi_list_val 4));
-     Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 5));
-     Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth abi_list_val 6))
+    (log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length abi_list_val);
+     log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_uint256 (List.nth abi_list_val 4));
+     log "claim_withdrawal, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 5));
+     log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth abi_list_val 6))
     );
   let block_nbr = Option.get log_object.blockNumber in
   return block_nbr
@@ -245,7 +245,7 @@ let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_
 let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun ~contract_address ~sender ~operator operator_revision ~value ~bond digest ->
   if side_chain_user_log then
-    Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
+    log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call ~contract_address ~operator operator_revision ~value ~confirmed_state:digest in
   post_operation_general operation sender bond
 
@@ -253,7 +253,7 @@ let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Addre
 let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun ~contract_address  ~sender  ~operator operator_revision  ~value  ~bond digest ->
   if side_chain_user_log then
-    Logging.log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
+    log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
   let (operation : Ethereum_chain.Operation.t) = make_withdraw_call ~contract_address ~operator operator_revision ~value ~bond ~confirmed_state:digest in
   let (value_send : TokenAmount.t) = TokenAmount.zero in
   post_operation_general operation sender value_send
@@ -263,13 +263,13 @@ let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> 
 let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_exn.t =
   fun tc operator ->
   if side_chain_user_log then
-    Logging.log "Beginning of post_operation_deposit";
+    log "Beginning of post_operation_deposit";
   let (topics : Bytes.t option list) = [topic_of_deposited] in
   let (list_data_type : abi_type list) = [Address; Address; Uint 256; Uint 256] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      None; None; None] in
   if side_chain_user_log then
-    Logging.log "Before wait_for_contract_event CONTEXT deposit";
+    log "Before wait_for_contract_event CONTEXT deposit";
   let open Lwt_exn in
   get_contract_address_for_client_exn ()
   >>= (fun contract_address ->
@@ -287,7 +287,7 @@ let post_claim_withdrawal_operation_exn : TransactionCommitment.t -> sender:Addr
     | Payment _ -> bork "This part should not occur"
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
        if side_chain_user_log then
-         Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
+         log "Beginning of post_claim_withdrawal_operation, withdrawal";
        get_contract_address_for_client_exn ()
        >>= fun contract_address ->
        emit_claim_withdrawal_operation
@@ -300,7 +300,7 @@ let post_claim_withdrawal_operation_exn : TransactionCommitment.t -> sender:Addr
          tc.state_digest
        >>= fun tr ->
        if side_chain_user_log then
-         Logging.log "post_claim_withdrawal_operation status=%s" (print_status_receipt tr);
+         log "post_claim_withdrawal_operation status=%s" (print_status_receipt tr);
        wait_for_claim_withdrawal_event
          ~contract_address
          ~transaction_hash:tr.transaction_hash
@@ -308,7 +308,7 @@ let post_claim_withdrawal_operation_exn : TransactionCommitment.t -> sender:Addr
          tc.tx_proof.key
        >>= fun block_nbr ->
        if side_chain_user_log then
-         Logging.log "After the wait_for_claim_withdrawal_event";
+         log "After the wait_for_claim_withdrawal_event";
        return block_nbr
 
 let post_claim_withdrawal_operation : TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt.t =
@@ -323,7 +323,7 @@ let post_claim_withdrawal_operation : TransactionCommitment.t -> sender:Address.
 let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revision.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> unit Lwt_exn.t =
   fun tc ~block_nbr withdrawal_amount ~sender ~operator ->
   if side_chain_user_log then
-    Logging.log "Beginning of execute_withdraw_operation";
+    log "Beginning of execute_withdraw_operation";
   let open Lwt_exn in
   let min_block_length = (Revision.add block_nbr Side_chain_server_config.challenge_period_in_blocks) in
   wait_for_min_block_depth min_block_length
@@ -339,7 +339,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revis
     tc.state_digest
   >>= fun tr ->
   if side_chain_user_log then
-    Logging.log "execute_withdraw_operation_spec status=%s" (print_status_receipt tr);
+    log "execute_withdraw_operation_spec status=%s" (print_status_receipt tr);
   let (data_value_search: abi_value option list) =
     [ Some (Address_value operator)
     ; Some (abi_value_from_revision tc.tx_proof.key)
@@ -643,12 +643,12 @@ module TransactionTracker = struct
 
            | DepositPosted (deposit_wanted, deposit_fee, tracker_key) ->
              if side_chain_user_log then
-               Logging.log "TR_LOOP, DepositPosted operation";
+               log "TR_LOOP, DepositPosted operation";
              let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
              (promise >>= function
               | Failed (_, error) ->
                 if side_chain_user_log then
-                  Logging.log "DepositPosted, Failed case err=%s" (Printexc.to_string error);
+                  log "DepositPosted, Failed case err=%s" (Printexc.to_string error);
                 invalidate ongoing error (* TODO: keep the ethereum ongoing transaction status? *)
               | Confirmed (transaction, signed, receipt) ->
                  let txdata = Ethereum_json_rpc.transaction_data_of_signed_transaction signed in
@@ -661,7 +661,7 @@ module TransactionTracker = struct
                               , main_chain_deposit_confirmation
                               ) ->
              if side_chain_user_log then
-               Logging.log "TR_LOOP, DepositConfirmed operation";
+               log "TR_LOOP, DepositConfirmed operation";
              revision_generator ()
              >>= fun (revision : Revision.t) ->
                (make_user_transaction_request
@@ -686,29 +686,29 @@ module TransactionTracker = struct
               >>= function
               | Ok (tc : TransactionCommitment.t) ->
                  if side_chain_user_log then
-                   Logging.log "Requested: side_chain_user: TrTracker, Ok case";
+                   log "Requested: side_chain_user: TrTracker, Ok case";
                  SignedByOperator tc |> continue
               | Error (error : exn) ->
                  if side_chain_user_log then
-                   Logging.log "Requested: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
+                   log "Requested: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                  invalidate ongoing error)
 
            | SignedByOperator (tc : TransactionCommitment.t) ->
              if side_chain_user_log then
-               Logging.log "TR_LOOP, SignedByOperator operation";
+               log "TR_LOOP, SignedByOperator operation";
              (* TODO: add support for Shared Knowledge Network / "Smart Court Registry" *)
              PostedToRegistry tc |> continue
 
            | PostedToRegistry (tc : TransactionCommitment.t) ->
              if side_chain_user_log then
-               Logging.log "TR_LOOP, PostedToRegistry operation tc.operator_revision=%s" (Revision.to_string tc.operator_revision);
+               log "TR_LOOP, PostedToRegistry operation tc.operator_revision=%s" (Revision.to_string tc.operator_revision);
              (* TODO: add support for Mutual Knowledge Base / "Smart Court Registry" *)
              (search_for_state_update_min_revision ~operator ~operator_revision:tc.operator_revision
               (* wait_for_operator_state_update ~operator ~transaction_hash:tc.state_update_transaction_hash*)
               >>= function
               | Ok (c : Ethereum_chain.Confirmation.t) ->
                 if side_chain_user_log then
-                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
+                  log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
                 (match (tc.transaction.tx_request |> TransactionRequest.request).operation with
                  | Deposit _ ->
                     FinalTransactionStatus.SettledOnMainChain (tc, c) |> finalize
@@ -716,12 +716,12 @@ module TransactionTracker = struct
                  | Withdrawal _ -> PostedToMainChain (tc, c) |> continue)
               | Error error ->
                 if side_chain_user_log then
-                  Logging.log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
+                  log "PostedToRegistry: side_chain_user: TrTracker, Error case exn=%s" (Printexc.to_string error);
                 invalidate ongoing error)
 
            | PostedToMainChain ( tc, confirmation ) ->
              if side_chain_user_log then
-               Logging.log "TR_LOOP, PostedToMainChain operation";
+               log "TR_LOOP, PostedToMainChain operation";
              (* Withdrawal that we're going to have to claim *)
              (* TODO: wait for confirmation on the main chain and handle lawsuits
                 Right now, no lawsuit *)
@@ -731,7 +731,7 @@ module TransactionTracker = struct
 
            | ConfirmedOnMainChain (tc, block_nbr, confirmation) ->
              if side_chain_user_log then
-               Logging.log "TR_LOOP, ConfirmedOnMainChain operation";
+               log "TR_LOOP, ConfirmedOnMainChain operation";
              (* Confirmed Withdrawal that we're going to have to execute *)
              (* TODO: post a transaction to actually get the money *)
              Lwt.bind (execute_withdraw_operation tc ~block_nbr ~sender:user ~operator) (fun _ ->
@@ -754,7 +754,7 @@ module TransactionTracker = struct
         (match e with
             | Side_chain_operator.Malformed_request r ->
                if side_chain_user_log then
-                 Logging.log "Malformed request: %s" r
+                 log "Malformed request: %s" r
             | _ -> ());
         Lwt_exn.fail (TransactionFailed (o, e))
 end
@@ -819,7 +819,7 @@ let get_next_account_revision : Address.t -> unit -> UserState.t -> (Revision.t 
   fun operator () state ->
     let revision_lens = operator_lens operator |-- UserAccountState.lens_side_chain_revision in
     let (revision : Revision.t) = revision_lens.get state in
-    (*    Logging.log "get_next_account_revision revision=%s" (Revision.to_string revision);*)
+    (*    log "get_next_account_revision revision=%s" (Revision.to_string revision);*)
     Lwt.return (revision, (state |> revision_lens.set Revision.(add one revision)))
 
 module User = struct

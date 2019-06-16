@@ -79,7 +79,7 @@ let retrieve_last_entries : Revision.t -> contract_address:Address.t -> topics:B
   let block_depth_for_receipt = Side_chain_server_config.minNbBlockConfirm in
   let to_block = Revision.sub current_block block_depth_for_receipt in
   if ethereum_watch_log then
-    Logging.log "retrieve_last_entries. Before call to eth_get_logs";
+    log "retrieve_last_entries. Before call to eth_get_logs";
   eth_get_logs { from_block = Some (Block_number start_block)
                ; to_block   = Some (Block_number to_block)
                ; address    = Some contract_address
@@ -88,7 +88,7 @@ let retrieve_last_entries : Revision.t -> contract_address:Address.t -> topics:B
     }
   >>= fun (recLLO : EthListLogObjects.t) ->
   if ethereum_watch_log then
-    Logging.log "retrieve_last_entries, After call to eth_get_logs";
+    log "retrieve_last_entries, After call to eth_get_logs";
   return (to_block,recLLO)
 
 
@@ -144,18 +144,18 @@ let retrieve_relevant_list_logs_data :
   fun ~delay ~start_revision ~max_number_iteration ~contract_address ~transaction_hash ~topics list_data_type data_value_search ->
   let open Lwt_exn in
   if ethereum_watch_log then
-    Logging.log "|list_data_type|=%d" (List.length list_data_type);
+    log "|list_data_type|=%d" (List.length list_data_type);
   if ethereum_watch_log then
-    Logging.log "|data_value_search|=%d" (List.length data_value_search);
+    log "|data_value_search|=%d" (List.length data_value_search);
   let number_iteration_ref : (Revision.t ref) = ref Revision.zero in
   let rec download_entries start_block =
     if ethereum_watch_log then
-      Logging.log "download_entries number_iteration=%s" (Revision.to_string !number_iteration_ref);
+      log "download_entries number_iteration=%s" (Revision.to_string !number_iteration_ref);
     retrieve_last_entries (Revision.add start_block Revision.one)
       ~contract_address  ~topics
     >>= fun (start_block_in, entries) ->
     if ethereum_watch_log then
-      Logging.log "retrieve_relevant transaction_hash=%s" (string_of_option_digest transaction_hash);
+      log "retrieve_relevant transaction_hash=%s" (string_of_option_digest transaction_hash);
     let only_matches_record = flip List.filter entries @@ fun l ->
                 is_matching_data (decode_data l.data list_data_type)
                   data_value_search
@@ -179,13 +179,13 @@ let retrieve_relevant_list_logs_data :
                (number_iteration_ref := Revision.(add !number_iteration_ref one);
                 if (Revision.equal !number_iteration_ref max_number_iteration_i) then
                   (if ethereum_watch_log then
-                     Logging.log "Exiting due to too large number of iterations";
+                     log "Exiting due to too large number of iterations";
                    return (start_block_in, []))
                 else
                   download_entries start_block_in)
           else
             (if ethereum_watch_log then
-               Logging.log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
+               log "|only_matches_record|=%d   |only_matches_hash|=%d   |relevant|=%d" (List.length only_matches_record) (List.length only_matches_hash)  (List.length relevant);
              return (start_block_in, relevant))
   in download_entries start_revision
 
@@ -219,7 +219,7 @@ let retrieve_relevant_single_logs_data : delay:float -> contract_address:Address
 let wait_for_contract_event : contract_address:Address.t -> transaction_hash:Digest.t option -> topics:Bytes.t option list -> abi_type list -> abi_value option list -> (LogObject.t * (abi_value list)) Lwt_exn.t =
   fun  ~contract_address  ~transaction_hash  ~topics  list_data_type  data_value_search ->
   if ethereum_watch_log then
-    Logging.log "Beginning of wait_for_contract_event";
+    log "Beginning of wait_for_contract_event";
   retrieve_relevant_single_logs_data
     ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
     ~contract_address

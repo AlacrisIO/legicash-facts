@@ -140,7 +140,7 @@ let check_connection () =
 let start_server ~db_name ~db () =
   let open Lwt in
   if db_log then
-    Logging.log "Opening LevelDB connection to db %s" db_name;
+    log "Opening LevelDB connection to db %s" db_name;
   let transaction_counter = ref 0 in
 
   let rec outer_loop batch_id previous () =
@@ -181,7 +181,7 @@ let start_server ~db_name ~db () =
         Lwt_mvar.take db_mailbox >>= function
         | Put {key;value} ->
           if db_log then
-            Logging.log "key=(omit) value=(omit)";
+            log "key=(omit) value=(omit)";
           LevelDB.Batch.put batch key value;
           inner_loop ~ready ~triggered ~held
 
@@ -215,7 +215,7 @@ let start_server ~db_name ~db () =
              should be released as soon as "the" transaction is complete, unless we're already both
              ready && triggered for the next batch commit. Have an option for that? *)
           if ready && triggered && held then
-            ((*Logging.log "HOLDING A TRANSACTION";*)
+            ((*log "HOLDING A TRANSACTION";*)
               blocked_transactions := u :: !blocked_transactions)
           else
             open_transaction u;
@@ -237,7 +237,7 @@ let open_connection db_name =
   | Some x ->
     if x.db_name = db_name then
       (if db_log then
-         Logging.log "Process already has a LevelDB connection to db %s, won't start another one" db_name;
+         log "Process already has a LevelDB connection to db %s, won't start another one" db_name;
        Lwt.return_unit)
     else
       bork "Cannot start a LevelDB connection to db %s because there's already one to %s"
@@ -277,7 +277,7 @@ let has_key key =
 
 let get key =
   if db_log then
-    Logging.log "Db.get access for key=(omit)";
+    log "Db.get access for key=(omit)";
   LevelDB.get (the_db ()) key
 (* Uncomment the following to spy on db read accesses:
     |> function
@@ -294,7 +294,7 @@ let get key =
 
 let put key value =
   if db_log then
-    Logging.log "Db.put key=(omit) value=(omit)";
+    log "Db.put key=(omit) value=(omit)";
   Put {key; value} |> request
 
 let put_many list =

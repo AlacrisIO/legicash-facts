@@ -147,7 +147,7 @@ let rec mkb_send_data_iterate_fail : (string * string * string * string) -> Send
   (function
   | Ok x -> Lwt.return x
   | _ -> if mkb_json_rpc_log then
-           Logging.log "Reiterating mkb_send_data in case of failure";
+           log "Reiterating mkb_send_data in case of failure";
          mkb_send_data_iterate_fail x)
 
 
@@ -216,7 +216,7 @@ let mkb_add_neighboring_registrar : string -> string list -> unit Lwt_exn.t =
 
 let init_mkb_server () =
   if mkb_json_rpc_log then
-    Logging.log "Beginning of init_mkb_server";
+    log "Beginning of init_mkb_server";
   let open Lwt_exn in
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
   if mkb_rpc_config_v.use_mkb then
@@ -230,7 +230,7 @@ let init_mkb_server () =
     >>= fun _ -> mkb_add_neighboring_registrar topic neighboring_registrar_list
     >>= fun _ -> mkb_add_account (topic, username)
     >>= fun _ -> if mkb_json_rpc_log then
-                   Logging.log "The MKB has been successfully set up";
+                   log "The MKB has been successfully set up";
                  return ()
   else
     return ()

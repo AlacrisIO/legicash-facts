@@ -3,6 +3,7 @@ open Legilogic_lib
 open Lib
 open Action
 open Signing
+open Logging
 open Types
 open Lwt_exn
 open Json_rpc
@@ -41,9 +42,9 @@ let get_first_account = list_accounts >>> catching_arr List.hd
 exception Bad_password
 
 let unlock_account ?(duration=5) address =
-  Logging.log "ethereum_transaction : unlock_account";
+  log "ethereum_transaction : unlock_account";
   catching_arr keypair_of_address address >>= fun keypair ->
-  Logging.log "unlock_account %s" (Address.to_0x address);
+  log "unlock_account %s" (Address.to_0x address);
   Ethereum_json_rpc.personal_unlock_account (address, keypair.password, Some duration)
   >>= function
   | true -> return ()
@@ -130,7 +131,7 @@ let check_transaction_confirmation :
 module Test = struct
   open Ethereum_json_rpc
 
-  let%test "move logs aside" = Logging.set_log_file "test.log"; true
+  let%test "move logs aside" = set_log_file "test.log"; true
 
   let is_ethereum_net_up =
     retry

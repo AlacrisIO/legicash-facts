@@ -5,6 +5,7 @@ open Lib
 open Yojsoning
 open Signing
 open Action
+open Logging
 open Lwt_exn
 open Json_rpc
 
@@ -13,7 +14,7 @@ open Ethereum_chain
 open Ethereum_user.Test
 
 let _ = Config.set_application_name "alacris"
-let _ = Logging.set_log_file (Config.get_application_home_dir () ^ "/_run/logs/ethereum_prefunder.log")
+let _ = set_log_file (Config.get_application_home_dir () ^ "/_run/logs/ethereum_prefunder.log")
 
 let amount_ref = ref "100000000000000000000"
 let args = ref []
@@ -30,7 +31,7 @@ let with_error_logging : (unit -> string) -> ('i, unit) Lwt_exn.arr -> ('i, unit
   let open Lwt in
   f arg >>= function
   | Ok _ -> Lwt_exn.return ()
-  | Error e -> Logging.log "%s: %s" (make_msg ()) (exn_to_yojson e |> string_of_yojson); Lwt_exn.return ()
+  | Error e -> log "%s: %s" (make_msg ()) (exn_to_yojson e |> string_of_yojson); Lwt_exn.return ()
 
 let ensure_prefunded prefunded_address amount string =
   try_first_match string
@@ -52,7 +53,7 @@ let ensure_prefunded prefunded_address amount string =
      | Some name -> register_address name address
      | None -> ());
 
-    Logging.log "ensure_address_prefunded %s %s %s"
+    log "ensure_address_prefunded %s %s %s"
       (Address.to_0x prefunded_address)
       (TokenAmount.to_string amount)
       (Address.to_0x address);
@@ -78,13 +79,13 @@ let _ =
     "ethereum_prefunder.exe";
   let amount = TokenAmount.of_string !amount_ref in
   let open Lwt_exn in
-  Logging.log "Ethereum Prefunder";
+  log "Ethereum Prefunder";
   Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/ethereum_prefunder_db")
     (retry ~retry_window:1.0 ~max_window:1.0 ~max_retries:(Some 60)
-       (fun () -> Logging.log "connecting to geth";
+       (fun () -> log "connecting to geth";
                   get_prefunded_address ())
      >>> fun croesus ->
-     Logging.log "Prefunded address %s" (nicknamed_string_of_address croesus);
+     log "Prefunded address %s" (nicknamed_string_of_address croesus);
      (* TODO: Fix race condition #7 and make sure it works with list_iter_p here and above. *)
      (* There are several potential issues:
         --- One is that the list_iter_p is used also in ensure_prefunded.

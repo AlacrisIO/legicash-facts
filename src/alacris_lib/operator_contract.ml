@@ -4,6 +4,7 @@ open Legilogic_lib
 open Types
 open Signing
 open Action
+open Logging
 open Lib
 open Legilogic_ethereum
 open Ethereum_chain
@@ -50,13 +51,13 @@ let set_contract_address address = contract_address := address
 let set_contract_block_number blk_number = contract_block_number := blk_number
 
 let get_contract_address () =
-  if Logging.operator_contract_log then
-    Logging.log "get_contract_address : contract_address=%s" (Address.to_0x !contract_address);
+  if operator_contract_log then
+    log "get_contract_address : contract_address=%s" (Address.to_0x !contract_address);
   !contract_address
 
 let get_contract_block_number () =
-  if Logging.operator_contract_log then
-    Logging.log "get_contract_block_number : contract_block_number=%s" (Revision.to_string !contract_block_number);
+  if operator_contract_log then
+    log "get_contract_block_number : contract_block_number=%s" (Revision.to_string !contract_block_number);
   !contract_block_number
 
 (** build the encoding of a call to the "deposit" function of the operator contract

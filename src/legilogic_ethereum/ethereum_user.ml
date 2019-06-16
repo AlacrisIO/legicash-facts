@@ -232,7 +232,7 @@ module NonceTracker = struct
             reset () >>= next
           | (Next, Some nonce) ->
              if ethereum_user_log then
-               Logging.log "ETHUSR: NonceTracker nonce=%s" (Revision.to_string nonce);
+               log "ETHUSR: NonceTracker nonce=%s" (Revision.to_string nonce);
              next nonce
   end
   include PersistentActivity(Base)
@@ -247,7 +247,7 @@ let make_tx_header (sender, value, gas_limit) : TxHeader.t Lwt_exn.t =
   eth_gas_price () >>= fun gas_price ->
   of_lwt NonceTracker.next sender >>= fun nonce ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
+    log "ETHUSR: make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
   return TxHeader.{sender; nonce; gas_price; gas_limit; value}
 
 exception Missing_password
@@ -255,20 +255,20 @@ exception Missing_password
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: Beginning of sign_transaction";
+    log "ETHUSR: Beginning of sign_transaction";
   let address = transaction.tx_header.sender in
   (try return (keypair_of_address address).password with
    | Not_found ->
       if ethereum_user_log then
-        Logging.log "ETHUSR: Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
+        log "ETHUSR: Couldn't find registered keypair for %s" (nicknamed_string_of_address address);
       fail Missing_password)
   >>= fun password ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: Before personal_sign_transaction";
+    log "ETHUSR: Before personal_sign_transaction";
   personal_sign_transaction (TransactionParameters.of_transaction transaction, password)
   >>= fun signed ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: Before final return in sign_transaction";
+    log "ETHUSR: Before final return in sign_transaction";
   return (transaction, signed)
 
 (** Prepare a signed transaction, that you may later issue onto Ethereum network,
@@ -277,7 +277,7 @@ let make_signed_transaction (sender : Address.t) (operation : Operation.t) (valu
   make_tx_header (sender, value, gas_limit)
   >>= fun tx_header ->
   if ethereum_user_log then
-    Logging.log "Before the sign_transaction";
+    log "Before the sign_transaction";
   sign_transaction Transaction.{tx_header; operation}
 
 
@@ -286,7 +286,7 @@ let make_signed_transaction (sender : Address.t) (operation : Operation.t) (valu
 
 let nonce_too_low address =
   if ethereum_user_log then
-    Logging.log "ETHUSR: nonce too low for %s" (nicknamed_string_of_address address);
+    log "ETHUSR: nonce too low for %s" (nicknamed_string_of_address address);
   (* TODO: Send Notification to end-user via UI! *)
   Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
 
@@ -297,15 +297,15 @@ let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt
   >>= function
   | Ok None ->
      if ethereum_user_log then
-       Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok None";
+       log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok None";
      nonce_too_low sender
   | Ok (Some receipt) ->
      if ethereum_user_log then
-       Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok (Some receipt)";
+       log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok (Some receipt)";
      check_transaction_receipt_status receipt
   | Error e ->
      if ethereum_user_log then
-       Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Error e";
+       log "ETHUSR: confirmed_or_nonce_too_low CASE: Error e";
      Lwt_exn.fail e
 
 exception Replacement_transaction_underpriced
@@ -313,7 +313,7 @@ exception Replacement_transaction_underpriced
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
     if ethereum_user_log then
-      Logging.log "ETHUSR: send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);
+      log "ETHUSR: send_raw_transaction %s" (SignedTransaction.to_yojson_string signed);
     match signed with
     | SignedTransaction.{raw;tx={hash}} ->
       Lwter.bind (eth_send_raw_transaction raw)
@@ -339,30 +339,30 @@ let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.
 let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, TransactionReceipt.t) Lwt_exn.arr =
   fun (transaction, signed) ->
     if ethereum_user_log then
-      Logging.log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
+      log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
     let sender = transaction.tx_header.sender in
     let hash = signed.SignedTransaction.tx.hash in
     let open Lwt_exn in
     send_raw_transaction sender signed
     >>= (fun hash ->
       if ethereum_user_log then
-        Logging.log "sent txhash=%s" (Digest.to_hex_string hash);
+        log "sent txhash=%s" (Digest.to_hex_string hash);
       return hash)
     >>= Ethereum_json_rpc.eth_get_transaction_receipt
     >>= (fun receipt ->
       if ethereum_user_log then
-        Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson);
+        log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson);
       return receipt)
     >>= (function
       | Some receipt -> check_transaction_receipt_status receipt
       | None ->
         if ethereum_user_log then
-          Logging.log "send_and_confirm: None case";
+          log "send_and_confirm: None case";
         let nonce = transaction.tx_header.nonce in
         Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
         >>= fun sender_nonce ->
         if ethereum_user_log then
-          Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
+          log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
         if Nonce.(compare sender_nonce nonce > 0) then
           confirmed_or_known_issue sender hash
         else
@@ -399,14 +399,14 @@ module TransactionTracker = struct
         TransactionStatus.Ongoing status |> update
       and finalize (status : FinalTransactionStatus.t) =
         if ethereum_user_log then
-          Logging.log "Ethereum_user: beginning of finalize operation";
+          log "Ethereum_user: beginning of finalize operation";
         TransactionStatus.Final status |> update
       and invalidate transaction_status error =
         if ethereum_user_log then
-          Logging.log "Ethereum_user: beginning of invalidate operation";
+          log "Ethereum_user: beginning of invalidate operation";
         finalize (Failed (transaction_status, error))
       and loop (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
-        (*Logging.log "Stepping into %s" (TransactionStatus.to_yojson_string status);*)
+        (*log "Stepping into %s" (TransactionStatus.to_yojson_string status);*)
         match status with
         | Ongoing ongoing ->
           (match ongoing with
@@ -417,7 +417,7 @@ module TransactionTracker = struct
                | Error error -> invalidate ongoing error)
            | Signed (transaction, signed) ->
               if ethereum_user_log then
-                Logging.log "Ethereum_User: Signed";
+                log "Ethereum_User: Signed";
              (transaction, signed)
              |> Lwt_exn.(run_lwt
                            (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
@@ -425,32 +425,32 @@ module TransactionTracker = struct
                                >>> (function
                                  | Ok receipt ->
                                    if ethereum_user_log then
-                                     Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
+                                     log "ETHUSR: TransactionTracker, Ok receipt A";
                                    return (Ok receipt)
                                  | Error NonceTooLow ->
                                    if ethereum_user_log then
-                                     Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
+                                     log "ETHUSR: TransactionTracker, Error NonceTooLow A";
                                    return (Error NonceTooLow)
                                  | Error TransactionRejected ->
                                    if ethereum_user_log then
-                                     Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
+                                     log "ETHUSR: TransactionTracker, Error TransactionRejected";
                                    Lwt_exn.return (Error TransactionRejected)
                                  | Error e ->
                                    if ethereum_user_log then
-                                     Logging.log "ETHUSR: TransactionTracker, Error e";
+                                     log "ETHUSR: TransactionTracker, Error e";
                                    fail e))))
              >>= (function
                | Ok receipt ->
                  if ethereum_user_log then
-                   Logging.log "ETHUSR: TransactionTracker, Ok receipt B";
+                   log "ETHUSR: TransactionTracker, Ok receipt B";
                  FinalTransactionStatus.Confirmed (transaction, signed, receipt) |> finalize
                | Error NonceTooLow ->
                  if ethereum_user_log then
-                   Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow B";
+                   log "ETHUSR: TransactionTracker, Error NonceTooLow B";
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
                | Error error ->
                  if ethereum_user_log then
-                   Logging.log "ETHUSR: TransactionTracker, Error error";
+                   log "ETHUSR: TransactionTracker, Error error";
                  invalidate ongoing error))
         | Final x -> return x in
       key, (ready >>= fun () -> loop state), notify_ready
@@ -492,12 +492,12 @@ module User = struct
         ; transaction_counter= Revision.zero
         ; ongoing_transactions= RevisionSet.empty }
     let rec resume_transaction get_user user revision =
-      (*Logging.log "resume_transaction %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});*)
+      (*log "resume_transaction %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});*)
       let (_, promise, notify_ready) = TransactionTracker.get () {user; revision} in
       Lwt.wakeup_later notify_ready ();
       Lwt.async (fun () ->
         promise >>= fun _final_status ->
-        (*Logging.log "SCHEDULING a remove_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) FinalTransactionStatus.(to_yojson_string final_status);*)
+        (*log "SCHEDULING a remove_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) FinalTransactionStatus.(to_yojson_string final_status);*)
         SimpleActor.action (get_user user)
           (remove_transaction get_user user) revision)
 
@@ -506,7 +506,7 @@ module User = struct
       |> Option.iter (resume_transaction get_user user)
     and remove_transaction : context -> Address.t -> (Revision.t, unit) UserAsyncAction.arr =
       fun get_user user revision user_state ->
-        (*Logging.log "REMOVE_TRANSACTION %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});*)
+        (*log "REMOVE_TRANSACTION %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision});*)
         let new_state =
           user_state
           |> Lens.modify UserState.lens_ongoing_transactions (RevisionSet.remove revision) in
@@ -518,11 +518,11 @@ module User = struct
         Lwter.(transform >>> saving)
         (*Lwter.(
           fun state ->
-          Logging.log "Actor for %s called, state %s" (Address.to_0x user) (State.to_yojson_string state);
+          log "Actor for %s called, state %s" (Address.to_0x user) (State.to_yojson_string state);
           state |> transform >>= fun state ->
-          Logging.log "Actor for %s returned, state %s; saving..." (Address.to_0x user) (State.to_yojson_string state);
+          log "Actor for %s returned, state %s; saving..." (Address.to_0x user) (State.to_yojson_string state);
           saving state >>= fun state ->
-          Logging.log "Actor for %s saved %s" (Address.to_0x user) (State.to_yojson_string state);
+          log "Actor for %s saved %s" (Address.to_0x user) (State.to_yojson_string state);
           return state)*)
       in
       let actor = SimpleActor.make ~wrapper state in
@@ -537,13 +537,13 @@ module User = struct
       let open Lwt in
       let user = user_state.UserState.address in
       let revision = user_state.transaction_counter in
-      (*Logging.log "add_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status);*)
+      (*log "add_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status);*)
       TransactionTracker.(make () Key.{user; revision}
                             (Lwter.const (TransactionStatus.Ongoing transaction_status)))
       >>= fun tracker ->
       if RevisionSet.is_empty (UserState.lens_ongoing_transactions.get user_state) then
         Base.resume_transaction get_user user revision;
-      (*Logging.log "ADD_TRANSACTION %s %s => %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status) (TransactionTracker.Key.to_yojson_string (match tracker with (key, _, _) -> key));*)
+      (*log "ADD_TRANSACTION %s %s => %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status) (TransactionTracker.Key.to_yojson_string (match tracker with (key, _, _) -> key));*)
       UserAsyncAction.return tracker
         (user_state
          |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
@@ -561,27 +561,27 @@ let add_ongoing_transaction : user:Address.t -> (OngoingTransactionStatus.t, Tra
 let issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr =
   fun sender pre ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: beginning of issue_pre_transaction";
+    log "ETHUSR: beginning of issue_pre_transaction";
   OngoingTransactionStatus.Wanted pre |> add_ongoing_transaction ~user:sender
 
 let track_transaction : (TransactionTracker.t, FinalTransactionStatus.t) Lwter.arr =
   fun (_key_t, promise, _unit_lwt_u) ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: track_transaction, returning promise";
+    log "ETHUSR: track_transaction, returning promise";
   promise
 
 let check_transaction_confirmed : (FinalTransactionStatus.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
   fun final_transaction_status ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: Beginning of check_transaction_confirmed";
+    log "ETHUSR: Beginning of check_transaction_confirmed";
   match final_transaction_status with
   | FinalTransactionStatus.Confirmed (t, s, r) ->
      if ethereum_user_log then
-       Logging.log "ETHUSR: check_transaction_confirmed, Case Confirmed";
+       log "ETHUSR: check_transaction_confirmed, Case Confirmed";
      return (t, s, r)
   | FinalTransactionStatus.Failed (t, e) ->
      if ethereum_user_log then
-       Logging.log "ETHUSR: check_transaction_confirmed, Case Failed e=%s" (Printexc.to_string e);
+       log "ETHUSR: check_transaction_confirmed, Case Failed e=%s" (Printexc.to_string e);
      fail (TransactionFailed (t, e))
 
 let confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * SignedTransaction.t * TransactionReceipt.t) Lwt_exn.arr =
@@ -599,17 +599,17 @@ let transfer_tokens ~recipient value =
 
 let make_pre_transaction ~sender operation ?gas_limit value : PreTransaction.t Lwt_exn.t =
   if ethereum_user_log then
-    Logging.log "ETHUSR: Beginning of make_pre_transaction";
+    log "ETHUSR: Beginning of make_pre_transaction";
   (match gas_limit with
    | Some x -> return x
    | None -> eth_estimate_gas (TransactionParameters.of_operation sender operation))
   >>= fun gas_limit ->
   if ethereum_user_log then
-    Logging.log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
+    log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
   (* TODO: The multiplication by 2 is a hack that needs to be addressed *)
   let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
   if ethereum_user_log then
-    Logging.log "ETHUSR: gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
+    log "ETHUSR: gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
   return PreTransaction.{operation; value; gas_limit=gas_limit_n_fold}
 
 let create_contract ~sender ~code ?gas_limit value =
@@ -653,19 +653,19 @@ module Test = struct
     let open TokenAmount in
     eth_get_balance (address, BlockParameter.Pending)
     >>= fun balance ->
-    Logging.log "address=%s" (nicknamed_string_of_address address);
-    Logging.log "Now working something balance=%s" (TokenAmount.to_string balance);
+    log "address=%s" (nicknamed_string_of_address address);
+    log "Now working something balance=%s" (TokenAmount.to_string balance);
     if compare balance amount >= 0 then
       display_balance (printf "Account %s contains %s wei.\n") address balance
     else
       begin
         display_balance (printf "Account %s only contains %s wei. Funding.\n") address balance
         >>= fun () ->
-        Logging.log "Before transfer_tokens";
+        log "Before transfer_tokens";
         transfer_tokens ~recipient:address (sub amount balance)
         |> confirm_pre_transaction prefunded_address
         >>= fun _ ->
-        Logging.log "Before call to eth_get_balance";
+        log "Before call to eth_get_balance";
         eth_get_balance (address, BlockParameter.Pending)
         >>= fun balance -> display_balance (printf "Account %s now contains %s wei.\n") address balance
       end
@@ -710,7 +710,7 @@ module Test = struct
 
   (* TODO re-enable
   let%test "Ethereum-testnet-transfer" =
-    Logging.log "\nTEST: Ethereum-testnet-transfer\n";
+    log "\nTEST: Ethereum-testnet-transfer\n";
     Lwt_exn.run
       (fun () ->
         of_lwt Db.open_connection "unit_test_db"
@@ -739,7 +739,7 @@ module Test = struct
 
 (* TODO re-enable
   let%test "Ethereum-testnet-contract-failure" =
-    (Logging.log "\nTEST: contract-failure-on-Ethereum-testnet!!\n";
+    (log "\nTEST: contract-failure-on-Ethereum-testnet!!\n";
     Lwt_exn.run
      (fun () ->
         of_lwt Db.open_connection "unit_test_db"
@@ -761,8 +761,8 @@ module Test = struct
 
   (* TODO re-enable
   let%test "Ethereum-testnet-contract-success" =
-    Logging.log "\nTEST: contract-success-on-Ethereum-testnet!!\n";
-    Logging.log "SUBTEST: create the contract\n";
+    log "\nTEST: contract-success-on-Ethereum-testnet!!\n";
+    log "SUBTEST: create the contract\n";
     Lwt_exn.run
       (fun () ->
         of_lwt Db.open_connection "unit_test_db"
@@ -775,15 +775,15 @@ module Test = struct
         >>= (function | (_, _, {contract_address=(Some contract)}) -> return contract
                       | _ -> bork "Failed to create contract")
         >>= fun contract ->
-        Logging.log "SUBTEST: call contract function hello with no argument\n";
+        log "SUBTEST: call contract function hello with no argument\n";
         let call = encode_function_call { function_name = "hello"; parameters = [] } in
         call_function ~sender ~contract ~call TokenAmount.zero
         >>= confirm_pre_transaction sender
         >>= fun (tx, _, {block_number}) ->
         eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
         >>= fun data ->
-        Logging.log "hello replied: %s\n" (unparse_0x_data data);
-        Logging.log "SUBTEST: call contract function mul42 with one number argument\n";
+        log "hello replied: %s\n" (unparse_0x_data data);
+        log "SUBTEST: call contract function mul42 with one number argument\n";
         let call = encode_function_call
                      { function_name = "mul42"; parameters = [ abi_uint (Z.of_int 47) ] } in
          call_function ~sender ~contract ~call TokenAmount.zero
@@ -791,13 +791,13 @@ module Test = struct
          >>= fun (tx, _, {block_number}) ->
          eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
          >>= fun data ->
-         Logging.log "mul42 replied: %s\n" (unparse_0x_data data);
+         log "mul42 replied: %s\n" (unparse_0x_data data);
          let mul42_encoding =
            let tuple_value, tuple_ty = abi_tuple_of_abi_values [abi_uint (Z.of_int 1974)] in
            encode_abi_value tuple_value tuple_ty in
          assert (data = Bytes.to_string mul42_encoding);
 
-         Logging.log "SUBTEST: call contract function greetings with one string argument\n";
+         log "SUBTEST: call contract function greetings with one string argument\n";
          let call = encode_function_call
                       { function_name = "greetings";
                         parameters = [ abi_string "Croesus" ] } in
@@ -812,16 +812,16 @@ module Test = struct
          let greetings_encoding =
            let tuple_value, tuple_ty = abi_tuple_of_abi_values [greetings_croesus] in
            encode_abi_value tuple_value tuple_ty in
-         Logging.log "expecting:        %s\n" (unparse_0x_bytes greetings_encoding);
+         log "expecting:        %s\n" (unparse_0x_bytes greetings_encoding);
          let function_signature = {function_name= "greetingsEvent"; parameters= [greetings_croesus]} in
          let function_signature_digest = function_signature |> function_signature_digest in
          assert (Digest.equal topic_event function_signature_digest) ;
          (* the log data is the encoding of the parameter passed to the event *)
          let data = receipt_log.data in
-         Logging.log "receipt log data: %s\n" (unparse_0x_bytes data);
+         log "receipt log data: %s\n" (unparse_0x_bytes data);
          eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
          >>= fun result ->
-         Logging.log "computed reply:   %s\n" (unparse_0x_data result);
+         log "computed reply:   %s\n" (unparse_0x_data result);
          assert (result = Bytes.to_string data);
          assert (data = greetings_encoding);
          (* TODO: add a stateful function, and check the behavior of eth_call wrt block_number *)

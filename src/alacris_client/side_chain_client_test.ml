@@ -11,7 +11,7 @@ open Lib
 open Signing
 open Yojsoning
 open Action
-
+open Logging
 open Alacris_lib
 open Side_chain
 open Side_chain_operator
@@ -19,7 +19,7 @@ open Side_chain_operator
 open Side_chain_client_lib
 
 let _ = Config.set_application_name "alacris"
-let _ = Logging.set_log_file "logs/alacris-client.log"
+let _ = set_log_file "logs/alacris-client.log"
 
 let _ =
   let keys_file_ref = ref ("demo-keys-small.json" |> Config.get_config_filename) in
@@ -174,9 +174,9 @@ let accounts =
 
 let get_user : int -> string * Address.t =
   fun ndx ->
-    Logging.log "get_user %d" ndx;
+    log "get_user %d" ndx;
     (Lazy.force accounts).(ndx)
-    |> fun (name, address) -> Logging.log "%s %s" name (Address.to_0x address); (name, address)
+    |> fun (name, address) -> log "%s %s" name (Address.to_0x address); (name, address)
 
 let szabo = TokenAmount.of_string "1000000000000" (* a.k.a. microether *)
 let random_int : ?min:int -> max:int -> int =
@@ -185,7 +185,7 @@ let random_szabo : ?min:int -> max:int -> TokenAmount.t =
   fun ?min ~max -> let rand = random_int ?min ~max in TokenAmount.(mul (of_int rand) szabo)
 
 let test_deposits () =
-  Logging.log "test_deposits";
+  log "test_deposits";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name, address = get_user ndx in
@@ -201,7 +201,7 @@ let test_deposits () =
   loop 0
 
 let test_withdrawals () =
-  Logging.log "test_withdrawals";
+  log "test_withdrawals";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name, address = get_user ndx in
@@ -217,7 +217,7 @@ let test_withdrawals () =
   loop 0
 
 let test_payments () =
-  Logging.log "test_payments";
+  log "test_payments";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let sender_name, sender_address = get_user ndx in
@@ -236,7 +236,7 @@ let test_payments () =
   loop 0
 
 let test_balances () =
-  Logging.log "test_balances";
+  log "test_balances";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name,address = get_user ndx in
@@ -249,12 +249,12 @@ let test_balances () =
   loop 0
 
 let test_all_balances () =
-  Logging.log "test_all_balances";
+  log "test_all_balances";
   Printf.printf "ALL BALANCES\n%!";
   make_all_balances_test ()
 
 let test_statuses () =
-  Logging.log "test_statuses";
+  log "test_statuses";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name,address = get_user ndx in
@@ -267,7 +267,7 @@ let test_statuses () =
   loop 0
 
 let test_recent_transactions ?(limit=None) () =
-  Logging.log "test_recent_transactions";
+  log "test_recent_transactions";
   let rec loop ndx =
     if ndx < num_users_to_test then
       let name,address = get_user ndx in

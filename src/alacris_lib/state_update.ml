@@ -56,7 +56,7 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
   fun operation sender value ->
   let gas_limit_val = None in (* Some kind of arbitrary choice *)
   if state_update_log then
-    Logging.log "post_operation_general_kernel : before make_pre_transaction";
+    log "post_operation_general_kernel : before make_pre_transaction";
   Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
   >>= fun x_pretrans ->
   Ethereum_user.add_ongoing_transaction ~user:sender (Wanted x_pretrans)
@@ -67,7 +67,7 @@ let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> T
      fail error (* bork "Cannot match this" *)
   | Ethereum_user.FinalTransactionStatus.Confirmed (_transaction, _signed, receipt) ->
      if state_update_log then
-       Logging.log "transaction status=%s" (print_status_receipt receipt);
+       log "transaction status=%s" (print_status_receipt receipt);
      Lwt_exn.return receipt))
 
 
@@ -78,7 +78,7 @@ let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmo
     Lwt.bind (post_operation_general_kernel operation sender value)
       (function
        | Error _error -> if state_update_log then
-                           Logging.log "post_operation_general, Error case";
+                           log "post_operation_general, Error case";
                          Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ())
        | Ok ereceipt ->
           (let str = print_status_receipt ereceipt in
@@ -95,7 +95,7 @@ let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmo
 let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun operator_revision digest ->
   if state_update_log then
-    Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
+    log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
   let operation = make_state_update_call digest operator_revision in
   let value = TokenAmount.zero in
   let oper_addr = Side_chain_server_config.operator_address in
@@ -131,7 +131,7 @@ let inner_state_update_request_loop () =
 
 let start_state_update_operator () =
   if state_update_log then
-    Logging.log "Beginning of start_state_update_operator";
+    log "Beginning of start_state_update_operator";
   Lwt.async inner_state_update_request_loop;
   Lwt_exn.return ()
 
