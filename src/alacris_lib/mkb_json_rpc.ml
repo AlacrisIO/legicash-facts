@@ -1,3 +1,4 @@
+open Legilogic_lib
 open Lib
 open Action
 open Yojsoning
