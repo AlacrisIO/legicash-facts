@@ -83,9 +83,23 @@ module SendDataResult = struct
   [@@deriving yojson {strict = false}]
   include (YojsonPersistable (struct
              type nonrec t = t
-             let yojsoning = {to_yojson;of_yojson}
+             let yojsoning = {to_yojson; of_yojson}
            end) : (PersistableS with type t := t))
 end
+
+
+module GetDataResult = struct
+  type t = { data : string }
+  [@@deriving yojson {strict = false}]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson; of_yojson}
+           end) : (PersistableS with type t := t))
+end
+
+
+
+
 
 type mkb_add_registrar =
   { topic : string
@@ -140,6 +154,11 @@ let mkb_send_data : (string * string * string * string) -> SendDataResult.t Lwt_
   mkb_json_rpc "send_data"
     SendDataResult.of_yojson_exn
     (yojson_4args StringT.to_yojson StringT.to_yojson StringT.to_yojson StringT.to_yojson)
+
+let mkb_get_from_latest : (string * string) -> GetDataResult.t Lwt_exn.t =
+  mkb_json_rpc "get_from_latest"
+    GetDataResult.of_yojson_exn
+    (yojson_2args StringT.to_yojson StringT.to_yojson)
 
 
 let rec mkb_send_data_iterate_fail : (string * string * string * string) -> SendDataResult.t Lwt.t =
