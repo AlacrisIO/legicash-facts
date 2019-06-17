@@ -74,7 +74,24 @@ module MkbTopicDescription = struct
 end
 
 
+module SendKeyValueResult = struct
+  type t = { nature : string }
+  [@@deriving yojson {strict = false}]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson; of_yojson}
+           end) : (PersistableS with type t := t))
+end
 
+module GetKeyValueResult = struct
+  type t = { nature : string
+           ; value : string }
+  [@@deriving yojson {strict = false}]
+  include (YojsonPersistable (struct
+             type nonrec t = t
+             let yojsoning = {to_yojson; of_yojson}
+           end) : (PersistableS with type t := t))
+end
 
 module SendDataResult = struct
   type t = { nature : string
@@ -159,6 +176,17 @@ let mkb_get_from_latest : (string * string) -> GetDataResult.t Lwt_exn.t =
   mkb_json_rpc "get_from_latest"
     GetDataResult.of_yojson_exn
     (yojson_2args StringT.to_yojson StringT.to_yojson)
+
+let mkb_send_key_value : (string * string * string * string) -> SendKeyValueResult.t Lwt_exn.t =
+  mkb_json_rpc "send_key_value"
+    SendKeyValueResult.of_yojson_exn
+    (yojson_4args StringT.to_yojson StringT.to_yojson StringT.to_yojson StringT.to_yojson)
+
+let mkb_get_key_value : (string * string * string) -> GetKeyValueResult.t Lwt_exn.t =
+  mkb_json_rpc "get_key_value"
+    GetKeyValueResult.of_yojson_exn
+    (yojson_3args StringT.to_yojson StringT.to_yojson StringT.to_yojson)
+
 
 
 let rec mkb_send_data_iterate_fail : (string * string * string * string) -> SendDataResult.t Lwt.t =
