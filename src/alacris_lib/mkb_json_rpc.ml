@@ -26,6 +26,8 @@ type mkb_rpc_config_type =
   ; hash_method : string }
 [@@deriving of_yojson]
 
+let username_set = ref false
+
 (*
   GENERAL CODE FOR ACCESSING THE MKB
  *)
@@ -197,6 +199,19 @@ let rec infinite_retry : ('a -> 'b Lwt_exn.t) -> 'a -> 'b Lwt.t =
            log "Reiterating operation of function f with value x";
          infinite_retry f x)
 
+
+let set_mkb_username : string -> unit Lwt.t =
+  fun username ->
+  let open Lwt in
+  let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
+  if !username_set then
+    (username_set := true;
+     infinite_retry mkb_add_account (mkb_rpc_config_v.topic, username)
+     >>= fun _ -> return ())
+  else
+    Lwt.return ()
+
+
 let rec mkb_send_data_iterate_fail : (string * string * string * string) -> SendDataResult.t Lwt.t =
   fun x ->
   Lwt.bind (mkb_send_data x)
@@ -233,34 +248,37 @@ end
 
 
 type request_mkb_update =
-  | SubmitSequence of (Digest.t * TransactionMutualKnowledge.t Lwt.u)
+  | SubmitSequence of (string * Digest.t * TransactionMutualKnowledge.t Lwt.u)
   | SendKeyValue of (string * string * TransactionMkbSend.t Lwt.u)
   | GetKey of (string * TransactionMkbSend.t Lwt.u)
 
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
-let post_to_mkb_mailbox : Digest.t -> TransactionMutualKnowledge.t Lwt.t =
-  fun digest ->
+let post_to_mkb_mailbox : string -> Digest.t -> TransactionMutualKnowledge.t Lwt.t =
+  fun username digest ->
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
   if mkb_rpc_config_v.use_mkb then
     simple_client request_mkb_update_mailbox
       (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
-        SubmitSequence (digest,x_resolver)) digest
+        SubmitSequence (username, digest, x_resolver)) digest
   else
-    Lwt.return TransactionMutualKnowledge.{topic = ""; hash=Digest.zero}
+    Lwt.return TransactionMutualKnowledge.{topic = ""; hash = Digest.zero}
 
 
 
 let inner_call_mkb () =
   let open Lwt in
   let hash_ref : Digest.t ref = ref Digest.zero in
+  let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
+  (*  let username = "LCFS0001" in *)
   let rec inner_loop : unit -> unit Lwt.t =
     fun () ->
     Lwt_mvar.take request_mkb_update_mailbox
     >>= function
-    | SubmitSequence ((new_entry, notify_u) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
-       let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
-       mkb_send_data_iterate_fail (mkb_rpc_config_v.topic, mkb_rpc_config_v.username,
+    | SubmitSequence ((username, new_entry, notify_u) : (string * Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
+       set_mkb_username username
+       >>= fun () ->
+       mkb_send_data_iterate_fail (mkb_rpc_config_v.topic, username,
                                    (Digest.to_0x !hash_ref),
                                    (Digest.to_0x new_entry))
        >>= (fun x ->
@@ -298,13 +316,11 @@ let init_mkb_server () =
   if mkb_rpc_config_v.use_mkb then
     let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
     let topic = mkb_rpc_config_v.topic in
-    let username = mkb_rpc_config_v.username in
     let neighboring_registrar_list = mkb_rpc_config_v.neighboring_registrar_list in
     let mkb_topic_desc = get_mkb_topic_description mkb_rpc_config_v in
     Lwt.async inner_call_mkb;
     mkb_topic_creation mkb_topic_desc
     >>= fun _ -> mkb_add_neighboring_registrar topic neighboring_registrar_list
-    >>= fun _ -> mkb_add_account (topic, username)
     >>= fun _ -> if mkb_json_rpc_log then
                    log "The MKB has been successfully set up";
                  return ()

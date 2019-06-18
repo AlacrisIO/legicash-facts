@@ -59,6 +59,7 @@ module OperatorState = struct
     "LCFS0001" ^ (Address.to_big_endian_bits operator_address)
   let save operator_state =
     let open Lwt in
+    let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
     if side_chain_operator_log then
       log "side_chain_operator, save, step 1";
     save operator_state (* <-- use inherited binding *)
@@ -67,7 +68,12 @@ module OperatorState = struct
       log "side_chain_operator, save, step 2";
     let address = operator_state.keypair.address in
     let key = operator_state_key address in
-    Db.put key (Digest.to_big_endian_bits (digest operator_state))
+    let e_digest = digest operator_state in
+    if mkb_rpc_config_v.use_mkb then
+      (Mkb_json_rpc.post_to_mkb_mailbox key e_digest
+      >>= fun _ -> return ())
+    else
+      Db.put key (Digest.to_big_endian_bits e_digest)
     >>= fun () ->
     if side_chain_operator_log then
       log "side_chain_operator, save, step 3";
@@ -724,7 +730,7 @@ let inner_transaction_request_loop =
                         (`Committed (signed_state, notify_batch_committed_u)));
                     OperatorState.save operator_state_to_save
                     >>= fun () -> Db.async_commit notify_ready
-                    >>= fun () -> Mkb_json_rpc.post_to_mkb_mailbox (OperatorState.digest operator_state_to_save)
+                    (*                    >>= fun () -> Mkb_json_rpc.post_to_mkb_mailbox (OperatorState.digest operator_state_to_save) *)
                     >>= fun _ -> Lwt.return (operator_state, (batch_id + 1), batch_committed_t))
                  else
                    (Lwt.wakeup_later notify_batch_committed_u ();
