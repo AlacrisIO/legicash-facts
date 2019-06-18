@@ -188,6 +188,14 @@ let mkb_get_key_value : (string * string * string) -> GetKeyValueResult.t Lwt_ex
     (yojson_3args StringT.to_yojson StringT.to_yojson StringT.to_yojson)
 
 
+let rec infinite_retry : ('a -> 'b Lwt_exn.t) -> 'a -> 'b Lwt.t =
+  fun f x ->
+  Lwt.bind (f x)
+  (function
+  | Ok x_ret -> Lwt.return x_ret
+  | _ -> if mkb_json_rpc_log then
+           log "Reiterating operation of function f with value x";
+         infinite_retry f x)
 
 let rec mkb_send_data_iterate_fail : (string * string * string * string) -> SendDataResult.t Lwt.t =
   fun x ->
@@ -210,8 +218,24 @@ module TransactionMutualKnowledge = struct
   [@@deriving yojson]
 end
 
+module TransactionMkbSend = struct
+  type t = { hash : Digest.t }
+  [@@deriving yojson]
+end
+
+module TransactionMkbGet = struct
+  type t = { value : string
+           ; hash : Digest.t }
+  [@@deriving yojson]
+end
+
+
+
+
 type request_mkb_update =
-  | Submit of (Digest.t * TransactionMutualKnowledge.t Lwt.u)
+  | SubmitSequence of (Digest.t * TransactionMutualKnowledge.t Lwt.u)
+  | SendKeyValue of (string * string * TransactionMkbSend.t Lwt.u)
+  | GetKey of (string * TransactionMkbSend.t Lwt.u)
 
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -221,7 +245,7 @@ let post_to_mkb_mailbox : Digest.t -> TransactionMutualKnowledge.t Lwt.t =
   if mkb_rpc_config_v.use_mkb then
     simple_client request_mkb_update_mailbox
       (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
-        Submit (digest,x_resolver)) digest
+        SubmitSequence (digest,x_resolver)) digest
   else
     Lwt.return TransactionMutualKnowledge.{topic = ""; hash=Digest.zero}
 
@@ -234,7 +258,7 @@ let inner_call_mkb () =
     fun () ->
     Lwt_mvar.take request_mkb_update_mailbox
     >>= function
-    | Submit ((new_entry, notify_u) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
+    | SubmitSequence ((new_entry, notify_u) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
        let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
        mkb_send_data_iterate_fail (mkb_rpc_config_v.topic, mkb_rpc_config_v.username,
                                    (Digest.to_0x !hash_ref),
@@ -244,6 +268,10 @@ let inner_call_mkb () =
          hash_ref := new_digest;
          Lwt.wakeup_later notify_u {topic=mkb_rpc_config_v.topic; hash=new_digest};
          inner_loop ())
+    | SendKeyValue (_key, _value, _notify_u) ->
+       inner_loop ()
+    | GetKey (_key, _notify_u) ->
+       inner_loop ()
   in inner_loop ()
 
 
