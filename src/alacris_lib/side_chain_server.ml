@@ -77,7 +77,13 @@ let load_operator_state address =
   if side_chain_server_log then
     log "Loading the side_chain state...";
   Db.check_connection ();
+  if side_chain_server_log then
+    log "load_operator_state before the OperatorState.load";
   trying (catching_arr OperatorState.load) address
+  >>= fun x ->
+  if side_chain_server_log then
+    log "load_operator_state after the OperatorState.load";
+  return x
   >>= handling
         (function
          | Operator_not_found _ ->

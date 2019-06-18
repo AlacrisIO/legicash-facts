@@ -758,6 +758,8 @@ let initial_operator_state address =
 (* TODO: don't create a new operator unless explicitly requested? *)
 let start_operator address =
   let open Lwt_exn in
+  if side_chain_operator_log then
+    log "Beginning of start_operator in side_chain_operator";
   match !the_operator_service_ref with
   | Some x ->
      if Address.equal x.address address then
@@ -766,12 +768,18 @@ let start_operator address =
        bork "Cannot start a operator service for address %s because there's already one for %s"
          (Address.to_0x address) (Address.to_0x x.address)
   | None ->
+     if side_chain_operator_log then
+       log "Beginning of start_operator, None case";
      let operator_state =
        (* TODO: don't create a new operator unless explicitly requested? *)
        try
-         OperatorState.load address
+         (if side_chain_operator_log then
+            log "Before call to OperatorState.load in start_operator";
+          OperatorState.load address)
        with Not_found -> initial_operator_state address
      in
+     if side_chain_operator_log then
+       log "After call to OperatorState.load in start_operator";
      let state_ref = ref operator_state in
      the_operator_service_ref := Some { address; state_ref };
      Lwt.async (const state_ref >>> inner_transaction_request_loop);
