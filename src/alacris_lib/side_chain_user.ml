@@ -16,7 +16,6 @@ open Side_chain_client
 open Legilogic_ethereum
 open Side_chain_server_config
 open Ethereum_json_rpc
-open State_update
 open Ethereum_watch
 open Ethereum_abi
 open Operator_contract
@@ -24,7 +23,7 @@ open Digesting
 
 open Side_chain
 
-let side_chain_user_log = true
+let side_chain_user_log = false
 
 (** TODO: query the network, whatever, and find the fee schedule *)
 let get_operator_fee_schedule _operator_address =
@@ -249,21 +248,20 @@ let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_
   let block_nbr = Option.get log_object.blockNumber in
   return block_nbr
 
-let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
+let post_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun ~contract_address ~sender ~operator operator_revision ~value ~bond digest ->
   if side_chain_user_log then
-    Logging.log "emit_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
-  let (operation : Ethereum_chain.Operation.t) = make_claim_withdrawal_call ~contract_address ~operator operator_revision ~value ~confirmed_state:digest in
-  post_operation_general operation sender bond
+    Logging.log "post_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
+  let operation = make_claim_withdrawal_call ~contract_address ~operator operator_revision ~value ~confirmed_state:digest in
+  Ethereum_user.post_operation ~operation ~sender ~value:bond
 
 
-let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
-  fun ~contract_address  ~sender  ~operator operator_revision  ~value  ~bond digest ->
+let post_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
+  fun ~contract_address  ~sender ~operator operator_revision ~value ~bond digest ->
   if side_chain_user_log then
-    Logging.log "emit_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
-  let (operation : Ethereum_chain.Operation.t) = make_withdraw_call ~contract_address ~operator operator_revision ~value ~bond ~confirmed_state:digest in
-  let (value_send : TokenAmount.t) = TokenAmount.zero in
-  post_operation_general operation sender value_send
+    Logging.log "post_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
+  let operation = make_withdraw_call ~contract_address ~operator operator_revision ~value ~bond ~confirmed_state:digest in
+  Ethereum_user.post_operation ~operation ~sender ~value:TokenAmount.zero
 
 
 
@@ -297,7 +295,7 @@ let post_claim_withdrawal_operation_exn : TransactionCommitment.t -> sender:Addr
          Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
        get_contract_address_for_client_exn ()
        >>= fun contract_address ->
-       emit_claim_withdrawal_operation
+       post_claim_withdrawal_operation
          ~contract_address
          ~sender
          ~operator
@@ -307,7 +305,7 @@ let post_claim_withdrawal_operation_exn : TransactionCommitment.t -> sender:Addr
          tc.state_digest
        >>= fun tr ->
        if side_chain_user_log then
-         Logging.log "post_claim_withdrawal_operation status=%s" (print_status_receipt tr);
+         Logging.log "post_claim_withdrawal_operation status=%B" (Ethereum_user.get_status_receipt tr);
        wait_for_claim_withdrawal_event
          ~contract_address
          ~transaction_hash:tr.transaction_hash
@@ -336,7 +334,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revis
   wait_for_min_block_depth min_block_length
   >>= fun () -> get_contract_address_for_client_exn ()
   >>= fun contract_address ->
-  emit_withdraw_operation
+  post_withdraw_operation
     ~contract_address
     ~sender
     ~operator
@@ -346,7 +344,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revis
     tc.state_digest
   >>= fun tr ->
   if side_chain_user_log then
-    Logging.log "execute_withdraw_operation_spec status=%s" (print_status_receipt tr);
+    Logging.log "execute_withdraw_operation_spec status=%B" (Ethereum_user.get_status_receipt tr);
   let (data_value_search: abi_value option list) =
     [ Some (Address_value operator)
     ; Some (abi_value_from_revision tc.tx_proof.key)

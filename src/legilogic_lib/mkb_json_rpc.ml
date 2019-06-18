@@ -6,7 +6,7 @@ open Json_rpc
 open Types
 
 
-let mkb_json_rpc_log = true
+let mkb_json_rpc_log = false
 
 type mkb_rpc_config_type =
   { use_mkb : bool

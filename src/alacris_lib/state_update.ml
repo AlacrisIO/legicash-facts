@@ -1,14 +1,12 @@
 open Legilogic_lib
-open Signing
 open Action
-open Lwt_exn
 
 open Types
 
 open Legilogic_ethereum
-open Side_chain
 open Operator_contract
 open Digesting
+open Ethereum_chain
 open Ethereum_json_rpc
 open Side_chain_server_config
 
@@ -50,58 +48,14 @@ let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
 
 
 
-let print_status_receipt : TransactionReceipt.t -> string =
-  fun tr -> (TokenAmount.to_string tr.status)
-
-
-let post_operation_general_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operation sender value ->
-  let gas_limit_val = None in (* Some kind of arbitrary choice *)
-  if state_update_log then
-    Logging.log "post_operation_general_kernel : before make_pre_transaction";
-  Ethereum_user.make_pre_transaction ~sender operation ?gas_limit:gas_limit_val value
-  >>= fun x_pretrans ->
-  Ethereum_user.add_ongoing_transaction ~user:sender (Wanted x_pretrans)
-  >>= fun (tracker_key, _, _) ->
-  let (_, promise, _) = Ethereum_user.TransactionTracker.get () tracker_key in
-  (Lwt.bind promise (function
-  | Ethereum_user.FinalTransactionStatus.Failed (_, error) ->
-     fail error (* bork "Cannot match this" *)
-  | Ethereum_user.FinalTransactionStatus.Confirmed (_transaction, _signed, receipt) ->
-     if state_update_log then
-       Logging.log "transaction status=%s" (print_status_receipt receipt);
-     Lwt_exn.return receipt))
-
-
-let post_operation_general : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operation sender value ->
-  let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
-    fun () ->
-    Lwt.bind (post_operation_general_kernel operation sender value)
-      (function
-       | Error _error -> if state_update_log then
-                           Logging.log "post_operation_general, Error case";
-                         Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ())
-       | Ok ereceipt ->
-          (let str = print_status_receipt ereceipt in
-           let str_succ = "1" in
-           if String.equal str str_succ then
-             Lwt_exn.return ereceipt
-           else
-             Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ())
-          )
-      ) in
-  submit_operation ()
-
 
 let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun operator_revision digest ->
   if state_update_log then
     Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
   let operation = make_state_update_call digest operator_revision in
-  let value = TokenAmount.zero in
   let oper_addr = Side_chain_server_config.operator_address in
-  post_operation_general operation oper_addr value
+  Ethereum_user.post_operation ~operation ~sender:oper_addr ~value:TokenAmount.zero
 
 
 let inner_state_update_request_loop () =
