@@ -49,16 +49,6 @@ let unlock_account ?(duration=5) address =
   | true -> return ()
   | false -> fail Bad_password
 
-exception TransactionRejected
-
-let check_transaction_receipt_status (receipt : TransactionReceipt.t) =
-  match receipt with
-    TransactionReceipt.{status} ->
-      if TokenAmount.sign status = 0 then
-        fail TransactionRejected
-      else
-        return receipt
-
 (** Number of blocks required for a transaction to be considered confirmed *)
 (* The value should be set in side_chain_server_config.json file.
    For production, use 100, not 0. Put it as configuration file on input *)

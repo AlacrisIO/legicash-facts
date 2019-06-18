@@ -26,10 +26,6 @@ exception Bad_password
 val unlock_account : ?duration:int -> address -> unit Lwt_exn.t
 (** unlocks account for given duration (in seconds) on net *)
 
-exception TransactionRejected
-
-val check_transaction_receipt_status : TransactionReceipt.t -> TransactionReceipt.t Lwt_exn.t
-
 val block_depth_for_receipt : Revision.t
 (** How many additional blocks should one wait for before to consider a transaction receipt
     after it was included in the blockchain? *)

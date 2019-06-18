@@ -187,6 +187,17 @@ end
 
 exception TransactionFailed of OngoingTransactionStatus.t * exn
 exception NonceTooLow
+exception Missing_password
+exception Replacement_transaction_underpriced
+exception TransactionRejected
+
+let check_transaction_receipt_status (receipt : TransactionReceipt.t) =
+  match receipt with
+    TransactionReceipt.{status} ->
+      if TokenAmount.sign status = 0 then
+        fail TransactionRejected
+      else
+        return receipt
 
 type nonce_operation = Peek | Next | Reset [@@deriving yojson]
 
@@ -254,8 +265,6 @@ let make_tx_header : Address.t -> TokenAmount.t -> TokenAmount.t -> TxHeader.t L
     Logging.log "ETHUSR: make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
   return TxHeader.{sender; nonce; gas_price; gas_limit; value}
 
-exception Missing_password
-
 let sign_transaction : (Transaction.t, Transaction.t * SignedTransaction.t) Lwt_exn.arr =
   fun transaction ->
   if ethereum_user_log then
@@ -317,7 +326,7 @@ let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt
   | Ok None ->
      if ethereum_user_log then
        Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok None";
-     nonce_too_low sender
+     nonce_too_low sender (* That is not correct. A None does not mean a nonce_too_low *)
   | Ok (Some receipt) ->
      if ethereum_user_log then
        Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok (Some receipt)";
@@ -325,9 +334,7 @@ let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt
   | Error e ->
      if ethereum_user_log then
        Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Error e";
-     Lwt_exn.fail e
-
-exception Replacement_transaction_underpriced
+     fail e
 
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
   fun sender signed ->
@@ -364,7 +371,7 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, Transac
     let open Lwt_exn in
     send_raw_transaction sender signed
     >>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)
-    >>= get_transaction_receipt_reattempt 
+    >>= get_transaction_receipt_reattempt
     >>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)
     >>= (function
       | Some receipt -> check_transaction_receipt_status receipt
