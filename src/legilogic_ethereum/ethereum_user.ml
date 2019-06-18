@@ -388,7 +388,10 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, Transac
         else
           fail Still_pending)
 
-    >>= check_receipt_sufficiently_confirmed
+    >>= fun x ->
+    if ethereum_user_log then
+      Logging.log "ETHUSR: before call to check_receipt_sufficiently_confirmed";
+    check_receipt_sufficiently_confirmed x
 
 module TransactionTracker = struct
   open Lwter
