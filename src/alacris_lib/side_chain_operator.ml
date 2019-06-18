@@ -79,18 +79,35 @@ module OperatorState = struct
     return ()
   let load operator_address =
     if side_chain_operator_log then
-      log "side_chain_operator, load, step 1";
-    operator_address |> operator_state_key |> Db.get
-    |> (function
-        | Some x -> x
-        | None -> raise (Operator_not_found
-                           (Printf.sprintf "Operator %s not found in the database"
-                              (Address.to_0x operator_address))))
-    |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
-    |> fun x ->
-       if side_chain_operator_log then
+      log "side_chain_operator, load, step 1, use_mkb=%B" mkb_rpc_config_v.use_mkb;
+    if mkb_rpc_config_v.use_mkb then
+      (if side_chain_operator_log then
          log "side_chain_operator, load, step 2";
-       x
+       operator_address |> operator_state_key |> Mkb_json_rpc.post_get_latest_to_mkb_mailbox
+       |> (function
+           | Some x -> x
+           | None -> raise (Operator_not_found
+                              (Printf.sprintf "Operator %s not found in the database"
+                                 (Address.to_0x operator_address))))
+       |> Digest.unmarshal_string |> db_value_of_mkb_digest unmarshal_string
+       |> fun x ->
+          if side_chain_operator_log then
+            log "side_chain_operator, load, step 2";
+          x)
+    else
+      (if side_chain_operator_log then
+         log "side_chain_operator, load, step 3";
+       operator_address |> operator_state_key |> Db.get
+       |> (function
+           | Some x -> x
+           | None -> raise (Operator_not_found
+                              (Printf.sprintf "Operator %s not found in the database"
+                                 (Address.to_0x operator_address))))
+       |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
+       |> fun x ->
+          if side_chain_operator_log then
+            log "side_chain_operator, load, step 4";
+          x)
 end
 
 (* TODO:

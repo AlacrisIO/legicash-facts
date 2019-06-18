@@ -6,7 +6,8 @@ open Lwter
 open Yojsoning
 open Marshaling
 open Digesting
-
+open Alacris_lib
+open Mkb_json_rpc
 
 (** Walking across the dependencies of an object *)
 type 'a dependency_walking_methods =
@@ -90,7 +91,8 @@ let saving_walker methods context x =
              if persisting_log then
                log "persisting: saving_walker, step 6";
              let value = methods.marshal_string x in
-             if use_mkb then
+             let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
+             if mkb_rpc_config_v.use_mkb then
                Mkb_json_rpc.post_send_key_value_to_mkb_mailbox key value
              else
                Db.put key value

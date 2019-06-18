@@ -263,7 +263,7 @@ let post_to_mkb_mailbox : string -> Digest.t -> unit Lwt.t =
     simple_client request_mkb_update_mailbox
       (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
         SubmitSequence (username, digest, x_resolver)) digest
-    >>= return ()
+    >>= fun _ -> return ()
   else
     return ()
 (*    Lwt.return TransactionMutualKnowledge.{topic = ""; hash = Digest.zero}*)
@@ -271,10 +271,11 @@ let post_to_mkb_mailbox : string -> Digest.t -> unit Lwt.t =
 
 let post_send_key_value_to_mkb_mailbox : string -> string -> unit Lwt.t =
   fun key value ->
+  let open Lwt in
   simple_client request_mkb_update_mailbox
     (fun (x_resolver : TransactionMkbSend.t Lwt.u) ->
       SendKeyValue (key, value, x_resolver))
-  >>= return ()
+  >>= fun _ -> return ()
 
 
 let post_get_key_to_mkb_mailbox : string -> string Lwt.t =
@@ -288,6 +289,15 @@ let post_get_latest_to_mkb_mailbox : string -> string Lwt.t =
   simple_client request_mkb_update_mailbox
     (fun (x_resolver : TransactionMkbSend.t Lwt.u) ->
       GetLatest (key, x_resolver))
+
+
+let db_value_of_mkb_digest :  ('a -> 'b) -> Digest.t -> 'd =
+  fun unmarshal_string digest ->
+  let open Lwt in
+  let e_key = content_addressed_storage_key digest in
+  post_get_key_to_mkb_mailbox e_key
+  >>= fun x -> return unmarshal_string x
+
 
 
 let inner_call_mkb () =
