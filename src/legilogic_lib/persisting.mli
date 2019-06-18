@@ -37,7 +37,7 @@ val walk_dependency : 'a dependency_walker
 val one_dependency : ('a -> 'b) -> 'b dependency_walking_methods -> 'a dependency_walker
 
 (** Sequential composition of two walkers. Result from one is passed to next. *)
-val seq_dependencies : 'a dependency_walker -> 'a dependency_walker -> 'a dependency_walker
+(* val seq_dependencies : 'a dependency_walker -> 'a dependency_walker -> 'a dependency_walker*)
 
 (** [normal_persistent f x] applies f, presumably a persisting operation, to x
 *)
