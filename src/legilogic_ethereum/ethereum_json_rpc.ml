@@ -96,6 +96,9 @@ module TransactionCondition = struct
            end) : (PersistableS with type t := t))
 end
 
+
+
+
 module TransactionParameters = struct
   type t =
     { from: Address.t
@@ -112,18 +115,18 @@ module TransactionParameters = struct
              let yojsoning = {to_yojson;of_yojson}
            end) : (PersistableS with type t := t))
 
-  let of_operation sender operation =
+  let of_operation sender operation value =
     let (to_, data) = match operation with
       | Operation.TransferTokens recipient -> (Some recipient, None)
       | Operation.CreateContract code -> (None, Some code)
       | Operation.CallFunction (recipient, data) -> (Some recipient, Some data) in
-    { from= sender; to_; gas= None; gas_price = None; value = None; data ; nonce= None; condition= None }
+    { from= sender; to_; gas= None; gas_price = None; value = Some value; data ; nonce= None; condition= None }
 
   let of_pre_transaction sender PreTransaction.{operation; gas_limit; value} =
-    {(of_operation sender operation) with gas = Some gas_limit; value = Some value}
+    {(of_operation sender operation value) with gas = Some gas_limit; value = Some value}
 
   let of_transaction Transaction.{tx_header = { sender; nonce; gas_limit; gas_price; value }; operation } =
-    {(of_operation sender operation) with
+    {(of_operation sender operation value) with
       gas= Some gas_limit; gas_price = Some gas_price; value = Some value; nonce= Some nonce }
 end
 

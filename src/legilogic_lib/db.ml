@@ -181,11 +181,15 @@ let start_server ~db_name ~db () =
         Lwt_mvar.take db_mailbox >>= function
         | Put {key;value} ->
           if db_log then
-            log "key=(omit) value=(omit)";
+            log "LevelDB.Batch.put key=(omit) value=(omit)";
+          if db_log then
+            log "LevelDB.Batch.put key=%s value=%s" key value;
           LevelDB.Batch.put batch key value;
           inner_loop ~ready ~triggered ~held
 
         | PutMany list ->
+          if db_log then
+            log "PutMany call series of LevelDB.Batch.put";
           List.iter (fun {key; value} -> LevelDB.Batch.put batch key value) list;
           inner_loop ~ready ~triggered ~held
 

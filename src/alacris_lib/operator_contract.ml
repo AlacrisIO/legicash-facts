@@ -76,7 +76,7 @@ let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address
 
 
 let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> confirmed_state:Digest.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address  ~operator  operator_revision  ~value  ~confirmed_state ->
+  fun ~contract_address ~operator operator_revision ~value ~confirmed_state ->
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value

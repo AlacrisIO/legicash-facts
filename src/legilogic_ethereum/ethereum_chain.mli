@@ -34,7 +34,7 @@ module TxHeader : sig
     ; nonce: Nonce.t
     ; gas_price: TokenAmount.t
     ; gas_limit: TokenAmount.t
-    ; value: TokenAmount.t }
+    ; value: TokenAmount.t}
   [@@deriving lens { prefix=true }, rlp]
   include PersistableS with type t := t
 end
