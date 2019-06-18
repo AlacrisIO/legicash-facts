@@ -209,7 +209,7 @@ let set_mkb_username : string -> unit Lwt.t =
      infinite_retry mkb_add_account (mkb_rpc_config_v.topic, username)
      >>= fun _ -> return ())
   else
-    Lwt.return ()
+    return ()
 
 
 let rec mkb_send_data_iterate_fail : (string * string * string * string) -> SendDataResult.t Lwt.t =
@@ -251,19 +251,43 @@ type request_mkb_update =
   | SubmitSequence of (string * Digest.t * TransactionMutualKnowledge.t Lwt.u)
   | SendKeyValue of (string * string * TransactionMkbSend.t Lwt.u)
   | GetKey of (string * TransactionMkbSend.t Lwt.u)
+  | GetLatest of (string * string Lwt.u)
 
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
-let post_to_mkb_mailbox : string -> Digest.t -> TransactionMutualKnowledge.t Lwt.t =
+let post_to_mkb_mailbox : string -> Digest.t -> unit Lwt.t =
   fun username digest ->
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
+  let open Lwt in
   if mkb_rpc_config_v.use_mkb then
     simple_client request_mkb_update_mailbox
       (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
         SubmitSequence (username, digest, x_resolver)) digest
+    >>= return ()
   else
-    Lwt.return TransactionMutualKnowledge.{topic = ""; hash = Digest.zero}
+    return ()
+(*    Lwt.return TransactionMutualKnowledge.{topic = ""; hash = Digest.zero}*)
 
+
+let post_send_key_value_to_mkb_mailbox : string -> string -> unit Lwt.t =
+  fun key value ->
+  simple_client request_mkb_update_mailbox
+    (fun (x_resolver : TransactionMkbSend.t Lwt.u) ->
+      SendKeyValue (key, value, x_resolver))
+  >>= return ()
+
+
+let post_get_key_to_mkb_mailbox : string -> string Lwt.t =
+  fun key ->
+  simple_client request_mkb_update_mailbox
+    (fun (x_resolver : TransactionMkbSend.t Lwt.u) ->
+      GetKey (key, x_resolver))
+
+let post_get_latest_to_mkb_mailbox : string -> string Lwt.t =
+  fun key ->
+  simple_client request_mkb_update_mailbox
+    (fun (x_resolver : TransactionMkbSend.t Lwt.u) ->
+      GetLatest (key, x_resolver))
 
 
 let inner_call_mkb () =
@@ -286,9 +310,26 @@ let inner_call_mkb () =
          hash_ref := new_digest;
          Lwt.wakeup_later notify_u {topic=mkb_rpc_config_v.topic; hash=new_digest};
          inner_loop ())
-    | SendKeyValue (_key, _value, _notify_u) ->
+    | SendKeyValue (key, value, notify_u) ->
+       set_mkb_username username
+       >>= fun () ->
+       infinite_retry mkb_send_key_value (mkb_rpc_config_v.topic, username, key, value)
+       >>= fun _ ->
+       Lwt.wakeup_later notify_u ();
        inner_loop ()
-    | GetKey (_key, _notify_u) ->
+    | GetKey (key, notify_u) ->
+       set_mkb_username username
+       >>= fun () ->
+       infinite_retry mkb_get_key_value (mkb_rpc_config_v.topic, username, key)
+       >>= fun x ->
+       Lwt.wakeup_later notify_u x;
+       inner_loop ()
+    | GetLatest (key, notify_u) ->
+       set_mkb_username username
+       >>= fun () ->
+       infinite_retry mkb_get_from_latest (mkb_rpc_config_v.topic, username, key)
+       >>= fun x ->
+       Lwt.wakeup_later notify_u x;
        inner_loop ()
   in inner_loop ()
 

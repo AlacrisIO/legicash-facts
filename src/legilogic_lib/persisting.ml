@@ -89,7 +89,11 @@ let saving_walker methods context x =
            (fun () ->
              if persisting_log then
                log "persisting: saving_walker, step 6";
-             Db.put key (methods.marshal_string x)
+             let value = methods.marshal_string x in
+             if use_mkb then
+               Mkb_json_rpc.post_send_key_value_to_mkb_mailbox key value
+             else
+               Db.put key value
              >>= fun () ->
              if persisting_log then
                log "persisting: saving_walker, step 7";
