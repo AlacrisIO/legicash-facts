@@ -320,40 +320,28 @@ let check_presence_transaction : sender:Address.t -> nonce:Revision.t -> transac
 
 let nonce_too_low address =
   if ethereum_user_log then
-    Logging.log "ETHUSR: nonce too low for %s" (nicknamed_string_of_address address);
+    Logging.log "ETHUSR: nonce_too_low function for %s" (nicknamed_string_of_address address);
   (* TODO: Send Notification to end-user via UI! *)
   Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
-
-(*
-let rec get_transaction_receipt_reattempt : Digest.t -> TransactionReceipt.t option Lwt_exn.t =
-  fun hash ->
-  let open Lwt_exn in
-  Ethereum_json_rpc.eth_get_transaction_receipt hash
-  >>= fun receipt ->
-  match receipt with
-  | None -> (let eper : float = Float.of_int 1 in
-             sleep_delay_exn eper
-             >>= fun () -> get_transaction_receipt_reattempt hash)
-  | Some x -> return (Some x)     *)
 
 
 let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt_exn.arr =
   fun sender hash ->
-  Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE, beginning";
+  Logging.log "ETHUSR: confirmed_or_known_issue CASE, beginning";
   let open Lwter in
   Ethereum_json_rpc.eth_get_transaction_receipt hash
   >>= function
   | Ok None ->
      if ethereum_user_log then
-       Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok None";
-     nonce_too_low sender (* That is not correct. A None does not mean a nonce_too_low *)
+       Logging.log "ETHUSR: confirmed_or_known_issue CASE: Ok None";
+     nonce_too_low sender (* That is suspect. A None does not mean a nonce_too_low *)
   | Ok (Some receipt) ->
      if ethereum_user_log then
-       Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Ok (Some receipt)";
+       Logging.log "ETHUSR: confirmed_or_known_issue CASE: Ok (Some receipt)";
      check_transaction_receipt_status receipt
   | Error e ->
      if ethereum_user_log then
-       Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE: Error e";
+       Logging.log "ETHUSR: confirmed_or_known_issue CASE: Error e";
      fail e
 
 let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.arr =
@@ -384,41 +372,45 @@ let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.
     instead of logged and reported, causing a deadlock. *)
 let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, TransactionReceipt.t) Lwt_exn.arr =
   fun (transaction, signed) ->
-    if ethereum_user_log then
-      Logging.log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
-    let sender = transaction.tx_header.sender in
-    let hash = signed.SignedTransaction.tx.hash in
-    let open Lwt_exn in
-    send_raw_transaction sender signed
-    >>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)
-    >>= Ethereum_json_rpc.eth_get_transaction_receipt
-    >>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)
-    >>= function
-    | Some receipt ->
-       if ethereum_user_log then
-         Logging.log "Some receipt case";
-       check_transaction_receipt_status receipt
-    | None ->
-       if ethereum_user_log then
-         Logging.log "send_and_confirm: None case";
-       let nonce = transaction.tx_header.nonce in
-       Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
-       >>= fun sender_nonce ->
-       if ethereum_user_log then
-         Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
-       if Nonce.(compare sender_nonce nonce > 0) then (* Ok if sender_nonce > nonce *)
-         (if ethereum_user_log then
-            Logging.log "Before calling confirmed_of_known_issue";
-          confirmed_or_known_issue sender hash)
-       else
-         (if ethereum_user_log then
-            Logging.log "Before calling fail Still_pending";
-          fail Still_pending)
-
-    >>= fun x ->
-    if ethereum_user_log then
-      Logging.log "ETHUSR: before call to check_receipt_sufficiently_confirmed";
-    check_receipt_sufficiently_confirmed x
+  if ethereum_user_log then
+    (
+      Logging.log "-----------------------------------------------------------------------------";
+      Logging.log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed)
+    );
+  let sender = transaction.tx_header.sender in
+  let hash = signed.SignedTransaction.tx.hash in
+  let open Lwt_exn in
+  send_raw_transaction sender signed
+  >>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)
+  >>= Ethereum_json_rpc.eth_get_transaction_receipt
+  >>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)
+  >>= function
+  | Some receipt ->
+     if ethereum_user_log then
+       Logging.log "Some receipt case";
+     check_transaction_receipt_status receipt
+  | None ->
+     if ethereum_user_log then
+       Logging.log "send_and_confirm: None case";
+     let nonce = transaction.tx_header.nonce in
+     Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
+     >>= fun sender_nonce ->
+     if ethereum_user_log then
+       Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
+     if Nonce.(compare sender_nonce nonce > 0) then (* Ok if sender_nonce > nonce. If so then transaction
+                                                       nonce has been accepted *)
+       (if ethereum_user_log then
+          Logging.log "Before calling confirmed_of_known_issue";
+        confirmed_or_known_issue sender hash)
+     else
+       (if ethereum_user_log then
+          Logging.log "Before calling fail Still_pending";
+        fail Still_pending)
+     
+     >>= fun x ->
+     if ethereum_user_log then
+       Logging.log "ETHUSR: before call to check_receipt_sufficiently_confirmed";
+     check_receipt_sufficiently_confirmed x
 
 module TransactionTracker = struct
   open Lwter
@@ -449,11 +441,11 @@ module TransactionTracker = struct
         TransactionStatus.Ongoing status |> update
       and finalize (status : FinalTransactionStatus.t) =
         if ethereum_user_log then
-          Logging.log "Ethereum_user: beginning of finalize operation";
+          Logging.log "ETHUSR: beginning of finalize operation";
         TransactionStatus.Final status |> update
       and invalidate transaction_status error =
         if ethereum_user_log then
-          Logging.log "Ethereum_user: beginning of invalidate operation";
+          Logging.log "ETHUSR: beginning of invalidate operation";
         finalize (Failed (transaction_status, error))
       and loop (status : TransactionStatus.t) : FinalTransactionStatus.t Lwt.t =
         (*Logging.log "Stepping into %s" (TransactionStatus.to_yojson_string status);*)
@@ -472,23 +464,23 @@ module TransactionTracker = struct
              |> Lwt_exn.(run_lwt
                            (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
                               (trying send_and_confirm_transaction
-                               >>> (function
-                                 | Ok receipt ->
-                                   if ethereum_user_log then
-                                     Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
-                                   return (Ok receipt)
-                                 | Error NonceTooLow ->
-                                   if ethereum_user_log then
-                                     Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
-                                   return (Error NonceTooLow)
-                                 | Error TransactionRejected ->
-                                   if ethereum_user_log then
-                                     Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
-                                   return (Error TransactionRejected)
-                                 | Error e ->
-                                   if ethereum_user_log then
-                                     Logging.log "ETHUSR: TransactionTracker, Error e";
-                                   fail e))))
+                               >>> function
+                               | Ok receipt ->
+                                  if ethereum_user_log then
+                                    Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
+                                  return (Ok receipt)
+                               | Error NonceTooLow ->
+                                  if ethereum_user_log then
+                                    Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
+                                  return (Error NonceTooLow)
+                               | Error TransactionRejected ->
+                                  if ethereum_user_log then
+                                    Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
+                                  return (Error TransactionRejected)
+                               | Error e ->
+                                  if ethereum_user_log then
+                                    Logging.log "ETHUSR: TransactionTracker, Error e=%s" (Printexc.to_string e);
+                                  fail e)))
              >>= (function
                | Ok receipt ->
                  if ethereum_user_log then
