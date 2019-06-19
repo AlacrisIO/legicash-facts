@@ -25,25 +25,18 @@ let request_state_update_mailbox : request_state_update Lwt_mvar.t = Lwt_mvar.cr
 
 
 let last_hash = ref Digest.zero
-let last_rev = ref Revision.zero
 
 let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun operator_revision operator_digest ->
   let open Lwt_exn in
-  if state_update_log then
-    Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x operator_digest);
-  let my_revision = ref operator_revision in
+  let my_operation = ref (make_state_update_call operator_digest operator_revision) in
   if (String.equal (Digest.to_string !last_hash) (Digest.to_string operator_digest)) then
-    (last_rev := (Revision.add !last_rev Revision.one);
-     my_revision := !last_rev
-    )
-  else
-    (last_hash := operator_digest;
-     last_rev := operator_revision
-    );
-  let operation = make_state_update_call operator_digest !my_revision in
+    my_operation := make_null_operation operator_digest;
+  last_hash := operator_digest;
+  if state_update_log then
+    Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision) (Digest.to_0x operator_digest);
   let oper_addr = Side_chain_server_config.operator_address in
-  Ethereum_user.post_operation ~operation ~sender:oper_addr ~value_send:TokenAmount.zero
+  Ethereum_user.post_operation ~operation:!my_operation ~sender:oper_addr ~value_send:TokenAmount.zero
   >>= fun x ->
   if state_update_log then
     Logging.log "After the post_operation of post_state_update";

@@ -18,6 +18,7 @@ val topic_of_state_update : Bytes.t option
 val topic_of_claim_withdrawal : Bytes.t option
 val topic_of_withdraw : Bytes.t option
 val topic_of_rejected_claim_status : Bytes.t option
+val topic_of_null_event : Bytes.t option
 
 val retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Digest.t * Revision.t) Lwt_exn.t
 
@@ -97,4 +98,7 @@ val make_operation_has_claim_been_rejected
 
 val make_state_update_call : Digest.t -> Revision.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)
-(* TODO: signature from the smart court registry () *)
+
+
+val make_null_operation : Digest.t -> Ethereum_chain.Operation.t
+(** Operator address, contract address, and the ethereum main chain *)

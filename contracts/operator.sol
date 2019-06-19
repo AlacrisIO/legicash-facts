@@ -32,6 +32,14 @@ contract Operators is Claims, ClaimTypes, Bonds {
         emit StateUpdate(msg.sender, _new_state, _revision);
     }
 
+    // This is a hack because we use block depth for confirmation.
+    // If nothing happens, then no state update is done and instead
+    // we fill in the blocks with trivial events.
+    event NullEvent(bytes32 _confirmed_state);
+    function null_operation(bytes32 _confirmed_state) external {
+        emit NullEvent(_confirmed_state);
+    }
+
     function operator_state(
         bytes32 _previous_main_chain_state,
         bytes32 _previous_side_chain_state,

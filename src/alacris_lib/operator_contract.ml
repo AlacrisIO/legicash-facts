@@ -46,6 +46,9 @@ let (topic_of_withdraw: Bytes.t option) =
 let (topic_of_rejected_claim_status: Bytes.t option) =
   topic_of_hash (digest_of_string "RejectedClaimStatus(uint64)")
 
+let (topic_of_null_event: Bytes.t option) =
+  topic_of_hash (digest_of_string "NullEvent(bytes32)")
+
 
 let retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Digest.t * Revision.t) Lwt_exn.t =
   fun transaction_hash ->
@@ -169,6 +172,12 @@ let make_state_update_call : Digest.t -> Revision.t -> Ethereum_chain.Operation.
   fun state_digest operator_revision ->
   let parameters = [ abi_digest state_digest; abi_revision operator_revision] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
+  Operation.CallFunction (get_contract_address (), call)
+
+let make_null_operation : Digest.t -> Ethereum_chain.Operation.t =
+  fun state_digest ->
+  let parameters = [ abi_digest state_digest] in
+  let (call : bytes) = encode_function_call { function_name = "null_operation"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 
 
