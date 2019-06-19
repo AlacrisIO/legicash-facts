@@ -383,6 +383,10 @@ let abi_value_from_revision : Revision.t -> abi_value =
   fun evalue ->
   Uint_value (big_endian_bytes_of_uint 64 (Revision.z_of evalue))
 
+let abi_value_from_tokenamount : TokenAmount.t -> abi_value =
+  fun evalue ->
+  Uint_value (big_endian_bytes_of_uint 256 (TokenAmount.z_of evalue))
+
 let abi_value_from_digest : Digest.t -> abi_value =
   fun evalue ->
   let x_str = Digest.to_big_endian_bits evalue in

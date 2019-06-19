@@ -23,7 +23,7 @@ open Digesting
 
 open Side_chain
 
-let side_chain_user_log = false
+let side_chain_user_log = true
 
 (** TODO: query the network, whatever, and find the fee schedule *)
 let get_operator_fee_schedule _operator_address =
@@ -132,12 +132,10 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
     ~contract_address
     ~transaction_hash:(Some transaction_hash)
     ~topics:[topic_of_state_update]
-    [Address; Bytes 32; Uint 256; Uint 64]
-    [Some (Address_value operator); None; None; None]
+    [Address; Bytes 32; Uint 64]
+    [Some (Address_value operator); None; None]
   >>= fun x ->
   let (log_object, vals) = x in
-  if side_chain_user_log then
-    Logging.log "wait_for_operator_state_update, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
   (* TODO defaulting to zero is wrong and the presence of `null`s indicates
    * something's broken with the confirmation data; we should instead capture
    * the possibility of invalid state at the type level and force consuming
@@ -180,18 +178,16 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
       ~max_number_iteration:None
       ~contract_address ~transaction_hash:None
       ~topics:[topic_of_state_update]
-      [Address; Bytes 32; Uint 256; Uint 64; Uint 64]
-      [Some (Address_value operator); None; None; None; None]
+      [Address; Bytes 32; Uint 64]
+      [Some (Address_value operator); None; None]
     >>= fun ((end_block, llogs) : (Revision.t * (LogObject.t * (abi_value list)) list)) ->
     let llogs_filter = List.filter (fun (_, x_list) ->
                            let oper_rev = retrieve_revision_from_abi_value (List.nth x_list 4) in
                            compare oper_rev operator_revision >= 0) llogs in
     if (List.length llogs_filter > 0) then
       let (log_object, vals) = List.nth llogs_filter 0 in
-      if side_chain_user_log then
-        Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
       let transhash : Digest.t = get_option Digest.zero log_object.transactionHash in
-      let operator_revision = retrieve_revision_from_abi_value (List.nth vals 4) in
+      let operator_revision = retrieve_revision_from_abi_value (List.nth vals 2) in
       let operator_digest = retrieve_digest_from_abi_value (List.nth vals 1) in
       let pair_rev_dig = (operator_revision, operator_digest) in
       let eth_confirmation = Ethereum_chain.Confirmation.
@@ -205,8 +201,8 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
        * but don't return a fake Confirmation. Maybe have separate functions for one
        * and the other, or for one and the work that remains to do for the other.
        *)
-      Logging.log "search_for_state_update_min_revision,  transhash=%s" (Digest.to_0x transhash);
-      Logging.log "search_for_state_update_min_revision, RETURN balance=%s" (print_abi_value_uint256 (List.nth vals 2));
+      if side_chain_user_log then
+        Logging.log "search_for_state_update_min_revision,  transhash=%s" (Digest.to_0x transhash);
       return pair_return
     else
       (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
@@ -214,36 +210,28 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
   in get_matching Revision.zero
 
 
-
-let wait_for_claim_withdrawal_event : contract_address:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> operator_revision:Revision.t -> confirmed_pair:PairRevisionDigest.t -> Revision.t Lwt_exn.t =
-  fun ~contract_address ~transaction_hash ~operator ~operator_revision ~confirmed_pair ->
+let wait_for_claim_withdrawal_event : contract_address:Address.t -> claimant:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> value:TokenAmount.t -> bond:TokenAmount.t -> operator_revision:Revision.t -> confirmed_pair:PairRevisionDigest.t -> Revision.t Lwt_exn.t =
+  fun ~contract_address ~claimant ~transaction_hash ~operator ~value ~bond ~operator_revision ~confirmed_pair ->
   if side_chain_user_log then
     (Logging.log "Beginning of wait_for_claim_withdrawal_event";
      Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address)
     );
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
   let (confirmed_revision, confirmed_state) = confirmed_pair in
-  let (list_data_type : abi_type list) = [Address; Uint 64; Uint 256; Bytes 32; Uint 64; Uint 256; Uint 256; Uint 64] in
+  let (list_data_type : abi_type list) = [Address; Address; Uint 64; Uint 256; Uint 256; Bytes 32; Uint 64] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
+                                                     Some (Address_value claimant);
                                                      Some (abi_value_from_revision operator_revision);
-                                                     None;
+                                                     Some (abi_value_from_tokenamount value);
+                                                     Some (abi_value_from_tokenamount bond);
                                                      Some (abi_value_from_digest confirmed_state);
-                                                     Some (abi_value_from_revision confirmed_revision);
-                                                     None;
-                                                     None;
-                                                     None] in
+                                                     Some (abi_value_from_revision confirmed_revision)] in
   let (transaction_hash_val : Digest.t option) = Some transaction_hash in
   let open Lwt_exn in
   if side_chain_user_log then
     Logging.log "Before wait_for_contract_event CONTEXT claim_withdrawal";
   wait_for_contract_event ~contract_address ~transaction_hash:transaction_hash_val ~topics list_data_type data_value_search
-  >>= fun (log_object, abi_list_val) ->
-  if side_chain_user_log then
-    (Logging.log "Now exiting the wait_for_claim_withdrawal_event |b|=%d" (List.length abi_list_val);
-     Logging.log "claim_withdrawal, RETURN    bond=%s" (print_abi_value_uint256 (List.nth abi_list_val 4));
-     Logging.log "claim_withdrawal, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 5));
-     Logging.log "claim_withdrawal, RETURN     res=%s" (print_abi_value_uint64  (List.nth abi_list_val 6))
-    );
+  >>= fun (log_object, _abi_list_val) ->
   let block_nbr = Option.get log_object.blockNumber in
   return block_nbr
 
@@ -347,8 +335,11 @@ let post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t ->
          Logging.log "post_claim_withdrawal_operation status=%B" (Ethereum_user.get_status_receipt tr);
        wait_for_claim_withdrawal_event
          ~contract_address
+         ~claimant:sender
          ~transaction_hash:tr.transaction_hash
          ~operator
+         ~value:withdrawal_amount
+         ~bond:Side_chain_server_config.bond_value_v
          ~operator_revision:tc.tx_proof.key
          ~confirmed_pair
        >>= fun block_nbr ->

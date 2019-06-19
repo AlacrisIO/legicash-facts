@@ -10,7 +10,7 @@ open Ethereum_chain
 open Ethereum_json_rpc
 open Side_chain_server_config
 
-let state_update_log = false
+let state_update_log = true
 
 type digest_entry =
   { revision : Revision.t
@@ -23,39 +23,31 @@ type request_state_update =
 
 let request_state_update_mailbox : request_state_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
-let post_to_mailbox_state_update : Digest.t -> TransactionReceipt.t OrExn.t Lwt.t =
-  fun digest ->
-  simple_client request_state_update_mailbox
-    (fun ((_x_digest, x_resolver) : (Digest.t * TransactionReceipt.t OrExn.t Lwt.u)) -> Submit (digest,x_resolver)) digest
 
-
-let retrieve_last_posted_state : unit -> Digest.t Lwt.t =
-  fun () ->
-  simple_client request_state_update_mailbox
-    (fun ((_x_unit, x_resolv) : (unit * Digest.t Lwt.u)) -> GetLastCommit x_resolv) ()
-
-let retrieve_last_revision : unit -> Revision.t Lwt.t =
-  fun () ->
-  simple_client request_state_update_mailbox
-    (fun ((_x_unit, x_resolv) : (unit * Revision.t Lwt.u)) -> GetLastRevision x_resolv) ()
-
-
-let init_state : unit -> digest_entry =
-  fun () -> {revision = Revision.of_int 0; digest = null_digest}
-
-
-let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
-
-
-
+let last_hash = ref Digest.zero
+let last_rev = ref Revision.zero
 
 let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operator_revision digest ->
+  fun operator_revision operator_digest ->
+  let open Lwt_exn in
   if state_update_log then
-    Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
-  let operation = make_state_update_call digest operator_revision in
+    Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x operator_digest);
+  let my_revision = ref operator_revision in
+  if (String.equal (Digest.to_string !last_hash) (Digest.to_string operator_digest)) then
+    (last_rev := (Revision.add !last_rev Revision.one);
+     my_revision := !last_rev
+    )
+  else
+    (last_hash := operator_digest;
+     last_rev := operator_revision
+    );
+  let operation = make_state_update_call operator_digest !my_revision in
   let oper_addr = Side_chain_server_config.operator_address in
   Ethereum_user.post_operation ~operation ~sender:oper_addr ~value_send:TokenAmount.zero
+  >>= fun x ->
+  if state_update_log then
+    Logging.log "After the post_operation of post_state_update";
+  return x
 
 
 let inner_state_update_request_loop () =

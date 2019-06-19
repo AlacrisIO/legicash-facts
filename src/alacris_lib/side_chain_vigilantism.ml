@@ -19,17 +19,17 @@ open Side_chain_user
 let treat_individual_claim_bad_ticket : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
   fun (_x_log, x_abi_list) ->
   let open Lwt_exn in
-  let operator_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 1) in
-  let confirmed_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 4) in
+  let operator = retrieve_address_from_abi_value (List.nth x_abi_list 0) in
+  let claimant = retrieve_address_from_abi_value (List.nth x_abi_list 1) in
+  let operator_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 2) in
+  let value = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 3) in
+  let bond = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 4) in
+  let confirmed_state = retrieve_digest_from_abi_value (List.nth x_abi_list 5) in
+  let confirmed_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 6) in
+  let confirmed_pair : PairRevisionDigest.t = (confirmed_revision, confirmed_state) in
+  let contract_address = get_contract_address () in
   if (Revision.compare operator_revision confirmed_revision) > 0 then
-    (let operator = retrieve_address_from_abi_value (List.nth x_abi_list 0) in
-     let claimant = retrieve_address_from_abi_value (List.nth x_abi_list 1) in
-     let value = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 2) in
-     let confirmed_state = retrieve_digest_from_abi_value (List.nth x_abi_list 3) in
-     let bond = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 5) in
-     let confirmed_pair : PairRevisionDigest.t = (confirmed_revision, confirmed_state) in
-     let contract_address = get_contract_address () in
-     let operation = make_challenge_withdrawal_too_large_revision ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair in
+    (let operation = make_challenge_withdrawal_too_large_revision ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair in
      Ethereum_user.post_operation ~operation ~sender:operator ~value_send:TokenAmount.zero
      >>= fun _ -> return ()
     )

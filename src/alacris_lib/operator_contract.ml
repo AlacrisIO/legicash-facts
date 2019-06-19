@@ -12,7 +12,7 @@ open Side_chain
 open Side_chain_server_config
 open Digesting
 
-
+let operator_contract_log = true
 
 
 let topic_of_address (addr : Address.t) : Bytes.t option =
@@ -35,10 +35,10 @@ let (topic_of_deposited: Bytes.t option) =
   topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
 
 let (topic_of_state_update: Bytes.t option) =
-  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint256,uint64,uint64)")
+  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint64)")
 
 let (topic_of_claim_withdrawal: Bytes.t option) =
-  topic_of_hash (digest_of_string "ClaimWithdrawal(address,uint64,uint256,bytes32,uint64,uint256,uint256,uint64)")
+  topic_of_hash (digest_of_string "ClaimWithdrawal(address,address,uint64,uint256,uint256,bytes32,uint64)")
 
 let (topic_of_withdraw: Bytes.t option) =
   topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
@@ -61,9 +61,6 @@ let retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Di
      >>= fun trans ->
      let code_hash = Digesting.digest_of_string (Bytes.to_string trans.input) in
      return (contract_address, code_hash, transaction_hash, contract_block_number)
-
-
-let operator_contract_log = false
 
 
 let contract_address = ref Address.zero

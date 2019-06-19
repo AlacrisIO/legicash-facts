@@ -7,7 +7,7 @@ open Ethereum_json_rpc
 open Ethereum_abi
 open Side_chain_server_config
 
-let ethereum_watch_log = false
+let ethereum_watch_log = true
 
 (* TODO capturing start_revision in a state monad
  * much better approach than using mutable global state *)

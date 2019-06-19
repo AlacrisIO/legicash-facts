@@ -14,7 +14,7 @@ open Ethereum_chain
 open Ethereum_json_rpc
 open Ethereum_transaction
 
-let ethereum_user_log = false
+let ethereum_user_log = true
 
 (* TODO: A much better state machine to get wanted transactions confirmed.
 

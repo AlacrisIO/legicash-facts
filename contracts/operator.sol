@@ -24,12 +24,12 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
     // STATE UPDATE
 
-    event StateUpdate(address _operator, bytes32 _confirmed_state, uint256 _balance, uint64 _res, uint64 _revision);
+    event StateUpdate(address _operator, bytes32 _confirmed_state, uint64 _revision);
 
     /* TODO: include a bond with this and every claim */
     function claim_state_update(bytes32 _new_state, uint64 _revision) external {
-        uint64 res = make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
-        emit StateUpdate(msg.sender, _new_state, address(this).balance, res, _revision);
+        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
+        emit StateUpdate(msg.sender, _new_state, _revision);
     }
 
     function operator_state(
@@ -83,14 +83,14 @@ contract Operators is Claims, ClaimTypes, Bonds {
     // TODO the balance needs to be removed eventually from the code because it is here for debugging
     uint256 maximum_withdrawal_challenge_gas = 100*1000;
 
-    event ClaimWithdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint64 _confirmed_revision, uint256 _bond, uint256 _balance, uint64 _res);
+    event ClaimWithdrawal(address _operator, address _claimant, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state, uint64 _confirmed_revision);
 
     function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint64 _confirmed_revision)
             external payable {
         require(is_bond_ok(msg.value, maximum_withdrawal_challenge_gas));
-        uint64 res = make_claim(withdrawal_claim(
+        make_claim(withdrawal_claim(
             _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state, _confirmed_revision));
-        emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, _confirmed_revision, msg.value, address(this).balance, res);
+        emit ClaimWithdrawal(_operator, msg.sender, _ticket, _value, msg.value, _confirmed_state, _confirmed_revision);
     }
 
     event Withdrawal(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state);

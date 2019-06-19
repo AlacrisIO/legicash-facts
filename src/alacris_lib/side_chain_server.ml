@@ -19,9 +19,9 @@ let _ =
 let _init_random =
   Random.self_init
 
-let side_chain_server_log = false
+let side_chain_server_log = true
 
-  
+
 (* TODO: pass request id, so we can send a JSON RPC style reply? *)
 (* TODO: have some try ... finally construct handle the closing of the channels *)
 let process_request_exn _client_address (in_channel,out_channel) =
