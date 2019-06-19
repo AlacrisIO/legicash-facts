@@ -11,11 +11,11 @@ open Json_rpc
 open Trie
 
 open Ethereum_chain
-open Ethereum_watch
+(* open Ethereum_watch *)
 open Ethereum_json_rpc
 open Ethereum_transaction
 
-let ethereum_user_log = false
+let ethereum_user_log = true
 
 (* TODO: A much better state machine to get wanted transactions confirmed.
 
@@ -294,7 +294,27 @@ let make_signed_transaction : Address.t -> Operation.t -> TokenAmount.t -> Token
     Logging.log "Before the sign_transaction";
   sign_transaction Transaction.{tx_header; operation}
 
-
+let check_presence_transaction : sender:Address.t -> nonce:Revision.t -> transaction_hash:Digest.t -> bool Lwt_exn.t =
+  fun ~sender ~nonce ~transaction_hash ->
+  let check_matching_hash : (Address.t * (Nonce.t * TxPoolContent.entry list) list) list -> bool =
+    fun elist ->
+    let elist_addr : (Address.t * (Nonce.t * TxPoolContent.entry list) list) option = List.find_opt
+       (fun (address, _) -> address = sender) elist in
+    match elist_addr with
+    | None -> false
+    | Some (_, elist_addr_b) ->
+       let elist_nonce : (Nonce.t * TxPoolContent.entry list) option = List.find_opt
+           (fun (enonce, _) -> Revision.equal enonce nonce) elist_addr_b in
+       match elist_nonce with
+       | None -> false
+       | Some (_, elist_nonce_b) ->
+          List.exists (fun (eentry : TxPoolContent.entry) -> eentry.hash = transaction_hash) elist_nonce_b
+  in
+  txpool_content ()
+  >>= fun TxPoolContent.{pending;queued} ->
+  let test_pending = check_matching_hash pending in
+  let test_queued = check_matching_hash queued in
+  return (test_pending || test_queued)
 
 (* TODO: move as many functions as possible ethereum_transaction ? *)
 
@@ -304,6 +324,7 @@ let nonce_too_low address =
   (* TODO: Send Notification to end-user via UI! *)
   Lwter.(NonceTracker.reset address >>= const (Error NonceTooLow))
 
+(*
 let rec get_transaction_receipt_reattempt : Digest.t -> TransactionReceipt.t option Lwt_exn.t =
   fun hash ->
   let open Lwt_exn in
@@ -313,15 +334,14 @@ let rec get_transaction_receipt_reattempt : Digest.t -> TransactionReceipt.t opt
   | None -> (let eper : float = Float.of_int 1 in
              sleep_delay_exn eper
              >>= fun () -> get_transaction_receipt_reattempt hash)
-  | Some x -> return (Some x)
+  | Some x -> return (Some x)     *)
 
 
 let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt_exn.arr =
   fun sender hash ->
   Logging.log "ETHUSR: confirmed_or_nonce_too_low CASE, beginning";
   let open Lwter in
-  (*  Ethereum_json_rpc.eth_get_transaction_receipt hash*)
-  get_transaction_receipt_reattempt hash
+  Ethereum_json_rpc.eth_get_transaction_receipt hash
   >>= function
   | Ok None ->
      if ethereum_user_log then
@@ -371,21 +391,28 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t, Transac
     let open Lwt_exn in
     send_raw_transaction sender signed
     >>= (fun hash -> Logging.log "sent txhash=%s" (Digest.to_hex_string hash); return hash)
-    >>= get_transaction_receipt_reattempt
+    >>= Ethereum_json_rpc.eth_get_transaction_receipt
     >>= (fun receipt -> Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson); return receipt)
-    >>= (function
-      | Some receipt -> check_transaction_receipt_status receipt
-      | None ->
-        if ethereum_user_log then
-          Logging.log "send_and_confirm: None case";
-        let nonce = transaction.tx_header.nonce in
-        Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
-        >>= fun sender_nonce ->
-        if ethereum_user_log then
-          Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
-        if Nonce.(compare sender_nonce nonce > 0) then
-          confirmed_or_known_issue sender hash
-        else
+    >>= function
+    | Some receipt ->
+       if ethereum_user_log then
+         Logging.log "Some receipt case";
+       check_transaction_receipt_status receipt
+    | None ->
+       if ethereum_user_log then
+         Logging.log "send_and_confirm: None case";
+       let nonce = transaction.tx_header.nonce in
+       Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
+       >>= fun sender_nonce ->
+       if ethereum_user_log then
+         Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
+       if Nonce.(compare sender_nonce nonce > 0) then (* Ok if sender_nonce > nonce *)
+         (if ethereum_user_log then
+            Logging.log "Before calling confirmed_of_known_issue";
+          confirmed_or_known_issue sender hash)
+       else
+         (if ethereum_user_log then
+            Logging.log "Before calling fail Still_pending";
           fail Still_pending)
 
     >>= fun x ->
@@ -440,7 +467,7 @@ module TransactionTracker = struct
                | Error error -> invalidate ongoing error)
            | Signed (transaction, signed) ->
               if ethereum_user_log then
-                Logging.log "Ethereum_User: Signed";
+                Logging.log "ETHUSR: Signed case";
              (transaction, signed)
              |> Lwt_exn.(run_lwt
                            (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
@@ -457,7 +484,7 @@ module TransactionTracker = struct
                                  | Error TransactionRejected ->
                                    if ethereum_user_log then
                                      Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
-                                   Lwt_exn.return (Error TransactionRejected)
+                                   return (Error TransactionRejected)
                                  | Error e ->
                                    if ethereum_user_log then
                                      Logging.log "ETHUSR: TransactionTracker, Error e";
@@ -465,15 +492,15 @@ module TransactionTracker = struct
              >>= (function
                | Ok receipt ->
                  if ethereum_user_log then
-                   Logging.log "ETHUSR: TransactionTracker, Ok receipt B";
+                   Logging.log "ETHUSR: Final, TransactionTracker, Ok receipt B";
                  FinalTransactionStatus.Confirmed (transaction, signed, receipt) |> finalize
                | Error NonceTooLow ->
                  if ethereum_user_log then
-                   Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow B";
+                   Logging.log "ETHUSR: Final, TransactionTracker, Error NonceTooLow B";
                  OngoingTransactionStatus.Wanted (Transaction.pre_transaction transaction) |> continue
                | Error error ->
                  if ethereum_user_log then
-                   Logging.log "ETHUSR: TransactionTracker, Error error";
+                   Logging.log "ETHUSR: TransactionTracker, Error error=%s" (Printexc.to_string error);
                  invalidate ongoing error))
         | Final x -> return x in
       key, (ready >>= fun () -> loop state), notify_ready
@@ -654,37 +681,31 @@ let post_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmou
   add_ongoing_transaction ~user:sender (Wanted x_pretrans)
   >>= fun (tracker_key, _, _) ->
   let (_, promise, _) = TransactionTracker.get () tracker_key in
-  (Lwt.bind promise (function
+  Lwt.bind promise (function
   | FinalTransactionStatus.Failed (_, error) ->
      fail error (* bork "Cannot match this" *)
   | FinalTransactionStatus.Confirmed (_transaction, _signed, receipt) ->
      if ethereum_user_log then
        Logging.log "transaction status=%B" (get_status_receipt receipt);
-     Lwt_exn.return receipt))
+     return receipt)
 
 let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value:TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
   fun ~operation ~sender ~value ->
+  let open Lwt_exn in
   let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
     fun () ->
-    Lwt_exn.bind (post_operation_kernel operation sender value)
-      (fun ereceipt ->
-        (if get_status_receipt ereceipt then
-           Lwt_exn.return ereceipt
-         else
-           (if ethereum_user_log then
-              Logging.log "receipt is not true, ereceipt=%s" (TokenAmount.to_string ereceipt.status);
-            Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ()))
-        )
-      ) in
-  submit_operation ()
+    post_operation_kernel operation sender value
+    >>= fun ereceipt ->
+    if get_status_receipt ereceipt then
+      return ereceipt
+    else
+      (if ethereum_user_log then
+         Logging.log "receipt is not true, ereceipt=%s" (TokenAmount.to_string ereceipt.status);
+       Ethereum_watch.sleep_delay_exn 1.0
+       >>= fun () -> submit_operation ())
+  in submit_operation ()
 
-(*
-let Option.default : 'a -> 'a option -> 'a =
-  fun val_return val_opt ->
-  match val_opt with
-  | None -> val_return
-  | Some x -> x
- *)
+
 
 module Test = struct
   open Lwt_exn
