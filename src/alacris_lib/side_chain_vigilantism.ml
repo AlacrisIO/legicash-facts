@@ -134,11 +134,10 @@ module Test = struct
     Lwt_exn.run
       (fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 1";
+        let operator = trent_address in
         of_lwt Db.open_connection "unit_test_db"
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 2";
-        (* TODO replace mutable contract address plumbing w/ more elegant +
-         * functional style *)
         get_contract_address_for_client_exn ()
         >>= fun contract_address ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 3";
@@ -152,7 +151,6 @@ module Test = struct
         Mkb_json_rpc.init_mkb_server ()
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 6";
-        let operator = trent_address in
         start_operator operator
 (*        >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 7";
@@ -167,9 +165,9 @@ module Test = struct
           alice_address
           deposit
           DepositWanted.{ operator
-                                        ; deposit_amount
-                                        ; request_guid = Types.RequestGuid.nil
-                                        ; requested_at = Types.Timestamp.now () }
+                        ; deposit_amount
+                        ; request_guid = Types.RequestGuid.nil
+                        ; requested_at = Types.Timestamp.now () }
         >>= fun (commitment, _confirmation) ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 10";
         Logging.log "Making the fake transaction that should be rejected";
@@ -223,7 +221,7 @@ module Test = struct
         wait_for_min_block_depth min_block_length
         >>= fun () ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 12";
-        get_claim_withdrawal_status ~confirmed_pair tc ~sender:alice_address ~operator
+        get_claim_withdrawal_status ~confirmed_pair tc ~claimant:alice_address ~sender:alice_address ~operator
         >>= fun ret_value ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 13";
         if (Revision.equal ret_value (Revision.of_int 1)) then

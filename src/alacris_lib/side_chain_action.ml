@@ -90,6 +90,7 @@ module Test = struct
   let get_alice_balance () = get_user_balance alice_address
   let get_bob_balance () = get_user_balance bob_address
 
+(*
   (* deposit, payment and withdrawal test *)
   let%test "deposit_and_payment_and_withdrawal" =
     Signing.Test.register_test_keypairs ();
@@ -200,4 +201,5 @@ module Test = struct
 
         return true)
       ()
+ *)
 end

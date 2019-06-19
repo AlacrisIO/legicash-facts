@@ -52,7 +52,8 @@ let retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Di
   let open Lwt_exn in
   Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
   >>= function
-  | None -> bork "No tx receipt for contract creation"
+  | None -> Logging.log "transaction_hash=%s" (Digest.to_0x transaction_hash);
+            bork "No tx receipt for contract creation"
   | Some receipt ->
      let contract_address = Option.get receipt.contract_address in
      let contract_block_number = receipt.block_number in
@@ -139,10 +140,18 @@ let make_challenge_withdrawal_too_large_revision : contract_address:Address.t ->
 
 
 
-let make_operation_has_claim_been_rejected : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
-  let name_oper = "challenge_withdrawal__too_large_revision" in
-  make_operation_related_withdraw ~name_oper ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair
+let make_operation_has_claim_been_rejected : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
+  let (confirmed_revision, confirmed_state) = confirmed_pair in
+  let parameters = [ abi_address operator
+                   ; abi_address claimant
+                   ; abi_revision operator_revision
+                   ; abi_token_amount value
+                   ; abi_token_amount bond
+                   ; abi_digest confirmed_state
+                   ; abi_revision confirmed_revision ] in
+  let call = encode_function_call { function_name = "has_claim_been_rejected"; parameters } in
+  Operation.CallFunction (contract_address, call)
 
 
 

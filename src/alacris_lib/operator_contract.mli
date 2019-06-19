@@ -78,6 +78,7 @@ val make_challenge_withdrawal_too_large_revision
 
 val make_operation_has_claim_been_rejected
    : contract_address:Address.t
+  -> claimant:Address.t
   -> operator:Address.t
   -> operator_revision:Revision.t
   -> value:TokenAmount.t

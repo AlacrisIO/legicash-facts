@@ -78,6 +78,7 @@ let get_contract_address_for_client_checked_exn_req : unit -> Address.t Lwt_exn.
   let open Lwt_exn in
   let e_quad = Lazy.force contract_address_info_for_client in
   let (contract_address, _, creation_hash, _) = e_quad in
+  Logging.log "Before call to get_contract_address_for_client_checked_exn_req";
   Operator_contract.retrieve_contract_address_quadruple creation_hash
   >>= fun f_quad ->
   let result = test_equality_quadruple e_quad f_quad in
@@ -290,8 +291,8 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
 
 
 
-let get_claim_withdrawal_status : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t =
-  fun ~confirmed_pair tc ~sender ~operator ->
+let get_claim_withdrawal_status : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> claimant:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t =
+  fun ~confirmed_pair tc ~claimant ~sender ~operator ->
   let open Lwt_exn in
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
     | Deposit _ -> bork "get_claim_withdrawal_status error. Calling for Deposit"
@@ -303,7 +304,7 @@ let get_claim_withdrawal_status : confirmed_pair:PairRevisionDigest.t -> Transac
        let bond = Side_chain_server_config.bond_value_v in
        let operator_revision : Revision.t = tc.tx_proof.key in
        let value = withdrawal_amount in
-       let (operation : Ethereum_chain.Operation.t) = make_operation_has_claim_been_rejected ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair in
+       let operation = make_operation_has_claim_been_rejected ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair in
        Ethereum_user.post_operation ~operation ~sender ~value_send:TokenAmount.zero
        >>= fun tr ->
        Logging.log "get_claim_withdrawal_status status=%B" (Ethereum_user.get_status_receipt tr);

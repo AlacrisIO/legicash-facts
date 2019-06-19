@@ -24,3 +24,8 @@
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
  (libraries legilogic_lib alacris_lib ppx_deriving_yojson.runtime yojson))
 
+;;(executable
+;; (name setup_operator_contract)
+;; (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
+;; (libraries legilogic_lib alacris_lib ppx_deriving_yojson.runtime yojson))
+

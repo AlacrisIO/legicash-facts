@@ -132,14 +132,12 @@ contract Operators is Claims, ClaimTypes, Bonds {
         external
     {
       bytes32 claim = withdrawal_claim(_operator, _account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision);
-      if (is_claim_rejectable(claim)) {
-        if (_ticket > _confirmed_revision) {
-          reject_claim(claim);
-          // LAST, send the bond as reward to the sender.
-          // TODO: should we send only half the bond, and burn the rest and/or donate it to a foundation?
-          msg.sender.transfer(_bond);
-        }
-      }
+      require(is_claim_rejectable(claim));
+      require(_ticket > _confirmed_revision);
+      reject_claim(claim);
+      // LAST, send the bond as reward to the sender.
+      // TODO: should we send only half the bond, and burn the rest and/or donate it to a foundation?
+      msg.sender.transfer(_bond);
     }
 
     event RejectedClaimStatus(uint64 _res);
