@@ -101,16 +101,26 @@ val confirm_pre_transaction : Address.t -> (PreTransaction.t, Transaction.t * Si
 val transfer_tokens : recipient:Address.t -> TokenAmount.t -> PreTransaction.t
 (** PreTransaction to transfer tokens from one address to another *)
 
-val make_pre_transaction : sender:Address.t -> Operation.t -> ?gas_limit:TokenAmount.t -> TokenAmount.t -> PreTransaction.t Lwt_exn.t
+val make_pre_transaction : sender:Address.t -> Operation.t -> ?gas_limit:TokenAmount.t -> value:TokenAmount.t -> PreTransaction.t Lwt_exn.t
 
-val create_contract : sender:Address.t -> code:Bytes.t -> ?gas_limit:TokenAmount.t -> TokenAmount.t
+val create_contract : sender:Address.t -> code:Bytes.t -> ?gas_limit:TokenAmount.t -> value:TokenAmount.t
                       -> PreTransaction.t Lwt_exn.t
 (** PreTransaction to create a contract *)
 
 val call_function : sender:Address.t -> contract:Address.t -> call:Bytes.t
-                    -> ?gas_limit:TokenAmount.t -> TokenAmount.t
+                    -> ?gas_limit:TokenAmount.t -> value:TokenAmount.t
                     -> PreTransaction.t Lwt_exn.t
 (** Return a PreTransaction to call a function; asynchronous *)
+
+
+val get_status_receipt : TransactionReceipt.t -> bool
+
+  
+val post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value_send:TokenAmount.t -> TransactionReceipt.t Lwt_exn.t
+(** We take a general operation, a sending address an amount of value and we process
+    it completely till we obtain TransactionReceipt *)
+
+
 
 module Test : sig
   val get_prefunded_address : unit -> Address.t Lwt_exn.t

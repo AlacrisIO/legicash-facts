@@ -10,7 +10,6 @@ open Ethereum_json_rpc
 open Ethereum_abi
 open Ethereum_watch
 open Operator_contract
-open State_update
 open Side_chain
 open Side_chain_operator
 open Side_chain_user
@@ -30,7 +29,7 @@ let treat_individual_claim_bad_ticket : (LogObject.t * abi_value list) -> unit L
      let confirmed_pair : PairRevisionDigest.t = (confirmed_revision, confirmed_state) in
      let contract_address = get_contract_address () in
      let operation = make_challenge_withdrawal_too_large_revision ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair in
-     post_operation_general ~operation ~sender:operator ~value_send:TokenAmount.zero
+     Ethereum_user.post_operation ~operation ~sender:operator ~value_send:TokenAmount.zero
      >>= fun _ -> return ()
     )
   else
@@ -140,7 +139,7 @@ module Test = struct
         Logging.log "deposit_withdraw_wrong_operator_version, step 2";
         (* TODO replace mutable contract address plumbing w/ more elegant +
          * functional style *)
-        get_contract_address_from_client_exn ()
+        get_contract_address_for_client_exn ()
         >>= fun contract_address ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 3";
         Operator_contract.set_contract_address contract_address;
@@ -168,9 +167,9 @@ module Test = struct
           alice_address
           deposit
           DepositWanted.{ operator
-                        ; deposit_amount
-                        ; request_guid = Types.RequestGuid.nil
-                        ; requested_at = Types.Timestamp.now () }
+                                        ; deposit_amount
+                                        ; request_guid = Types.RequestGuid.nil
+                                        ; requested_at = Types.Timestamp.now () }
         >>= fun (commitment, _confirmation) ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 10";
         Logging.log "Making the fake transaction that should be rejected";

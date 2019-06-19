@@ -17,6 +17,8 @@ open Actions
 (* Side_chain also has a Request module *)
 module Request = Scgi.Request
 
+let side_chain_client_log = false
+
 let _ = Config.set_application_name "alacris"
 (* let _ = set_log_file "logs/alacris-client.log" *)
 
@@ -69,7 +71,8 @@ let return_json id status json =
   let headers =  [`Content_type "application/json"] in
   let body = `String (string_of_yojson json) in
   let response = Response.{status; headers; body} in
-  log "[\"RESPONSE\", %d, %s]" id (Response.to_debug_string response);
+  if side_chain_client_log then
+    log "[\"RESPONSE\", %d, %s]" id (Response.to_debug_string response);
   Lwt.return response
 
 let ok_json id json = return_json id `Ok json
@@ -122,7 +125,8 @@ let _ =
   let handle_request request =
     (* Log the request *)
     let id = request_counter () in
-    log "[\"REQUEST\", %d, %s]" id (Request.to_debug_string request);
+    if side_chain_client_log then
+      log "[\"REQUEST\", %d, %s]" id (Request.to_debug_string request);
     let uri = Request.path request in (* /api/somemethod *)
     let api_call = String.sub uri 5 (String.length uri - 5) in (* remove /api/ *)
 
@@ -131,17 +135,20 @@ let _ =
       begin
         match api_call with
         | "balances" ->
-          Logging.log "GET /api/balances";
+          if side_chain_client_log then
+            Logging.log "GET /api/balances";
           get_all_balances_on_trent ()
           >>= return_result id
 
         | "tps" ->
-          Logging.log "GET /api/tps";
+          if side_chain_client_log then
+            Logging.log "GET /api/tps";
           get_transaction_rate_on_trent ()
           |> ok_json id
 
         | "proof" ->
-          Logging.log "GET /api/proof";
+          if side_chain_client_log then
+            Logging.log "GET /api/proof";
           (match Request.param request "tx-revision" with
            | Some param -> (
                try
@@ -155,7 +162,8 @@ let _ =
            | None -> bad_request_response id "Expected one parameter, tx-revision")
 
         | "thread" ->
-          Logging.log "GET /api/thread";
+          if side_chain_client_log then
+            Logging.log "GET /api/thread";
           (match Request.param request "id" with
              Some param ->
              (try
@@ -175,7 +183,8 @@ let _ =
       let json = yojson_of_string (Request.contents request) in
 
       let (=->) deserialized f =
-        Logging.log "POST /api/%s" api_call;
+        if side_chain_client_log then
+          Logging.log "POST /api/%s" api_call;
         let err500 m = internal_error_response id m in
         match (deserialized json) with
           (* NB it's good security practice to prevent implementation details
@@ -224,7 +233,8 @@ let _ =
                 >>= throw_if_err
 
         | "recent_transactions" ->
-          Logging.log "POST /api/recent_transactions";
+          if side_chain_client_log then
+            Logging.log "POST /api/recent_transactions";
           let maybe_limit_string = Request.param request "limit" in
           let invalid_limit      = Some (Revision.zero) in
           let maybe_limit =
@@ -250,7 +260,8 @@ let _ =
              | Error msg -> error_response id msg)
 
         | "sleep" ->
-          Logging.log "POST /api/sleep";
+          if side_chain_client_log then
+            Logging.log "POST /api/sleep";
           (try
              Lwt_unix.sleep 1.0 >>= (fun () -> ok_json id (`Int 42))
            with

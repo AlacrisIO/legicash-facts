@@ -122,6 +122,13 @@ let parse_0x_prefix parser hs =
 
 let unparse_0x_prefix printer x = "0x" ^ (printer x)
 
+
+let remove_0x_from_string : string -> string =
+  fun str_in ->
+  let len = String.length str_in in
+  let str_out = String.sub str_in 2 (len-2) in
+  str_out
+
 module Test = struct
   open Lib.Test
 

@@ -17,6 +17,10 @@ type operator_config =
 type side_chain_client_config =
   { host : string
   ; port : int
+  ; contract_address : string
+  ; code_hash : string
+  ; creation_hash : string
+  ; creation_block : int
   ; operator : operator_config
   } [@@deriving of_yojson]
 
@@ -32,6 +36,12 @@ let config =
 
 let sockaddr = lazy (match config with lazy {host;port} ->
     Unix.ADDR_INET (Get_ip_address.inet_addr_from_ip_or_host host, port))
+
+let contract_address_info_for_client =
+  lazy (match config with lazy {contract_address;code_hash;creation_hash;creation_block} ->
+          let open Types in
+          (Address.of_0x contract_address, Digest.of_0x code_hash, Digest.of_0x creation_hash, Revision.of_int creation_block))
+
 
 let operator_address =
   lazy (match config with lazy {operator={address}} -> address)
@@ -54,12 +64,10 @@ let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =
          Query.marshal_string request
          |> fun x ->
             (* Logging.log "Before write_string_to_lwt_io_channel, post_query_to_server, x=%s" x; *)
-            Logging.log "Before write_string_to_lwt_io_channel, post_query_to_server, x=(omit)";
             write_string_to_lwt_io_channel out_channel x
          >>= fun () ->
          read_string_from_lwt_io_channel in_channel
          >>= fun x ->
-         Logging.log "After read_string_from_lwt_io_channel, post_query_to_server x=(omit)";
          decode_response yojson_marshaling.unmarshal x)
 
 let post_query_hook = ref post_query_to_server
@@ -82,12 +90,10 @@ let post_user_transaction_request_to_server : UserTransactionRequest.t signed ->
       eval
       |> fun x ->
          (* Logging.log "Before write_string_to_lwt_io_channel, post_user_transaction_request_to_server x=%s" x; *)
-         Logging.log "Before write_string_to_lwt_io_channel, post_user_transaction_request_to_server x=(omit)";
          write_string_to_lwt_io_channel out_channel x
       >>= fun () ->
       read_string_from_lwt_io_channel in_channel
       >>= fun x ->
-      Logging.log "Afer read_string_from_lwt_io_channel, post_user_transaction_request_to_server x=(omit)";
       decode_response TransactionCommitment.unmarshal x)
 
 let post_user_transaction_request_hook = ref post_user_transaction_request_to_server

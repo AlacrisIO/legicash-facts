@@ -87,12 +87,10 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
     function claim_withdrawal(address _operator, uint64 _ticket, uint256 _value, bytes32 _confirmed_state, uint64 _confirmed_revision)
             external payable {
-        bool test=is_bond_ok(msg.value, maximum_withdrawal_challenge_gas);
-        if (test) {
-          uint64 res = make_claim(withdrawal_claim(
-              _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state, _confirmed_revision));
-          emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, _confirmed_revision, msg.value, address(this).balance, res);
-        }
+        require(is_bond_ok(msg.value, maximum_withdrawal_challenge_gas));
+        uint64 res = make_claim(withdrawal_claim(
+            _operator, msg.sender, _ticket, _value, msg.value, _confirmed_state, _confirmed_revision));
+        emit ClaimWithdrawal(_operator, _ticket, _value, _confirmed_state, _confirmed_revision, msg.value, address(this).balance, res);
     }
 
     event Withdrawal(address _operator, uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state);
@@ -111,18 +109,17 @@ contract Operators is Claims, ClaimTypes, Bonds {
             external {
         bytes32 claim = withdrawal_claim(
             _operator, msg.sender, _ticket, _value, _bond, _confirmed_state, _confirmed_revision);
-        if (is_claim_status_accepted(claim)) {
-          // Consume a valid withdrawal claim.
-          set_claim_consumed(claim);
+        require(is_claim_status_accepted(claim));
+        // Consume a valid withdrawal claim.
+        set_claim_consumed(claim);
 
-          // Log the withdrawal so future double-claim attempts can be duly rejected.
-          emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
+        // Log the withdrawal so future double-claim attempts can be duly rejected.
+        emit Withdrawal(_operator, _ticket, _value, _bond, _confirmed_state);
 
-          // NB: Should we always transfer money LAST! ?
-          // I am not sure this is such a good idea
-          // TODO: Should we allow a recipient different from the sender?
-          msg.sender.transfer(_value + _bond);
-        }
+        // NB: Should we always transfer money LAST! ?
+        // I am not sure this is such a good idea
+        // TODO: Should we allow a recipient different from the sender?
+        msg.sender.transfer(_value + _bond);
     }
 
 
@@ -171,7 +168,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
         uint64 _ticket, uint256 _value, uint256 _bond, bytes32 _confirmed_state)
         public {
         require(!is_claim_status_accepted(_confirmed_state));
-        reject_claim(withdrawal_claim(_operator, _account, _ticket, _value, _bond, _confirmed_state));
+        reject_claim(withdrawal_claim(_operator, _account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision));
         // LAST, send the bond as reward to the sender.
         // TODO: should we send only half the bond, and burn the rest and/or donate it to a foundation?
         msg.sender.transfer(_bond);
@@ -193,7 +190,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
         require(_operator != _preimage_operator || _preimage_tag != ClaimType.STATE_UPDATE);
         require(_confirmed_state == digest_claim(_preimage_operator, _preimage_tag, _preimage_data));
         reject_claim(withdrawal_claim(
-            _operator, _account, _ticket, _value, _bond, _confirmed_state));
+            _operator, _account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision));
         // LAST, send the bond as reward to the sender.
         // TODO: should we send only half the bond, and burn the rest and/or donate it to a foundation?
         msg.sender.transfer(_bond);
@@ -232,7 +229,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
                     _operations,
                     _main_chain_transactions_posted)));
         reject_claim(withdrawal_claim(
-            _operator, _account, _ticket, _value, _bond, _confirmed_state));
+            _operator, _account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision));
         // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
     }*/
@@ -269,7 +266,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
         // TODO: complete this thing XXXXX
         _merkle_path_in_operations; operations;
         reject_claim(withdrawal_claim(
-            _operator, _account, _ticket, _value, _bond, _confirmed_state));
+            _operator, _account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision));
         // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
     }*/
@@ -301,7 +298,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
         // TODO: complete this thing XXXXX
         _merkle_path_in_operations; operations;
         reject_claim(withdrawal_claim(
-            _operator, _account, _ticket, _value, _bond, _confirmed_state));
+            _operator, _account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision));
         // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
     }*/
@@ -330,7 +327,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
             public {
         // TODO: complete this thing XXXXXX
         reject_claim(withdrawal_claim(
-            _operator, _account, _ticket, _value, _bond, _confirmed_state));
+            _operator, _account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision));
         // LAST, send the bond as reward to the sender.
         msg.sender.transfer(_bond);
     }

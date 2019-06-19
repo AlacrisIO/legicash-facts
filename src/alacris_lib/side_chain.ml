@@ -152,7 +152,6 @@ module UserQueryRequest = struct
   type t =
     | Get_account_balance     of {address: Address.t}
     | Get_account_balances
-    | Get_contract_address
     | Get_account_state       of {address: Address.t}
     | Get_account_status      of {address: Address.t}
     | Get_recent_transactions of {address: Address.t; count: Revision.t option}
@@ -303,8 +302,10 @@ module State = struct
     let marshaling = marshaling_of_rlping rlping
     let walk_dependencies _methods context {accounts; transactions; main_chain_transactions_posted} =
       walk_dependency AccountMap.dependency_walking context accounts
-      >>= fun () -> walk_dependency TransactionMap.dependency_walking context transactions
-      >>= fun () -> walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted
+      >>= fun () ->
+      walk_dependency TransactionMap.dependency_walking context transactions
+      >>= fun () ->
+      walk_dependency DigestSet.dependency_walking context main_chain_transactions_posted
     let make_persistent = normal_persistent
     let yojsoning = {to_yojson;of_yojson}
   end

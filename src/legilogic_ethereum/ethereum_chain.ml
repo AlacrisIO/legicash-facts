@@ -77,7 +77,7 @@ module TxHeader = struct
            ; nonce: Nonce.t
            ; gas_price: TokenAmount.t
            ; gas_limit: TokenAmount.t
-           ; value: TokenAmount.t }
+           ; value: TokenAmount.t}
   [@@deriving lens { prefix=true }, yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t

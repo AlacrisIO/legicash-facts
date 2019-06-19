@@ -6,6 +6,7 @@ open Signing
 open Legilogic_ethereum
 open Ethereum_chain
 open Side_chain
+open Action
 
 val topic_of_address:  Address.t     -> Bytes.t option
 val topic_of_revision: Revision.t    -> Bytes.t option
@@ -18,12 +19,21 @@ val topic_of_claim_withdrawal : Bytes.t option
 val topic_of_withdraw : Bytes.t option
 val topic_of_rejected_claim_status : Bytes.t option
 
+val retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Digest.t * Revision.t) Lwt_exn.t
+
 
 val set_contract_address : Address.t -> unit
 (** set the address of the contract on Ethereum
     TODO: use a fixed address, obviating this call (?) *)
 
+val set_contract_block_number : Revision.t -> unit
+(** set the block under which the contract is stored on Ethereum *)
+
 val get_contract_address : unit -> Address.t
+(** get the contract address of the contract on Ethereum
+    TODO: use a fixed address, obviating this call *)
+
+val get_contract_block_number : unit -> Revision.t
 (** set the address of the contract on Ethereum
     TODO: use a fixed address, obviating this call *)
 
