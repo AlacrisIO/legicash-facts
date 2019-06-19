@@ -23,12 +23,13 @@ let treat_individual_claim_bad_ticket : (LogObject.t * abi_value list) -> unit L
   let confirmed_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 4) in
   if (Revision.compare operator_revision confirmed_revision) > 0 then
     (let operator = retrieve_address_from_abi_value (List.nth x_abi_list 0) in
+     let claimant = retrieve_address_from_abi_value (List.nth x_abi_list 1) in
      let value = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 2) in
      let confirmed_state = retrieve_digest_from_abi_value (List.nth x_abi_list 3) in
      let bond = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 5) in
      let confirmed_pair : PairRevisionDigest.t = (confirmed_revision, confirmed_state) in
      let contract_address = get_contract_address () in
-     let operation = make_challenge_withdrawal_too_large_revision ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair in
+     let operation = make_challenge_withdrawal_too_large_revision ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair in
      Ethereum_user.post_operation ~operation ~sender:operator ~value_send:TokenAmount.zero
      >>= fun _ -> return ()
     )
@@ -152,9 +153,9 @@ module Test = struct
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 6";
         start_operator operator
-(*        >>= fun () ->
+        >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 7";
-        start_vigilantism_state_update_operator () *)
+        start_vigilantism_state_update_operator ()
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 8";
         start_state_update_periodic_operator ()
@@ -216,7 +217,7 @@ module Test = struct
         post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender:alice_address ~operator
         >>= fun block_nbr ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 11";
-        let addi_term = (Revision.add Side_chain_server_config.challenge_period_in_blocks (Revision.of_int 10)) in
+        let addi_term = (Revision.add Side_chain_server_config.challenge_period_in_blocks (Revision.of_int 2)) in
         let min_block_length =  (Revision.add block_nbr addi_term) in
         wait_for_min_block_depth min_block_length
         >>= fun () ->

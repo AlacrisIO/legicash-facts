@@ -62,7 +62,8 @@ val make_withdraw_call
 *)
 
 val make_challenge_withdrawal_too_large_revision
-   : contract_address:Address.t
+    : contract_address:Address.t
+  -> claimant:Address.t
   -> operator:Address.t
   -> operator_revision:Revision.t
   -> value:TokenAmount.t
