@@ -223,7 +223,7 @@ module Test = struct
 	Logging.log "deposit_withdraw_wrong_operator_version, step 12";
         get_claim_withdrawal_status ~confirmed_pair tc ~claimant:alice_address ~sender:alice_address ~operator
         >>= fun ret_value ->
-	Logging.log "deposit_withdraw_wrong_operator_version, step 13";
+	Logging.log "deposit_withdraw_wrong_operator_version, step 13 ret_value=%s" (Revision.to_string ret_value);
         if (Revision.equal ret_value (Revision.of_int 1)) then
           return true
         else

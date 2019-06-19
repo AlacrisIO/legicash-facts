@@ -309,7 +309,7 @@ let get_claim_withdrawal_status : confirmed_pair:PairRevisionDigest.t -> Transac
        >>= fun tr ->
        Logging.log "get_claim_withdrawal_status status=%B" (Ethereum_user.get_status_receipt tr);
        let (topics : Bytes.t option list) = [topic_of_rejected_claim_status] in
-       let (list_data_type : abi_type list) = [Uint 64; Uint 256; Bytes 32; Uint 64; Uint 256; Uint 256; Uint 64] in
+       let (list_data_type : abi_type list) = [Uint 64] in
        let (data_value_search : abi_value option list) = [None] in
        let (transaction_hash_val : Digest.t option) = Some tr.transaction_hash in
        wait_for_contract_event ~contract_address ~transaction_hash:transaction_hash_val ~topics list_data_type data_value_search

@@ -142,6 +142,7 @@ contract Operators is Claims, ClaimTypes, Bonds {
 
     event RejectedClaimStatus(uint64 _res);
 
+
     function has_claim_been_rejected(
         address _operator, address _account,
         uint64 _ticket, uint256 _value, uint256 _bond,
