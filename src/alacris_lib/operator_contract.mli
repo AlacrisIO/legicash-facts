@@ -99,6 +99,10 @@ val make_operation_has_claim_been_rejected
 val make_state_update_call : Digest.t -> Revision.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)
 
+val make_state_update_call_nocheck : Digest.t -> Revision.t -> Ethereum_chain.Operation.t
+(** Operator address, contract address, and the ethereum main chain.
+    This is for the tests *)
 
-val make_null_operation : Digest.t -> Ethereum_chain.Operation.t
+
+val make_null_operation : Digest.t -> Revision.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)

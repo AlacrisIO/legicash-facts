@@ -427,10 +427,22 @@ let rec inner_state_update_periodic_loop : unit -> unit Lwt_exn.t =
   >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
   >>= inner_state_update_periodic_loop
 
+let rec inner_state_update_nocheck_periodic_loop : unit -> unit Lwt_exn.t =
+  fun () ->
+  let open Lwt_exn in
+  retrieve_validated_rev_digest ()
+  >>= uncurry post_state_update_nocheck
+  >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+  >>= inner_state_update_nocheck_periodic_loop
 
 let start_state_update_periodic_operator () =
-  Logging.log "Beginning of start_state_update_periodic_operator";
+  Logging.log "Beginning of start_state_update_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
   Lwt.async inner_state_update_periodic_loop;
+  Lwt_exn.return ()
+
+let start_state_update_nocheck_periodic_operator () =
+  Logging.log "Beginning of start_state_update_nocheck_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
+  Lwt.async inner_state_update_nocheck_periodic_loop;
   Lwt_exn.return ()
 
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =

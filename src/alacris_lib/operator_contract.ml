@@ -163,20 +163,21 @@ let make_operation_has_claim_been_rejected : contract_address:Address.t -> claim
 
 
 
-(* calls the "claim_state_update" that calls "make_claim" that works with a mapping
-   from bytes32 to integers.
-   We have Revision = UInt64
-
- *)
 let make_state_update_call : Digest.t -> Revision.t -> Ethereum_chain.Operation.t =
   fun state_digest operator_revision ->
   let parameters = [ abi_digest state_digest; abi_revision operator_revision] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 
-let make_null_operation : Digest.t -> Ethereum_chain.Operation.t =
-  fun state_digest ->
-  let parameters = [ abi_digest state_digest] in
+let make_state_update_call_nocheck : Digest.t -> Revision.t -> Ethereum_chain.Operation.t =
+  fun state_digest operator_revision ->
+  let parameters = [ abi_digest state_digest; abi_revision operator_revision] in
+  let (call : bytes) = encode_function_call { function_name = "claim_state_update_nocheck"; parameters } in
+  Operation.CallFunction (get_contract_address (), call)
+
+let make_null_operation : Digest.t -> Revision.t -> Ethereum_chain.Operation.t =
+  fun state_digest operator_revision ->
+  let parameters = [ abi_digest state_digest; abi_revision operator_revision] in
   let (call : bytes) = encode_function_call { function_name = "null_operation"; parameters } in
   Operation.CallFunction (get_contract_address (), call)
 

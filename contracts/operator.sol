@@ -27,18 +27,31 @@ contract Operators is Claims, ClaimTypes, Bonds {
     event StateUpdate(address _operator, bytes32 _confirmed_state, uint64 _revision);
 
     /* TODO: include a bond with this and every claim */
-    function claim_state_update(bytes32 _new_state, uint64 _revision) external {
-        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _new_state));
-        emit StateUpdate(msg.sender, _new_state, _revision);
+    function claim_state_update(bytes32 _confirmed_state, uint64 _revision) external {
+        make_claim(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _confirmed_state));
+        emit StateUpdate(msg.sender, _confirmed_state, _revision);
     }
 
     // This is a hack because we use block depth for confirmation.
     // If nothing happens, then no state update is done and instead
     // we fill in the blocks with trivial events.
-    event NullEvent(bytes32 _confirmed_state);
-    function null_operation(bytes32 _confirmed_state) external {
-        emit NullEvent(_confirmed_state);
+    event NullEvent(address _operator, bytes32 _confirmed_state, uint64 _revision);
+    function null_operation(bytes32 _confirmed_state, uint64 _revision) external {
+        emit NullEvent(msg.sender, _confirmed_state, _revision);
     }
+
+    // This is a hack because we use block depth for confirmation.
+    // If nothing happens, then no state update is done and instead
+    // we fill in the blocks with trivial events.
+    function claim_state_update_nocheck(bytes32 _confirmed_state, uint64 _revision) external {
+        make_claim_nocheck(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _confirmed_state));
+        emit StateUpdate(msg.sender, _confirmed_state, _revision);
+    }
+
+
+
+
+
 
     function operator_state(
         bytes32 _previous_main_chain_state,

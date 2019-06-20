@@ -182,7 +182,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
       [Some (Address_value operator); None; None]
     >>= fun ((end_block, llogs) : (Revision.t * (LogObject.t * (abi_value list)) list)) ->
     let llogs_filter = List.filter (fun (_, x_list) ->
-                           let oper_rev = retrieve_revision_from_abi_value (List.nth x_list 4) in
+                           let oper_rev = retrieve_revision_from_abi_value (List.nth x_list 2) in
                            compare oper_rev operator_revision >= 0) llogs in
     if (List.length llogs_filter > 0) then
       let (log_object, vals) = List.nth llogs_filter 0 in

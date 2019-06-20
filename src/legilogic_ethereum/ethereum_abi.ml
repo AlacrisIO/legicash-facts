@@ -691,7 +691,7 @@ let get_individual_length (etype: abi_type) : int =
 
 
 
-let decode_individual_data : Bytes.t -> int -> abi_type -> (abi_value*int) =
+let decode_individual_data : Bytes.t -> int -> abi_type -> abi_value * int =
   fun data  init_pos  etype  ->
   match etype with
   | Uint m -> let bytes_zer = bytesZero m in
@@ -700,15 +700,15 @@ let decode_individual_data : Bytes.t -> int -> abi_type -> (abi_value*int) =
                 bork "have type uint%d, got value with %d bytes" m bytes_len ;
               let padding_len = 32 - bytes_len in
               let padding = Bytes.make padding_len '\000' in
+              let padding_len_b = Bytes.length padding in
               let start_padding_pos = init_pos in
-              let _end_padding_pos = init_pos + padding_len in
               let bytes_test = Bytes.sub data start_padding_pos padding_len in
               let start_ret_pos = init_pos + padding_len in
               let end_ret_pos = init_pos + padding_len + bytes_len in
               let bytes_ret = Bytes.sub data start_ret_pos bytes_len in
               let test = Bytes.equal bytes_test padding in
               if (test == false) then
-                bork "error in the operation. It should be zero";
+                bork "error in the operation. It should be zero m=%i padding_len_b=%i padding_len=%i bytes_len=%i" m padding_len_b padding_len bytes_len;
               let next_pos = end_ret_pos in
               (Uint_value bytes_ret, next_pos)
   | Address -> let bytes = Ethereum_util.bytes_of_address Address.zero in
@@ -737,7 +737,7 @@ let decode_individual_data : Bytes.t -> int -> abi_type -> (abi_value*int) =
                    true
                in
                if (check_padding == false) then
-                 bork "decode_individual_data, case 3, step 8";
+                 bork "decode_individual_data, error in bytes case";
                (Bytes_value bytes_ret, end_padding_pos)
   | Bool -> let bytes_val_one = big_endian_bytes_of_uint 8 Nat.one in
             let bytes_val_zero = big_endian_bytes_of_uint 8 Nat.zero in
@@ -746,7 +746,7 @@ let decode_individual_data : Bytes.t -> int -> abi_type -> (abi_value*int) =
             let end_pos = init_pos + len in
             let data_sub = Bytes.sub data start_pos len in
             if (bytes_val_one != data_sub) && (bytes_val_zero != data_sub) then
-              bork "Error of running";
+              bork "decode_individual_data error in bool case";
             let eval = if data_sub == bytes_val_one then true else false in
             (Bool_value eval, end_pos)
   | _ -> bork "Missing code for this specific type"

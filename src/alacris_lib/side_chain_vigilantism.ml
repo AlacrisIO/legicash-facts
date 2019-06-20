@@ -68,8 +68,8 @@ let search_fraud : contract_address:Address.t -> operator:Address.t -> Revision.
     ~contract_address
     ~transaction_hash:None
     ~topics:[topic_of_claim_withdrawal]
-    [Address; Uint 64; Uint 256; Bytes 32; Uint 64; Uint 256; Uint 256; Uint 64]
-    [Some (Address_value operator); None; None; None; None; None; None; None]
+    [Address; Address; Uint 64; Uint 256; Uint 256; Bytes 32; Uint 64]
+    [Some (Address_value operator); None; None; None; None; None; None]
   >>= fun (rev_out, llogs) ->
   Logging.log "Before call to treat_sequence_claims";
   treat_sequence_claims llogs
@@ -158,7 +158,7 @@ module Test = struct
         start_vigilantism_state_update_operator ()
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 8";
-        start_state_update_periodic_operator ()
+        start_state_update_nocheck_periodic_operator ()
         >>= fun () ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 9";
         let deposit_amount = TokenAmount.of_string "500000000000000000" in

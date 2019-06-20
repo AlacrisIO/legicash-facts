@@ -29,9 +29,14 @@ let last_hash = ref Digest.zero
 let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
   fun operator_revision operator_digest ->
   let open Lwt_exn in
+  if state_update_log then
+    Logging.log "post_state_update beginning";
   let my_operation = ref (make_state_update_call operator_digest operator_revision) in
   if (String.equal (Digest.to_string !last_hash) (Digest.to_string operator_digest)) then
-    my_operation := make_null_operation operator_digest;
+    (my_operation := make_null_operation operator_digest operator_revision;
+     if state_update_log then
+       Logging.log "Putting a null operation"
+    );
   last_hash := operator_digest;
   if state_update_log then
     Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision) (Digest.to_0x operator_digest);
@@ -42,6 +47,22 @@ let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t
     Logging.log "After the post_operation of post_state_update";
   return x
 
+
+
+let post_state_update_nocheck : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
+  fun operator_revision operator_digest ->
+  let open Lwt_exn in
+  if state_update_log then
+    Logging.log "post_state_update_nocheck beginning";
+  let operation = make_state_update_call_nocheck operator_digest operator_revision in
+  if state_update_log then
+    Logging.log "post_state_update_nocheck operator_revision=%s digest=%s" (Revision.to_string operator_revision) (Digest.to_0x operator_digest);
+  let oper_addr = Side_chain_server_config.operator_address in
+  Ethereum_user.post_operation ~operation:operation ~sender:oper_addr ~value_send:TokenAmount.zero
+  >>= fun x ->
+  if state_update_log then
+    Logging.log "After the post_operation of post_state_update_nocheck";
+  return x
 
 let inner_state_update_request_loop () =
   let open Lwt in

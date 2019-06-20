@@ -54,6 +54,10 @@ val start_state_update_periodic_operator : unit -> unit Lwt_exn.t
 (** start of the operator that do state_update at frequent date
     (for example every 25s). *)
 
+val start_state_update_nocheck_periodic_operator : unit -> unit Lwt_exn.t
+(** start of the operator that do state_update at frequent date
+    (for example every 25s). This is for tests. *)
+
 (*
    (** For a operator, commit the state of the side-chain to the main-chain *)
    val commit_operator_state : (unit, unit) OperatorAsyncAction.arr
