@@ -180,7 +180,7 @@ repl: ./bin/legicaml $(BUILD_DIR)/$(TOPLEVEL)
 
 ### Build all the stuff to build
 build_all: $(CONTRACT) force
-	$(HIDE) dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ETHEREUM_PREFUNDER) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
+	$(HIDE) dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ETHEREUM_PREFUNDER) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SETUP_CONTRACT) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
 
 ### Running smoke test for the build:
 test_hello: toplevel $(ML_SOURCES) $(CONTRACT) force
