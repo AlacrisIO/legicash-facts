@@ -75,27 +75,6 @@ let process_request client_address channels =
                    return ()))
     channels
 
-let load_operator_state address =
-  if side_chain_server_log then
-    Logging.log "Loading the side_chain state...";
-  Db.check_connection ();
-  trying (catching_arr OperatorState.load) address
-  >>= handling
-        (function
-         | Operator_not_found _ ->
-            if side_chain_server_log then
-              Logging.log "Side chain not found, generating a new demo side chain";
-            let initial_state = initial_operator_state address in
-            let open Lwt in
-            OperatorState.save initial_state
-            >>= Db.commit
-            >>= fun () ->
-            Lwt_exn.return initial_state
-         | e -> fail e)
-  >>= fun operator_state ->
-  if side_chain_server_log then
-    Logging.log "Done loading side chain state";
-  return operator_state
 
 let sockaddr = Unix.(ADDR_INET (inet_addr_any, Side_chain_server_config.config.port))
 
@@ -106,8 +85,8 @@ let _ =
       if side_chain_server_log then
         Logging.log "Beginning of side_chain_server";
       Mkb_json_rpc.init_mkb_server ()
-      >>= fun () -> Side_chain_vigilantism.start_vigilantism_state_update_operator ()
-      >>= fun () -> Side_chain_operator.start_state_update_periodic_operator ()
+      >>= fun () -> Side_chain_vigilantism.start_vigilantism_state_update_operator Side_chain_server_config.operator_address
+      >>= fun () -> Side_chain_operator.start_state_update_periodic_operator Side_chain_server_config.operator_address
       >>= fun () ->
       if side_chain_server_log then
         Logging.log "Before the Db.open_connection";

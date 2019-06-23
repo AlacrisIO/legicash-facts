@@ -168,6 +168,10 @@ module Signed (P : PersistableRlpS) : SignedS with type payload = P.t
 module Test : sig
   val trent_keys : keypair
   val trent_address : address
+  val zander_keys : keypair
+  val zander_address : address
+  val yolanda_keys : keypair
+  val yolanda_address : address
   val alice_keys : keypair
   val alice_address : address
   val bob_keys : keypair

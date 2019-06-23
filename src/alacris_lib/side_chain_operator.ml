@@ -419,30 +419,30 @@ let retrieve_validated_rev_digest : unit -> PairRevisionDigest.t Lwt_exn.t =
       `GetCurrentRevisionDigest resolv)
 
 (* TODO for a state_update_deadline_in_blocks somewhere *)
-let rec inner_state_update_periodic_loop : unit -> unit Lwt_exn.t =
-  fun () ->
+let rec inner_state_update_periodic_loop : Address.t -> unit Lwt_exn.t =
+  fun operator ->
   let open Lwt_exn in
   retrieve_validated_rev_digest ()
-  >>= uncurry post_state_update
+  >>= fun (operator_revision, operator_digest) -> post_state_update ~operator ~operator_revision ~operator_digest
   >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
-  >>= inner_state_update_periodic_loop
+  >>= fun () -> inner_state_update_periodic_loop operator
 
-let rec inner_state_update_nocheck_periodic_loop : unit -> unit Lwt_exn.t =
-  fun () ->
+let rec inner_state_update_nocheck_periodic_loop : Address.t -> unit Lwt_exn.t =
+  fun operator ->
   let open Lwt_exn in
   retrieve_validated_rev_digest ()
-  >>= uncurry post_state_update_nocheck
+  >>= fun (operator_revision, operator_digest) -> post_state_update_nocheck ~operator ~operator_revision ~operator_digest
   >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
-  >>= inner_state_update_nocheck_periodic_loop
+  >>= fun () -> inner_state_update_nocheck_periodic_loop operator
 
-let start_state_update_periodic_operator () =
+let start_state_update_periodic_operator address =
   Logging.log "Beginning of start_state_update_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
-  Lwt.async inner_state_update_periodic_loop;
+  Lwt.async (fun () -> inner_state_update_periodic_loop address);
   Lwt_exn.return ()
 
-let start_state_update_nocheck_periodic_operator () =
+let start_state_update_nocheck_periodic_operator address =
   Logging.log "Beginning of start_state_update_nocheck_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
-  Lwt.async inner_state_update_nocheck_periodic_loop;
+  Lwt.async (fun () -> inner_state_update_nocheck_periodic_loop address);
   Lwt_exn.return ()
 
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
@@ -740,6 +740,31 @@ let initial_operator_state address =
     ; current= initial_side_chain_state
     ; fee_schedule= initial_fee_schedule }
 
+
+let load_operator_state address =
+  let open Lwt_exn in
+  Logging.log "Loading the side_chain state...";
+  Db.check_connection ();
+  trying (catching_arr OperatorState.load) address
+  >>= handling
+        (function
+         | Operator_not_found _ ->
+            Logging.log "Side chain not found, generating a new demo side chain";
+            let initial_state = initial_operator_state address in
+            let open Lwt in
+            OperatorState.save initial_state
+            >>= Db.commit
+            >>= fun () ->
+            Lwt_exn.return initial_state
+         | e -> fail e)
+  >>= fun operator_state ->
+  Logging.log "Done loading side chain state";
+  return operator_state
+
+
+
+
+
 (* TODO: make it a PersistentActivity. *)
 (* TODO: don't create a new operator unless explicitly requested? *)
 let start_operator address =
@@ -762,6 +787,23 @@ let start_operator address =
      the_operator_service_ref := Some { address; state_ref };
      Lwt.async (const state_ref >>> inner_transaction_request_loop);
      Lwt_exn.return ()
+
+
+let start_operator_nocheck_test address =
+  let open Lwt_exn in
+  let operator_state =
+    (* TODO: don't create a new operator unless explicitly requested? *)
+    try
+      OperatorState.load address
+    with Not_found -> initial_operator_state address
+  in
+  let state_ref = ref operator_state in
+  the_operator_service_ref := Some { address; state_ref };
+  Lwt.async (const state_ref >>> inner_transaction_request_loop);
+  Lwt_exn.return ()
+
+
+
 
 
 (* Need to create a thread, persistent activity

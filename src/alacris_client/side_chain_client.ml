@@ -113,6 +113,7 @@ let throw_if_err = function
   | Error e -> raise e
 
 let trent_address = Signing.Test.trent_address
+let zander_address = Signing.Test.zander_address
 
 let _ =
   let request_counter =

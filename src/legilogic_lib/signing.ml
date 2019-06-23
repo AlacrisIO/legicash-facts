@@ -378,6 +378,21 @@ module Test = struct
       ""
   let alice_address = alice_keys.address
 
+  let zander_keys =
+    keypair_of_0x
+      "0x4884b1bdef8281b40cad15f5525d72a5c9a5db18f213abf28a46bfab8bff2a5f"
+      "0x04166026f2e19a15ec597fb11b7d932fb5f63282b3eb37c91e98c7a64cfd7f9cc7545e028152bf445b9bc971ed5f06db05e3180a232020ab9e785b154f45d1c4db"
+      ""
+  let zander_address = zander_keys.address
+
+  let yolanda_keys =
+    keypair_of_0x
+      "0xaedcdea2b91de24d1fe2c8ae4b60687fb3826612962553fa3d0b8486e322aaa7"
+      "0x049df2cf38334e87893f7579244cdc61bb644f0d87798c73aad00de6d4bf0870de88815b355db373f6a6eb4ff3960e3d5f3f027a04902f58b4ba89c97c56b15024"
+      ""
+  let yolanda_address = yolanda_keys.address
+
+
   let bob_keys =
     keypair_of_0x
       "0x9b21b9b06ba77824b8ba6a815f5a075229a708ae88ba7fd935c968fe2c3df172"

@@ -108,23 +108,24 @@ module Test = struct
         get_contract_address_for_client_exn () >>= fun contract_address ->
         Logging.log "deposit_and_payment_and_withdrawal, step 3";
         Operator_contract.set_contract_address contract_address;
-
+        let operator = trent_address in
+        register_keypair "zander" Signing.Test.zander_keys;
         (* TODO consolidate integration tests into single entry point with
          * shared initialization phase rather than leaving them scattered about
          * the repo. One problem with the present setup is we cannot shut down
          * the following reactor once flipping it on, meaning we're likely to
          * encounter subtle time-dependent bugs in future tests (until we
          * reorganize) *)
-        State_update.start_state_update_operator () >>= fun _ ->
         Logging.log "deposit_and_payment_and_withdrawal, step 4";
-
-        fund_accounts () >>= fun () ->
+        fund_accounts ()
+        >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
         Mkb_json_rpc.init_mkb_server ()
-        >>= fun () ->
-        let operator = trent_address in
-        start_operator operator
-        >>= fun () -> start_state_update_nocheck_periodic_operator ()
+(*        >>= fun () ->
+        load_operator_state operator *)
+        >>= fun _ ->
+        start_operator_nocheck_test operator
+        >>= fun () -> start_state_update_nocheck_periodic_operator operator
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 6";
         let initial_alice_balance = get_alice_balance () in

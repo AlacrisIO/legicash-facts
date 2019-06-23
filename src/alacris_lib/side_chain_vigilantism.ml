@@ -91,10 +91,9 @@ let rec search_fraud_iter_if_failing : contract_address:Address.t -> operator:Ad
 
 
 
-let inner_vigilant_thread () =
+let inner_vigilant_thread operator =
   let open Lwt in
   let contract_address = get_contract_address () in
-  let operator = Signing.Test.trent_address in
   let rec do_search : Revision.t -> Revision.t Lwt.t =
     fun start_ref ->
     Logging.log "Begin of do_search in inner_vigilant_thread";
@@ -106,9 +105,9 @@ let inner_vigilant_thread () =
 
 
 
-let start_vigilantism_state_update_operator () =
+let start_vigilantism_state_update_operator operator =
   Logging.log "Beginning of the inner_vigilant_thread";
-  Lwt.async inner_vigilant_thread;
+  Lwt.async (fun () -> inner_vigilant_thread operator);
   Lwt_exn.return ()
 
 
@@ -136,6 +135,7 @@ module Test = struct
       (fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 1";
         let operator = trent_address in
+        register_keypair "yolanda" Signing.Test.yolanda_keys;
         of_lwt Db.open_connection "unit_test_db"
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 2";
@@ -143,22 +143,22 @@ module Test = struct
         >>= fun contract_address ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 3";
         Operator_contract.set_contract_address contract_address;
-        State_update.start_state_update_operator ()
-        >>= fun _ ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 4";
         fund_accounts ()
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 5";
         Mkb_json_rpc.init_mkb_server ()
-        >>= fun () ->
+(*        >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 6";
+        load_operator_state operator *)
+        >>= fun _ ->
         start_operator operator
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 7";
-        start_vigilantism_state_update_operator ()
+        start_vigilantism_state_update_operator operator
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 8";
-        start_state_update_nocheck_periodic_operator ()
+        start_state_update_nocheck_periodic_operator operator
         >>= fun () ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 9";
         let deposit_amount = TokenAmount.of_string "500000000000000000" in

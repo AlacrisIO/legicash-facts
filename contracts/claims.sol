@@ -120,12 +120,6 @@ contract Claims {
     }
 
 
-    /**
-     * Make a claim without checking if it has already been done (Used for the unit tests).
-     */
-    function make_claim_nocheck(bytes32 _claim) internal {
-        claim_status[_claim] = get_block_number() + challenge_period_in_blocks;
-    }
 
     /** Reject a pending claim as invalid. */
     function reject_claim(bytes32 _claim) internal {

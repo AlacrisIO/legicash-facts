@@ -40,14 +40,6 @@ contract Operators is Claims, ClaimTypes, Bonds {
         emit NullEvent(msg.sender, _confirmed_state, _revision);
     }
 
-    // This is a hack because we use block depth for confirmation.
-    // If nothing happens, then no state update is done and instead
-    // we fill in the blocks with trivial events.
-    function claim_state_update_nocheck(bytes32 _confirmed_state, uint64 _revision) external {
-        make_claim_nocheck(digest_claim(msg.sender, ClaimType.STATE_UPDATE, _confirmed_state));
-        emit StateUpdate(msg.sender, _confirmed_state, _revision);
-    }
-
 
 
 

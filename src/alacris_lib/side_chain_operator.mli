@@ -24,6 +24,8 @@ end
 
 val initial_operator_state : Address.t -> OperatorState.t
 
+val load_operator_state : Address.t -> OperatorState.t Lwt_exn.t
+
 module OperatorAction : ActionS with type state = OperatorState.t
 module OperatorAsyncAction : AsyncActionS with type state = OperatorState.t
 
@@ -35,6 +37,9 @@ val operator_account_lens : Address.t -> account_lens
 
 (** start the background operator processes for given operator address *)
 val start_operator : (Address.t, unit) Lwt_exn.arr
+
+(** start the background operator processes for given operator address *)
+val start_operator_nocheck_test : (Address.t, unit) Lwt_exn.arr
 
 (** [oper_post_user_transaction_request request] asynchronously processes [request] (not forced)
     returning a [Transaction.t] on success.
@@ -50,11 +55,11 @@ val oper_post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
 val oper_post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
 
 
-val start_state_update_periodic_operator : unit -> unit Lwt_exn.t
+val start_state_update_periodic_operator : Address.t -> unit Lwt_exn.t
 (** start of the operator that do state_update at frequent date
     (for example every 25s). *)
 
-val start_state_update_nocheck_periodic_operator : unit -> unit Lwt_exn.t
+val start_state_update_nocheck_periodic_operator : Address.t -> unit Lwt_exn.t
 (** start of the operator that do state_update at frequent date
     (for example every 25s). This is for tests. *)
 
