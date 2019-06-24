@@ -122,7 +122,7 @@ module Test = struct
 
         fund_accounts () >>= fun () ->
         log "deposit_and_payment_and_withdrawal, step 5";
-        Mkb_json_rpc.init_mkb_server ()
+        Mkb_json_rpc.ensure_mkb_server ()
         >>= fun () ->
         let operator = trent_address in
         start_operator operator

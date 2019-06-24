@@ -359,9 +359,9 @@ let mkb_add_neighboring_registrar : string -> string list -> unit Lwt_exn.t =
        | Error e -> Lwt.return (Error e))
   in individual_addition 0
 
-let init_mkb_server () =
+let ensure_mkb_server () =
   if mkb_json_rpc_log then
-    log "Beginning of init_mkb_server";
+    log "Beginning of ensure_mkb_server";
   let open Lwt_exn in
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
   if mkb_rpc_config_v.use_mkb then

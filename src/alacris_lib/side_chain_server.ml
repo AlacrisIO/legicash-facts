@@ -109,7 +109,7 @@ let _ =
     (fun () ->
       if side_chain_server_log then
         log "Beginning of side_chain_server";
-      Mkb_json_rpc.init_mkb_server ()
+      Mkb_json_rpc.ensure_mkb_server ()
       (*      >>= fun () -> State_update.start_state_update_operator () *)
       >>= fun () -> Side_chain_operator.start_state_update_periodic_operator ()
       >>= fun () ->
