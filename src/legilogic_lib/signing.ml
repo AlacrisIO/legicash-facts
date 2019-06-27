@@ -34,8 +34,6 @@ let public_key_length = 65
 let bytes_of_key (key : 'a Secp256k1.Key.t) : bytes =
   key |> Secp256k1.Key.to_bytes ~compress:false secp256k1_ctx |> Cstruct.of_bigarray |> Cstruct.to_bytes
 
-let string_of_key key = Bytes.to_string (bytes_of_key key)
-
 module PrivateKey = struct
   module P = struct
     type t = Secp256k1.Key.secret Secp256k1.Key.t
@@ -47,11 +45,12 @@ module PrivateKey = struct
       match Secp256k1.Key.read_sk secp256k1_ctx (Cstruct.to_bigarray private_buffer) with
       | Ok key -> key, start + private_key_length
       | Error s -> bork "Could not unmarshal private key: %s" s
-    let marshaling = {marshal;unmarshal}
-    let of_string string =
-      let (v,_) = unmarshal 0 (Bytes.of_string string) in
-      v
-    let rlping = rlping_by_isomorphism of_string string_of_key string_rlping
+
+    let to_string = marshal_string_of_marshal marshal
+    let of_string = unmarshal_string_of_unmarshal unmarshal
+    let rlping = rlping_by_isomorphism of_string to_string string_rlping
+    let marshaling = marshaling_of_rlping rlping
+    let { marshal; unmarshal } = marshaling
   end
   include YojsonableOfPreMarshalable(P)
   let rlping = P.rlping
@@ -77,12 +76,12 @@ module PublicKey = struct
       match Secp256k1.Key.read_pk secp256k1_ctx (Cstruct.to_bigarray public_buffer) with
       | Ok (key : t) -> key, start + public_key_length
       | Error s -> bork "Could not unmarshal public key: %s" s
-    let marshaling = {marshal;unmarshal}
 
-    let of_string string =
-      let (v,_) = unmarshal 0 (Bytes.of_string string) in
-      v
-    let rlping = rlping_by_isomorphism of_string string_of_key string_rlping
+    let to_string = marshal_string_of_marshal marshal
+    let of_string = unmarshal_string_of_unmarshal unmarshal
+    let rlping = rlping_by_isomorphism of_string to_string string_rlping
+    let marshaling = marshaling_of_rlping rlping
+    let { marshal; unmarshal } = marshaling
   end
   include YojsonableOfPreMarshalable(P)
   let pp formatter x = Format.fprintf formatter "%s" (x |> marshal_string |> unparse_0x_data)
