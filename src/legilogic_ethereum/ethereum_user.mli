@@ -115,7 +115,7 @@ val call_function : sender:Address.t -> contract:Address.t -> call:Bytes.t
 
 val get_status_receipt : TransactionReceipt.t -> bool
 
-  
+
 val post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value:TokenAmount.t -> TransactionReceipt.t Lwt_exn.t
 (** We take a general operation, a sending address an amount of value and we process
     it completely till we obtain TransactionReceipt *)
