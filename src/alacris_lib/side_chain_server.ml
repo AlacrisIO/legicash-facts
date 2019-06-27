@@ -1,5 +1,7 @@
 (* side_chain_server -- TCP/IP server to receive client requests *)
 
+open Ppx_deriving_rlp_runtime
+
 open Legilogic_lib
 open Action
 open Lwt_exn
@@ -27,10 +29,8 @@ let side_chain_server_log = false
 let process_request_exn _client_address (in_channel,out_channel) =
   if side_chain_server_log then
     Logging.log "process_request_exn, running 1";
-  let (iter : int ref) = ref 0 in
-  let encode_response marshaler =
-    iter := !iter + 1;
-    marshaler |> Tag.marshal_result_or_exn |> marshal_string_of_marshal |> arr in
+  let encode_response to_rlp_item =
+    to_rlp_item |> or_exn_to_rlp |> arr in
   read_string_from_lwt_io_channel in_channel
   >>= fun x ->
   (*  Logging.log "After read_string_from_lwt_io_channel x=%s" x;*)
@@ -41,19 +41,19 @@ let process_request_exn _client_address (in_channel,out_channel) =
     | Ok (`UserQuery request) ->
        if side_chain_server_log then
          Logging.log "process_request_exn : UserQuery";
-       (oper_post_user_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
+       (oper_post_user_query_request request |> Lwt.bind) (encode_response Yojsoning.yojson_to_rlp_item)
     | Ok (`UserTransaction request) ->
        if side_chain_server_log then
          Logging.log "process_request_exn : UserTransaction";
-      (oper_post_user_transaction_request request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
+      (oper_post_user_transaction_request request |> Lwt.bind) (encode_response TransactionCommitment.to_rlp_item)
     | Ok (`AdminQuery request) ->
        if side_chain_server_log then
          Logging.log "process_request_exn : AdminQuery";
-      (oper_post_admin_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
+      (oper_post_admin_query_request request |> Lwt.bind) (encode_response Yojsoning.yojson_to_rlp_item)
     | Error e ->
        if side_chain_server_log then
          Logging.log "process_request_exn : Error case";
-       Error e |> encode_response Unit.marshal)
+       Error e |> encode_response unit_to_rlp_item)
   (* TODO: We need to always close, and thus exit the Lwt_exn monad and properly handle the Result
      (e.g. by turning it into a yojson that fulfills the JSON RPC interface) before we close.
   *)
