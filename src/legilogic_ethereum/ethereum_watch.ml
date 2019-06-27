@@ -128,7 +128,7 @@ let string_of_option_digest : Digest.t option -> string =
 
 
 (* We will iterate over the logs. Search for the ones matching the topics, event values and maybe
-   transaction hash. 
+   transaction hash.
    There are two options:
    ---We iterate until we find at least one entry that matches.
    ---We have a maximum number of iteration and exit when failing.
