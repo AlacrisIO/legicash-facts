@@ -6,8 +6,8 @@ open Lwter
 open Yojsoning
 open Marshaling
 open Digesting
-open Alacris_lib
-open Mkb_json_rpc
+open Storage
+(* open Mkb_json_rpc*)
 
 (** Walking across the dependencies of an object *)
 type 'a dependency_walking_methods =
@@ -45,13 +45,6 @@ let seq_dependencies dep1 dep2 methods context x =
 
 let dependency_walking_not_implemented =
   { digest= bottom; marshal_string= bottom; make_persistent= bottom; walk_dependencies= bottom }
-
-let content_addressed_storage_prefix = "K256"
-
-let content_addressed_storage_key digest =
-  if persisting_log then
-    log "persisting: content_addressed_storage_key";
-  content_addressed_storage_prefix ^ Digest.to_big_endian_bits digest
 
 let db_string_of_digest digest =
   if persisting_log then
@@ -92,8 +85,9 @@ let saving_walker methods context x =
                log "persisting: saving_walker, step 6";
              let value = methods.marshal_string x in
              let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
+             (*               Mkb_json_rpc.post_send_key_value_to_mkb_mailbox key value *)
              if mkb_rpc_config_v.use_mkb then
-               Mkb_json_rpc.post_send_key_value_to_mkb_mailbox key value
+               Db.put key value
              else
                Db.put key value
              >>= fun () ->

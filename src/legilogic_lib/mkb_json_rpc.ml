@@ -1,11 +1,10 @@
-open Legilogic_lib
 open Lib
 open Action
 open Yojsoning
-open Persisting
 open Json_rpc
 open Types
 open Logging
+open Storage
 
 type mkb_rpc_config_type =
   { use_mkb : bool
@@ -79,20 +78,29 @@ end
 module SendKeyValueResult = struct
   type t = { nature : string }
   [@@deriving yojson {strict = false}]
-  include (YojsonPersistable (struct
+  let of_yojson_exn yojson =
+    let nature_str = yojson |> YoJson.member "nature" |> StringT.of_yojson_exn in
+    let nature_t : t = {nature = nature_str} in
+    nature_t
+(*  include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson; of_yojson}
-           end) : (PersistableS with type t := t))
+           end) : (PersistableS with type t := t)) *)
 end
 
 module GetKeyValueResult = struct
   type t = { nature : string
            ; value : string }
   [@@deriving yojson {strict = false}]
-  include (YojsonPersistable (struct
+  let of_yojson_exn yojson =
+    let nature_str : string = yojson |> YoJson.member "nature" |> StringT.of_yojson_exn in
+    let value_str : string = yojson |> YoJson.member "value" |> StringT.of_yojson_exn in
+    let data_t : t = {nature = nature_str; value = value_str} in
+    data_t
+(*  include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson; of_yojson}
-           end) : (PersistableS with type t := t))
+           end) : (PersistableS with type t := t)) *)
 end
 
 module SendDataResult = struct
@@ -100,20 +108,30 @@ module SendDataResult = struct
            ; hash : string
            }
   [@@deriving yojson {strict = false}]
-  include (YojsonPersistable (struct
+  let of_yojson_exn yojson =
+    let nature_str = yojson |> YoJson.member "nature" |> StringT.of_yojson_exn in
+    let hash_str = yojson |> YoJson.member "hash" |> StringT.of_yojson_exn in
+    let data_t : t = {nature = nature_str; hash = hash_str} in
+    data_t
+(*  include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson; of_yojson}
-           end) : (PersistableS with type t := t))
+           end) : (PersistableS with type t := t)) *)
 end
 
 
 module GetDataResult = struct
   type t = { data : string }
   [@@deriving yojson {strict = false}]
-  include (YojsonPersistable (struct
+  let of_yojson_exn yojson =
+    let data_str = yojson |> YoJson.member "data" |> StringT.of_yojson_exn in
+    let data_t : t = {data = data_str} in
+    data_t
+
+(*  include (YojsonPersistable (struct
              type nonrec t = t
              let yojsoning = {to_yojson; of_yojson}
-           end) : (PersistableS with type t := t))
+           end) : (PersistableS with type t := t)) *)
 end
 
 
@@ -174,10 +192,10 @@ let mkb_send_data : (string * string * string * string) -> SendDataResult.t Lwt_
     SendDataResult.of_yojson_exn
     (yojson_4args StringT.to_yojson StringT.to_yojson StringT.to_yojson StringT.to_yojson)
 
-let mkb_get_from_latest : (string * string) -> GetDataResult.t Lwt_exn.t =
+let mkb_get_from_latest : (string * string * string) -> GetDataResult.t Lwt_exn.t =
   mkb_json_rpc "get_from_latest"
     GetDataResult.of_yojson_exn
-    (yojson_2args StringT.to_yojson StringT.to_yojson)
+    (yojson_3args StringT.to_yojson StringT.to_yojson StringT.to_yojson)
 
 let mkb_send_key_value : (string * string * string * string) -> SendKeyValueResult.t Lwt_exn.t =
   mkb_json_rpc "send_key_value"
@@ -188,7 +206,6 @@ let mkb_get_key_value : (string * string * string) -> GetKeyValueResult.t Lwt_ex
   mkb_json_rpc "get_key_value"
     GetKeyValueResult.of_yojson_exn
     (yojson_3args StringT.to_yojson StringT.to_yojson StringT.to_yojson)
-
 
 let rec infinite_retry : ('a -> 'b Lwt_exn.t) -> 'a -> 'b Lwt.t =
   fun f x ->
@@ -239,8 +256,7 @@ module TransactionMkbSend = struct
 end
 
 module TransactionMkbGet = struct
-  type t = { value : string
-           ; hash : Digest.t }
+  type t = { value : string }
   [@@deriving yojson]
 end
 
@@ -249,9 +265,9 @@ end
 
 type request_mkb_update =
   | SubmitSequence of (string * Digest.t * TransactionMutualKnowledge.t Lwt.u)
-  | SendKeyValue of (string * string * TransactionMkbSend.t Lwt.u)
-  | GetKey of (string * TransactionMkbSend.t Lwt.u)
-  | GetLatest of (string * string Lwt.u)
+  | SendKeyValue of (string * string * string * TransactionMkbSend.t Lwt.u)
+  | GetKey of (string * string * TransactionMkbGet.t Lwt.u)
+  | GetLatest of (string * string * TransactionMkbGet.t Lwt.u)
 
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -268,37 +284,41 @@ let post_to_mkb_mailbox : string -> Digest.t -> unit Lwt.t =
     return ()
 (*    Lwt.return TransactionMutualKnowledge.{topic = ""; hash = Digest.zero}*)
 
-
-let post_send_key_value_to_mkb_mailbox : string -> string -> unit Lwt.t =
-  fun key value ->
+let post_send_key_value_to_mkb_mailbox : string -> string -> string -> unit Lwt.t =
+  fun username key value ->
   let open Lwt in
-  simple_client request_mkb_update_mailbox
-    (fun (x_resolver : TransactionMkbSend.t Lwt.u) ->
-      SendKeyValue (key, value, x_resolver))
+  let fct = simple_client request_mkb_update_mailbox
+    (fun ((e_user, e_key, e_value), x_resolver : (string * string * string) * TransactionMkbSend.t Lwt.u) ->
+      SendKeyValue (e_user, e_key, e_value, x_resolver)) in
+  fct (username,key,value)
   >>= fun _ -> return ()
 
 
-let post_get_key_to_mkb_mailbox : string -> string Lwt.t =
-  fun key ->
-  simple_client request_mkb_update_mailbox
-    (fun (x_resolver : TransactionMkbSend.t Lwt.u) ->
-      GetKey (key, x_resolver))
+let post_get_key_to_mkb_mailbox : string -> string -> string Lwt.t =
+  fun username key ->
+  let open Lwt in
+  let fct = simple_client request_mkb_update_mailbox
+    (fun ((e_user, e_key), x_resolver : (string * string) * TransactionMkbGet.t Lwt.u) ->
+      GetKey (e_user, e_key, x_resolver)) in
+  fct (username,key)
+  >>= fun x -> return x.value
 
-let post_get_latest_to_mkb_mailbox : string -> string Lwt.t =
-  fun key ->
-  simple_client request_mkb_update_mailbox
-    (fun (x_resolver : TransactionMkbSend.t Lwt.u) ->
-      GetLatest (key, x_resolver))
-
+let post_get_latest_to_mkb_mailbox : string -> string -> string Lwt.t =
+  fun username key ->
+  let open Lwt in
+  let fct = simple_client request_mkb_update_mailbox
+    (fun ((e_user, e_key), x_resolver : (string * string) * TransactionMkbGet.t Lwt.u) ->
+      GetLatest (e_user, e_key, x_resolver)) in
+  fct (username,key)
+  >>= fun x -> return x.value
 
 let db_value_of_mkb_digest :  ('a -> 'b) -> Digest.t -> 'd =
   fun unmarshal_string digest ->
   let open Lwt in
   let e_key = content_addressed_storage_key digest in
-  post_get_key_to_mkb_mailbox e_key
-  >>= fun x -> return unmarshal_string x
-
-
+  let username = "LCFS0001" in
+  post_get_key_to_mkb_mailbox username e_key
+  >>= fun x -> return (unmarshal_string x)
 
 let inner_call_mkb () =
   let open Lwt in
@@ -320,26 +340,26 @@ let inner_call_mkb () =
          hash_ref := new_digest;
          Lwt.wakeup_later notify_u {topic=mkb_rpc_config_v.topic; hash=new_digest};
          inner_loop ())
-    | SendKeyValue (key, value, notify_u) ->
+    | SendKeyValue (username, key, value, notify_u) ->
        set_mkb_username username
        >>= fun () ->
        infinite_retry mkb_send_key_value (mkb_rpc_config_v.topic, username, key, value)
-       >>= fun _ ->
-       Lwt.wakeup_later notify_u ();
+       >>= fun e_result ->
+       Lwt.wakeup_later notify_u {hash = (Digesting.digest_of_string e_result.nature)};
        inner_loop ()
-    | GetKey (key, notify_u) ->
+    | GetKey (username, key, notify_u) ->
        set_mkb_username username
        >>= fun () ->
        infinite_retry mkb_get_key_value (mkb_rpc_config_v.topic, username, key)
        >>= fun x ->
-       Lwt.wakeup_later notify_u x;
+       Lwt.wakeup_later notify_u {value = x.value};
        inner_loop ()
-    | GetLatest (key, notify_u) ->
+    | GetLatest (username, key, notify_u) ->
        set_mkb_username username
        >>= fun () ->
        infinite_retry mkb_get_from_latest (mkb_rpc_config_v.topic, username, key)
        >>= fun x ->
-       Lwt.wakeup_later notify_u x;
+       Lwt.wakeup_later notify_u {value = x.data};
        inner_loop ()
   in inner_loop ()
 
@@ -377,5 +397,4 @@ let ensure_mkb_server () =
                  return ()
   else
     return ()
-
 
