@@ -4,10 +4,10 @@ open Side_chain
 
 open Legilogic_lib
 open Yojsoning
-open Marshaling
 open Action
 open Lwt_exn
 open Signing
+open Ppx_deriving_rlp_runtime.Rlping
 
 type operator_config =
   { nickname : string
@@ -48,8 +48,8 @@ let operator_address =
 
 
 
-let decode_response (unmarshaler : 'a unmarshaler) : (string, 'a or_exn) Lwter.arr =
-  unmarshaler |> Tag.unmarshal_result_or_exn |> unmarshal_string_of_unmarshal |> Lwter.arr
+let decode_response (of_rlp_item : 'a of_rlp_item) : (string, 'a or_exn) Lwter.arr =
+  of_rlp_item |> or_exn_of_rlp |> Lwter.arr
 
 
 (* Queries return JSON *)
@@ -68,7 +68,7 @@ let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =
          >>= fun () ->
          read_string_from_lwt_io_channel in_channel
          >>= fun x ->
-         decode_response yojson_marshaling.unmarshal x)
+         decode_response yojson_rlping.of_rlp_item x)
 
 let post_query_hook = ref post_query_to_server
 
@@ -93,7 +93,7 @@ let post_user_transaction_request_to_server (request : UserTransactionRequest.t 
       >>= fun () ->
       read_string_from_lwt_io_channel in_channel
       >>= fun x ->
-      decode_response TransactionCommitment.unmarshal x)
+      decode_response TransactionCommitment.of_rlp_item x)
 
 let post_user_transaction_request_hook = ref post_user_transaction_request_to_server
 
