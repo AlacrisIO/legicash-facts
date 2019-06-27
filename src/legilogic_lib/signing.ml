@@ -390,6 +390,20 @@ module Test = struct
     List.iter (uncurry register_keypair)
       ["Alice", alice_keys; "Trent", trent_keys; "Bob", bob_keys]
 
+  (* test marshaling and unmarshaling of keys *)
+
+  let%test "unmarshal of marshal alice public" =
+    PublicKey.of_rlp_item (PublicKey.to_rlp_item alice_keys.public_key) = alice_keys.public_key
+
+  let%test "unmarshal of marshal alice private" =
+    PrivateKey.of_rlp_item (PrivateKey.to_rlp_item alice_keys.private_key) = alice_keys.private_key
+
+  let%test "unmarshal of marshal bob public" =
+    PublicKey.of_rlp_item (PublicKey.to_rlp_item bob_keys.public_key) = bob_keys.public_key
+
+  let%test "unmarshal of marshal bob private" =
+    PrivateKey.of_rlp_item (PrivateKey.to_rlp_item bob_keys.private_key) = bob_keys.private_key
+
   (* test validity of digital signatures *)
 
   let%test "register keypairs" =
