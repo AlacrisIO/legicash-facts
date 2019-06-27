@@ -9,10 +9,12 @@ open Action
 open Lwt_exn
 open Json_rpc
 open Trie
+open Hex
 
 open Ethereum_chain
 open Ethereum_json_rpc
 open Ethereum_transaction
+open Ethereum_abi
 
 (* TODO: A much better state machine to get wanted transactions confirmed.
 
@@ -240,10 +242,47 @@ module NonceTracker = struct
   let next address = get () address Next
 end
 
+(* $L Make auctions return only the transaction fee rather than the Bidder himself.
+      Are we not doing multiple transactions at once? I'll assume not.
+      Where do I get other information that I'll need: maxValue, deadline? Query for start?
+      Should I query for auction information in here?
+      >> Probably create and pass a User struct instead of sender, value, gas_limit?
+      >> Query for Auction Environment stuff.
+      >> Educated guess at probabilities, then calculate *)
+
+exception All_bids_none
+
+let get_gases : Address.t -> TokenAmount.t -> Nonce.t -> Posting.ResultBids.t Lwt_exn.t =
+  fun sender gas_limit nonce ->
+    (* let txPool = Posting.translate_to_posting_txPool (Lwt_exn.run txpool_content ()) in *)
+    txpool_content () >>= fun txPool ->
+    let txPool = Posting.translate_to_posting_txPool txPool in
+    (* $L For now, I will Translate Ethereum_json_rpc.TxPoolContent into
+      Posting.AuctionEnvironment. *)
+    let auction = Posting.AuctionEnvironment.{ block= Posting.userStartBlock
+                                             ; txPool= txPool
+                                             ; prob= Posting.fakeProbs } in
+    let user = Posting.User.{ id= sender
+                            ; nonce= nonce
+                            ; gasLimits= [gas_limit]
+                            ; maxValue= Posting.userMaxValue
+                            ; start= Posting.userStartBlock
+                            ; deadline= Posting.userDeadline
+                            ; distance= Posting.Distance.maybe_update Revision.zero Posting.userDeadline
+                            ; previous= [] } in
+    return (Posting.run_post auction user)
+
 let make_tx_header (sender, value, gas_limit) : TxHeader.t Lwt_exn.t =
   (* TODO: get gas price and nonce from geth *)
-  eth_gas_price () >>= fun gas_price ->
   of_lwt NonceTracker.next sender >>= fun nonce ->
+  get_gases sender gas_limit nonce >>= fun resultBids ->
+  (if resultBids.index < 0 then
+    fail All_bids_none
+  else
+    match List.nth resultBids.bids resultBids.index with
+    | Some l -> return (List.nth l 0)
+    | None   -> failwith "This shouldn't happen") >>= fun gas_price ->
+  (* eth_gas_price () >>= fun gas_price -> *)
   Logging.log "ETHUSR: make_tx_header sender=%s value=%s gas_limit=%s gas_price=%s nonce=%s" (Address.to_0x sender) (TokenAmount.to_string value) (TokenAmount.to_string gas_limit) (TokenAmount.to_string gas_price) (Nonce.to_0x nonce);
   return TxHeader.{sender; nonce; gas_price; gas_limit; value}
 
@@ -387,6 +426,7 @@ module TransactionTracker = struct
         | Ongoing ongoing ->
           (match ongoing with
            | Wanted {operation; value; gas_limit} ->
+             (* $L Confused about how to retry here, are we updating during the retry below? *)
              make_signed_transaction key.Key.user operation value gas_limit
              >>= (function
                | Ok (t,c) -> OngoingTransactionStatus.Signed (t,c) |> continue
@@ -394,6 +434,21 @@ module TransactionTracker = struct
            | Signed (transaction, signed) ->
               Logging.log "Ethereum_User: Signed";
              (transaction, signed)
+             (* |> (* In future, maybe pass auction and user? For now, build agan and use posting function *)
+                              (trying send_and_confirm_transaction
+                               >>> (function
+                                 | Ok receipt ->
+                                   Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
+                                   return (Ok receipt)
+                                 | Error NonceTooLow ->
+                                   Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
+                                   return (Error NonceTooLow)
+                                 | Error TransactionRejected ->
+                                   Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
+                                   Lwt_exn.return (Error TransactionRejected)
+                                 | Error e ->
+                                   Logging.log "ETHUSR: TransactionTracker, Error e";
+                                   fail e)) *)
              |> Lwt_exn.(run_lwt
                            (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
                               (trying send_and_confirm_transaction
@@ -669,7 +724,7 @@ module Test = struct
                info.to_ = Some contract_address && info.input = call_input) ;
     return true
 
-  (* TODO re-enable
+  (* TODO re-enable *)
   let%test "Ethereum-testnet-transfer" =
     Logging.log "\nTEST: Ethereum-testnet-transfer\n";
     Lwt_exn.run
@@ -683,9 +738,7 @@ module Test = struct
         >>= fun (transaction, _signed_tx, TransactionReceipt.{transaction_hash}) ->
         check_transaction_execution transaction_hash transaction)
       ()
-      *)
 
-  (*
   let test_contract_code () =
     "contracts/test/HelloWorld.bin"
     |> Config.get_build_filename
@@ -696,9 +749,8 @@ module Test = struct
   let list_only_element = function
     | [x] -> x
     | _ -> Lib.bork "list isn't a singleton"
-  *)
 
-(* TODO re-enable
+(* TODO re-enable *)
   let%test "Ethereum-testnet-contract-failure" =
     (Logging.log "\nTEST: contract-failure-on-Ethereum-testnet!!\n";
     Lwt_exn.run
@@ -718,9 +770,8 @@ module Test = struct
         | Error TransactionFailed (_, _) -> return true
         | Error _ -> return false))))
     ()
- *)
 
-  (* TODO re-enable
+  (* TODO re-enable *)
   let%test "Ethereum-testnet-contract-success" =
     Logging.log "\nTEST: contract-success-on-Ethereum-testnet!!\n";
     Logging.log "SUBTEST: create the contract\n";
@@ -788,5 +839,4 @@ module Test = struct
          (* TODO: add a stateful function, and check the behavior of eth_call wrt block_number *)
          return true)
      ()
-     *)
 end

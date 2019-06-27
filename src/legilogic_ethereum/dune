@@ -15,7 +15,8 @@
    ethereum_user
    side_chain_server_config
    ethereum_patricia_merkle
-   test_txpool_content)
+   test_txpool_content
+   posting)
  (preprocess (
    pps
    ppx_deriving.std
@@ -35,7 +36,8 @@
    ppx_deriving_yojson.runtime
    secp256k1
    threads
-   yojson)
+   yojson
+   batteries)
  (inline_tests))
 
 (executable

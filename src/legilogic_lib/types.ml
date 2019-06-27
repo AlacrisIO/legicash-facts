@@ -18,7 +18,7 @@ module DBInt(U : Integer.UIntS) = struct
            end) : PersistableS with type t := t)
 end
 
-module UInt8  = DBInt(Integer.UInt8)
+module UInt8   = DBInt(Integer.UInt8)
 module UInt16  = DBInt(Integer.UInt16)
 module UInt32  = DBInt(Integer.UInt32)
 module UInt64  = DBInt(Integer.UInt64)
