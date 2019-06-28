@@ -2,9 +2,10 @@ open Lib
 open Action
 open Yojsoning
 open Json_rpc
-open Types
+(*open Types*)
 open Logging
 open Storage
+open Digesting
 
 type mkb_rpc_config_type =
   { use_mkb : bool
@@ -26,6 +27,15 @@ type mkb_rpc_config_type =
 [@@deriving of_yojson]
 
 let username_set = ref false
+
+
+module StringO = struct
+  type t = string
+  [@@deriving rlp, yojson]
+  let of_yojson_exn yojson =
+    let nature_str = yojson |> string_of_yojson in
+    nature_str
+end
 
 (*
   GENERAL CODE FOR ACCESSING THE MKB
@@ -79,7 +89,7 @@ module SendKeyValueResult = struct
   type t = { nature : string }
   [@@deriving yojson {strict = false}]
   let of_yojson_exn yojson =
-    let nature_str = yojson |> YoJson.member "nature" |> StringT.of_yojson_exn in
+    let nature_str : string = yojson |> YoJson.member "nature" |> StringO.of_yojson_exn in
     let nature_t : t = {nature = nature_str} in
     nature_t
 (*  include (YojsonPersistable (struct
@@ -93,8 +103,8 @@ module GetKeyValueResult = struct
            ; value : string }
   [@@deriving yojson {strict = false}]
   let of_yojson_exn yojson =
-    let nature_str : string = yojson |> YoJson.member "nature" |> StringT.of_yojson_exn in
-    let value_str : string = yojson |> YoJson.member "value" |> StringT.of_yojson_exn in
+    let nature_str : string = yojson |> YoJson.member "nature" |> StringO.of_yojson_exn in
+    let value_str : string = yojson |> YoJson.member "value" |> StringO.of_yojson_exn in
     let data_t : t = {nature = nature_str; value = value_str} in
     data_t
 (*  include (YojsonPersistable (struct
@@ -109,8 +119,8 @@ module SendDataResult = struct
            }
   [@@deriving yojson {strict = false}]
   let of_yojson_exn yojson =
-    let nature_str = yojson |> YoJson.member "nature" |> StringT.of_yojson_exn in
-    let hash_str = yojson |> YoJson.member "hash" |> StringT.of_yojson_exn in
+    let nature_str = yojson |> YoJson.member "nature" |> StringO.of_yojson_exn in
+    let hash_str = yojson |> YoJson.member "hash" |> StringO.of_yojson_exn in
     let data_t : t = {nature = nature_str; hash = hash_str} in
     data_t
 (*  include (YojsonPersistable (struct
@@ -159,38 +169,38 @@ let get_mkb_topic_description : mkb_rpc_config_type -> MkbTopicDescription.t =
 
 let mkb_topic_creation =
   mkb_json_rpc "topic_creation"
-    StringT.of_yojson_exn
+    StringO.of_yojson_exn
     (yojson_singlearg MkbTopicDescription.to_yojson)
 
 let mkb_add_registrar =
   mkb_json_rpc "add_registrar"
-    StringT.of_yojson_exn
-    (yojson_2args StringT.to_yojson StringT.to_yojson)
+    StringO.of_yojson_exn
+    (yojson_2args StringO.to_yojson StringO.to_yojson)
 
 let mkb_add_account =
   mkb_json_rpc "add_account"
     SendDataResult.of_yojson_exn
-    (yojson_2args StringT.to_yojson StringT.to_yojson)
+    (yojson_2args StringO.to_yojson StringO.to_yojson)
 
 let mkb_send_data : (string * string * string * string) -> SendDataResult.t Lwt_exn.t =
   mkb_json_rpc "send_data"
     SendDataResult.of_yojson_exn
-    (yojson_4args StringT.to_yojson StringT.to_yojson StringT.to_yojson StringT.to_yojson)
+    (yojson_4args StringO.to_yojson StringO.to_yojson StringO.to_yojson StringO.to_yojson)
 
 let mkb_get_from_latest : (string * string * string) -> GetKeyValueResult.t Lwt_exn.t =
   mkb_json_rpc "get_from_latest"
     GetKeyValueResult.of_yojson_exn
-    (yojson_3args StringT.to_yojson StringT.to_yojson StringT.to_yojson)
+    (yojson_3args StringO.to_yojson StringO.to_yojson StringO.to_yojson)
 
 let mkb_send_key_value : (string * string * string * string) -> SendKeyValueResult.t Lwt_exn.t =
   mkb_json_rpc "send_key_value"
     SendKeyValueResult.of_yojson_exn
-    (yojson_4args StringT.to_yojson StringT.to_yojson StringT.to_yojson StringT.to_yojson)
+    (yojson_4args StringO.to_yojson StringO.to_yojson StringO.to_yojson StringO.to_yojson)
 
 let mkb_get_key_value : (string * string * string) -> GetKeyValueResult.t Lwt_exn.t =
   mkb_json_rpc "get_key_value"
     GetKeyValueResult.of_yojson_exn
-    (yojson_3args StringT.to_yojson StringT.to_yojson StringT.to_yojson)
+    (yojson_3args StringO.to_yojson StringO.to_yojson StringO.to_yojson)
 
   
 (*
@@ -234,12 +244,12 @@ module TransactionMutualKnowledge = struct
   type t = { topic : string
            ; hash : Digest.t
            }
-  [@@deriving yojson]
+             (*  [@@deriving yojson]*)
 end
 
 module TransactionMkbSend = struct
   type t = { hash : Digest.t }
-  [@@deriving yojson]
+             (*  [@@deriving yojson]*)
 end
 
 module TransactionMkbGet = struct
@@ -257,6 +267,7 @@ type request_mkb_update =
   | GetLatest of (string * string * TransactionMkbGet.t OrExn.t Lwt.u)
 
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
+
 
 let post_to_mkb_mailbox : string -> Digest.t -> unit Lwt.t =
   fun username digest ->
@@ -300,9 +311,9 @@ let post_get_latest_to_mkb_mailbox : string -> string -> string Lwt_exn.t =
   >>= fun x -> return x.value
 
 let db_value_of_mkb_digest :  ('a -> 'b) -> Digest.t -> 'd =
-  fun unmarshal_string digest ->
+  fun unmarshal_string (digest : Digest.t) ->
   let open Lwt_exn in
-  let e_key = content_addressed_storage_key digest in
+  let e_key : string = content_addressed_storage_key digest in
   let username = "LCFS0001" in
   post_get_key_to_mkb_mailbox username e_key
   >>= fun x -> return (unmarshal_string x)
@@ -320,7 +331,6 @@ let get_transactionmkbget : GetKeyValueResult.t OrExn.t -> TransactionMkbGet.t O
   match receipt_exn with
   | Ok receipt -> Ok {value = receipt.value}
   | Error e -> Error e
-
 
 let inner_call_mkb () =
   let open Lwt in

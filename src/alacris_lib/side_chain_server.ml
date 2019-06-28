@@ -85,16 +85,23 @@ let load_operator_state address =
   if side_chain_server_log then
     log "load_operator_state after the OperatorState.load";
   return x
-  >>= (function
-       | Operator_not_found _ ->
-          if side_chain_server_log then
-            log "Side chain not found, generating a new demo side chain";
-          let initial_state = initial_operator_state address in
-          OperatorState.save initial_state
-          >>= Db.commit (* TODO CLEARING *)
-          >>= fun () ->
-          Lwt_exn.return initial_state
+  >>= fun receipt_exn ->
+  (match receipt_exn with
+   | Ok x -> (if side_chain_server_log then
+                log "Side chain found, It has been successfully loaded";
+              Lwt_exn.return x)
+   | Error e ->
+      (match e with
+       |  Operator_not_found _ ->
+           if side_chain_server_log then
+             log "Side chain not found, generating a new demo side chain";
+           let initial_state = initial_operator_state address in
+           OperatorState.save initial_state
+           >>= Db.commit (* TODO CLEARING *)
+           >>= fun () ->
+           Lwt_exn.return initial_state
        | e -> fail e)
+  )
   >>= fun operator_state ->
   if side_chain_server_log then
     log "Done loading side chain state";

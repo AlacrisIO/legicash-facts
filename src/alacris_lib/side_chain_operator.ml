@@ -78,7 +78,7 @@ module OperatorState = struct
       log "side_chain_operator, save, step 3";
     return ()
   let load operator_address =
-    let open Lwt_exn in
+    let open Lwt in
     let username = "LCFS0001" in
     let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
     if side_chain_operator_log then
@@ -88,14 +88,12 @@ module OperatorState = struct
          log "side_chain_operator, load, step 2";
        let key = operator_address |> operator_state_key in
        Mkb_json_rpc.post_get_latest_to_mkb_mailbox username key
-       >>= fun res ->
-       match res with
-       | Ok x -> x
-       | Error e -> raise (Operator_not_found
+       >>= fun res_exn ->
+       match res_exn with
+       | Ok x -> Mkb_json_rpc.db_value_of_mkb_digest unmarshal_string (Digest.unmarshal_string x)
+       | Error _ -> raise (Operator_not_found
                              (Printf.sprintf "Operator %s not found in the database"
                                 (Address.to_0x operator_address)))
-       >>= fun x ->
-       db_value_of_mkb_digest unmarshal_string (Digest.unmarshal_string x)
        >>= fun x ->
        if side_chain_operator_log then
          log "side_chain_operator, load, step 2";
@@ -103,17 +101,17 @@ module OperatorState = struct
     else
       (if side_chain_operator_log then
          log "side_chain_operator, load, step 3";
-       operator_address |> operator_state_key |> Db.get
-       |> (function
-           | Some x -> x
-           | None -> raise (Operator_not_found
-                              (Printf.sprintf "Operator %s not found in the database"
-                                 (Address.to_0x operator_address))))
-       |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string
-       |> fun x ->
-          if side_chain_operator_log then
-            log "side_chain_operator, load, step 4";
-          return x)
+       let operator_hash = operator_address |> operator_state_key |> Db.get in
+       match operator_hash with
+       | None -> let ret_val = Error (Operator_not_found
+                                     (Printf.sprintf "Operator %s not found in the database"
+                                        (Address.to_0x operator_address))) in
+                 Lwt.return ret_val
+       | Some x -> (if side_chain_operator_log then
+                      log "side_chain_operator, Some case";
+                    let operator_state = x |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string in
+                    Lwt_exn.return operator_state)
+      )
 end
 
 (* TODO:
@@ -784,14 +782,15 @@ let initial_operator_state address =
 
 (* TODO: make it a PersistentActivity. *)
 (* TODO: don't create a new operator unless explicitly requested? *)
-let start_operator address =
-  let open Lwt_exn in
+let rec start_operator : Address.t -> unit Lwt_exn.t =
+  fun address ->
+  let open Lwt in
   if side_chain_operator_log then
     log "Beginning of start_operator in side_chain_operator";
   match !the_operator_service_ref with
   | Some x ->
      if Address.equal x.address address then
-       return ()
+       Lwt_exn.return ()
      else
        bork "Cannot start a operator service for address %s because there's already one for %s"
          (Address.to_0x address) (Address.to_0x x.address)
@@ -799,16 +798,19 @@ let start_operator address =
      if side_chain_operator_log then
        log "Beginning of start_operator, None case";
      OperatorState.load address
-     >>= function
-     | Ok x -> return x
-     | Error _ -> return (initial_operator_state address)
-     >>= fun operator_state ->
+     >>= (fun operator_state_exn ->
+       match operator_state_exn with
+       | Ok x -> Lwt.return x
+       | Error _ -> Lwt.return (initial_operator_state address))
+     >>= fun (operator_state : OperatorState.t) ->
      if side_chain_operator_log then
        log "After call to OperatorState.load in start_operator";
      let state_ref = ref operator_state in
      the_operator_service_ref := Some { address; state_ref };
-     Lwt.async (const state_ref >>> inner_transaction_request_loop);
-     return ()
+     Lwt.async (fun () -> inner_transaction_request_loop state_ref);
+     Lwt_exn.return ()
+
+
 
 
 (* Need to create a thread, persistent activity
@@ -818,12 +820,13 @@ let start_operator address =
    Advanced TODO: update as the auction plays out.
  *)
 module Test = struct
-  open Signing.Test
+  (*  open Signing.Test*)
 
   let get_operator_state = get_operator_state
 
   (* a sample operator state *)
 
+(*
   let%test "db-save-retrieve" =
     (* test whether retrieving a saved operator state yields the same state
        here, the account and confirmation maps are empty, so it doesn't really
@@ -842,4 +845,6 @@ module Test = struct
          let retrieved_state = OperatorState.load trent_address in
          Lwt.return (OperatorState.to_yojson_string retrieved_state
                      = OperatorState.to_yojson_string trent_state))
+ *)
+
 end
