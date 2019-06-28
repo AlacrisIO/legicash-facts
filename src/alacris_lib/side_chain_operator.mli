@@ -20,7 +20,7 @@ module OperatorState : sig
            ; fee_schedule: OperatorFeeSchedule.t }
   [@@deriving lens { prefix=true }]
   include PersistableS with type t := t
-  val load : Address.t -> t
+  val load : Address.t -> t Lwt_exn.t
 end
 
 val initial_operator_state : Address.t -> OperatorState.t

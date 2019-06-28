@@ -120,21 +120,6 @@ module SendDataResult = struct
 end
 
 
-module GetDataResult = struct
-  type t = { data : string }
-  [@@deriving yojson {strict = false}]
-  let of_yojson_exn yojson =
-    let data_str = yojson |> YoJson.member "data" |> StringT.of_yojson_exn in
-    let data_t : t = {data = data_str} in
-    data_t
-
-(*  include (YojsonPersistable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson; of_yojson}
-           end) : (PersistableS with type t := t)) *)
-end
-
-
 
 
 
@@ -192,9 +177,9 @@ let mkb_send_data : (string * string * string * string) -> SendDataResult.t Lwt_
     SendDataResult.of_yojson_exn
     (yojson_4args StringT.to_yojson StringT.to_yojson StringT.to_yojson StringT.to_yojson)
 
-let mkb_get_from_latest : (string * string * string) -> GetDataResult.t Lwt_exn.t =
+let mkb_get_from_latest : (string * string * string) -> GetKeyValueResult.t Lwt_exn.t =
   mkb_json_rpc "get_from_latest"
-    GetDataResult.of_yojson_exn
+    GetKeyValueResult.of_yojson_exn
     (yojson_3args StringT.to_yojson StringT.to_yojson StringT.to_yojson)
 
 let mkb_send_key_value : (string * string * string * string) -> SendKeyValueResult.t Lwt_exn.t =
@@ -207,6 +192,8 @@ let mkb_get_key_value : (string * string * string) -> GetKeyValueResult.t Lwt_ex
     GetKeyValueResult.of_yojson_exn
     (yojson_3args StringT.to_yojson StringT.to_yojson StringT.to_yojson)
 
+  
+(*
 let rec infinite_retry : ('a -> 'b Lwt_exn.t) -> 'a -> 'b Lwt.t =
   fun f x ->
   Lwt.bind (f x)
@@ -215,21 +202,21 @@ let rec infinite_retry : ('a -> 'b Lwt_exn.t) -> 'a -> 'b Lwt.t =
   | _ -> if mkb_json_rpc_log then
            log "Reiterating operation of function f with value x";
          infinite_retry f x)
+ *)
 
-
-let set_mkb_username : string -> unit Lwt.t =
+let set_mkb_username : string -> unit Lwt_exn.t =
   fun username ->
-  let open Lwt in
+  let open Lwt_exn in
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
   if !username_set then
     (username_set := true;
-     infinite_retry mkb_add_account (mkb_rpc_config_v.topic, username)
+     mkb_add_account (mkb_rpc_config_v.topic, username)
      >>= fun _ -> return ())
   else
     return ()
 
-
-let rec mkb_send_data_iterate_fail : (string * string * string * string) -> SendDataResult.t Lwt.t =
+(*
+let rec mkb_send_data_iterate_fail : (string * string * string * string) -> SendDataResult.t Lwt_exn.t =
   fun x ->
   Lwt.bind (mkb_send_data x)
   (function
@@ -237,7 +224,7 @@ let rec mkb_send_data_iterate_fail : (string * string * string * string) -> Send
   | _ -> if mkb_json_rpc_log then
            log "Reiterating mkb_send_data in case of failure";
          mkb_send_data_iterate_fail x)
-
+ *)
 
 (*
   The permanent system
@@ -264,10 +251,10 @@ end
 
 
 type request_mkb_update =
-  | SubmitSequence of (string * Digest.t * TransactionMutualKnowledge.t Lwt.u)
-  | SendKeyValue of (string * string * string * TransactionMkbSend.t Lwt.u)
-  | GetKey of (string * string * TransactionMkbGet.t Lwt.u)
-  | GetLatest of (string * string * TransactionMkbGet.t Lwt.u)
+  | SubmitSequence of (string * Digest.t * TransactionMutualKnowledge.t OrExn.t Lwt.u)
+  | SendKeyValue of (string * string * string * TransactionMkbSend.t OrExn.t Lwt.u)
+  | GetKey of (string * string * TransactionMkbGet.t OrExn.t Lwt.u)
+  | GetLatest of (string * string * TransactionMkbGet.t OrExn.t Lwt.u)
 
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -277,48 +264,63 @@ let post_to_mkb_mailbox : string -> Digest.t -> unit Lwt.t =
   let open Lwt in
   if mkb_rpc_config_v.use_mkb then
     simple_client request_mkb_update_mailbox
-      (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
+      (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t OrExn.t Lwt.u)) ->
         SubmitSequence (username, digest, x_resolver)) digest
     >>= fun _ -> return ()
   else
     return ()
 (*    Lwt.return TransactionMutualKnowledge.{topic = ""; hash = Digest.zero}*)
 
-let post_send_key_value_to_mkb_mailbox : string -> string -> string -> unit Lwt.t =
+let post_send_key_value_to_mkb_mailbox : string -> string -> string -> unit Lwt_exn.t =
   fun username key value ->
-  let open Lwt in
+  let open Lwt_exn in
   let fct = simple_client request_mkb_update_mailbox
-    (fun ((e_user, e_key, e_value), x_resolver : (string * string * string) * TransactionMkbSend.t Lwt.u) ->
+    (fun ((e_user, e_key, e_value), x_resolver : (string * string * string) * TransactionMkbSend.t OrExn.t Lwt.u) ->
       SendKeyValue (e_user, e_key, e_value, x_resolver)) in
   fct (username,key,value)
   >>= fun _ -> return ()
 
 
-let post_get_key_to_mkb_mailbox : string -> string -> string Lwt.t =
+let post_get_key_to_mkb_mailbox : string -> string -> string Lwt_exn.t =
   fun username key ->
-  let open Lwt in
+  let open Lwt_exn in
   let fct = simple_client request_mkb_update_mailbox
-    (fun ((e_user, e_key), x_resolver : (string * string) * TransactionMkbGet.t Lwt.u) ->
+    (fun ((e_user, e_key), x_resolver : (string * string) * TransactionMkbGet.t OrExn.t Lwt.u) ->
       GetKey (e_user, e_key, x_resolver)) in
   fct (username,key)
   >>= fun x -> return x.value
 
-let post_get_latest_to_mkb_mailbox : string -> string -> string Lwt.t =
+let post_get_latest_to_mkb_mailbox : string -> string -> string Lwt_exn.t =
   fun username key ->
-  let open Lwt in
+  let open Lwt_exn in
   let fct = simple_client request_mkb_update_mailbox
-    (fun ((e_user, e_key), x_resolver : (string * string) * TransactionMkbGet.t Lwt.u) ->
+    (fun ((e_user, e_key), x_resolver : (string * string) * TransactionMkbGet.t OrExn.t Lwt.u) ->
       GetLatest (e_user, e_key, x_resolver)) in
   fct (username,key)
   >>= fun x -> return x.value
 
 let db_value_of_mkb_digest :  ('a -> 'b) -> Digest.t -> 'd =
   fun unmarshal_string digest ->
-  let open Lwt in
+  let open Lwt_exn in
   let e_key = content_addressed_storage_key digest in
   let username = "LCFS0001" in
   post_get_key_to_mkb_mailbox username e_key
   >>= fun x -> return (unmarshal_string x)
+
+
+let get_value : 'a OrExn.t -> 'a =
+  fun a_res ->
+  match a_res with
+  | Ok x -> x
+  | Error _ -> bork "Error getting the value"
+
+
+let get_transactionmkbget : GetKeyValueResult.t OrExn.t -> TransactionMkbGet.t OrExn.t =
+  fun receipt_exn ->
+  match receipt_exn with
+  | Ok receipt -> Ok {value = receipt.value}
+  | Error e -> Error e
+
 
 let inner_call_mkb () =
   let open Lwt in
@@ -329,37 +331,41 @@ let inner_call_mkb () =
     fun () ->
     Lwt_mvar.take request_mkb_update_mailbox
     >>= function
-    | SubmitSequence ((username, new_entry, notify_u) : (string * Digest.t * TransactionMutualKnowledge.t Lwt.u)) ->
+    | SubmitSequence ((username, new_entry, notify_u) : (string * Digest.t * TransactionMutualKnowledge.t OrExn.t Lwt.u)) ->
        set_mkb_username username
-       >>= fun () ->
-       mkb_send_data_iterate_fail (mkb_rpc_config_v.topic, username,
-                                   (Digest.to_0x !hash_ref),
-                                   (Digest.to_0x new_entry))
-       >>= (fun x ->
-         let new_digest = Digest.of_0x x.hash in
-         hash_ref := new_digest;
-         Lwt.wakeup_later notify_u {topic=mkb_rpc_config_v.topic; hash=new_digest};
-         inner_loop ())
-    | SendKeyValue (username, key, value, notify_u) ->
+       >>= fun _ ->
+       mkb_send_data (mkb_rpc_config_v.topic, username,(Digest.to_0x !hash_ref),(Digest.to_0x new_entry))
+       >>= fun receipt_exn ->
+       let receipt = get_value receipt_exn in
+       let new_digest = Digest.of_0x receipt.hash in
+       hash_ref := new_digest;
+       let ret_val : TransactionMutualKnowledge.t OrExn.t = Ok {topic=mkb_rpc_config_v.topic; hash=new_digest} in
+       Lwt.wakeup_later notify_u ret_val;
+       inner_loop ()
+    | SendKeyValue ((username, key, value, notify_u) : (string * string * string * TransactionMkbSend.t OrExn.t Lwt.u)) ->
        set_mkb_username username
-       >>= fun () ->
-       infinite_retry mkb_send_key_value (mkb_rpc_config_v.topic, username, key, value)
-       >>= fun e_result ->
-       Lwt.wakeup_later notify_u {hash = (Digesting.digest_of_string e_result.nature)};
+       >>= fun _ ->
+       mkb_send_key_value (mkb_rpc_config_v.topic, username, key, value)
+       >>= fun receipt_exn ->
+       let receipt = get_value receipt_exn in
+       let ret_val : TransactionMkbSend.t OrExn.t = Ok {hash = (Digesting.digest_of_string receipt.nature)} in
+       Lwt.wakeup_later notify_u ret_val;
        inner_loop ()
     | GetKey (username, key, notify_u) ->
        set_mkb_username username
-       >>= fun () ->
-       infinite_retry mkb_get_key_value (mkb_rpc_config_v.topic, username, key)
-       >>= fun x ->
-       Lwt.wakeup_later notify_u {value = x.value};
+       >>= fun _ ->
+       mkb_get_key_value (mkb_rpc_config_v.topic, username, key)
+       >>= fun receipt_exn ->
+       let ret_value = get_transactionmkbget receipt_exn in
+       Lwt.wakeup_later notify_u ret_value;
        inner_loop ()
     | GetLatest (username, key, notify_u) ->
        set_mkb_username username
-       >>= fun () ->
-       infinite_retry mkb_get_from_latest (mkb_rpc_config_v.topic, username, key)
-       >>= fun x ->
-       Lwt.wakeup_later notify_u {value = x.data};
+       >>= fun _ ->
+       mkb_get_from_latest (mkb_rpc_config_v.topic, username, key)
+       >>= fun receipt_exn ->
+       let ret_value = get_transactionmkbget receipt_exn in
+       Lwt.wakeup_later notify_u ret_value;
        inner_loop ()
   in inner_loop ()
 

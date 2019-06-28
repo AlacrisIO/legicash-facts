@@ -78,22 +78,28 @@ module OperatorState = struct
       log "side_chain_operator, save, step 3";
     return ()
   let load operator_address =
+    let open Lwt_exn in
+    let username = "LCFS0001" in
+    let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
     if side_chain_operator_log then
       log "side_chain_operator, load, step 1, use_mkb=%B" mkb_rpc_config_v.use_mkb;
     if mkb_rpc_config_v.use_mkb then
       (if side_chain_operator_log then
          log "side_chain_operator, load, step 2";
-       operator_address |> operator_state_key |> Mkb_json_rpc.post_get_latest_to_mkb_mailbox
-       |> (function
-           | Some x -> x
-           | None -> raise (Operator_not_found
-                              (Printf.sprintf "Operator %s not found in the database"
-                                 (Address.to_0x operator_address))))
-       |> Digest.unmarshal_string |> db_value_of_mkb_digest unmarshal_string
-       |> fun x ->
-          if side_chain_operator_log then
-            log "side_chain_operator, load, step 2";
-          x)
+       let key = operator_address |> operator_state_key in
+       Mkb_json_rpc.post_get_latest_to_mkb_mailbox username key
+       >>= fun res ->
+       match res with
+       | Ok x -> x
+       | Error e -> raise (Operator_not_found
+                             (Printf.sprintf "Operator %s not found in the database"
+                                (Address.to_0x operator_address)))
+       >>= fun x ->
+       db_value_of_mkb_digest unmarshal_string (Digest.unmarshal_string x)
+       >>= fun x ->
+       if side_chain_operator_log then
+         log "side_chain_operator, load, step 2";
+       x)
     else
       (if side_chain_operator_log then
          log "side_chain_operator, load, step 3";
@@ -107,7 +113,7 @@ module OperatorState = struct
        |> fun x ->
           if side_chain_operator_log then
             log "side_chain_operator, load, step 4";
-          x)
+          return x)
 end
 
 (* TODO:
@@ -792,20 +798,17 @@ let start_operator address =
   | None ->
      if side_chain_operator_log then
        log "Beginning of start_operator, None case";
-     let operator_state =
-       (* TODO: don't create a new operator unless explicitly requested? *)
-       try
-         (if side_chain_operator_log then
-            log "Before call to OperatorState.load in start_operator";
-          OperatorState.load address)
-       with Not_found -> initial_operator_state address
-     in
+     OperatorState.load address
+     >>= function
+     | Ok x -> return x
+     | Error _ -> return (initial_operator_state address)
+     >>= fun operator_state ->
      if side_chain_operator_log then
        log "After call to OperatorState.load in start_operator";
      let state_ref = ref operator_state in
      the_operator_service_ref := Some { address; state_ref };
      Lwt.async (const state_ref >>> inner_transaction_request_loop);
-     Lwt_exn.return ()
+     return ()
 
 
 (* Need to create a thread, persistent activity

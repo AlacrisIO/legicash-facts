@@ -79,23 +79,22 @@ let load_operator_state address =
   Db.check_connection ();
   if side_chain_server_log then
     log "load_operator_state before the OperatorState.load";
-  trying (catching_arr OperatorState.load) address
+  let open Lwt in
+  OperatorState.load address
   >>= fun x ->
   if side_chain_server_log then
     log "load_operator_state after the OperatorState.load";
   return x
-  >>= handling
-        (function
-         | Operator_not_found _ ->
-            if side_chain_server_log then
-              log "Side chain not found, generating a new demo side chain";
-            let initial_state = initial_operator_state address in
-            let open Lwt in
-            OperatorState.save initial_state
-            >>= Db.commit
-            >>= fun () ->
-            Lwt_exn.return initial_state
-         | e -> fail e)
+  >>= (function
+       | Operator_not_found _ ->
+          if side_chain_server_log then
+            log "Side chain not found, generating a new demo side chain";
+          let initial_state = initial_operator_state address in
+          OperatorState.save initial_state
+          >>= Db.commit (* TODO CLEARING *)
+          >>= fun () ->
+          Lwt_exn.return initial_state
+       | e -> fail e)
   >>= fun operator_state ->
   if side_chain_server_log then
     log "Done loading side chain state";
