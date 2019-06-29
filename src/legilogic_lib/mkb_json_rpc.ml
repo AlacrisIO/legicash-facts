@@ -203,7 +203,6 @@ let mkb_get_key_value : (string * string * string) -> GetKeyValueResult.t Lwt_ex
     (yojson_3args StringO.to_yojson StringO.to_yojson StringO.to_yojson)
 
   
-(*
 let rec infinite_retry : ('a -> 'b Lwt_exn.t) -> 'a -> 'b Lwt.t =
   fun f x ->
   Lwt.bind (f x)
@@ -212,7 +211,6 @@ let rec infinite_retry : ('a -> 'b Lwt_exn.t) -> 'a -> 'b Lwt.t =
   | _ -> if mkb_json_rpc_log then
            log "Reiterating operation of function f with value x";
          infinite_retry f x)
- *)
 
 let set_mkb_username : string -> unit Lwt_exn.t =
   fun username ->
@@ -282,14 +280,15 @@ let post_to_mkb_mailbox : string -> Digest.t -> unit Lwt.t =
     return ()
 (*    Lwt.return TransactionMutualKnowledge.{topic = ""; hash = Digest.zero}*)
 
-let post_send_key_value_to_mkb_mailbox : string -> string -> string -> unit Lwt_exn.t =
-  fun username key value ->
+let post_send_key_value_to_mkb_mailbox : (string * string * string) -> unit Lwt_exn.t =
+  fun (username,key,value) ->
   let open Lwt_exn in
   let fct = simple_client request_mkb_update_mailbox
     (fun ((e_user, e_key, e_value), x_resolver : (string * string * string) * TransactionMkbSend.t OrExn.t Lwt.u) ->
       SendKeyValue (e_user, e_key, e_value, x_resolver)) in
   fct (username,key,value)
   >>= fun _ -> return ()
+
 
 
 let post_get_key_to_mkb_mailbox : string -> string -> string Lwt_exn.t =
@@ -313,9 +312,9 @@ let post_get_latest_to_mkb_mailbox : string -> string -> string Lwt_exn.t =
 let db_value_of_mkb_digest :  ('a -> 'b) -> Digest.t -> 'd =
   fun unmarshal_string (digest : Digest.t) ->
   let open Lwt_exn in
+  let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
   let e_key : string = content_addressed_storage_key digest in
-  let username = "LCFS0001" in
-  post_get_key_to_mkb_mailbox username e_key
+  post_get_key_to_mkb_mailbox mkb_rpc_config_v.username e_key
   >>= fun x -> return (unmarshal_string x)
 
 

@@ -60,6 +60,15 @@ let db_value_of_digest unmarshal_string digest =
   u
   (*  digest |> db_string_of_digest |> unmarshal_string *)
 
+let saving_function : string -> string -> unit Lwt.t =
+  fun key value ->
+  let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
+  if mkb_rpc_config_v.use_mkb then
+    Mkb_json_rpc.infinite_retry Mkb_json_rpc.post_send_key_value_to_mkb_mailbox (mkb_rpc_config_v.username,key,value)
+  else
+    Db.put key value
+
+
 (** TODO: have a version that computes the digest from the marshal_string *)
 (** Have both content- and intent- addressed storage in the same framework *)
 let saving_walker methods context x =
@@ -84,12 +93,7 @@ let saving_walker methods context x =
              if persisting_log then
                log "persisting: saving_walker, step 6";
              let value = methods.marshal_string x in
-             let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
-             (*               Mkb_json_rpc.post_send_key_value_to_mkb_mailbox key value *)
-             if mkb_rpc_config_v.use_mkb then
-               Db.put key value
-             else
-               Db.put key value
+             saving_function key value
              >>= fun () ->
              if persisting_log then
                log "persisting: saving_walker, step 7";
