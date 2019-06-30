@@ -85,30 +85,31 @@ module OperatorState = struct
       log "side_chain_operator, load, step 1, use_mkb=%B" mkb_rpc_config_v.use_mkb;
     if mkb_rpc_config_v.use_mkb then
       (if side_chain_operator_log then
-         log "side_chain_operator, load, step 2";
+         log "side_chain_operator, MKB load, step 1";
        let key = operator_address |> operator_state_key in
        Mkb_json_rpc.post_get_latest_to_mkb_mailbox username key
        >>= fun res_exn ->
        match res_exn with
        | Ok x -> Mkb_json_rpc.db_value_of_mkb_digest unmarshal_string (Digest.unmarshal_string x)
-       | Error _ -> raise (Operator_not_found
-                             (Printf.sprintf "Operator %s not found in the database"
-                                (Address.to_0x operator_address)))
-       >>= fun x ->
+       | Error _ -> let ret_val = Error (Operator_not_found
+                                        (Printf.sprintf "Operator %s not found in the MKB database"
+                                           (Address.to_0x operator_address))) in
+                    Lwt.return ret_val)
+(*       >>= fun x ->
        if side_chain_operator_log then
-         log "side_chain_operator, load, step 2";
-       x)
+         log "side_chain_operator, MKB load, step 2";
+       x)*)
     else
       (if side_chain_operator_log then
-         log "side_chain_operator, load, step 3";
+         log "side_chain_operator, LevelDB load, step 1";
        let operator_hash = operator_address |> operator_state_key |> Db.get in
        match operator_hash with
        | None -> let ret_val = Error (Operator_not_found
-                                     (Printf.sprintf "Operator %s not found in the database"
+                                     (Printf.sprintf "Operator %s not found in the LevelDB database"
                                         (Address.to_0x operator_address))) in
                  Lwt.return ret_val
        | Some x -> (if side_chain_operator_log then
-                      log "side_chain_operator, Some case";
+                      log "side_chain_operator, LevelDB load, Some case";
                     let operator_state = x |> Digest.unmarshal_string |> db_value_of_digest unmarshal_string in
                     Lwt_exn.return operator_state)
       )

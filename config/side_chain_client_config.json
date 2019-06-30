@@ -1,8 +1,8 @@
 { "host" : "127.0.0.1",
   "port" : 8095,
   "contract_address": "0xd1fe5c3cee55cdbcc2a39e0af40de214a8f11add",
-  "code_hash": "0x338b975a08d7edfae6df44ed74990fc0cc57685ad4a84480b4c6643088e1a477",
-  "creation_hash": "0x6ddc8b54a0945a65bde72d4be9ee682d9b87af7232bc759d8667ef93871cafc8",
+  "code_hash": "0xb65ecb14cf61ee4ed133fa330b1a4ff011d708dfcdcf24f3ee3fef9815e573e3",
+  "creation_hash": "0x27d52b73c3afd8d4738e95ae6f121ac1b2fe085494003663037dff61f47efc85",
   "creation_block": 28,
   "operator": {
       "nickname": "Trent",

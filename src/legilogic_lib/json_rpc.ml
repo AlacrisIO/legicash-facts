@@ -33,6 +33,15 @@ let () = Printexc.register_printer @@ function
   | Rpc_error e -> Some (Printf.sprintf "Rpc_error(%s)" e.message)
   | _           -> None
 
+
+let _ = Printexc.register_printer
+          (function
+           | Malformed_request exn ->
+              Some (Printf.sprintf "Json_rpc.Malformed_request (%s)"
+                      (Printexc.to_string exn))
+           | _                -> None)
+
+
 (** Type of a JSON-RPC request. *)
 type request =
   { json_rpc_version: string [@key "jsonrpc"] (* Must be "2.0" *)

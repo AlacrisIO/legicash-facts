@@ -28,13 +28,76 @@ type mkb_rpc_config_type =
 
 let username_set = ref false
 
+let list_char = ["0"; "1"; "2"; "3"; "4"; "5"; "6"; "7"; "8"; "9"; "a"; "b"; "c"; "d"; "e"; "f"]
+
+
+
+
+
+
+let string_to_hexstring : string -> string =
+  fun strin ->
+  let len = String.length strin in
+  let list_pair = List.init len (fun idx ->
+                      let echar = String.get strin idx in
+                      let ecode = Char.code echar in
+                      let ecode_res = ecode mod len in
+                      let ecode_q = (ecode - ecode_res) / len in
+                      let echar1 = List.nth list_char ecode_res in
+                      let echar2 = List.nth list_char ecode_q in
+                      String.concat "" [echar1; echar2]) in
+  String.concat "" list_pair
+
+
+let hexstring_to_string : string -> string =
+  fun strin ->
+  let len = String.length strin in
+  let totstr = "0123456789abcdef" in
+  let len2 = len / 2 in
+  let seq_char = List.init len2 (fun idx ->
+                     let pos1 = 2*idx in
+                     let pos2 = 2*idx+1 in
+                     let echar1 = String.get strin pos1 in
+                     let echar2 = String.get strin pos2 in
+                     let val1 = String.rindex totstr echar1 in
+                     let val2 = String.rindex totstr echar2 in
+                     let full_val = val1 + 16 * val2 in
+                     let echar = Char.chr full_val in
+                     Char.escaped echar) in
+  String.concat "" seq_char
+
+
+let add_quote : string -> string =
+  fun strin ->
+  String.concat "" ["\""; strin; "\""]
+
+
 
 module StringO = struct
   type t = string
-  [@@deriving rlp, yojson]
+  [@@deriving rlp]
   let of_yojson_exn yojson =
     let nature_str = yojson |> string_of_yojson in
+    if mkb_json_rpc_log then
+      Logging.log "of_yojson_exn, nature_str=%s" nature_str;
     nature_str
+  let of_yojson_hexadecimal_exn yojson =
+    let nature_str = yojson |> string_of_yojson |> hexstring_to_string in
+    if mkb_json_rpc_log then
+      Logging.log "of_yojson_hexadecimal_exn, nature_str=%s" nature_str;
+    nature_str
+  let to_yojson strin =
+    if mkb_json_rpc_log then
+      Logging.log "to_yojson, strin=%s" strin;
+    let yojson_str = strin |> add_quote |> yojson_of_string in
+    if mkb_json_rpc_log then
+      Logging.log "to_yojson, after creation of yojson_str";
+    yojson_str
+  let to_yojson_hexadecimal strin =
+    if mkb_json_rpc_log then
+      Logging.log "to_yojson_hexadecimal, strin=%s" strin;
+    let yojson_str = strin |> add_quote |> string_to_hexstring |> yojson_of_string in
+    yojson_str
 end
 
 (*
@@ -92,10 +155,6 @@ module SendKeyValueResult = struct
     let nature_str : string = yojson |> YoJson.member "nature" |> StringO.of_yojson_exn in
     let nature_t : t = {nature = nature_str} in
     nature_t
-(*  include (YojsonPersistable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson; of_yojson}
-           end) : (PersistableS with type t := t)) *)
 end
 
 module GetKeyValueResult = struct
@@ -107,10 +166,6 @@ module GetKeyValueResult = struct
     let value_str : string = yojson |> YoJson.member "value" |> StringO.of_yojson_exn in
     let data_t : t = {nature = nature_str; value = value_str} in
     data_t
-(*  include (YojsonPersistable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson; of_yojson}
-           end) : (PersistableS with type t := t)) *)
 end
 
 module SendDataResult = struct
@@ -123,10 +178,6 @@ module SendDataResult = struct
     let hash_str = yojson |> YoJson.member "hash" |> StringO.of_yojson_exn in
     let data_t : t = {nature = nature_str; hash = hash_str} in
     data_t
-(*  include (YojsonPersistable (struct
-             type nonrec t = t
-             let yojsoning = {to_yojson; of_yojson}
-           end) : (PersistableS with type t := t)) *)
 end
 
 
@@ -185,24 +236,23 @@ let mkb_add_account =
 let mkb_send_data : (string * string * string * string) -> SendDataResult.t Lwt_exn.t =
   mkb_json_rpc "send_data"
     SendDataResult.of_yojson_exn
-    (yojson_4args StringO.to_yojson StringO.to_yojson StringO.to_yojson StringO.to_yojson)
+    (yojson_4args StringO.to_yojson StringO.to_yojson StringO.to_yojson_hexadecimal StringO.to_yojson_hexadecimal)
 
 let mkb_get_from_latest : (string * string * string) -> GetKeyValueResult.t Lwt_exn.t =
   mkb_json_rpc "get_from_latest"
     GetKeyValueResult.of_yojson_exn
-    (yojson_3args StringO.to_yojson StringO.to_yojson StringO.to_yojson)
+    (yojson_3args StringO.to_yojson StringO.to_yojson StringO.to_yojson_hexadecimal)
 
 let mkb_send_key_value : (string * string * string * string) -> SendKeyValueResult.t Lwt_exn.t =
   mkb_json_rpc "send_key_value"
     SendKeyValueResult.of_yojson_exn
-    (yojson_4args StringO.to_yojson StringO.to_yojson StringO.to_yojson StringO.to_yojson)
+    (yojson_4args StringO.to_yojson StringO.to_yojson StringO.to_yojson_hexadecimal StringO.to_yojson_hexadecimal)
 
 let mkb_get_key_value : (string * string * string) -> GetKeyValueResult.t Lwt_exn.t =
   mkb_json_rpc "get_key_value"
     GetKeyValueResult.of_yojson_exn
-    (yojson_3args StringO.to_yojson StringO.to_yojson StringO.to_yojson)
+    (yojson_3args StringO.to_yojson StringO.to_yojson StringO.to_yojson_hexadecimal)
 
-  
 let rec infinite_retry : ('a -> 'b Lwt_exn.t) -> 'a -> 'b Lwt.t =
   fun f x ->
   Lwt.bind (f x)
@@ -385,7 +435,10 @@ let mkb_add_neighboring_registrar : string -> string list -> unit Lwt_exn.t =
   let rec individual_addition : int -> unit Lwt_exn.t =
     fun i ->
     let name_reg = List.nth list_reg i in
-    Lwt.bind (mkb_add_registrar (topic, name_reg))
+    Lwt.bind
+      (if mkb_json_rpc_log then
+         log "Before call to mkb_add_registrar topic=%s name_reg=%s" topic name_reg;
+       mkb_add_registrar (topic, name_reg))
       (function
        | Ok _x -> (if (i == len-1) then
                     Lwt_exn.return ()
@@ -405,11 +458,17 @@ let ensure_mkb_server () =
     let neighboring_registrar_list = mkb_rpc_config_v.neighboring_registrar_list in
     let mkb_topic_desc = get_mkb_topic_description mkb_rpc_config_v in
     Lwt.async inner_call_mkb;
+    if mkb_json_rpc_log then
+      log "Before call to mkb_topic_creation";
     mkb_topic_creation mkb_topic_desc
-    >>= fun _ -> mkb_add_neighboring_registrar topic neighboring_registrar_list
-    >>= fun _ -> if mkb_json_rpc_log then
-                   log "The MKB has been successfully set up";
-                 return ()
+    >>= fun _ ->
+    if mkb_json_rpc_log then
+      log "Before call to mkb_add_neighboring_registrar";
+    mkb_add_neighboring_registrar topic neighboring_registrar_list
+    >>= fun _ ->
+    if mkb_json_rpc_log then
+      log "The MKB has been successfully set up";
+    return ()
   else
     return ()
 
