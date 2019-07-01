@@ -113,6 +113,12 @@ $(BUILD_DIR)/$(SIDE_CHAIN_SERVER): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Alacris side chain server executable"
 	$(HIDE) dune build $(SIDE_CHAIN_SERVER)
 
+SETUP_CONTRACT:=src/alacris_contract/setup_contract.exe
+setup_contract: $(BUILD_DIR)/$(SETUP_CONTRACT)
+$(BUILD_DIR)/$(SETUP_CONTRACT): $(ML_SOURCES) $(CONTRACT)
+	$(SHOW) "Building Alacris setup contract executable"
+	$(HIDE) dune build $(SETUP_CONTRACT)
+
 test_alacris_lib :
 	$(SHOW) "Testing alacris_lib"
 	$(HIDE) dune runtest src/alacris_lib
@@ -174,7 +180,7 @@ repl: ./bin/legicaml $(BUILD_DIR)/$(TOPLEVEL)
 
 ### Build all the stuff to build
 build_all: $(CONTRACT) force
-	$(HIDE) dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ETHEREUM_PREFUNDER) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
+	$(HIDE) dune build $(LEGILOGIC_LIB) $(LEGILOGIC_ETHEREUM) $(ETHEREUM_PREFUNDER) $(ALACRIS_LIB) $(SIDE_CHAIN_SERVER) $(SETUP_CONTRACT) $(SIDE_CHAIN_CLIENT) $(SIDE_CHAIN_CLIENT_TEST) $(TOPLEVEL)
 
 ### Running smoke test for the build:
 test_hello: toplevel $(ML_SOURCES) $(CONTRACT) force
