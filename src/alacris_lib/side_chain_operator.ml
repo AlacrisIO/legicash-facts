@@ -82,7 +82,6 @@ module OperatorState = struct
     return ()
   let load operator_address =
     let open Lwt in
-    let username = "LCFS0001" in
     let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
     if side_chain_operator_log then
       log "side_chain_operator, load, step 1, use_mkb=%B" mkb_rpc_config_v.use_mkb;
@@ -90,7 +89,9 @@ module OperatorState = struct
       (if side_chain_operator_log then
          log "side_chain_operator, MKB load, step 1";
        let key = operator_address |> operator_state_key in
-       Mkb_json_rpc.post_get_latest_to_mkb_mailbox username key
+       if side_chain_operator_log then
+         log "side_chain_operator, MKB load, key=%s" key;
+       Mkb_json_rpc.post_get_latest_to_mkb_mailbox mkb_rpc_config_v.username
        >>= fun res_exn ->
        match res_exn with
        | Ok x -> Mkb_json_rpc.db_value_of_mkb_digest unmarshal_string (Digest.unmarshal_string x)

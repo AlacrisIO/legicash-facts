@@ -72,7 +72,6 @@ let print_string : string -> string =
   strOut
 
 
-
 let saving_function : string -> string -> unit Lwt.t =
   fun key value ->
   let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
@@ -82,7 +81,6 @@ let saving_function : string -> string -> unit Lwt.t =
     Mkb_json_rpc.infinite_retry Mkb_json_rpc.post_send_key_value_to_mkb_mailbox (mkb_rpc_config_v.username,key,value)
   else
     Db.put key value
-
 
 (** TODO: have a version that computes the digest from the marshal_string *)
 (** Have both content- and intent- addressed storage in the same framework *)

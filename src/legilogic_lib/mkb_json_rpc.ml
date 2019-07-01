@@ -244,10 +244,10 @@ let mkb_send_data : (string * string * string * string) -> SendDataResult.t Lwt_
     SendDataResult.of_yojson_exn
     (yojson_4args StringO.to_yojson StringO.to_yojson StringO.to_yojson_hexadecimal StringO.to_yojson_hexadecimal)
 
-let mkb_get_from_latest : (string * string * string) -> GetKeyValueResult.t Lwt_exn.t =
+let mkb_get_from_latest : (string * string) -> GetKeyValueResult.t Lwt_exn.t =
   mkb_json_rpc "get_from_latest"
     GetKeyValueResult.of_yojson_exn
-    (yojson_3args StringO.to_yojson StringO.to_yojson StringO.to_yojson_hexadecimal)
+    (yojson_2args StringO.to_yojson StringO.to_yojson)
 
 let mkb_send_key_value : (string * string * string * string) -> StringO.t Lwt_exn.t =
   mkb_json_rpc "send_key_value"
@@ -309,7 +309,7 @@ type request_mkb_update =
   | SubmitSequence of (string * string * TransactionMutualKnowledge.t OrExn.t Lwt.u)
   | SendKeyValue of (string * string * string * TransactionMkbSend.t OrExn.t Lwt.u)
   | GetKey of (string * string * TransactionMkbGet.t OrExn.t Lwt.u)
-  | GetLatest of (string * string * TransactionMkbGet.t OrExn.t Lwt.u)
+  | GetLatest of (string * TransactionMkbGet.t OrExn.t Lwt.u)
 
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -343,13 +343,13 @@ let post_get_key_to_mkb_mailbox : string -> string -> string Lwt_exn.t =
   fct (username,key)
   >>= fun x -> return x.value
 
-let post_get_latest_to_mkb_mailbox : string -> string -> string Lwt_exn.t =
-  fun username key ->
+let post_get_latest_to_mkb_mailbox : string -> string Lwt_exn.t =
+  fun username ->
   let open Lwt_exn in
   let fct = simple_client request_mkb_update_mailbox
-    (fun ((e_user, e_key), x_resolver : (string * string) * TransactionMkbGet.t OrExn.t Lwt.u) ->
-      GetLatest (e_user, e_key, x_resolver)) in
-  fct (username,key)
+    (fun (e_user, x_resolver : string * TransactionMkbGet.t OrExn.t Lwt.u) ->
+      GetLatest (e_user, x_resolver)) in
+  fct username
   >>= fun x -> return x.value
 
 let db_value_of_mkb_digest :  ('a -> 'b) -> Digest.t -> 'd =
@@ -411,10 +411,10 @@ let inner_call_mkb () =
        let ret_value = get_transactionmkbget receipt_exn in
        Lwt.wakeup_later notify_u ret_value;
        inner_loop ()
-    | GetLatest (username, key, notify_u) ->
+    | GetLatest (username, notify_u) ->
        set_mkb_username username
        >>= fun _ ->
-       mkb_get_from_latest (mkb_rpc_config_v.topic, username, key)
+       mkb_get_from_latest (mkb_rpc_config_v.topic, username)
        >>= fun receipt_exn ->
        let ret_value = get_transactionmkbget receipt_exn in
        Lwt.wakeup_later notify_u ret_value;
