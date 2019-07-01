@@ -26,7 +26,7 @@ type mkb_rpc_config_type =
   ; hash_method : string }
 [@@deriving of_yojson]
 
-let username_set = ref false
+let username_todo = ref true
 
 let list_char = ["0"; "1"; "2"; "3"; "4"; "5"; "6"; "7"; "8"; "9"; "a"; "b"; "c"; "d"; "e"; "f"]
 
@@ -41,8 +41,8 @@ let string_to_hexstring : string -> string =
   let list_pair = List.init len (fun idx ->
                       let echar = String.get strin idx in
                       let ecode = Char.code echar in
-                      let ecode_res = ecode mod len in
-                      let ecode_q = (ecode - ecode_res) / len in
+                      let ecode_res = ecode mod 16 in
+                      let ecode_q = (ecode - ecode_res) / 16 in
                       let echar1 = List.nth list_char ecode_res in
                       let echar2 = List.nth list_char ecode_q in
                       String.concat "" [echar1; echar2]) in
@@ -77,11 +77,15 @@ module StringO = struct
   type t = string
   [@@deriving rlp]
   let of_yojson_exn yojson =
+    if mkb_json_rpc_log then
+      Logging.log "Beginning of of_yojson_exn";
     let nature_str = yojson |> string_of_yojson in
     if mkb_json_rpc_log then
       Logging.log "of_yojson_exn, nature_str=%s" nature_str;
     nature_str
   let of_yojson_hexadecimal_exn yojson =
+    if mkb_json_rpc_log then
+      Logging.log "Beginning of of_yojson_hexadecimal_exn";
     let nature_str = yojson |> string_of_yojson |> hexstring_to_string in
     if mkb_json_rpc_log then
       Logging.log "of_yojson_hexadecimal_exn, nature_str=%s" nature_str;
@@ -96,7 +100,9 @@ module StringO = struct
   let to_yojson_hexadecimal strin =
     if mkb_json_rpc_log then
       Logging.log "to_yojson_hexadecimal, strin=%s" strin;
-    let yojson_str = strin |> add_quote |> string_to_hexstring |> yojson_of_string in
+    let yojson_str = strin |> string_to_hexstring |> add_quote |> yojson_of_string in
+    if mkb_json_rpc_log then
+      Logging.log "to_yojson_hexadecimal, after creation of yojson_str";
     yojson_str
 end
 
@@ -243,9 +249,9 @@ let mkb_get_from_latest : (string * string * string) -> GetKeyValueResult.t Lwt_
     GetKeyValueResult.of_yojson_exn
     (yojson_3args StringO.to_yojson StringO.to_yojson StringO.to_yojson_hexadecimal)
 
-let mkb_send_key_value : (string * string * string * string) -> SendKeyValueResult.t Lwt_exn.t =
+let mkb_send_key_value : (string * string * string * string) -> StringO.t Lwt_exn.t =
   mkb_json_rpc "send_key_value"
-    SendKeyValueResult.of_yojson_exn
+    StringO.of_yojson_exn
     (yojson_4args StringO.to_yojson StringO.to_yojson StringO.to_yojson_hexadecimal StringO.to_yojson_hexadecimal)
 
 let mkb_get_key_value : (string * string * string) -> GetKeyValueResult.t Lwt_exn.t =
@@ -266,23 +272,14 @@ let set_mkb_username : string -> unit Lwt_exn.t =
   fun username ->
   let open Lwt_exn in
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
-  if !username_set then
-    (username_set := true;
+  if mkb_json_rpc_log then
+    Logging.log "Beginning set_mkb_username username_todo=%B" !username_todo;
+  if !username_todo then
+    (username_todo := false;
      mkb_add_account (mkb_rpc_config_v.topic, username)
      >>= fun _ -> return ())
   else
     return ()
-
-(*
-let rec mkb_send_data_iterate_fail : (string * string * string * string) -> SendDataResult.t Lwt_exn.t =
-  fun x ->
-  Lwt.bind (mkb_send_data x)
-  (function
-  | Ok x -> Lwt.return x
-  | _ -> if mkb_json_rpc_log then
-           log "Reiterating mkb_send_data in case of failure";
-         mkb_send_data_iterate_fail x)
- *)
 
 (*
   The permanent system
@@ -309,7 +306,7 @@ end
 
 
 type request_mkb_update =
-  | SubmitSequence of (string * Digest.t * TransactionMutualKnowledge.t OrExn.t Lwt.u)
+  | SubmitSequence of (string * string * TransactionMutualKnowledge.t OrExn.t Lwt.u)
   | SendKeyValue of (string * string * string * TransactionMkbSend.t OrExn.t Lwt.u)
   | GetKey of (string * string * TransactionMkbGet.t OrExn.t Lwt.u)
   | GetLatest of (string * string * TransactionMkbGet.t OrExn.t Lwt.u)
@@ -317,18 +314,14 @@ type request_mkb_update =
 let request_mkb_update_mailbox : request_mkb_update Lwt_mvar.t = Lwt_mvar.create_empty ()
 
 
-let post_to_mkb_mailbox : string -> Digest.t -> unit Lwt.t =
-  fun username digest ->
-  let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
+let post_to_mkb_mailbox : string -> string -> unit Lwt.t =
+  fun username value ->
   let open Lwt in
-  if mkb_rpc_config_v.use_mkb then
-    simple_client request_mkb_update_mailbox
-      (fun ((_x_digest, x_resolver) : (Digest.t * TransactionMutualKnowledge.t OrExn.t Lwt.u)) ->
-        SubmitSequence (username, digest, x_resolver)) digest
-    >>= fun _ -> return ()
-  else
-    return ()
-(*    Lwt.return TransactionMutualKnowledge.{topic = ""; hash = Digest.zero}*)
+  let fct = simple_client request_mkb_update_mailbox
+              (fun (  ((e_user,e_value), x_resolver) : (string*string) * TransactionMutualKnowledge.t OrExn.t Lwt.u) ->
+                SubmitSequence (e_user, e_value, x_resolver)) in
+  fct (username, value)
+  >>= fun _ -> return ()
 
 let post_send_key_value_to_mkb_mailbox : (string * string * string) -> unit Lwt_exn.t =
   fun (username,key,value) ->
@@ -372,7 +365,8 @@ let get_value : 'a OrExn.t -> 'a =
   fun a_res ->
   match a_res with
   | Ok x -> x
-  | Error _ -> bork "Error getting the value"
+  | Error e -> log "Error getting the value e=%s" (Printexc.to_string e);
+     bork "Error getting the value"
 
 
 let get_transactionmkbget : GetKeyValueResult.t OrExn.t -> TransactionMkbGet.t OrExn.t =
@@ -385,15 +379,14 @@ let inner_call_mkb () =
   let open Lwt in
   let hash_ref : Digest.t ref = ref Digest.zero in
   let mkb_rpc_config_v = (Lazy.force mkb_rpc_config) in
-  (*  let username = "LCFS0001" in *)
   let rec inner_loop : unit -> unit Lwt.t =
     fun () ->
     Lwt_mvar.take request_mkb_update_mailbox
     >>= function
-    | SubmitSequence ((username, new_entry, notify_u) : (string * Digest.t * TransactionMutualKnowledge.t OrExn.t Lwt.u)) ->
+    | SubmitSequence ((username, new_entry, notify_u) : (string * string * TransactionMutualKnowledge.t OrExn.t Lwt.u)) ->
        set_mkb_username username
        >>= fun _ ->
-       mkb_send_data (mkb_rpc_config_v.topic, username,(Digest.to_0x !hash_ref),(Digest.to_0x new_entry))
+       mkb_send_data (mkb_rpc_config_v.topic, username, (Digest.to_0x !hash_ref), new_entry)
        >>= fun receipt_exn ->
        let receipt = get_value receipt_exn in
        let new_digest = Digest.of_0x receipt.hash in
@@ -406,8 +399,8 @@ let inner_call_mkb () =
        >>= fun _ ->
        mkb_send_key_value (mkb_rpc_config_v.topic, username, key, value)
        >>= fun receipt_exn ->
-       let receipt = get_value receipt_exn in
-       let ret_val : TransactionMkbSend.t OrExn.t = Ok {hash = (Digesting.digest_of_string receipt.nature)} in
+       let _receipt = get_value receipt_exn in
+       let ret_val : TransactionMkbSend.t OrExn.t = Ok {hash = Digest.zero} in
        Lwt.wakeup_later notify_u ret_val;
        inner_loop ()
     | GetKey (username, key, notify_u) ->

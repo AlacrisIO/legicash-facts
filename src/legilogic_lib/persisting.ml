@@ -76,8 +76,8 @@ let print_string : string -> string =
 let saving_function : string -> string -> unit Lwt.t =
   fun key value ->
   let mkb_rpc_config_v = (Lazy.force Mkb_json_rpc.mkb_rpc_config) in
-  if persisting_log then
-    log "saving_function : key=%s value=%s" (print_string key) (print_string value);
+(*  if persisting_log then
+    log "saving_function : key=%s value=%s" (print_string key) (print_string value); *)
   if mkb_rpc_config_v.use_mkb then
     Mkb_json_rpc.infinite_retry Mkb_json_rpc.post_send_key_value_to_mkb_mailbox (mkb_rpc_config_v.username,key,value)
   else

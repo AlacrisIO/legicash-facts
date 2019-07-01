@@ -69,8 +69,11 @@ module OperatorState = struct
     let address = operator_state.keypair.address in
     let key = operator_state_key address in
     let e_digest = digest operator_state in
+    if side_chain_operator_log then
+      log "side_chain_operator, save, username=%s key=%s" mkb_rpc_config_v.username key;
     if mkb_rpc_config_v.use_mkb then
-      Mkb_json_rpc.post_to_mkb_mailbox key e_digest
+      (*      Mkb_json_rpc.post_to_mkb_mailbox mkb_rpc_config_v.username key e_digest*)
+      Mkb_json_rpc.post_to_mkb_mailbox mkb_rpc_config_v.username key
     else
       Db.put key (Digest.to_big_endian_bits e_digest)
     >>= fun () ->
