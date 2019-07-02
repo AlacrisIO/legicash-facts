@@ -65,6 +65,10 @@ module Side_chain_server_config = struct
 
   type side_chain_server_config =
     { port                : int
+    ; contract_address : string
+    ; code_hash : string
+    ; creation_hash : string
+    ; creation_block : int
     ; ethereum_config     : ethereum_config_t
     ; leveldb_config      : leveldb_config_t
     ; sidechain_config    : sidechain_config_t
@@ -131,5 +135,7 @@ module Side_chain_server_config = struct
   let (fee_per_billion_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.fee_per_billion
 
   let (bond_value_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.bond_value
+
+  let (contract_quad : (Address.t * Digest.t * Digest.t * Revision.t)) = (Address.of_0x config.contract_address, Digest.of_0x config.code_hash, Digest.of_0x config.creation_hash, Revision.of_int config.creation_block)
 
 end

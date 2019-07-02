@@ -63,50 +63,12 @@ let get_keypair_of_address user =
 
 
 
-let test_equality_quadruple : (Address.t * Digest.t * Digest.t * Revision.t) -> (Address.t * Digest.t * Digest.t * Revision.t) -> bool =
-  fun (a_adr, a_diga, a_digb, a_rev) (b_adr, b_diga, b_digb, b_rev) ->
-  let result = ref true in
-  if not (String.equal (Address.to_string a_adr) (Address.to_string b_adr)) then
-    (if side_chain_user_log then
-       Logging.log "Equality failure at contract_address a=%s b=%s" (Address.to_string a_adr) (Address.to_string b_adr);
-     result := false
-    );
-  if not (String.equal (Digest.to_string a_diga) (Digest.to_string b_diga)) then
-    (if side_chain_user_log then
-       Logging.log "Equality failure at code_hash a=%s b=%s" (Digest.to_string a_diga) (Digest.to_string b_diga);
-     result := false
-    );
-  if not (String.equal (Digest.to_string a_digb) (Digest.to_string b_digb)) then
-    (if side_chain_user_log then
-       Logging.log "Equality failure at transaction_hash a=%s b=%s" (Digest.to_string a_digb) (Digest.to_string b_digb);
-     result := false
-    );
-  if not (Revision.equal a_rev b_rev) then
-    (if side_chain_user_log then
-       Logging.log "Equality failure at block_number a=%s b=%s" (Revision.to_string a_rev) (Revision.to_string b_rev);
-     result := false
-    );
-  !result
 
 
 let get_contract_address_for_client_checked_exn_req : unit -> Address.t Lwt_exn.t =
   fun () ->
-  let open Lwt_exn in
   let e_quad = Lazy.force contract_address_info_for_client in
-  let (contract_address, _, creation_hash, _) = e_quad in
-  Operator_contract.retrieve_contract_address_quadruple creation_hash
-  >>= fun f_quad ->
-  let result = test_equality_quadruple e_quad f_quad in
-  Logging.log "result ? %B" result;
-  if result then
-    (if side_chain_user_log then
-       Logging.log "contract_address retrieve successfully";
-     return contract_address
-    )
-  else
-    (if side_chain_user_log then
-       Logging.log "Error case for contract_address retrieval";
-    bork "inconsistent input for the contract")
+  get_contract_address_general e_quad
 
 
 let contract_address_for_client_ref : (Address.t option ref) = ref None

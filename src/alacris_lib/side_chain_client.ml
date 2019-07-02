@@ -40,7 +40,12 @@ let sockaddr = lazy (match config with lazy {host;port} ->
 let contract_address_info_for_client =
   lazy (match config with lazy {contract_address;code_hash;creation_hash;creation_block} ->
           let open Types in
-          (Address.of_0x contract_address, Digest.of_0x code_hash, Digest.of_0x creation_hash, Revision.of_int creation_block))
+          let contract_address_i : Address.t = Address.of_0x contract_address in
+          let code_hash_i : Digest.t = Digest.of_0x code_hash in
+          let creation_hash_i : Digest.t = Digest.of_0x creation_hash in
+          let creation_block_i = Revision.of_int creation_block in
+          let e_quad : Operator_contract.quadruple_contract = {contract_address=contract_address_i; code_hash=code_hash_i; creation_hash=creation_hash_i; creation_block=creation_block_i} in
+          e_quad)
 
 
 let operator_address =

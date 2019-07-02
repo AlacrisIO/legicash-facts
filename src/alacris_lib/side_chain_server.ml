@@ -115,7 +115,7 @@ let _ =
       >>= fun () ->
       if side_chain_server_log then
         Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
-      Side_chain_action.ensure_side_chain_contract_created Side_chain_server_config.operator_address
+      Side_chain_action.get_contract_address_for_server ()
       >>= fun contract_address ->
       assert (contract_address = Operator_contract.get_contract_address ());
       if side_chain_server_log then
