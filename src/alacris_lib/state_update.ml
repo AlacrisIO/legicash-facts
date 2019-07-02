@@ -50,10 +50,13 @@ let the_digest_entry_ref : (digest_entry ref) = ref (init_state ())
 
 
 let post_state_update : Revision.t -> Digest.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operator_revision digest ->
+  fun operator_revision operator_digest ->
   if state_update_log then
-    Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x digest);
-  let operation = make_state_update_call digest operator_revision in
+    Logging.log "post_state_update operator_revision=%s operator_digest=%s" (Revision.to_string operator_revision)  (Digest.to_0x operator_digest);
+  let open Lwt_exn in
+  get_contract_address ()
+  >>= fun contract_address ->
+  let operation = make_state_update_call ~contract_address ~operator_digest ~operator_revision in
   let oper_addr = Side_chain_server_config.operator_address in
   Ethereum_user.post_operation ~operation ~sender:oper_addr ~value:TokenAmount.zero
 

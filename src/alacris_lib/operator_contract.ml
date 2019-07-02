@@ -10,6 +10,7 @@ open Ethereum_chain
 open Ethereum_abi
 open Side_chain_server_config
 open Digesting
+open Yojsoning
 
 let operator_contract_log = false
 
@@ -26,11 +27,72 @@ let topic_of_hash (hash : Digest.t) : Bytes.t option =
   Some (encode_function_parameters [abi_digest hash])
 
 
-type quadruple_contract = {contract_address: Address.t; code_hash: Digest.t; creation_hash: Digest.t; creation_block: Revision.t}
 
 
 
-let test_equality_quadruple : quadruple_contract -> quadruple_contract -> bool =
+(** build the encoding of a call to the "deposit" function of the operator contract
+    address argument is the operator *)
+let make_deposit_call : operator:Address.t -> contract_address:Address.t -> Ethereum_chain.Operation.t =
+  fun ~operator ~contract_address ->
+  if operator_contract_log then
+    Logging.log "Beginning of make_deposit_call";
+  let parameters = [ abi_address operator ] in
+  let call = encode_function_call { function_name = "deposit"; parameters } in
+  Operation.CallFunction (contract_address, call)
+
+
+
+let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address:Address.t -> PreTransaction.t =
+  fun ~operator ~amount ~contract_address ->
+  if operator_contract_log then
+    Logging.log "Beginning of pre_deposit";
+  let oper = make_deposit_call ~operator ~contract_address in
+  PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
+
+
+
+
+type contract_address_config_input =
+  { contract_address : string
+  ; code_hash : string
+  ; creation_hash : string
+  ; creation_block : int
+  } [@@deriving of_yojson]
+
+
+type contract_address_config =
+  { contract_address : Address.t
+  ; code_hash : Digest.t
+  ; creation_hash : Digest.t
+  ; creation_block : Revision.t
+  }
+
+
+
+
+let rec get_contract_address_config_iter : unit -> contract_address_config Lwt.t =
+  fun () ->
+  let open Lwt in
+  let full_filename = Config.get_config_filename "contract_address.json" in
+  let test = Sys.file_exists full_filename in
+  if test then
+    (let config_client = full_filename |> yojson_of_file |> contract_address_config_input_of_yojson in
+     match config_client with
+     | Ok x -> (let contract_address = Address.of_0x x.contract_address in
+                let code_hash = Digest.of_0x x.code_hash in
+                let creation_hash = Digest.of_0x x.creation_hash in
+                let creation_block = Revision.of_int x.creation_block in
+                let ret_val : contract_address_config = {contract_address; code_hash; creation_hash; creation_block} in
+                Lwt.return ret_val)
+     | Error msg -> Lib.bork "Error loading side chain client configuration: %s" msg)
+  else
+    (Lwt_unix.sleep 1.0
+     >>= get_contract_address_config_iter)
+
+
+
+
+let test_equality_quadruple : contract_address_config -> contract_address_config -> bool =
   fun e_quad f_quad ->
   let result = ref true in
   if not (String.equal (Address.to_string e_quad.contract_address) (Address.to_string f_quad.contract_address)) then
@@ -58,7 +120,10 @@ let test_equality_quadruple : quadruple_contract -> quadruple_contract -> bool =
 
 
 
-let retrieve_contract_address_quadruple : Digest.t -> quadruple_contract Lwt_exn.t =
+
+
+
+let retrieve_contract_address_quadruple : Digest.t -> contract_address_config Lwt_exn.t =
   fun transaction_hash ->
   let open Lwt_exn in
   Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
@@ -73,22 +138,19 @@ let retrieve_contract_address_quadruple : Digest.t -> quadruple_contract Lwt_exn
      return {contract_address; code_hash; creation_hash=transaction_hash; creation_block=contract_block_number}
 
 
-let convert_quad_format : (Address.t * Digest.t * Digest.t * Revision.t) -> quadruple_contract =
-  fun (contract_address, code_hash, creation_hash, creation_block) ->
-  {contract_address; code_hash; creation_hash; creation_block}
-
-
-let get_contract_address_general : quadruple_contract -> Address.t Lwt_exn.t =
-  fun e_quad ->
+let get_contract_address_general : unit -> Address.t Lwt_exn.t =
+  fun () ->
   let open Lwt_exn in
-  retrieve_contract_address_quadruple e_quad.creation_hash
-  >>= fun f_quad ->
-  let result = test_equality_quadruple e_quad f_quad in
+  (Lwt_exn.of_lwt get_contract_address_config_iter) ()
+  >>= fun config ->
+  retrieve_contract_address_quadruple config.creation_hash
+  >>= fun config_b ->
+  let result = test_equality_quadruple config config_b in
   Logging.log "result ? %B" result;
   if result then
     (if operator_contract_log then
        Logging.log "contract_address retrieve successfully";
-     return e_quad.contract_address
+     return config.contract_address
     )
   else
     (if operator_contract_log then
@@ -96,27 +158,27 @@ let get_contract_address_general : quadruple_contract -> Address.t Lwt_exn.t =
     bork "inconsistent input for the contract")
 
 
+let contract_address_ref = ref None
 
+let get_contract_address : unit -> Address.t Lwt_exn.t =
+  fun () ->
+  match !contract_address_ref with
+  | Some x -> Lwt_exn.return x
+  | None ->
+     (let open Lwt_exn in
+      get_contract_address_general ()
+      >>= fun contract_address ->
+      contract_address_ref := Some contract_address;
+      Lwt_exn.return contract_address)
 
-let get_contract_address () =
-  Address.of_0x Side_chain_server_config.config.contract_address
-
-(** build the encoding of a call to the "deposit" function of the operator contract
-    address argument is the operator *)
-let make_deposit_call : operator:Address.t -> contract_address:Address.t -> Ethereum_chain.Operation.t =
-  fun ~operator ~contract_address ->
-  if operator_contract_log then
-    Logging.log "Beginning of make_deposit_call";
-  let parameters = [ abi_address operator ] in
-  let call = encode_function_call { function_name = "deposit"; parameters } in
-  Operation.CallFunction (contract_address, call)
-
-let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address:Address.t -> PreTransaction.t =
-  fun ~operator ~amount ~contract_address ->
-  if operator_contract_log then
-    Logging.log "Beginning of pre_deposit";
-  let oper = make_deposit_call ~operator ~contract_address in
-  PreTransaction.{operation=oper; value=amount; gas_limit=Side_chain_server_config.deposit_gas_limit}
+let rec get_contract_address_exn : unit -> Address.t Lwt.t =
+  fun () ->
+  let open Lwt in
+  get_contract_address ()
+  >>= fun address_exn ->
+  match address_exn with
+  | Ok x -> return x
+  | Error _ -> get_contract_address_exn ()
 
 
 
@@ -152,13 +214,13 @@ let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> Rev
    We have Revision = UInt64
 
  *)
-let make_state_update_call : Digest.t -> Revision.t -> Ethereum_chain.Operation.t =
-  fun state_digest operator_revision ->
+let make_state_update_call : contract_address:Address.t -> operator_digest:Digest.t -> operator_revision:Revision.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator_digest ~operator_revision ->
   if operator_contract_log then
     Logging.log "Beginning of make_state_update_call";
-  let parameters = [ abi_digest state_digest; abi_revision operator_revision] in
+  let parameters = [ abi_digest operator_digest; abi_revision operator_revision] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
-  Operation.CallFunction (get_contract_address (), call)
+  Operation.CallFunction (contract_address, call)
 
 
 

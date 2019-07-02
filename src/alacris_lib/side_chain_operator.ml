@@ -143,6 +143,8 @@ let validate_user_transaction_request :
     let AccountState.{balance; account_revision} = (operator_account_lens requester).get state in
     let OperatorState.{fee_schedule} = state in
     let open Lwt_exn in
+    get_contract_address ()
+    >>= fun contract_address ->
     let check (test: bool) (exngen: unit -> string) =
       fun x ->
         if test then return x
@@ -175,7 +177,7 @@ let validate_user_transaction_request :
               (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
         >>> Ethereum_transaction.check_transaction_confirmation
-              ~sender:requester ~recipient:(get_contract_address ())
+              ~sender:requester ~recipient:contract_address
               main_chain_deposit main_chain_deposit_confirmation
       | UserOperation.Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
         check (payment_invoice.recipient != requester)

@@ -56,9 +56,6 @@ val create_side_chain_contract : Address.t -> (Address.t * Revision.t) Lwt_exn.t
 (** Given an address for whoever will pay to install it (its keys and password already registered),
     installs the operator contract on main chain, enabling the side chain *)
 
-val get_contract_address_for_server : unit -> Address.t Lwt_exn.t
-(** retrieve the contract address from the server side (and its own config file) *)
-
 
 val ensure_side_chain_contract_created : Address.t -> Address.t Lwt_exn.t
 (** Given an address for whoever will pay to install it (its keys and password already registered),

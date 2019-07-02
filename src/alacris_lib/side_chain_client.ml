@@ -17,70 +17,27 @@ type operator_config =
 type side_chain_client_config =
   { host : string
   ; port : int
-  ; contract_address : string
-  ; code_hash : string
-  ; creation_hash : string
-  ; creation_block : int
   ; operator : operator_config
   } [@@deriving of_yojson]
 
 
-let side_chain_client_ref = ref None
-
-let rec get_config_client_iter : string -> side_chain_client_config Lwt.t =
-  fun full_filename ->
-  let open Lwt in
-  let test = Sys.file_exists full_filename in
-  if test then
-    (let config_client = full_filename |> yojson_of_file |> side_chain_client_config_of_yojson in
-     match config_client with
-     | Ok x -> Lwt.return x
+let config =
+  lazy
+    ("side_chain_client_config.json"
+     |> Config.get_config_filename
+     |> yojson_of_file
+     |> side_chain_client_config_of_yojson
+     |> function
+     | Ok config -> config
      | Error msg -> Lib.bork "Error loading side chain client configuration: %s" msg)
-  else
-    (Lwt_unix.sleep 1.0
-     >>= fun () -> get_config_client_iter full_filename)
 
 
-
-let get_config_client : unit -> side_chain_client_config Lwt.t =
-  fun () ->
-  let open Lwt in
-  match !side_chain_client_ref with
-  | Some x -> Lwt.return x
-  | None -> (let full_filename = Config.get_config_filename "side_chain_client_config.json" in
-             get_config_client_iter full_filename
-             >>= fun side_chain_client_config ->
-             side_chain_client_ref := Some side_chain_client_config;
-             Lwt.return side_chain_client_config)
+let sockaddr = lazy (match config with lazy {host;port} ->
+    Unix.ADDR_INET (Get_ip_address.inet_addr_from_ip_or_host host, port))
 
 
-
-let get_sockaddr () =
-  let open Lwt in
-  get_config_client ()
-  >>= fun config ->
-  return (Unix.ADDR_INET (Get_ip_address.inet_addr_from_ip_or_host config.host, config.port))
-
-
-let quadruple_contract_info_for_client () =
-  let open Lwt in
-  get_config_client ()
-  >>= fun config ->
-  let open Types in
-  let contract_address_i : Address.t = Address.of_0x config.contract_address in
-  let code_hash_i : Digest.t = Digest.of_0x config.code_hash in
-  let creation_hash_i : Digest.t = Digest.of_0x config.creation_hash in
-  let creation_block_i = Revision.of_int config.creation_block in
-  let e_quad : Operator_contract.quadruple_contract = {contract_address=contract_address_i; code_hash=code_hash_i; creation_hash=creation_hash_i; creation_block=creation_block_i} in
-  return e_quad
-
-
-let get_operator_address_client () =
-  let open Lwt in
-  get_config_client ()
-  >>= fun config ->
-  Lwt.return config.operator.address
-
+let operator_address =
+  lazy (match config with lazy {operator={address}} -> address)
 
 
 let decode_response (unmarshaler : 'a unmarshaler) : (string, 'a or_exn) Lwter.arr =
@@ -94,9 +51,7 @@ let post_query_to_server (request : Query.t) : yojson OrExn.t Lwt.t =
   match request with
   | `AdminQuery _
   | `UserQuery _ ->
-     (Lwt_exn.of_lwt get_sockaddr) ()
-     >>= fun sockaddr ->
-     with_connection sockaddr
+     with_connection (Lazy.force sockaddr)
       (fun (in_channel,out_channel) ->
          Query.marshal_string request
          |> fun x ->
@@ -120,9 +75,7 @@ let post_admin_query_request (request : AdminQueryRequest.t) =
 
 let post_user_transaction_request_to_server (request : UserTransactionRequest.t signed) : TransactionCommitment.t OrExn.t Lwt.t =
   let (external_request : ExternalRequest.t) = `UserTransaction request in
-  (Lwt_exn.of_lwt get_sockaddr) ()
-  >>= fun sockaddr ->
-  with_connection sockaddr
+  with_connection (Lazy.force sockaddr)
     (fun (in_channel, out_channel) ->
       let (eval : string) = ExternalRequest.marshal_string external_request in
       eval

@@ -1,4 +1,4 @@
-{ "host" : "127.0.0.1",
+{ "host" : "alacris-side-chain-manager",
   "port" : 8095,
   "operator": {
       "nickname": "Trent",

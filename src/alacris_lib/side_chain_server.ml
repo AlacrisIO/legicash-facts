@@ -115,9 +115,8 @@ let _ =
       >>= fun () ->
       if side_chain_server_log then
         Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
-      Side_chain_action.get_contract_address_for_server ()
+      Operator_contract.get_contract_address ()
       >>= fun contract_address ->
-      assert (contract_address = Operator_contract.get_contract_address ());
       if side_chain_server_log then
         Logging.log "Using contract %s" (Address.to_0x contract_address);
       load_operator_state Side_chain_server_config.operator_address

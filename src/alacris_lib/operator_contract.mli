@@ -13,19 +13,22 @@ val topic_of_amount:   TokenAmount.t -> Bytes.t option
 val topic_of_hash:     Digest.t      -> Bytes.t option
 
 
-type quadruple_contract = {contract_address: Address.t; code_hash: Digest.t; creation_hash: Digest.t; creation_block: Revision.t}
-
-val test_equality_quadruple : quadruple_contract -> quadruple_contract -> bool
-(** return true if the quadruples are equal and false otherwise. Could be done via metaprogramming *)
-
-val retrieve_contract_address_quadruple : Digest.t -> quadruple_contract Lwt_exn.t
-
-val convert_quad_format : (Address.t * Digest.t * Digest.t * Revision.t) -> quadruple_contract
-
-val get_contract_address_general : quadruple_contract -> Address.t Lwt_exn.t
+type contract_address_config =
+  { contract_address : Address.t
+  ; code_hash : Digest.t
+  ; creation_hash : Digest.t
+  ; creation_block : Revision.t
+  }
 
 
-val get_contract_address : unit -> Address.t
+val retrieve_contract_address_quadruple : Digest.t -> contract_address_config Lwt_exn.t
+
+
+
+val get_contract_address : unit -> Address.t Lwt_exn.t
+(** get the contract address of the contract on Ethereum *)
+
+val get_contract_address_exn : unit -> Address.t Lwt.t
 (** get the contract address of the contract on Ethereum *)
 
 val pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address:Address.t -> PreTransaction.t
@@ -52,6 +55,6 @@ val make_withdraw_call
     arguments: operator address, bond amount, confirmed state
 *)
 
-val make_state_update_call : Digest.t -> Revision.t -> Ethereum_chain.Operation.t
+val make_state_update_call : contract_address:Address.t -> operator_digest:Digest.t -> operator_revision:Revision.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)
 (* TODO: signature from the smart court registry () *)

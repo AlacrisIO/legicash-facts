@@ -7,7 +7,6 @@ open Legilogic_ethereum
 open Side_chain
 open Side_chain_operator
 open Side_chain_user
-open Side_chain_server_config
 
 let contract_address_key = "alacris.contract-address"
 
@@ -33,10 +32,6 @@ let create_side_chain_contract (installer_address : Address.t) : (Address.t*Revi
   print_and_retrieve_transaction_hash confirmation.transaction_hash
 
 
-let get_contract_address_for_server : unit -> Address.t Lwt_exn.t =
-  fun () ->
-  let e_quad = Operator_contract.convert_quad_format Side_chain_server_config.contract_quad in
-  Operator_contract.get_contract_address_general e_quad
 
 
 let ensure_side_chain_contract_created (installer_address : Address.t) : Address.t Lwt_exn.t =
