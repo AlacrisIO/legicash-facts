@@ -308,6 +308,8 @@ docker-list: ## List available services
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) config --services
 
 docker-up: ## Start all or c=<name> containers in foreground
+	rm docker/config/side_chain_server_config.json
+	rm docker/config/side_chain_client_config.json
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up $(c)
 
 docker-start: ## Start all or c=<name> containers in background

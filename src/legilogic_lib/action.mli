@@ -452,6 +452,10 @@ end
     then [current_event] is the first event in the stream, and
     [subsequent_event_stream] is a promise for the next event in the stream. *)
 
+val sleep_delay_exn : float -> unit Lwt_exn.t
+(** This function allows to wait for a delay (in seconds) before continuing the computation.
+    It handles exceptions *)
+
 val with_connection : Unix.sockaddr -> (Lwt_io.input_channel * Lwt_io.output_channel, 'a) Lwt_exn.arr -> 'a Lwt_exn.t
 (** open a connection and run the function in it, closing input and output channels at the end.
     Return an Error Unix.Unix_error if the socket failed to be opened. *)

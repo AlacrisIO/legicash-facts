@@ -50,10 +50,6 @@ let main_chain_block_notification_stream
 
 
 
-(* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
-let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
-
-
 
 let wait_for_min_block_depth : Revision.t -> unit Lwt_exn.t =
   fun min_block_depth ->

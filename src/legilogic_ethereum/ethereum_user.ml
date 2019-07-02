@@ -654,7 +654,7 @@ let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t ->
          else
            (if ethereum_user_log then
               Logging.log "receipt is not true, ereceipt=%s" (TokenAmount.to_string ereceipt.status);
-            Lwt_exn.bind (Ethereum_watch.sleep_delay_exn 1.0) (fun () -> submit_operation ()))
+            Lwt_exn.bind (sleep_delay_exn 1.0) (fun () -> submit_operation ()))
         )
       ) in
   submit_operation ()

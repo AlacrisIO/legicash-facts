@@ -17,11 +17,11 @@ val post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
 val post_user_transaction_request : (UserTransactionRequest.t signed, TransactionCommitment.t) Lwt_exn.arr
 (** send transaction request to side chain over TCP/IP *)
 
-val operator_address : Address.t Lazy.t
+val get_operator_address_client : unit -> Address.t Lwt.t
 (** Address of the configured operator for the current client. *)
 (*  TODO: actually support more than one operator in the client. *)
 
-val contract_address_info_for_client : quadruple_contract Lazy.t
+val quadruple_contract_info_for_client : unit -> quadruple_contract Lwt.t
 (** Address of the contract address for the current client. *)
 
 module Test : sig

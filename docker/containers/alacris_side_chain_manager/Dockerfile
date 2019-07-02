@@ -36,11 +36,13 @@ ADD docker/containers/alacris_side_chain_manager/files/conf/supervisord.conf /et
 ADD docker/containers/alacris_side_chain_manager/files/scripts/run-side-chain-server.sh /usr/local/bin/run-side-chain-server
 
 COPY docker/containers/alacris_side_chain_manager/files/scripts/prefund.sh /prefund.sh
+COPY docker/containers/alacris_side_chain_manager/files/scripts/setup_contract.sh /setup_contract.sh
 USER root
+RUN mkdir -p /var/www/app/legicash-facts/config
 RUN chmod +x /prefund.sh
 RUN chown appuser:appuser /var/www/app/legicash-facts/_run/logs/ethereum_prefunder.log
 USER appuser
-ENTRYPOINT ["/prefund.sh"]
+ENTRYPOINT ["/prefund.sh && /setup_contract.sh && /CreateNewConfigFile /LOG_setup_contract /var/www/app/legicash-facts/config/pre_side_chain_server_config.json > /var/www/app/legicash-facts/config/side_chain_server_config.json && /CreateNewConfigFile /LOG_setup_contract /var/www/app/legicash-facts/config/pre_side_chain_client_config.json > /var/www/app/legicash-facts/config/side_chain_client_config.json"]
 
 
 EXPOSE 8095

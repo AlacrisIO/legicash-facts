@@ -428,7 +428,7 @@ let rec inner_state_update_periodic_loop : unit -> unit Lwt_exn.t =
   let open Lwt_exn in
   retrieve_validated_rev_digest ()
   >>= uncurry post_state_update
-  >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+  >>= fun _ -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
   >>= inner_state_update_periodic_loop
 
 

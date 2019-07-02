@@ -67,8 +67,9 @@ let get_keypair_of_address user =
 
 let get_contract_address_for_client_checked_exn_req : unit -> Address.t Lwt_exn.t =
   fun () ->
-  let e_quad = Lazy.force contract_address_info_for_client in
-  get_contract_address_general e_quad
+  let open Lwt_exn in
+  (Lwt_exn.of_lwt quadruple_contract_info_for_client) ()
+  >>= get_contract_address_general
 
 
 let contract_address_for_client_ref : (Address.t option ref) = ref None
