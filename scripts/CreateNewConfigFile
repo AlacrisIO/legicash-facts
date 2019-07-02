@@ -5,63 +5,61 @@ use warnings;
 
 my $uu=scalar(@ARGV);
 
-if ($uu ne 2)
+if ($uu ne 1)
 {
-    print "The script CreateNewConfigFile [LogFile] [InputConfigFile]\n";
+    print "The script CreateNewConfigFile [LogFile]\n";
     print "It takes the log as input, the input file and returns in standard output the new file\n";
     die;
 }
 
 my $eLOGfile = $ARGV[0];
-my $SideChainConfig = $ARGV[1];
+
 
 open(INFILE, $eLOGfile) or die "impossible to open LOG file=".$eLOGfile;
 my @Blog=<INFILE>;
 close(INFILE);
 
-open(INFILE, $SideChainConfig) or die "impossible to open side chain config file=".$SideChainConfig;
-my @Bsccf=<INFILE>;
-close(INFILE);
-
 my @ListEnt=("contract_address", "code_hash", "creation_hash", "creation_block");
 my $nbEnt=scalar(@ListEnt);
 
-for (my $iLine=0; $iLine<scalar(@Bsccf); $iLine++)
+
+my $nb_found=0;
+
+for (my $iEnt=0; $iEnt<$nbEnt; $iEnt++)
 {
-    my $eLine=$Bsccf[$iLine];
-    my $iEntFound=-1;
-    for (my $iEnt=0; $iEnt<$nbEnt; $iEnt++)
+    my $eEnt=$ListEnt[$iEnt];
+    my $eEntExt="\"".$eEnt."\"";
+    #
+    my $iLogFound=-1;
+    my $OutLine="";
+    for (my $iLog=0; $iLog<scalar(@Blog); $iLog++)
     {
-        my @VF=split($ListEnt[$iEnt], $eLine);
-        if (scalar(@VF) eq 2)
+        my $eLineLog = $Blog[$iLog];
+        my @VG=split($eEntExt, $eLineLog);
+        if (scalar(@VG) eq 2)
         {
-            $iEntFound=$iEnt;
+            $iLogFound = $iLog;
+            my @ST=split(",", $VG[1]);
+            $OutLine=$ST[0];
         }
     }
-    if ($iEntFound >= 0)
+    if ($iLogFound eq -1)
     {
-        my $eEnt=$ListEnt[$iEntFound];
-        my $eEntExt="\"".$eEnt."\"";
-        my @VF=split($eEntExt, $eLine);
-        my $Prefix = $VF[0];
-        #
-        my $iLogFound=-1;
-        my $OutLine="";
-        for (my $iLog=0; $iLog<scalar(@Blog); $iLog++)
-        {
-            my $eLineLog = $Blog[$iLog];
-            my @VG=split($eEntExt, $eLineLog);
-            if (scalar(@VG) eq 2)
-            {
-                $iLogFound = $iLog;
-                $OutLine=$VG[1];
-            }
-        }
-        if ($iLogFound eq -1)
-        {
-            die "Failed to find matching entry for eEnt=".$eEnt."\n";
-        }
-        $eLine=$Prefix.$eEntExt.$OutLine;
+        die "Failed to find matching entry for eEnt=".$eEnt."\n";
     }
-    print $eLine;
+    if ($iEnt eq 0)
+    {
+        print "{ ";
+    }
+    else
+    {
+        print "  ";
+    }
+    print $eEntExt.$OutLine;
+    if ($iEnt < $nbEnt-1)
+    {
+        print ",";
+    }
+    print "\n";
 }
+print "}\n";
