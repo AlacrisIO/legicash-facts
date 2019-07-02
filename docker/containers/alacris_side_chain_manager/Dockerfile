@@ -18,6 +18,9 @@ RUN make
 FROM gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1
 
 # copy binary the previous image
+COPY --from=build /var/www/app/legicash-facts/scripts/CreateNewConfigFile /var/www/app/legicash-facts/_run/CreateNewConfigFile
+
+# copy binary the previous image
 COPY --from=build /var/www/app/legicash-facts/_build/default/src/alacris_lib/side_chain_server.exe /var/www/app/legicash-facts/_run/side_chain_server.exe
 
 # copy binary the previous image
@@ -38,6 +41,8 @@ RUN chmod +x /prefund.sh
 RUN chown appuser:appuser /var/www/app/legicash-facts/_run/logs/ethereum_prefunder.log
 USER appuser
 ENTRYPOINT ["/prefund.sh"]
+
+
 EXPOSE 8095
 # command when running image
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisord.conf"]
