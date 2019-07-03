@@ -88,10 +88,9 @@ contract Claims {
 
 
     /** Check that a claim is still pending */
-    /*
     function require_claim_pending(bytes32 _claim) internal view {
         require(is_claim_status_pending(claim_status[_claim]));
-    }*/
+    }
 
     /** True if a claim is accepted as valid */
     function is_status_accepted(int _status) internal view returns(bool) {
@@ -123,7 +122,7 @@ contract Claims {
 
     /** Reject a pending claim as invalid. */
     function reject_claim(bytes32 _claim) internal {
-        /* require_claim_pending(_claim); */
+        require_claim_pending(_claim);
         claim_status[_claim] = REJECTED;
     }
 

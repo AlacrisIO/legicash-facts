@@ -31,23 +31,25 @@ let topic_of_hash (hash : Digest.t) : Bytes.t option =
    Be careful of adjusting everything when you change the type like adding a balance.
  *)
 
+let topic_of_signature = digest_of_string >> topic_of_hash
+
 let (topic_of_deposited: Bytes.t option) =
-  topic_of_hash (digest_of_string "Deposited(address,address,uint256,uint256)")
+  topic_of_signature "Deposited(address,address,uint256,uint256)"
 
 let (topic_of_state_update: Bytes.t option) =
-  topic_of_hash (digest_of_string "StateUpdate(address,bytes32,uint64)")
+  topic_of_signature "StateUpdate(address,bytes32,uint64)"
 
 let (topic_of_claim_withdrawal: Bytes.t option) =
-  topic_of_hash (digest_of_string "ClaimWithdrawal(address,address,uint64,uint256,uint256,bytes32,uint64)")
+  topic_of_signature "ClaimWithdrawal(address,address,uint64,uint256,uint256,bytes32,uint64)"
 
 let (topic_of_withdraw: Bytes.t option) =
-  topic_of_hash (digest_of_string "Withdrawal(address,uint64,uint256,uint256,bytes32)")
+  topic_of_signature "Withdrawal(address,uint64,uint256,uint256,bytes32)"
 
 let (topic_of_rejected_claim_status: Bytes.t option) =
-  topic_of_hash (digest_of_string "RejectedClaimStatus(uint64)")
+  topic_of_signature "RejectedClaimStatus(uint64)"
 
 let (topic_of_null_event: Bytes.t option) =
-  topic_of_hash (digest_of_string "NullEvent(bytes32)")
+  topic_of_signature "NullEvent(bytes32)"
 
 
 let retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Digest.t * Revision.t) Lwt_exn.t =
