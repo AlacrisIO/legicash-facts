@@ -73,6 +73,7 @@ type contract_address_config =
 let rec get_contract_address_config_iter : unit -> contract_address_config Lwt.t =
   fun () ->
   let open Lwt in
+  Logging.log "One call to get_contract_address_config_iter";
   let full_filename = Config.get_config_filename "contract_address.json" in
   let test = Sys.file_exists full_filename in
   if test then

@@ -18,8 +18,12 @@ let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) L
   Logging.log "code_hash=%s" (Digest.to_0x e_quad.code_hash);
   Logging.log "creation_hash=%s" (Digest.to_0x e_quad.creation_hash);
   Logging.log "creation_block=%s" (Revision.to_string e_quad.creation_block);
-  Logging.log "E N T R I E S to put in the side_chain_client_config.json file";
+  Logging.log "E N T R I E S to put in the contract_address.json file";
   Logging.log "  \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": %s," (Address.to_0x e_quad.contract_address) (Digest.to_0x e_quad.code_hash) (Digest.to_0x e_quad.creation_hash) (Revision.to_string e_quad.creation_block);
+  let fileout = "/tmp/contract_address.json" in
+  let oc = Pervasives.open_out fileout in
+  Printf.fprintf oc "{ \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": %s\n}\n" (Address.to_0x e_quad.contract_address) (Digest.to_0x e_quad.code_hash) (Digest.to_0x e_quad.creation_hash) (Revision.to_string e_quad.creation_block);
+  Pervasives.close_out oc;
   Address.to_0x e_quad.contract_address
   |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
   >>= const (e_quad.contract_address, e_quad.creation_block)
