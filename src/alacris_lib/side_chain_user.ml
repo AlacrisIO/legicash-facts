@@ -279,33 +279,6 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
 
 
 
-let get_claim_withdrawal_status : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> claimant:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t =
-  fun ~confirmed_pair tc ~claimant ~sender ~operator ->
-  let open Lwt_exn in
-  match (tc.transaction.tx_request |> TransactionRequest.request).operation with
-    | Deposit _ -> bork "get_claim_withdrawal_status error. Calling for Deposit"
-    | Payment _ -> bork "get_claim_withdrawal_status error. Calling for Payment"
-    | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-       Logging.log "Beginning of get_claim_withdrawal_status, withdrawal";
-       get_contract_address_for_client_exn ()
-       >>= fun contract_address ->
-       let bond = Side_chain_server_config.bond_value_v in
-       let operator_revision : Revision.t = tc.tx_proof.key in
-       let value = withdrawal_amount in
-       let operation = make_operation_has_claim_been_rejected ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair in
-       Ethereum_user.post_operation ~operation ~sender ~value_send:TokenAmount.zero
-       >>= fun tr ->
-       Logging.log "get_claim_withdrawal_status status=%B" (Ethereum_user.get_status_receipt tr);
-       let (topics : Bytes.t option list) = [topic_of_rejected_claim_status] in
-       let (list_data_type : abi_type list) = [Uint 64] in
-       let (data_value_search : abi_value option list) = [None] in
-       let (transaction_hash_val : Digest.t option) = Some tr.transaction_hash in
-       wait_for_contract_event ~contract_address ~transaction_hash:transaction_hash_val ~topics list_data_type data_value_search
-       >>= fun (log_object, abi_list_val) ->
-       Logging.log "Now exiting the get_claim_withdrawal_event |b|=%d" (List.length abi_list_val);
-       let claim_withdrawal_status : Revision.t = retrieve_revision_from_abi_value (List.nth abi_list_val 0) in
-       return claim_withdrawal_status
-
 
 
 let post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t =

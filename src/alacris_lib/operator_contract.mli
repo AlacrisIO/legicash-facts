@@ -17,7 +17,6 @@ val topic_of_deposited : Bytes.t option
 val topic_of_state_update : Bytes.t option
 val topic_of_claim_withdrawal : Bytes.t option
 val topic_of_withdraw : Bytes.t option
-val topic_of_rejected_claim_status : Bytes.t option
 val topic_of_null_event : Bytes.t option
 
 val retrieve_contract_address_quadruple : Digest.t -> (Address.t * Digest.t * Digest.t * Revision.t) Lwt_exn.t

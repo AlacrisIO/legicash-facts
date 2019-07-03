@@ -120,10 +120,13 @@ let get_keypair_of_address_noexn : Address.t -> keypair =
 module Test = struct
   open Signing.Test
   open Ethereum_user.Test
+  open Side_chain_operator.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
 
+  let get_user_balance address =
+    (get_operator_state () |> (operator_account_lens address).get).balance
 
   (* deposit, payment and withdrawal test *)
   let%test "deposit_withdraw_wrong_operator_version" =
@@ -139,6 +142,7 @@ module Test = struct
         of_lwt Db.open_connection "unit_test_db"
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 2";
+        let user_address = alice_address in
         get_contract_address_for_client_exn ()
         >>= fun contract_address ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 3";
@@ -163,7 +167,7 @@ module Test = struct
 	Logging.log "deposit_withdraw_wrong_operator_version, step 9";
         let deposit_amount = TokenAmount.of_string "500000000000000000" in
         User.transaction
-          alice_address
+          user_address
           deposit
           DepositWanted.{ operator
                         ; deposit_amount
@@ -172,6 +176,7 @@ module Test = struct
         >>= fun (commitment, _confirmation) ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 10";
         Logging.log "Making the fake transaction that should be rejected";
+        let balance_before = get_user_balance user_address in
         let withdrawal_amount = TokenAmount.of_string "100000000000000000" in
         let withdrawal_fee = TokenAmount.of_string "100000000000000" in
         let pre_oper : UserOperation.withdrawal_details = {withdrawal_amount
@@ -188,7 +193,7 @@ module Test = struct
               ; confirmed_side_chain_state_digest=Digest.zero
               ; confirmed_side_chain_state_revision=Revision.zero
               ; validity_within=Duration.zero } in
-        let keypair = get_keypair_of_address_noexn alice_address in
+        let keypair = get_keypair_of_address_noexn user_address in
         let user_trans_req : UserTransactionRequest.t = {rx_header; operation=withdraw} in
         let user_trans_req_sign : UserTransactionRequest.t signed = SignedUserTransactionRequest.make keypair user_trans_req in
         let tx_request : TransactionRequest.t = `UserTransaction user_trans_req_sign in
@@ -213,8 +218,8 @@ module Test = struct
                                   state_digest } in
         let confirmed_pair = (Revision.zero, Digest.zero) in
         Logging.log "deposit_withdraw_wrong_operator_version, step 10 address=%s" (Address.to_0x operator);
-        Logging.log "deposit_withdraw_wrong_operator_version, step 10 alice_address=%s" (Address.to_0x alice_address);
-        post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender:alice_address ~operator
+        Logging.log "deposit_withdraw_wrong_operator_version, step 10 user_address=%s" (Address.to_0x user_address);
+        post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender:user_address ~operator
         >>= fun block_nbr ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 11";
         let addi_term = (Revision.add Side_chain_server_config.challenge_period_in_blocks (Revision.of_int 2)) in
@@ -222,12 +227,7 @@ module Test = struct
         wait_for_min_block_depth min_block_length
         >>= fun () ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 12";
-        get_claim_withdrawal_status ~confirmed_pair tc ~claimant:alice_address ~sender:alice_address ~operator
-        >>= fun ret_value ->
-	Logging.log "deposit_withdraw_wrong_operator_version, step 13 ret_value=%s" (Revision.to_string ret_value);
-        if (Revision.equal ret_value (Revision.of_int 1)) then
-          return true
-        else
-          return false)
+        let balance_after = get_user_balance user_address in
+        return (TokenAmount.equal balance_after balance_before))
       ()
 end

@@ -153,23 +153,6 @@ contract Operators is Claims, ClaimTypes, Bonds {
       msg.sender.transfer(_bond);
     }
 
-    event RejectedClaimStatus(uint64 _res);
-
-
-    function has_claim_been_rejected(
-        address _operator, address _account,
-        uint64 _ticket, uint256 _value, uint256 _bond,
-        bytes32 _confirmed_state, uint64 _confirmed_revision)
-        external
-    {
-      bytes32 claim = withdrawal_claim(_operator, _account, _ticket, _value, _bond, _confirmed_state, _confirmed_revision);
-      uint64 value = 0;
-      if (is_claim_rejected(claim)) {
-        value = 1;
-      }
-      emit RejectedClaimStatus(value);
-    }
-
 
     /**
      * Challenge a withdrawal claim because its confirmed_state isn't accepted as valid.

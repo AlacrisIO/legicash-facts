@@ -45,9 +45,6 @@ let (topic_of_claim_withdrawal: Bytes.t option) =
 let (topic_of_withdraw: Bytes.t option) =
   topic_of_signature "Withdrawal(address,uint64,uint256,uint256,bytes32)"
 
-let (topic_of_rejected_claim_status: Bytes.t option) =
-  topic_of_signature "RejectedClaimStatus(uint64)"
-
 let (topic_of_null_event: Bytes.t option) =
   topic_of_signature "NullEvent(bytes32)"
 
