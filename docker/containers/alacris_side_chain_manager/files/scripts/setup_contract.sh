@@ -1,4 +1,4 @@
 #!/bin/bash
 
-cd /var/www/app/legicash-facts/_run && ./setup_contract.exe | tee /LOG_setup_contract
+cd /var/www/app/legicash-facts/_run && ./setup_contract.exe | tee /tmp/LOG_setup_contract
 
