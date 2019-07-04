@@ -20,21 +20,23 @@ let post_state_update : operator:Address.t -> operator_revision:Revision.t -> op
   fun ~operator ~operator_revision ~operator_digest ->
   let open Lwt_exn in
   if state_update_log then
-    Logging.log "post_state_update beginning";
-  let operation = make_state_update_call operator_digest operator_revision in
-  if (String.equal (Digest.to_string !last_hash) (Digest.to_string operator_digest)) then
-    (my_operation := make_null_operation operator_digest operator_revision;
-     if state_update_log then
-       Logging.log "Putting a null operation"
-    );
-  last_hash := operator_digest;
-  if state_update_log then
     Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision) (Digest.to_0x operator_digest);
-  Ethereum_user.post_operation ~operation:!my_operation ~sender:operator ~value_send:TokenAmount.zero
-  >>= fun x ->
-  if state_update_log then
-    Logging.log "After the post_operation of post_state_update";
-  return x
+  if (String.equal (Digest.to_string !last_hash) (Digest.to_string operator_digest)) then
+    (if state_update_log then
+       Logging.log "Same hash as before. No need to do anything";
+     return ()
+    )
+  else
+    (if state_update_log then
+       Logging.log "New hash, doing a state_update";
+     last_hash := operator_digest;
+     let operation = make_state_update_call operator_digest operator_revision in
+     Ethereum_user.post_operation ~operation:!my_operation ~sender:operator ~value_send:TokenAmount.zero
+     >>= fun x ->
+     if state_update_log then
+       Logging.log "After the post_operation of post_state_update";
+     return ()
+    )
 
 
 
@@ -72,4 +74,4 @@ let post_state_update_nocheck : operator:Address.t -> operator_revision:Revision
   >>= fun x ->
   if state_update_log then
     Logging.log "After the post_operation of post_state_update";
-  return x
+  return ()
