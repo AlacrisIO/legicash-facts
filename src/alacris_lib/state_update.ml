@@ -21,7 +21,7 @@ let post_state_update : operator:Address.t -> operator_revision:Revision.t -> op
   let open Lwt_exn in
   if state_update_log then
     Logging.log "post_state_update beginning";
-  let my_operation = ref (make_state_update_call operator_digest operator_revision) in
+  let operation = make_state_update_call operator_digest operator_revision in
   if (String.equal (Digest.to_string !last_hash) (Digest.to_string operator_digest)) then
     (my_operation := make_null_operation operator_digest operator_revision;
      if state_update_log then

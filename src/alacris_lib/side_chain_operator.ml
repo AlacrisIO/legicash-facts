@@ -424,7 +424,7 @@ let rec inner_state_update_periodic_loop : Address.t -> unit Lwt_exn.t =
   let open Lwt_exn in
   retrieve_validated_rev_digest ()
   >>= fun (operator_revision, operator_digest) -> post_state_update ~operator ~operator_revision ~operator_digest
-  >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+  >>= fun () -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
   >>= fun () -> inner_state_update_periodic_loop operator
 
 let rec inner_state_update_nocheck_periodic_loop : Address.t -> unit Lwt_exn.t =
@@ -432,7 +432,7 @@ let rec inner_state_update_nocheck_periodic_loop : Address.t -> unit Lwt_exn.t =
   let open Lwt_exn in
   retrieve_validated_rev_digest ()
   >>= fun (operator_revision, operator_digest) -> post_state_update_nocheck ~operator ~operator_revision ~operator_digest
-  >>= fun _ -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+  >>= fun () -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
   >>= fun () -> inner_state_update_nocheck_periodic_loop operator
 
 let start_state_update_periodic_operator address =

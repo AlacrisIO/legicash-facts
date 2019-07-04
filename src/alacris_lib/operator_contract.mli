@@ -102,6 +102,3 @@ val make_state_update_call_nocheck : Digest.t -> Revision.t -> Ethereum_chain.Op
 (** Operator address, contract address, and the ethereum main chain.
     This is for the tests *)
 
-
-val make_null_operation : Digest.t -> Revision.t -> Ethereum_chain.Operation.t
-(** Operator address, contract address, and the ethereum main chain *)
