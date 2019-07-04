@@ -7,7 +7,6 @@ open Legilogic_ethereum
 open Operator_contract
 open Digesting
 open Ethereum_chain
-open Ethereum_json_rpc
 
 let state_update_log = true
 
@@ -16,7 +15,7 @@ let last_hash = ref Digest.zero
 let first_nontrivial_hash = ref Digest.zero
 
 
-let post_state_update : operator:Address.t -> operator_revision:Revision.t -> operator_digest:Digest.t -> TransactionReceipt.t Lwt_exn.t =
+let post_state_update : operator:Address.t -> operator_revision:Revision.t -> operator_digest:Digest.t -> unit Lwt_exn.t =
   fun ~operator ~operator_revision ~operator_digest ->
   let open Lwt_exn in
   if state_update_log then
@@ -31,8 +30,8 @@ let post_state_update : operator:Address.t -> operator_revision:Revision.t -> op
        Logging.log "New hash, doing a state_update";
      last_hash := operator_digest;
      let operation = make_state_update_call operator_digest operator_revision in
-     Ethereum_user.post_operation ~operation:!my_operation ~sender:operator ~value_send:TokenAmount.zero
-     >>= fun x ->
+     Ethereum_user.post_operation ~operation:operation ~sender:operator ~value_send:TokenAmount.zero
+     >>= fun _ ->
      if state_update_log then
        Logging.log "After the post_operation of post_state_update";
      return ()
@@ -40,7 +39,7 @@ let post_state_update : operator:Address.t -> operator_revision:Revision.t -> op
 
 
 
-let post_state_update_nocheck : operator:Address.t -> operator_revision:Revision.t -> operator_digest:Digest.t -> TransactionReceipt.t Lwt_exn.t =
+let post_state_update_nocheck : operator:Address.t -> operator_revision:Revision.t -> operator_digest:Digest.t -> unit Lwt_exn.t =
   fun ~operator ~operator_revision ~operator_digest ->
   let open Lwt_exn in
   if state_update_log then
@@ -48,30 +47,30 @@ let post_state_update_nocheck : operator:Address.t -> operator_revision:Revision
   let null_oper = ref false in
   if (String.equal (Digest.to_string !last_hash) (Digest.to_string operator_digest)) then
     (if state_update_log then
-       Logging.log "previous hash identical to this one. Putting a null_operation";
+       Logging.log "previous hash identical to this one. Nothing to be done";
      null_oper := true
     );
   if (String.equal (Digest.to_string !last_hash) (Digest.to_string Digest.zero)) then
     (if state_update_log then
-       Logging.log "previous hash is zero. So first commit. Putting a null_operation";
+       Logging.log "previous hash is zero. So first commit. Nothing to be done";
      first_nontrivial_hash := operator_digest;
      null_oper := true
     );
   if (String.equal (Digest.to_string !first_nontrivial_hash) (Digest.to_string operator_digest)) then
     (if state_update_log then
-       Logging.log "operator_digest is the same as first_nontrivial_hash. Putting a null_operation";
+       Logging.log "operator_digest is the same as first_nontrivial_hash. Nothing to be done";
      null_oper := true
     );
   last_hash := operator_digest;
-  let operation = if !null_oper then
-                    make_null_operation operator_digest operator_revision
-                  else
-                    make_state_update_call operator_digest operator_revision
-  in
-  if state_update_log then
-    Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision) (Digest.to_0x operator_digest);
-  Ethereum_user.post_operation ~operation:operation ~sender:operator ~value_send:TokenAmount.zero
-  >>= fun x ->
-  if state_update_log then
-    Logging.log "After the post_operation of post_state_update";
-  return ()
+  if !null_oper then
+    return ()
+  else
+    (let operation = make_state_update_call operator_digest operator_revision in
+     if state_update_log then
+       Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision) (Digest.to_0x operator_digest);
+     Ethereum_user.post_operation ~operation:operation ~sender:operator ~value_send:TokenAmount.zero
+     >>= fun _ ->
+     if state_update_log then
+       Logging.log "After the post_operation of post_state_update";
+     return ()
+    )

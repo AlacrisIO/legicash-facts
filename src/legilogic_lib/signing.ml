@@ -385,8 +385,12 @@ module Test = struct
       ""
   let bob_address = bob_keys.address
 
-
-
+  let yolanda_keys =
+    keypair_of_0x
+      "0xaedcdea2b91de24d1fe2c8ae4b60687fb3826612962553fa3d0b8486e322aaa7"
+      "0x049df2cf38334e87893f7579244cdc61bb644f0d87798c73aad00de6d4bf0870de88815b355db373f6a6eb4ff3960e3d5f3f027a04902f58b4ba89c97c56b15024"
+      ""
+  let yolanda_address = yolanda_keys.address
 
   let zander_keys =
     keypair_of_0x
@@ -395,21 +399,7 @@ module Test = struct
       ""
   let zander_address = zander_keys.address
 
-  let yolanda_keys =
-    keypair_of_0x
-      "0xaedcdea2b91de24d1fe2c8ae4b60687fb3826612962553fa3d0b8486e322aaa7"
-      "0x049df2cf38334e87893f7579244cdc61bb644f0d87798c73aad00de6d4bf0870de88815b355db373f6a6eb4ff3960e3d5f3f027a04902f58b4ba89c97c56b15024"
-      ""
-  let yolanda_address = yolanda_keys.address
 
-
-  let bob_keys =
-    keypair_of_0x
-      "0x9b21b9b06ba77824b8ba6a815f5a075229a708ae88ba7fd935c968fe2c3df172"
-      "0x049e0a7e3c05e3328c603b0c27fbfdfc5030c95d9ad179a431c14f81e30a64ce95f625447e182a8be718d45f9ab9723f9b8571dd5c5752daa66feb84938b095805"
-      ""
-
-  let bob_address = bob_keys.address
 
   let register_test_keypairs () =
     List.iter (uncurry register_keypair)

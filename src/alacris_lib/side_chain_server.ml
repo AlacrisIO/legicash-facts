@@ -85,6 +85,7 @@ let _ =
       if side_chain_server_log then
         Logging.log "Beginning of side_chain_server";
       Mkb_json_rpc.init_mkb_server ()
+      >>= fun () -> Side_chain_null_operation.start_null_operation_thread ()
       >>= fun () -> Side_chain_vigilantism.start_vigilantism_state_update_operator Side_chain_server_config.operator_address
       >>= fun () -> Side_chain_operator.start_state_update_periodic_operator Side_chain_server_config.operator_address
       >>= fun () ->

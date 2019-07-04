@@ -9,7 +9,8 @@
  (name alacris_lib)
  (modules
   operator_contract operator_contract_binary
-  side_chain_tag side_chain side_chain_client side_chain_operator side_chain_user side_chain_vigilantism side_chain_action state_update)
+  side_chain_tag side_chain side_chain_client side_chain_operator side_chain_user
+  side_chain_vigilantism side_chain_null_operation side_chain_action state_update)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx ppx_deriving_rlp))
  ;; -9 : all fields mentioned in a pattern
  ;; -27 : unused variable
