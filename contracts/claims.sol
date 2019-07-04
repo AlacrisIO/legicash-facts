@@ -81,22 +81,25 @@ contract Claims {
     function is_claim_status_pending(int _status) internal view returns(bool) {
         return _status > get_block_number();
     }
+    /** Check that a claim is still pending */
+    function require_claim_pending(bytes32 _claim) internal view {
+        require(is_claim_status_pending(claim_status[_claim]));
+    }
+
+
+
 
     function is_claim_rejected(bytes32 _claim) internal view returns(bool) {
       return claim_status[_claim] == REJECTED;
     }
 
 
-    /** Check that a claim is still pending */
-    function require_claim_pending(bytes32 _claim) internal view {
-        require(is_claim_status_pending(claim_status[_claim]));
-    }
 
     /** True if a claim is accepted as valid */
     function is_status_accepted(int _status) internal view returns(bool) {
-        return _status >= 3 && _status <= get_block_number();
+        return _status >= ACCEPTABLE && _status <= get_block_number();
     }
-
+    /** Check that a claim is still pending */
     function is_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
       return is_status_accepted(claim_status[_claim]);
     }

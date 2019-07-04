@@ -14,9 +14,9 @@ open Side_chain
 open Side_chain_operator
 open Side_chain_user
 
+let side_chain_vigilantism_log = true
 
-
-let treat_individual_claim_bad_ticket : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
+let treat_individual_claim : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
   fun (_x_log, x_abi_list) ->
   let open Lwt_exn in
   let operator = retrieve_address_from_abi_value (List.nth x_abi_list 0) in
@@ -36,16 +36,13 @@ let treat_individual_claim_bad_ticket : (LogObject.t * abi_value list) -> unit L
   else
     return ()
 
-let treat_individual_claim : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
-  fun x ->
-  treat_individual_claim_bad_ticket x
-
 
 let treat_sequence_claims : (LogObject.t * abi_value list) list -> unit Lwt_exn.t =
   fun x_list ->
   let open Lwt_exn in
   let len : int = List.length x_list in
-  Logging.log "treat_sequence_claims with len=%i" len;
+  if side_chain_vigilantism_log then
+    Logging.log "treat_sequence_claims with len=%i" len;
   let rec treat_single : int -> unit Lwt_exn.t =
     fun pos_in ->
     treat_individual_claim (List.nth x_list pos_in)
@@ -58,7 +55,7 @@ let treat_sequence_claims : (LogObject.t * abi_value list) list -> unit Lwt_exn.
   in treat_single 0
 
 
-let search_fraud : contract_address:Address.t -> operator:Address.t -> Revision.t -> Revision.t Lwt_exn.t =
+let watch_withdrawal_claims : contract_address:Address.t -> operator:Address.t -> Revision.t -> Revision.t Lwt_exn.t =
   fun ~contract_address ~operator rev_in ->
   let open Lwt_exn in
   retrieve_relevant_list_logs_data
@@ -71,23 +68,26 @@ let search_fraud : contract_address:Address.t -> operator:Address.t -> Revision.
     [Address; Address; Uint 64; Uint 256; Uint 256; Bytes 32; Uint 64]
     [Some (Address_value operator); None; None; None; None; None; None]
   >>= fun (rev_out, llogs) ->
-  Logging.log "Before call to treat_sequence_claims";
+  if side_chain_vigilantism_log then
+    Logging.log "Before call to treat_sequence_claims";
   treat_sequence_claims llogs
   >>= fun () -> return rev_out
 
 
 
-let rec search_fraud_iter_if_failing : contract_address:Address.t -> operator:Address.t -> Revision.t -> Revision.t Lwt.t =
+let rec watch_withdrawal_claims_exn : contract_address:Address.t -> operator:Address.t -> Revision.t -> Revision.t Lwt.t =
   fun ~contract_address ~operator rev_in ->
   let open Lwt in
-  search_fraud ~contract_address ~operator rev_in
+  watch_withdrawal_claims ~contract_address ~operator rev_in
   >>= function
   | Ok rev_out ->
-     Logging.log "search_fraud_iter_if_failing, success returning rev_out=%s" (Revision.to_string rev_out);
+     if side_chain_vigilantism_log then
+       Logging.log "watch_withdrawal_claims_iter_if_failing, success returning rev_out=%s" (Revision.to_string rev_out);
      Lwt.return rev_out
-  | _ ->
-     Logging.log "Reiterating the search_fraud_iter_if_failing";
-     search_fraud_iter_if_failing ~contract_address ~operator rev_in
+  | _ -> if side_chain_vigilantism_log then
+           Logging.log "Reiterate until the rejection of claims is done correctly";
+         watch_withdrawal_claims_exn ~contract_address ~operator rev_in
+
 
 
 
@@ -96,8 +96,9 @@ let inner_vigilant_thread operator =
   let contract_address = get_contract_address () in
   let rec do_search : Revision.t -> Revision.t Lwt.t =
     fun start_ref ->
-    Logging.log "Begin of do_search in inner_vigilant_thread";
-    search_fraud_iter_if_failing ~contract_address ~operator start_ref
+    if side_chain_vigilantism_log then
+      Logging.log "Begin of do_search in inner_vigilant_thread";
+    watch_withdrawal_claims_exn ~contract_address ~operator start_ref
     >>= fun return_ref ->
     Lwt_unix.sleep Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
     >>= fun () -> do_search return_ref
@@ -106,7 +107,8 @@ let inner_vigilant_thread operator =
 
 
 let start_vigilantism_state_update_operator operator =
-  Logging.log "Beginning of the inner_vigilant_thread";
+  if side_chain_vigilantism_log then
+    Logging.log "Beginning of the inner_vigilant_thread";
   Lwt.async (fun () -> inner_vigilant_thread operator);
   Lwt_exn.return ()
 

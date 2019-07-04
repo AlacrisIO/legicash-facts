@@ -24,6 +24,8 @@ open Side_chain
 exception Operator_not_found of string
 exception Malformed_request  of string
 
+let side_chain_operator_log = true
+
 module OperatorState = struct
   [@warning "-39"]
   type t = { keypair: Keypair.t
@@ -436,12 +438,14 @@ let rec inner_state_update_nocheck_periodic_loop : Address.t -> unit Lwt_exn.t =
   >>= fun () -> inner_state_update_nocheck_periodic_loop operator
 
 let start_state_update_periodic_operator address =
-  Logging.log "Beginning of start_state_update_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
+  if side_chain_operator_log then
+    Logging.log "Beginning of start_state_update_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
   Lwt.async (fun () -> inner_state_update_periodic_loop address);
   Lwt_exn.return ()
 
 let start_state_update_nocheck_periodic_operator address =
-  Logging.log "Beginning of start_state_update_nocheck_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
+  if side_chain_operator_log then
+    Logging.log "Beginning of start_state_update_nocheck_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
   Lwt.async (fun () -> inner_state_update_nocheck_periodic_loop address);
   Lwt_exn.return ()
 
@@ -689,7 +693,8 @@ let inner_transaction_request_loop =
                   request_batch operator_state size
                (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
                | `GetCurrentRevisionDigest (rev_digest_resolver : PairRevisionDigest.t OrExn.t Lwt.u) ->
-                  Logging.log "inner_transaction_request, CASE : GetCurrentRevisionDigest";
+                  if side_chain_operator_log then
+                    Logging.log "inner_transaction_request, CASE : GetCurrentRevisionDigest";
                   (* Lwt.wakeup_later notify_batch_committed_u (); *)
                   let digest = (State.digest !operator_state_ref.current) in
                   let rev_oper = !operator_state_ref.current.operator_revision in
@@ -743,13 +748,15 @@ let initial_operator_state address =
 
 let load_operator_state address =
   let open Lwt_exn in
-  Logging.log "Loading the side_chain state...";
+  if side_chain_operator_log then
+    Logging.log "Loading the side_chain state...";
   Db.check_connection ();
   trying (catching_arr OperatorState.load) address
   >>= handling
         (function
          | Operator_not_found _ ->
-            Logging.log "Side chain not found, generating a new demo side chain";
+            if side_chain_operator_log then
+              Logging.log "Side chain not found, generating a new demo side chain";
             let initial_state = initial_operator_state address in
             let open Lwt in
             OperatorState.save initial_state
@@ -758,7 +765,8 @@ let load_operator_state address =
             Lwt_exn.return initial_state
          | e -> fail e)
   >>= fun operator_state ->
-  Logging.log "Done loading side chain state";
+  if side_chain_operator_log then
+    Logging.log "Done loading side chain state";
   return operator_state
 
 
