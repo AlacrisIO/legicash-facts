@@ -115,12 +115,16 @@ let throw_if_err = function
 let trent_address = Signing.Test.trent_address
 
 let _ =
+  if side_chain_client_log then
+    Logging.log "side_chain_client, step 1";
   let request_counter =
     let counter = ref 0 in
     fun () -> let n = !counter + 1 in counter := n ; n in
 
   (* just log Lwt exceptions *)
   let _ = Lwt.async_exception_hook := handle_lwt_exception in
+  if side_chain_client_log then
+    Logging.log "side_chain_client, step 2";
 
   let handle_request request =
     (* Log the request *)
@@ -274,6 +278,8 @@ let _ =
     | methodz -> bad_request_method id methodz
   in
   let _ = Server.handler_inet address port handle_request in
+  if side_chain_client_log then
+    Logging.log "side_chain_client, step 3";
 
   (* run forever in Lwt monad *)
   Db.run ~db_name:"alacris_client_db"
