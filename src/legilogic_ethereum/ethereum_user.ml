@@ -224,16 +224,27 @@ module NonceTracker = struct
 
          in match (op, state) with
           | (Reset, _) ->
-            continue Nonce.zero None
+             if ethereum_user_log then
+               Logging.log "ETHUSR: nonce tracker Reset";
+             continue Nonce.zero None
           | (Peek, None) ->
-             reset () >>= fun nonce -> continue nonce (Some nonce)
+             if ethereum_user_log then
+               Logging.log "ETHUSR: nonce tracker Peek/None";
+             reset () >>= fun nonce ->
+             if ethereum_user_log then
+               Logging.log "ETHUSR: nonce=%s" (Revision.to_string nonce);
+             continue nonce (Some nonce)
           | (Peek, Some nonce) ->
+             if ethereum_user_log then
+               Logging.log "ETHUSR: nonce tracker Peek/Some nonce, nonce=%s" (Revision.to_string nonce);
              return (nonce, Some nonce)
           | (Next, None) ->
-            reset () >>= next
+             if ethereum_user_log then
+               Logging.log "ETHUSR: nonce tracker Next/None";
+             reset () >>= next
           | (Next, Some nonce) ->
              if ethereum_user_log then
-               Logging.log "ETHUSR: NonceTracker nonce=%s" (Revision.to_string nonce);
+               Logging.log "ETHUSR: nonce tracker Next/Some nonce, nonce=%s" (Revision.to_string nonce);
              next nonce
   end
   include PersistentActivity(Base)
@@ -316,7 +327,8 @@ exception Replacement_transaction_underpriced
 
 
 let limited_retry : int -> 'a -> ('a -> 'b option Lwt_exn.t) -> 'b option Lwt_exn.t =
-  fun max_nbtry x fctin ->
+  fun nbiter x fctin ->
+  let max_nbtry = max 1 (nbiter - 5) in
   let rec fct : int -> 'b option Lwt_exn.t =
     fun iter ->
     if ethereum_user_log then
@@ -328,7 +340,8 @@ let limited_retry : int -> 'a -> ('a -> 'b option Lwt_exn.t) -> 'b option Lwt_ex
     | None -> (if (iter == max_nbtry-1) then
                  return None
                else
-                 fct (iter +1))
+                 sleep_delay_exn 1.0
+                 >>= fun () -> fct (iter +1))
   in
   fct 0
 
@@ -360,6 +373,8 @@ let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.
               bork "eth_send_raw_transaction: invalid hash %s instead of %s" (Digest.to_0x transaction_hash) (Digest.to_0x hash))
 
 
+let nbiter_ref = ref 0
+
 let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t) -> TransactionReceipt.t Lwt_exn.t =
   fun (transaction, signed) ->
     if ethereum_user_log then
@@ -367,54 +382,14 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t) -> Tran
     let sender = transaction.tx_header.sender in
     let hash = signed.SignedTransaction.tx.hash in
     let open Lwt_exn in
-    send_raw_transaction sender signed
-    >>= (fun hash ->
-      if ethereum_user_log then
-        Logging.log "sent txhash=%s" (Digest.to_hex_string hash);
-      return hash)
-    >>= Ethereum_json_rpc.eth_get_transaction_receipt
-    >>= (fun receipt ->
-      if ethereum_user_log then
-        Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson);
-      return receipt)
-    >>= (function
-      | Some receipt -> check_transaction_receipt_status receipt
-      | None ->
-        if ethereum_user_log then
-          Logging.log "send_and_confirm: None case";
-        let nonce = transaction.tx_header.nonce in
-        Ethereum_json_rpc.eth_get_transaction_count (sender, BlockParameter.Latest)
-        >>= fun sender_nonce ->
-        if ethereum_user_log then
-          Logging.log "sender_nonce=%s nonce=%s" (Revision.to_string sender_nonce) (Revision.to_string nonce);
-        if Nonce.(compare sender_nonce nonce > 0) then
-          (if ethereum_user_log then
-             Logging.log "Before call of confirmed_or_known_issue";
-           confirmed_or_known_issue sender hash)
-        else
-          (if ethereum_user_log then
-             Logging.log "Before call of fail Still_pending";
-           fail Still_pending))
-    >>= check_receipt_sufficiently_confirmed
-
-
-(** Wait until a transaction has been confirmed by the main chain.
-    TODO: understand why an error in a previous version of this code got eaten silently,
-    instead of logged and reported, causing a deadlock. *)
-let send_and_confirm_transaction_nbiter : int -> (Transaction.t * SignedTransaction.t) -> TransactionReceipt.t Lwt_exn.t =
-  fun nbiter (transaction, signed) ->
-    if ethereum_user_log then
-      Logging.log "Sending_and_confirm_transaction transaction=%s signed=%s" (Transaction.to_yojson_string transaction) (SignedTransaction.to_yojson_string signed);
-    let sender = transaction.tx_header.sender in
-    let hash = signed.SignedTransaction.tx.hash in
-    let open Lwt_exn in
+    nbiter_ref := 1 + !nbiter_ref;
     send_raw_transaction sender signed
     >>= (fun hash ->
       if ethereum_user_log then
         Logging.log "sent txhash=%s" (Digest.to_hex_string hash);
       return hash)
     >>= fun x ->
-    limited_retry nbiter x Ethereum_json_rpc.eth_get_transaction_receipt
+    limited_retry !nbiter_ref x Ethereum_json_rpc.eth_get_transaction_receipt
     >>= (fun receipt ->
       if ethereum_user_log then
         Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson);
@@ -440,42 +415,8 @@ let send_and_confirm_transaction_nbiter : int -> (Transaction.t * SignedTransact
     >>= check_receipt_sufficiently_confirmed
 
 
-let send_and_confirm_transaction_process : int -> (Transaction.t * SignedTransaction.t) -> TransactionReceipt.t Lwt_exn.t =
-  fun nbiter (epair : (Transaction.t * SignedTransaction.t)) ->
-  let open Lwt in
-  send_and_confirm_transaction_nbiter nbiter epair
-  >>= function
-  | Ok receipt ->
-     if ethereum_user_log then
-       Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
-     return (Ok receipt)
-  | Error NonceTooLow ->
-     if ethereum_user_log then
-       Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
-     return (Error NonceTooLow)
-  | Error TransactionRejected ->
-     if ethereum_user_log then
-       Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
-     return (Error TransactionRejected)
-  | Error e ->
-     if ethereum_user_log then
-       Logging.log "ETHUSR: TransactionTracker, Error e=%s" (Printexc.to_string e);
-     fail e
 
 
-let iteration_send_and_confirm : (Transaction.t * SignedTransaction.t) -> TransactionReceipt.t Lwt_exn.t =
-  fun epair ->
-  let rec fct : int -> TransactionReceipt.t Lwt_exn.t =
-    fun pos ->
-    let open Lwt in
-    send_and_confirm_transaction_process pos epair
-    >>= function
-    | Ok x -> return (Ok x)
-    | Error e -> (if ethereum_user_log then
-                    Logging.log "iteration_send_and_confirm e=%s" (Printexc.to_string e);
-                  fct (pos+1))
-  in
-  fct 1
 
 
 
@@ -555,8 +496,10 @@ module TransactionTracker = struct
            | Signed (transaction, signed) ->
               if ethereum_user_log then
                 Logging.log "Ethereum_User: Signed";
-              (*              infinite_loop_original (transaction, signed)*)
-              iteration_send_and_confirm (transaction, signed)
+              infinite_loop_original (transaction, signed)
+              >>= fun x ->
+              nbiter_ref := 0;
+              return x
               >>= function
               | Ok receipt ->
                  if ethereum_user_log then
@@ -652,28 +595,36 @@ module User = struct
   let rec get_user user = get get_user user
   let add_transaction : (OngoingTransactionStatus.t, TransactionTracker.t) UserAsyncAction.arr =
     fun transaction_status user_state ->
-      let open Lwt in
-      let user = user_state.UserState.address in
-      let revision = user_state.transaction_counter in
-      (*Logging.log "add_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status);*)
-      TransactionTracker.(make () Key.{user; revision}
+    if ethereum_user_log then
+      Logging.log "ETHUSR: beginning of add_transaction";
+    let open Lwt in
+    let user = user_state.UserState.address in
+    let revision = user_state.transaction_counter in
+    (*Logging.log "add_transaction %s %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status);*)
+    TransactionTracker.(make () Key.{user; revision}
                             (Lwter.const (TransactionStatus.Ongoing transaction_status)))
-      >>= fun tracker ->
-      if RevisionSet.is_empty (UserState.lens_ongoing_transactions.get user_state) then
-        Base.resume_transaction get_user user revision;
-      (*Logging.log "ADD_TRANSACTION %s %s => %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status) (TransactionTracker.Key.to_yojson_string (match tracker with (key, _, _) -> key));*)
-      UserAsyncAction.return tracker
-        (user_state
-         |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
-         |> Lens.modify UserState.lens_ongoing_transactions (RevisionSet.add revision))
+    >>= fun tracker ->
+    if ethereum_user_log then
+      Logging.log "ETHUSR: second step of add_transaction";
+    if RevisionSet.is_empty (UserState.lens_ongoing_transactions.get user_state) then
+      Base.resume_transaction get_user user revision;
+    (*Logging.log "ADD_TRANSACTION %s %s => %s" TransactionTracker.(Key.to_yojson_string Key.{user;revision}) (OngoingTransactionStatus.to_yojson_string transaction_status) (TransactionTracker.Key.to_yojson_string (match tracker with (key, _, _) -> key));*)
+    UserAsyncAction.return tracker
+      (user_state
+       |> Lens.modify UserState.lens_transaction_counter Revision.(add one)
+       |> Lens.modify UserState.lens_ongoing_transactions (RevisionSet.add revision))
 end
 
 let user_action : user:Address.t -> ('i, 'o) UserAsyncAction.arr -> ('i, 'o) Lwt_exn.arr =
   fun ~user action input ->
-    SimpleActor.action (User.get_user user) action input
+  if ethereum_user_log then
+    Logging.log "ETHUSR: beginning of user_action";
+  SimpleActor.action (User.get_user user) action input
 
 let add_ongoing_transaction : user:Address.t -> (OngoingTransactionStatus.t, TransactionTracker.t) Lwt_exn.arr =
   fun ~user status ->
+  if ethereum_user_log then
+    Logging.log "ETHUSR: beginning of add_ongoing_transaction";
   user_action ~user User.add_transaction status
 
 let issue_pre_transaction : Address.t -> (PreTransaction.t, TransactionTracker.t) Lwt_exn.arr =
@@ -725,7 +676,7 @@ let make_pre_transaction ~sender operation ?gas_limit ~value : PreTransaction.t 
   if ethereum_user_log then
     Logging.log "ETHUSR: make_pre_transaction gas_limit=%s value=%s" (TokenAmount.to_string gas_limit) (TokenAmount.to_string value);
   (* TODO: The multiplication by 2 is a hack that needs to be addressed *)
-  let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 2) gas_limit) in
+  let gas_limit_n_fold = (TokenAmount.mul (TokenAmount.of_int 3) gas_limit) in
   if ethereum_user_log then
     Logging.log "ETHUSR: gas_limit_n_fold=%s" (TokenAmount.to_string gas_limit_n_fold);
   return PreTransaction.{operation; value; gas_limit=gas_limit_n_fold}

@@ -34,7 +34,6 @@ ADD docker/containers/alacris_side_chain_manager/files/conf/supervisord.conf /et
 ADD docker/containers/alacris_side_chain_manager/files/scripts/run-side-chain-server.sh /usr/local/bin/run-side-chain-server
 
 # copy binary the previous image
-COPY /scripts/CreateNewConfigFile /CreateNewConfigFile
 COPY docker/containers/alacris_side_chain_manager/files/scripts/prefund.sh /prefund.sh
 COPY docker/containers/alacris_side_chain_manager/files/scripts/setup_contract.sh /setup_contract.sh
 COPY docker/containers/alacris_side_chain_manager/files/scripts/prefund_setup_create.sh /prefund_setup_create.sh
