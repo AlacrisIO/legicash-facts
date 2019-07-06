@@ -130,7 +130,7 @@ contract Claims {
     }
 
     function is_claim_rejectable(bytes32 _claim) internal view returns(bool) {
-      return claim_status[_claim] != REJECTED && claim_status[_claim] != ACCEPTABLE;
+      return claim_status[_claim] != REJECTED;
     }
 
     function set_claim_consumed(bytes32 _claim) internal {
