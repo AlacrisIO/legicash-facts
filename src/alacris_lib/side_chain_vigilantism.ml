@@ -26,7 +26,7 @@ let treat_individual_claim : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
   let bond = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 4) in
   let confirmed_state = retrieve_digest_from_abi_value (List.nth x_abi_list 5) in
   let confirmed_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 6) in
-  let confirmed_pair : PairRevisionDigest.t = (confirmed_revision, confirmed_state) in
+  let confirmed_pair : StateUpdate.t = (confirmed_revision, confirmed_state) in
   let contract_address = get_contract_address () in
   if (Revision.compare operator_revision confirmed_revision) > 0 then
     (let operation = make_challenge_withdrawal_too_large_revision ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair in

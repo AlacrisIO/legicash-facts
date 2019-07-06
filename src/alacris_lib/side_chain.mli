@@ -331,7 +331,7 @@ module OperatorFeeSchedule : sig
 end
 
 
-module PairRevisionDigest : sig
+module StateUpdate : sig
   [@warning "-39-32"]
   type t = Revision.t * Digest.t 
   [@@deriving yojson, rlp]

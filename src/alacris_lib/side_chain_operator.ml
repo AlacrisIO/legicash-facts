@@ -98,7 +98,7 @@ type inner_transaction_request =
   | `Flush of int
   | `Committed of State.t signed * unit Lwt.u
   | `GetCurrentDigest of Digest.t Lwt.u
-  | `GetCurrentRevisionDigest of PairRevisionDigest.t OrExn.t Lwt.u ]
+  | `GetCurrentRevisionDigest of StateUpdate.t OrExn.t Lwt.u ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -415,9 +415,9 @@ let post_validated_transaction_request :
       `Confirm (request, resolver))
 
 
-let retrieve_validated_rev_digest : unit -> PairRevisionDigest.t Lwt_exn.t =
+let retrieve_validated_rev_digest : unit -> StateUpdate.t Lwt_exn.t =
   simple_client inner_transaction_request_mailbox
-    (fun ((_, resolv) : (unit * PairRevisionDigest.t OrExn.t Lwt.u)) ->
+    (fun ((_, resolv) : (unit * StateUpdate.t OrExn.t Lwt.u)) ->
       `GetCurrentRevisionDigest resolv)
 
 (* TODO for a state_update_deadline_in_blocks somewhere *)
@@ -692,7 +692,7 @@ let inner_transaction_request_loop =
                   Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
                   request_batch operator_state size
                (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
-               | `GetCurrentRevisionDigest (rev_digest_resolver : PairRevisionDigest.t OrExn.t Lwt.u) ->
+               | `GetCurrentRevisionDigest (rev_digest_resolver : StateUpdate.t OrExn.t Lwt.u) ->
                   if side_chain_operator_log then
                     Logging.log "inner_transaction_request, CASE : GetCurrentRevisionDigest";
                   (* Lwt.wakeup_later notify_batch_committed_u (); *)

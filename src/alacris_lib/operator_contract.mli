@@ -45,7 +45,7 @@ val make_claim_withdrawal_call
   -> operator:Address.t
   -> operator_revision:Revision.t
   -> value:TokenAmount.t
-  -> confirmed_pair:PairRevisionDigest.t
+  -> confirmed_pair:StateUpdate.t
   -> Ethereum_chain.Operation.t
 
 val make_withdraw_call
@@ -54,7 +54,7 @@ val make_withdraw_call
   -> operator_revision:Revision.t
   -> value:TokenAmount.t
   -> bond:TokenAmount.t
-  -> confirmed_pair:PairRevisionDigest.t
+  -> confirmed_pair:StateUpdate.t
   -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "withdraw" function of the operator contract
     arguments: operator address, bond amount, confirmed state
@@ -67,7 +67,7 @@ val make_challenge_withdrawal_too_large_revision
   -> operator_revision:Revision.t
   -> value:TokenAmount.t
   -> bond:TokenAmount.t
-  -> confirmed_pair:PairRevisionDigest.t
+  -> confirmed_pair:StateUpdate.t
   -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "challenge_withdrawal_too_large_revision"
     function of the operator contract arguments:
@@ -83,7 +83,7 @@ val make_operation_has_claim_been_rejected
   -> operator_revision:Revision.t
   -> value:TokenAmount.t
   -> bond:TokenAmount.t
-  -> confirmed_pair:PairRevisionDigest.t
+  -> confirmed_pair:StateUpdate.t
   -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "challenge_withdrawal_too_large_revision"
     function of the operator contract arguments:

@@ -94,7 +94,7 @@ let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address
 
 
 
-let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
   fun ~contract_address ~operator ~operator_revision ~value ~confirmed_pair ->
   let (confirmed_revision, confirmed_state) = confirmed_pair in
   let parameters = [ abi_address operator
@@ -110,7 +110,7 @@ let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.
 
 
 (* The generic code which is repeated since many calls have the same structure *)
-let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
   fun ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
   let (confirmed_revision, confirmed_state) = confirmed_pair in
   let parameters = [ abi_address operator
@@ -125,7 +125,7 @@ let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> ope
 
 
 
-let make_challenge_withdrawal_too_large_revision : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+let make_challenge_withdrawal_too_large_revision : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
   fun ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
   let (confirmed_revision, confirmed_state) = confirmed_pair in
   let parameters = [ abi_address operator
@@ -139,7 +139,7 @@ let make_challenge_withdrawal_too_large_revision : contract_address:Address.t ->
   Operation.CallFunction (contract_address, call)
 
 
-let make_operation_has_claim_been_rejected : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> Ethereum_chain.Operation.t =
+let make_operation_has_claim_been_rejected : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
   fun ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
   let (confirmed_revision, confirmed_state) = confirmed_pair in
   let parameters = [ abi_address operator

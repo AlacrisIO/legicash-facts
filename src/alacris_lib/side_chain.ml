@@ -339,7 +339,7 @@ module OperatorFeeSchedule = struct
 end
 
 (** What we need for the system is the pair of Revision and state digest *)
-module PairRevisionDigest = struct
+module StateUpdate = struct
   [@warning "-39"]
   type t = Revision.t * Digest.t
   [@@deriving yojson, rlp]

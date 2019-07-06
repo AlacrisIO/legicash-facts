@@ -73,8 +73,8 @@ module OngoingTransactionStatus : sig
     | Requested            of UserTransactionRequest.t signed
     | SignedByOperator     of TransactionCommitment.t
     | PostedToRegistry     of TransactionCommitment.t
-    | PostedToMainChain    of TransactionCommitment.t * PairRevisionDigest.t * Ethereum_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * PairRevisionDigest.t * Revision.t * Ethereum_chain.Confirmation.t
+    | PostedToMainChain    of TransactionCommitment.t * StateUpdate.t * Ethereum_chain.Confirmation.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * StateUpdate.t * Revision.t * Ethereum_chain.Confirmation.t
 
   include PersistableS with type t := t
 
@@ -269,6 +269,6 @@ val get_contract_address_for_client_exn : unit -> Address.t Lwt_exn.t
 
 
 
-val post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t
+val post_claim_withdrawal_operation_exn : confirmed_pair:StateUpdate.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t
 
 

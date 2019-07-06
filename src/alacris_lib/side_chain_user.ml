@@ -164,12 +164,12 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
    —at least as long as the client is still actively interested in it.
 
  *)
-let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> (PairRevisionDigest.t * Ethereum_chain.Confirmation.t) Lwt_exn.t =
+let search_for_state_update_min_revision : operator:Address.t -> operator_revision:Revision.t -> (StateUpdate.t * Ethereum_chain.Confirmation.t) Lwt_exn.t =
   fun ~operator  ~operator_revision ->
   if side_chain_user_log then
     Logging.log "Beginning of search_for_state_update_min_revision  operator=%s operator_revision=%s" (Address.to_0x operator) (Revision.to_string operator_revision);
   let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
-  let rec get_matching : Revision.t -> (PairRevisionDigest.t * Ethereum_chain.Confirmation.t) Lwt_exn.t =
+  let rec get_matching : Revision.t -> (StateUpdate.t * Ethereum_chain.Confirmation.t) Lwt_exn.t =
     fun start_ref ->
     let open Lwt_exn in
     get_contract_address_for_client_exn ()
@@ -186,7 +186,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
                            compare oper_rev operator_revision >= 0) llogs in
     if (List.length llogs_filter > 0) then
       let (log_object, vals) = List.nth llogs_filter 0 in
-      let transhash : Digest.t = get_option Digest.zero log_object.transactionHash in
+      let transhash : Digest.t = Option.get log_object.transactionHash in
       let operator_revision = retrieve_revision_from_abi_value (List.nth vals 2) in
       let operator_digest = retrieve_digest_from_abi_value (List.nth vals 1) in
       let pair_rev_dig = (operator_revision, operator_digest) in
@@ -210,7 +210,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
   in get_matching Revision.zero
 
 
-let wait_for_claim_withdrawal_event : contract_address:Address.t -> claimant:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> value:TokenAmount.t -> bond:TokenAmount.t -> operator_revision:Revision.t -> confirmed_pair:PairRevisionDigest.t -> Revision.t Lwt_exn.t =
+let wait_for_claim_withdrawal_event : contract_address:Address.t -> claimant:Address.t -> transaction_hash:Digest.t -> operator:Address.t -> value:TokenAmount.t -> bond:TokenAmount.t -> operator_revision:Revision.t -> confirmed_pair:StateUpdate.t -> Revision.t Lwt_exn.t =
   fun ~contract_address ~claimant ~transaction_hash ~operator ~value ~bond ~operator_revision ~confirmed_pair ->
   if side_chain_user_log then
     (Logging.log "Beginning of wait_for_claim_withdrawal_event";
@@ -239,14 +239,14 @@ let wait_for_claim_withdrawal_event : contract_address:Address.t -> claimant:Add
 
 
 
-let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> TransactionReceipt.t Lwt_exn.t =
+let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:StateUpdate.t -> TransactionReceipt.t Lwt_exn.t =
   fun ~contract_address ~sender ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
   if side_chain_user_log then
     Logging.log "post_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let operation = make_claim_withdrawal_call ~contract_address ~operator ~operator_revision ~value ~confirmed_pair in
   Ethereum_user.post_operation ~operation ~sender ~value_send:bond
 
-let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:PairRevisionDigest.t -> TransactionReceipt.t Lwt_exn.t =
+let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:StateUpdate.t -> TransactionReceipt.t Lwt_exn.t =
   fun ~contract_address ~sender ~operator operator_revision ~value ~bond ~confirmed_pair ->
   if side_chain_user_log then
     Logging.log "post_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
@@ -281,7 +281,7 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
 
 
 
-let post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t =
+let post_claim_withdrawal_operation_exn : confirmed_pair:StateUpdate.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t =
   fun ~confirmed_pair tc ~sender ~operator ->
   let open Lwt_exn in
   Logging.log "Beginning of post_claim_withdrawal_operation";
@@ -320,7 +320,7 @@ let post_claim_withdrawal_operation_exn : confirmed_pair:PairRevisionDigest.t ->
          Logging.log "After the wait_for_claim_withdrawal_event";
        return block_nbr
 
-let post_claim_withdrawal_operation : confirmed_pair:PairRevisionDigest.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt.t =
+let post_claim_withdrawal_operation : confirmed_pair:StateUpdate.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt.t =
   fun ~confirmed_pair tc ~sender ~operator ->
   let open Lwt in
   post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender ~operator
@@ -328,7 +328,7 @@ let post_claim_withdrawal_operation : confirmed_pair:PairRevisionDigest.t -> Tra
   | Error _ -> bork "The post_claim_withdrawal_operation_exn fails"
   | Ok x -> return x
 
-let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revision.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> confirmed_pair:PairRevisionDigest.t -> unit Lwt_exn.t =
+let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revision.t -> TokenAmount.t -> sender:Address.t -> operator:Address.t -> confirmed_pair:StateUpdate.t -> unit Lwt_exn.t =
   fun tc ~block_nbr withdrawal_amount ~sender ~operator ~confirmed_pair ->
   if side_chain_user_log then
     Logging.log "Beginning of execute_withdraw_operation";
@@ -366,7 +366,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revis
 
 
 
-let execute_withdraw_operation : TransactionCommitment.t -> block_nbr:Revision.t -> sender:Address.t -> operator:Address.t -> confirmed_pair:PairRevisionDigest.t -> unit Lwt_exn.t =
+let execute_withdraw_operation : TransactionCommitment.t -> block_nbr:Revision.t -> sender:Address.t -> operator:Address.t -> confirmed_pair:StateUpdate.t -> unit Lwt_exn.t =
   fun tc ~block_nbr ~sender ~operator ~confirmed_pair ->
   match (tc.transaction.tx_request |> TransactionRequest.request).operation with
   | Deposit _ | Payment _ -> Lwt_exn.return ()
@@ -460,8 +460,8 @@ module OngoingTransactionStatus = struct
 
     (* for withdrawal only *)
     (* TODO: Create the Confirmation type and clear things up *)
-    | PostedToMainChain    of TransactionCommitment.t * PairRevisionDigest.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
-    | ConfirmedOnMainChain of TransactionCommitment.t * PairRevisionDigest.t * Revision.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
+    | PostedToMainChain    of TransactionCommitment.t * StateUpdate.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
+    | ConfirmedOnMainChain of TransactionCommitment.t * StateUpdate.t * Revision.t * Ethereum_chain.Confirmation.t (* Confirmation.t *)
   [@@deriving yojson]
 
   include (YojsonPersistable (struct
@@ -715,7 +715,7 @@ module TransactionTracker = struct
              (search_for_state_update_min_revision ~operator ~operator_revision:tc.operator_revision
               (* wait_for_operator_state_update ~operator ~transaction_hash:tc.state_update_transaction_hash*)
               >>= function
-              | Ok (c_pair : (PairRevisionDigest.t * Ethereum_chain.Confirmation.t)) ->
+              | Ok (c_pair : (StateUpdate.t * Ethereum_chain.Confirmation.t)) ->
                  let (c_rev_digest, c_confirm) = c_pair in
                  if side_chain_user_log then
                    Logging.log "PostedToRegistry: side_chain_user: TrTracker, Ok case";
