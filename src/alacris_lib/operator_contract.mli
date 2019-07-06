@@ -21,7 +21,7 @@ type contract_address_config =
   }
 
 
-val retrieve_contract_address_quadruple : Digest.t -> contract_address_config Lwt_exn.t
+val retrieve_contract_config : Digest.t -> contract_address_config Lwt_exn.t
 
 
 

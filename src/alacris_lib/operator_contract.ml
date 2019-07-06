@@ -124,7 +124,7 @@ let test_equality_quadruple : contract_address_config -> contract_address_config
 
 
 
-let retrieve_contract_address_quadruple : Digest.t -> contract_address_config Lwt_exn.t =
+let retrieve_contract_config : Digest.t -> contract_address_config Lwt_exn.t =
   fun transaction_hash ->
   let open Lwt_exn in
   Ethereum_json_rpc.eth_get_transaction_receipt transaction_hash
@@ -144,7 +144,7 @@ let get_contract_address_general : unit -> Address.t Lwt_exn.t =
   let open Lwt_exn in
   (Lwt_exn.of_lwt get_contract_address_config_iter) ()
   >>= fun config ->
-  retrieve_contract_address_quadruple config.creation_hash
+  retrieve_contract_config config.creation_hash
   >>= fun config_b ->
   let result = test_equality_quadruple config config_b in
   Logging.log "result ? %B" result;

@@ -12,7 +12,7 @@ let contract_address_key = "alacris.contract-address"
 
 let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) Lwt_exn.t =
   fun transaction_hash ->
-  Operator_contract.retrieve_contract_address_quadruple transaction_hash
+  Operator_contract.retrieve_contract_config transaction_hash
   >>= fun e_quad ->
   Logging.log "contract_address=%s" (Address.to_0x e_quad.contract_address);
   Logging.log "code_hash=%s" (Digest.to_0x e_quad.code_hash);
