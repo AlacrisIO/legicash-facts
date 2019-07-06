@@ -93,7 +93,7 @@ let rec get_contract_address_config_iter : unit -> contract_address_config Lwt.t
 
 
 
-let test_equality_quadruple : contract_address_config -> contract_address_config -> bool =
+let test_equality_contract_config : contract_address_config -> contract_address_config -> bool =
   fun e_quad f_quad ->
   let result = ref true in
   if not (String.equal (Address.to_string e_quad.contract_address) (Address.to_string f_quad.contract_address)) then
@@ -146,7 +146,7 @@ let get_contract_address_general : unit -> Address.t Lwt_exn.t =
   >>= fun config ->
   retrieve_contract_config config.creation_hash
   >>= fun config_b ->
-  let result = test_equality_quadruple config config_b in
+  let result = test_equality_contract_config config config_b in
   Logging.log "result ? %B" result;
   if result then
     (if operator_contract_log then
