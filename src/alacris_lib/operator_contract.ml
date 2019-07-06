@@ -52,20 +52,13 @@ let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address
 
 
 
-type contract_address_config_input =
-  { contract_address : string
-  ; code_hash : string
-  ; creation_hash : string
-  ; creation_block : int
-  } [@@deriving of_yojson]
-
 
 type contract_address_config =
   { contract_address : Address.t
-  ; code_hash : Digest.t
-  ; creation_hash : Digest.t
+  ; code_hash : Types.Digest.t
+  ; creation_hash : Types.Digest.t
   ; creation_block : Revision.t
-  }
+  } [@@deriving of_yojson]
 
 
 
@@ -77,14 +70,9 @@ let rec get_contract_address_config_iter : unit -> contract_address_config Lwt.t
   let full_filename = Config.get_config_filename "contract_address.json" in
   let test = Sys.file_exists full_filename in
   if test then
-    (let config_client = full_filename |> yojson_of_file |> contract_address_config_input_of_yojson in
+    (let config_client = full_filename |> yojson_of_file |> contract_address_config_of_yojson in
      match config_client with
-     | Ok x -> (let contract_address = Address.of_0x x.contract_address in
-                let code_hash = Digest.of_0x x.code_hash in
-                let creation_hash = Digest.of_0x x.creation_hash in
-                let creation_block = Revision.of_int x.creation_block in
-                let ret_val : contract_address_config = {contract_address; code_hash; creation_hash; creation_block} in
-                Lwt.return ret_val)
+     | Ok x -> Lwt.return x
      | Error msg -> Lib.bork "Error loading side chain client configuration: %s" msg)
   else
     (Lwt_unix.sleep 1.0

@@ -14,15 +14,21 @@ let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) L
   fun transaction_hash ->
   Operator_contract.retrieve_contract_config transaction_hash
   >>= fun e_quad ->
-  Logging.log "contract_address=%s" (Address.to_0x e_quad.contract_address);
-  Logging.log "code_hash=%s" (Digest.to_0x e_quad.code_hash);
-  Logging.log "creation_hash=%s" (Digest.to_0x e_quad.creation_hash);
-  Logging.log "creation_block=%s" (Revision.to_string e_quad.creation_block);
+  let strContractAddress = Address.to_0x e_quad.contract_address in
+(*  let strCodeHash = Hex.remove_0x_from_string (Digest.to_0x e_quad.code_hash) in
+  let strCreationHash = Hex.remove_0x_from_string (Digest.to_0x e_quad.creation_hash) in *)
+  let strCodeHash = Digest.to_0x e_quad.code_hash in
+  let strCreationHash = Digest.to_0x e_quad.creation_hash in
+  let strCreationBlock = Revision.to_0x e_quad.creation_block in
+  Logging.log "contract_address=%s" strContractAddress;
+  Logging.log "code_hash=%s" strCodeHash;
+  Logging.log "creation_hash=%s" strCreationHash;
+  Logging.log "creation_block=%s" strCreationBlock;
   Logging.log "E N T R I E S to put in the contract_address.json file";
-  Logging.log "  \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": %s," (Address.to_0x e_quad.contract_address) (Digest.to_0x e_quad.code_hash) (Digest.to_0x e_quad.creation_hash) (Revision.to_string e_quad.creation_block);
+  Logging.log "  \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": \"%s\"," strContractAddress strCodeHash strCreationHash strCreationBlock;
   let fileout = "/tmp/contract_address.json" in
   let oc = Pervasives.open_out fileout in
-  Printf.fprintf oc "{ \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": %s\n}\n" (Address.to_0x e_quad.contract_address) (Digest.to_0x e_quad.code_hash) (Digest.to_0x e_quad.creation_hash) (Revision.to_string e_quad.creation_block);
+  Printf.fprintf oc "{ \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": \"%s\"\n}\n" strContractAddress strCodeHash strCreationHash strCreationBlock;
   Pervasives.close_out oc;
   Address.to_0x e_quad.contract_address
   |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
