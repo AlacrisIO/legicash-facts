@@ -17,7 +17,7 @@ let _ =
     (fun () ->
       if setup_contract_log then
         Logging.log "Before the Db.open_connection";
-      of_lwt Db.open_connection "setup_contract_db"
+      of_lwt Db.open_connection "alacris_server_db"
       >>= fun () ->
       if setup_contract_log then
         Logging.log "Setup_contract operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
