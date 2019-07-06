@@ -326,24 +326,6 @@ let confirmed_or_known_issue : Address.t -> (Digest.t, TransactionReceipt.t) Lwt
 exception Replacement_transaction_underpriced
 
 
-let limited_retry : int -> 'a -> ('a -> 'b option Lwt_exn.t) -> 'b option Lwt_exn.t =
-  fun nbiter x fctin ->
-  let max_nbtry = max 1 (nbiter - 5) in
-  let rec fct : int -> 'b option Lwt_exn.t =
-    fun iter ->
-    if ethereum_user_log then
-      Logging.log "limited_retry iter=%i  max_nbtry=%i" iter max_nbtry;
-    fctin x
-    >>= fun y ->
-    match y with
-    | Some u -> return (Some u)
-    | None -> (if (iter == max_nbtry-1) then
-                 return None
-               else
-                 sleep_delay_exn 1.0
-                 >>= fun () -> fct (iter +1))
-  in
-  fct 0
 
 
 
@@ -373,8 +355,6 @@ let send_raw_transaction : Address.t -> (SignedTransaction.t, Digest.t) Lwt_exn.
               bork "eth_send_raw_transaction: invalid hash %s instead of %s" (Digest.to_0x transaction_hash) (Digest.to_0x hash))
 
 
-let nbiter_ref = ref 0
-
 let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t) -> TransactionReceipt.t Lwt_exn.t =
   fun (transaction, signed) ->
     if ethereum_user_log then
@@ -382,14 +362,12 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t) -> Tran
     let sender = transaction.tx_header.sender in
     let hash = signed.SignedTransaction.tx.hash in
     let open Lwt_exn in
-    nbiter_ref := 1 + !nbiter_ref;
     send_raw_transaction sender signed
     >>= (fun hash ->
       if ethereum_user_log then
         Logging.log "sent txhash=%s" (Digest.to_hex_string hash);
       return hash)
-    >>= fun x ->
-    limited_retry !nbiter_ref x Ethereum_json_rpc.eth_get_transaction_receipt
+    >>= Ethereum_json_rpc.eth_get_transaction_receipt
     >>= (fun receipt ->
       if ethereum_user_log then
         Logging.log "got receipt %s" (option_to_yojson TransactionReceipt.to_yojson receipt |> string_of_yojson);
@@ -417,30 +395,6 @@ let send_and_confirm_transaction : (Transaction.t * SignedTransaction.t) -> Tran
 
 
 
-
-
-
-let infinite_loop_original : (Transaction.t * SignedTransaction.t) -> TransactionReceipt.t Lwt_exn.t =
-  Lwt_exn.(run_lwt
-             (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
-                (trying send_and_confirm_transaction
-                 >>> function
-                 | Ok receipt ->
-                    if ethereum_user_log then
-                      Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
-                    return (Ok receipt)
-                 | Error NonceTooLow ->
-                    if ethereum_user_log then
-                      Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
-                    return (Error NonceTooLow)
-                 | Error TransactionRejected ->
-                    if ethereum_user_log then
-                      Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
-                    return (Error TransactionRejected)
-                 | Error e ->
-                    if ethereum_user_log then
-                      Logging.log "ETHUSR: TransactionTracker, Error e=%s" (Printexc.to_string e);
-                    fail e)))
 
 
 
@@ -496,10 +450,27 @@ module TransactionTracker = struct
            | Signed (transaction, signed) ->
               if ethereum_user_log then
                 Logging.log "Ethereum_User: Signed";
-              infinite_loop_original (transaction, signed)
-              >>= fun x ->
-              nbiter_ref := 0;
-              return x
+              (transaction, signed)
+              |> Lwt_exn.(run_lwt
+                            (retry ~retry_window:0.05 ~max_window:30.0 ~max_retries:None
+                               (trying send_and_confirm_transaction
+                                >>> function
+                                | Ok receipt ->
+                                   if ethereum_user_log then
+                                     Logging.log "ETHUSR: TransactionTracker, Ok receipt A";
+                                   return (Ok receipt)
+                                | Error NonceTooLow ->
+                                   if ethereum_user_log then
+                                     Logging.log "ETHUSR: TransactionTracker, Error NonceTooLow A";
+                                   return (Error NonceTooLow)
+                                | Error TransactionRejected ->
+                                   if ethereum_user_log then
+                                     Logging.log "ETHUSR: TransactionTracker, Error TransactionRejected";
+                                   return (Error TransactionRejected)
+                                | Error e ->
+                                   if ethereum_user_log then
+                                     Logging.log "ETHUSR: TransactionTracker, Error e=%s" (Printexc.to_string e);
+                                   fail e)))
               >>= function
               | Ok receipt ->
                  if ethereum_user_log then
