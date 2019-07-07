@@ -82,26 +82,26 @@ let rec get_contract_address_config_iter : unit -> contract_address_config Lwt.t
 
 
 let test_equality_contract_config : contract_address_config -> contract_address_config -> bool =
-  fun e_quad f_quad ->
+  fun e_config f_config ->
   let result = ref true in
-  if not (String.equal (Address.to_string e_quad.contract_address) (Address.to_string f_quad.contract_address)) then
+  if not (String.equal (Address.to_string e_config.contract_address) (Address.to_string f_config.contract_address)) then
     (if operator_contract_log then
-       Logging.log "Equality failure at contract_address a=%s b=%s" (Address.to_string e_quad.contract_address) (Address.to_string f_quad.contract_address);
+       Logging.log "Equality failure at contract_address a=%s b=%s" (Address.to_string e_config.contract_address) (Address.to_string f_config.contract_address);
      result := false
     );
-  if not (String.equal (Digest.to_string e_quad.code_hash) (Digest.to_string f_quad.code_hash)) then
+  if not (String.equal (Digest.to_string e_config.code_hash) (Digest.to_string f_config.code_hash)) then
     (if operator_contract_log then
-       Logging.log "Equality failure at code_hash a=%s b=%s" (Digest.to_string e_quad.code_hash) (Digest.to_string f_quad.code_hash);
+       Logging.log "Equality failure at code_hash a=%s b=%s" (Digest.to_string e_config.code_hash) (Digest.to_string f_config.code_hash);
      result := false
     );
-  if not (String.equal (Digest.to_string e_quad.creation_hash) (Digest.to_string f_quad.creation_hash)) then
+  if not (String.equal (Digest.to_string e_config.creation_hash) (Digest.to_string f_config.creation_hash)) then
     (if operator_contract_log then
-       Logging.log "Equality failure at transaction_hash a=%s b=%s" (Digest.to_string e_quad.creation_hash) (Digest.to_string f_quad.creation_hash);
+       Logging.log "Equality failure at transaction_hash a=%s b=%s" (Digest.to_string e_config.creation_hash) (Digest.to_string f_config.creation_hash);
      result := false
     );
-  if not (Revision.equal e_quad.creation_block f_quad.creation_block) then
+  if not (Revision.equal e_config.creation_block f_config.creation_block) then
     (if operator_contract_log then
-       Logging.log "Equality failure at block_number a=%s b=%s" (Revision.to_string e_quad.creation_block) (Revision.to_string f_quad.creation_block);
+       Logging.log "Equality failure at block_number a=%s b=%s" (Revision.to_string e_config.creation_block) (Revision.to_string f_config.creation_block);
      result := false
     );
   !result

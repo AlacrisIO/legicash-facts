@@ -13,13 +13,13 @@ let contract_address_key = "alacris.contract-address"
 let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) Lwt_exn.t =
   fun transaction_hash ->
   Operator_contract.retrieve_contract_config transaction_hash
-  >>= fun e_quad ->
-  let strContractAddress = Address.to_0x e_quad.contract_address in
-(*  let strCodeHash = Hex.remove_0x_from_string (Digest.to_0x e_quad.code_hash) in
-  let strCreationHash = Hex.remove_0x_from_string (Digest.to_0x e_quad.creation_hash) in *)
-  let strCodeHash = Digest.to_0x e_quad.code_hash in
-  let strCreationHash = Digest.to_0x e_quad.creation_hash in
-  let strCreationBlock = Revision.to_0x e_quad.creation_block in
+  >>= fun config ->
+  let strContractAddress = Address.to_0x config.contract_address in
+(*  let strCodeHash = Hex.remove_0x_from_string (Digest.to_0x config.code_hash) in
+  let strCreationHash = Hex.remove_0x_from_string (Digest.to_0x config.creation_hash) in *)
+  let strCodeHash = Digest.to_0x config.code_hash in
+  let strCreationHash = Digest.to_0x config.creation_hash in
+  let strCreationBlock = Revision.to_0x config.creation_block in
   Logging.log "contract_address=%s" strContractAddress;
   Logging.log "code_hash=%s" strCodeHash;
   Logging.log "creation_hash=%s" strCreationHash;
@@ -30,9 +30,9 @@ let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) L
   let oc = Pervasives.open_out fileout in
   Printf.fprintf oc "{ \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": \"%s\"\n}\n" strContractAddress strCodeHash strCreationHash strCreationBlock;
   Pervasives.close_out oc;
-  Address.to_0x e_quad.contract_address
+  Address.to_0x config.contract_address
   |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
-  >>= const (e_quad.contract_address, e_quad.creation_block)
+  >>= const (config.contract_address, config.creation_block)
 
 let create_side_chain_contract (installer_address : Address.t) : (Address.t*Revision.t) Lwt_exn.t =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
