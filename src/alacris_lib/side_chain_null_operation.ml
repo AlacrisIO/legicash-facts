@@ -7,6 +7,7 @@ open Side_chain_server_config
 open Ethereum_watch
 open Side_chain
 
+let side_chain_null_operation_log = true
 
 
 let small_money_transfer_first_second : recipient:Address.t -> sender:Address.t -> unit Lwt_exn.t =
@@ -38,7 +39,8 @@ let rec infinite_loop_transfer : int -> unit Lwt_exn.t =
 
 
 let start_null_operation_thread () =
-  Logging.log "Beginning of the inner_vigilant_thread";
+  if side_chain_null_operation_log then
+    Logging.log "Beginning of the null_operation_thread";
   if Side_chain_server_config.run_null_operation then
     Lwt.async (fun () -> infinite_loop_transfer 0);
   Lwt_exn.return ()

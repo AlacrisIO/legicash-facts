@@ -85,7 +85,6 @@ let _ =
       if side_chain_server_log then
         Logging.log "Beginning of side_chain_server";
       Mkb_json_rpc.init_mkb_server ()
-      >>= fun () -> Side_chain_null_operation.start_null_operation_thread ()
       >>= fun () -> Side_chain_vigilantism.start_vigilantism_state_update_operator Side_chain_server_config.operator_address
       >>= fun () -> Side_chain_operator.start_state_update_periodic_operator Side_chain_server_config.operator_address
       >>= fun () ->
@@ -96,10 +95,8 @@ let _ =
       if side_chain_server_log then
         Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
       Side_chain_action.ensure_side_chain_contract_created Side_chain_server_config.operator_address
-      >>= fun contract_address ->
-      assert (contract_address = Operator_contract.get_contract_address ());
-      if side_chain_server_log then
-        Logging.log "Using contract %s" (Address.to_0x contract_address);
+      >>= fun _ -> Side_chain_null_operation.start_null_operation_thread ()
+      >>= fun () ->
       load_operator_state Side_chain_server_config.operator_address
       >>= fun _operator_state ->
       let%lwt _server = Lwt_io.establish_server_with_client_address sockaddr process_request in
