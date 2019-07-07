@@ -202,7 +202,7 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
   >>= fun contract_address ->
   wait_for_contract_event ~contract_address ~transaction_hash:None ~topics list_data_type data_value_search
   >>= fun (x : (LogObject.t * (abi_value list))) ->
-  let (_log_object, abi_list_val) = x in
+  let (_log_object, _abi_list_val) = x in
   return ()
 
 

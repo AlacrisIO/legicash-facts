@@ -13,8 +13,6 @@ open Side_chain_server_config
 open Digesting
 open Yojsoning
 
-let operator_contract_log = false
-
 let operator_contract_log = true
 
 
@@ -72,11 +70,6 @@ let pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address
 
 
 
- <<<<<<< HEAD
-let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator ~operator_revision ~value ~confirmed_pair ->
-  let (confirmed_revision, confirmed_state) = confirmed_pair in
-=======
 
 
 type contract_address_config =
@@ -197,11 +190,11 @@ let rec get_contract_address_exn : unit -> Address.t Lwt.t =
 
 
 
-let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> confirmed_state:Digest.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator operator_revision ~value ~confirmed_state ->
+let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator ~operator_revision ~value ~confirmed_pair ->
+  let (confirmed_revision, confirmed_state) = confirmed_pair in
   if operator_contract_log then
     Logging.log "Beginning of make_claim_withdrawal_call";
->>>>>>> origin/master
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
@@ -265,11 +258,11 @@ let make_state_update_call : contract_address:Address.t -> operator_digest:Diges
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (contract_address, call)
 
-let make_state_update_call_nocheck : Digest.t -> Revision.t -> Ethereum_chain.Operation.t =
-  fun state_digest operator_revision ->
-  let parameters = [ abi_digest state_digest; abi_revision operator_revision] in
+let make_state_update_call_nocheck : contract_address:Address.t -> operator_digest:Digest.t -> operator_revision:Revision.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator_digest ~operator_revision ->
+  let parameters = [ abi_digest operator_digest; abi_revision operator_revision] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update_nocheck"; parameters } in
-  Operation.CallFunction (get_contract_address (), call)
+  Operation.CallFunction (contract_address, call)
 
 
 

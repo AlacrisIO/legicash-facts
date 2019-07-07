@@ -27,7 +27,8 @@ let treat_individual_claim : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
   let confirmed_state = retrieve_digest_from_abi_value (List.nth x_abi_list 5) in
   let confirmed_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 6) in
   let confirmed_pair : StateUpdate.t = (confirmed_revision, confirmed_state) in
-  let contract_address = get_contract_address () in
+  get_contract_address ()
+  >>= fun contract_address ->
   if (Revision.compare operator_revision confirmed_revision) > 0 then
     (let operation = make_challenge_withdrawal_too_large_revision ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair in
      Ethereum_user.post_operation ~operation ~sender:operator ~value_send:TokenAmount.zero
@@ -93,20 +94,21 @@ let rec watch_withdrawal_claims_exn : contract_address:Address.t -> operator:Add
 
 let inner_vigilant_thread operator =
   let open Lwt in
-  let contract_address = get_contract_address () in
-  let rec do_search : Revision.t -> Revision.t Lwt.t =
-    fun start_ref ->
+  let rec do_search : Address.t -> Revision.t -> Revision.t Lwt.t =
+    fun contract_address start_ref ->
     if side_chain_vigilantism_log then
       Logging.log "Begin of do_search in inner_vigilant_thread";
     watch_withdrawal_claims_exn ~contract_address ~operator start_ref
     >>= fun return_ref ->
     Lwt_unix.sleep Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
-    >>= fun () -> do_search return_ref
-  in do_search Revision.zero
+    >>= fun () -> do_search contract_address return_ref
+  in
+  get_contract_address_exn ()
+  >>= fun contract_address ->
+  do_search contract_address Revision.zero
 
 
-
-let start_vigilantism_state_update_operator operator =
+let start_vigilantism_state_update_daemon operator =
   if side_chain_vigilantism_log then
     Logging.log "Beginning of the inner_vigilant_thread";
   Lwt.async (fun () -> inner_vigilant_thread operator);
@@ -145,28 +147,21 @@ module Test = struct
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 2";
         let user_address = alice_address in
-        get_contract_address_for_client_exn ()
-        >>= fun contract_address ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 3";
-        Operator_contract.set_contract_address contract_address;
-        Logging.log "deposit_withdraw_wrong_operator_version, step 4";
         fund_accounts ()
         >>= fun () ->
-        Logging.log "deposit_withdraw_wrong_operator_version, step 5";
+        Logging.log "deposit_withdraw_wrong_operator_version, step 4";
         Mkb_json_rpc.init_mkb_server ()
-(*        >>= fun () ->
-        Logging.log "deposit_withdraw_wrong_operator_version, step 6";
-        load_operator_state operator *)
         >>= fun _ ->
         start_operator operator
         >>= fun () ->
-        Logging.log "deposit_withdraw_wrong_operator_version, step 7";
-        start_vigilantism_state_update_operator operator
+        Logging.log "deposit_withdraw_wrong_operator_version, step 5";
+        start_vigilantism_state_update_daemon operator
         >>= fun () ->
-        Logging.log "deposit_withdraw_wrong_operator_version, step 8";
+        Logging.log "deposit_withdraw_wrong_operator_version, step 6";
         start_state_update_nocheck_periodic_operator operator
         >>= fun () ->
-	Logging.log "deposit_withdraw_wrong_operator_version, step 9";
+	Logging.log "deposit_withdraw_wrong_operator_version, step 7";
         let deposit_amount = TokenAmount.of_string "500000000000000000" in
         User.transaction
           user_address
@@ -176,7 +171,7 @@ module Test = struct
                         ; request_guid = Types.RequestGuid.nil
                         ; requested_at = Types.Timestamp.now () }
         >>= fun (commitment, _confirmation) ->
-	Logging.log "deposit_withdraw_wrong_operator_version, step 10";
+	Logging.log "deposit_withdraw_wrong_operator_version, step 8";
         Logging.log "Making the fake transaction that should be rejected";
         let balance_before = get_user_balance user_address in
         let withdrawal_amount = TokenAmount.of_string "100000000000000000" in
@@ -219,7 +214,7 @@ module Test = struct
                                   accounts; main_chain_transactions_posted; signature;
                                   state_digest } in
         let confirmed_pair = (Revision.zero, Digest.zero) in
-        Logging.log "deposit_withdraw_wrong_operator_version, step 10 address=%s" (Address.to_0x operator);
+        Logging.log "deposit_withdraw_wrong_operator_version, step 9 address=%s" (Address.to_0x operator);
         Logging.log "deposit_withdraw_wrong_operator_version, step 10 user_address=%s" (Address.to_0x user_address);
         post_claim_withdrawal_operation_exn ~confirmed_pair tc ~sender:user_address ~operator
         >>= fun block_nbr ->

@@ -5,7 +5,6 @@ open Action
 open Lwt_exn
 open Marshaling
 open Types
-open Signing
 
 open Alacris_lib
 open Legilogic_ethereum
@@ -85,15 +84,12 @@ let _ =
       if side_chain_server_log then
         Logging.log "Beginning of side_chain_server";
       Mkb_json_rpc.init_mkb_server ()
-      >>= fun () -> Side_chain_vigilantism.start_vigilantism_state_update_operator Side_chain_server_config.operator_address
-      >>= fun () -> Side_chain_operator.start_state_update_periodic_operator Side_chain_server_config.operator_address
+      >>= fun () -> Side_chain_vigilantism.start_vigilantism_state_update_daemon Side_chain_server_config.operator_address
+      >>= fun () -> Side_chain_operator.start_state_update_periodic_daemon Side_chain_server_config.operator_address
       >>= fun () ->
       if side_chain_server_log then
         Logging.log "Before the Db.open_connection";
       of_lwt Db.open_connection "alacris_server_db"
-      >>= fun () ->
-      if side_chain_server_log then
-        Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
       >>= fun _ -> Side_chain_null_operation.start_null_operation_thread ()
       >>= fun () -> load_operator_state Side_chain_server_config.operator_address
       >>= fun _operator_state ->

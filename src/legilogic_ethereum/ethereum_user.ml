@@ -689,7 +689,7 @@ let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t ->
   fun ~operation ~sender ~value_send ->
   let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
     fun () ->
-    post_operation_kernel operation sender value
+    post_operation_kernel operation sender value_send
     >>= fun ereceipt ->
     if get_status_receipt ereceipt then
       return ereceipt

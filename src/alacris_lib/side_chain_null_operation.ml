@@ -4,7 +4,6 @@ open Signing
 
 open Legilogic_ethereum
 open Side_chain_server_config
-open Ethereum_watch
 open Side_chain
 
 let side_chain_null_operation_log = true

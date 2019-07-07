@@ -66,7 +66,9 @@ let post_state_update_nocheck : operator:Address.t -> operator_revision:Revision
   if !null_oper then
     return ()
   else
-    (let operation = make_state_update_call operator_digest operator_revision in
+    (get_contract_address ()
+     >>= fun contract_address ->
+     let operation = make_state_update_call ~contract_address ~operator_digest ~operator_revision in
      if state_update_log then
        Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision) (Digest.to_0x operator_digest);
      Ethereum_user.post_operation ~operation:operation ~sender:operator ~value_send:TokenAmount.zero
