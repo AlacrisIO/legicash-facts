@@ -94,10 +94,8 @@ let _ =
       >>= fun () ->
       if side_chain_server_log then
         Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
-      Side_chain_action.ensure_side_chain_contract_created Side_chain_server_config.operator_address
       >>= fun _ -> Side_chain_null_operation.start_null_operation_thread ()
-      >>= fun () ->
-      load_operator_state Side_chain_server_config.operator_address
+      >>= fun () -> load_operator_state Side_chain_server_config.operator_address
       >>= fun _operator_state ->
       let%lwt _server = Lwt_io.establish_server_with_client_address sockaddr process_request in
       start_operator Side_chain_server_config.operator_address

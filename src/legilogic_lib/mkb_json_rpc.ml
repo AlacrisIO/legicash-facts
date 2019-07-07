@@ -123,22 +123,22 @@ let get_mkb_topic_description : mkb_rpc_config_type -> MkbTopicDescription.t =
     hash_method = x_mkb_config.hash_method}
 
 let mkb_topic_creation =
-  mkb_json_rpc "topic_creation"
+  mkb_json_rpc "mkb_topic_creation"
     StringT.of_yojson_exn
     (yojson_singlearg MkbTopicDescription.to_yojson)
 
 let mkb_add_registrar =
-  mkb_json_rpc "add_registrar"
+  mkb_json_rpc "mkb_add_registrar"
     StringT.of_yojson_exn
     (yojson_2args StringT.to_yojson StringT.to_yojson)
 
 let mkb_add_account =
-  mkb_json_rpc "add_account"
+  mkb_json_rpc "mkb_add_account"
     SendDataResult.of_yojson_exn
     (yojson_2args StringT.to_yojson StringT.to_yojson)
 
 let mkb_send_data : (string * string * string * string) -> SendDataResult.t Lwt_exn.t =
-  mkb_json_rpc "send_data"
+  mkb_json_rpc "mkb_send_data"
     SendDataResult.of_yojson_exn
     (yojson_4args StringT.to_yojson StringT.to_yojson StringT.to_yojson StringT.to_yojson)
 

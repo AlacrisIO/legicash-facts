@@ -54,7 +54,7 @@ contract Claims {
      * One challenge period is 2h, about 423 blocks at the expected rate of 1 block per 17 s.
      */
     int constant internal challenge_period_in_blocks = 2;
-    
+
     /* This code computes the block number for the challenge period */
     function get_block_number() internal view returns(int) {
       int nbr;

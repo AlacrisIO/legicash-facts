@@ -520,6 +520,10 @@ let write_string_to_lwt_io_channel out_channel s =
     >>= fun () ->
       catching_lwt flush out_channel (* flushing is critical *)
 
+
+let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
+
+
 (* TODO: some kind of try ... finally to always close the channels *)
 let with_connection sockaddr f =
   let open Lwt_exn in

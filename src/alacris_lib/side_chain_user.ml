@@ -11,7 +11,6 @@ open Types
 open Merkle_trie
 open Json_rpc
 open Trie
-open Side_chain_client
 
 open Legilogic_ethereum
 open Side_chain_server_config
@@ -47,74 +46,8 @@ let get_keypair_of_address user =
 
 
 
-let test_equality_quadruple : (Address.t * Digest.t * Digest.t * Revision.t) -> (Address.t * Digest.t * Digest.t * Revision.t) -> bool =
-  fun (a_adr, a_diga, a_digb, a_rev) (b_adr, b_diga, b_digb, b_rev) ->
-  let result = ref true in
-  if not (String.equal (Address.to_string a_adr) (Address.to_string b_adr)) then
-    (if side_chain_user_log then
-       Logging.log "Equality failure at contract_address a=%s b=%s" (Address.to_string a_adr) (Address.to_string b_adr);
-     result := false
-    );
-  if not (String.equal (Digest.to_string a_diga) (Digest.to_string b_diga)) then
-    (if side_chain_user_log then
-       Logging.log "Equality failure at code_hash a=%s b=%s" (Digest.to_string a_diga) (Digest.to_string b_diga);
-     result := false
-    );
-  if not (String.equal (Digest.to_string a_digb) (Digest.to_string b_digb)) then
-    (if side_chain_user_log then
-       Logging.log "Equality failure at transaction_hash a=%s b=%s" (Digest.to_string a_digb) (Digest.to_string b_digb);
-     result := false
-    );
-  if not (Revision.equal a_rev b_rev) then
-    (if side_chain_user_log then
-       Logging.log "Equality failure at block_number a=%s b=%s" (Revision.to_string a_rev) (Revision.to_string b_rev);
-     result := false
-    );
-  !result
 
 
-let get_contract_address_for_client_checked_exn_req : unit -> Address.t Lwt_exn.t =
-  fun () ->
-  let open Lwt_exn in
-  let e_quad = Lazy.force contract_address_info_for_client in
-  let (contract_address, _, creation_hash, _) = e_quad in
-  Logging.log "Before call to get_contract_address_for_client_checked_exn_req";
-  Operator_contract.retrieve_contract_address_quadruple creation_hash
-  >>= fun f_quad ->
-  let result = test_equality_quadruple e_quad f_quad in
-  Logging.log "result ? %B" result;
-  if result then
-    (if side_chain_user_log then
-       Logging.log "contract_address retrieve successfully";
-     return contract_address
-    )
-  else
-    (if side_chain_user_log then
-       Logging.log "Error case for contract_address retrieval";
-    bork "inconsistent input for the contract")
-
-
-let contract_address_for_client_ref : (Address.t option ref) = ref None
-
-let get_contract_address_for_client_exn : unit -> Address.t Lwt_exn.t =
-  fun () ->
-  let open Lwt_exn in
-  match !contract_address_for_client_ref with
-  | Some x -> return x
-  | None ->
-     get_contract_address_for_client_checked_exn_req ()
-     >>= fun x ->
-     contract_address_for_client_ref := Some x;
-     return x
-
-let get_contract_address_for_client : unit -> Address.t Lwt.t =
-  fun () ->
-  let open Lwt in
-  get_contract_address_for_client_exn ()
-  >>= fun x ->
-  match x with
-  | Error e -> bork "Error in obtaining the contract_address"
-  | Ok x -> return x
 
 let get_option : 'a -> 'a option -> 'a =
   fun x_val x_opt ->
@@ -126,7 +59,7 @@ let get_option : 'a -> 'a option -> 'a =
 let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Digest.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
   fun ~operator ~transaction_hash ->
   let open Lwt_exn in
-  get_contract_address_for_client_exn ()
+  get_contract_address ()
   >>= fun contract_address ->
   wait_for_contract_event
     ~contract_address
@@ -172,7 +105,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
   let rec get_matching : Revision.t -> (StateUpdate.t * Ethereum_chain.Confirmation.t) Lwt_exn.t =
     fun start_ref ->
     let open Lwt_exn in
-    get_contract_address_for_client_exn ()
+    get_contract_address ()
     >>= fun contract_address ->
     retrieve_relevant_list_logs_data ~delay ~start_revision:start_ref
       ~max_number_iteration:None
@@ -265,18 +198,12 @@ let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_ex
   if side_chain_user_log then
     Logging.log "Before wait_for_contract_event CONTEXT deposit";
   let open Lwt_exn in
-  get_contract_address_for_client_exn ()
+  get_contract_address ()
   >>= fun contract_address ->
   wait_for_contract_event ~contract_address ~transaction_hash:None ~topics list_data_type data_value_search
   >>= fun (x : (LogObject.t * (abi_value list))) ->
   let (_log_object, abi_list_val) = x in
-  if side_chain_user_log then
-    (Logging.log "post_operation_deposit, RETURN value=%s" (print_abi_value_uint256 (List.nth abi_list_val 2));
-     Logging.log "post_operation_deposit, RETURN balance=%s" (print_abi_value_uint256 (List.nth abi_list_val 3))
-    );
   return ()
-
-
 
 
 
@@ -289,9 +216,9 @@ let post_claim_withdrawal_operation_exn : confirmed_pair:StateUpdate.t -> Transa
     | Deposit _ -> bork "post_claim_withdrawal_operation_exn error. Calling for Deposit"
     | Payment _ -> bork "post_claim_withdrawal_operation_exn error. Calling for Payment"
     | Withdrawal {withdrawal_amount; withdrawal_fee} ->
-       Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal operator=%s" (Address.to_0x operator);
-       Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal sender=%s" (Address.to_0x sender);
-       get_contract_address_for_client_exn ()
+       if side_chain_user_log then
+         Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal";
+       get_contract_address ()
        >>= fun contract_address ->
        if side_chain_user_log then
          Logging.log "Beginning of post_claim_withdrawal_operation, withdrawal contract_address=%s" (Address.to_0x contract_address);
@@ -335,7 +262,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revis
   let open Lwt_exn in
   let min_block_length = (Revision.add block_nbr Side_chain_server_config.challenge_period_in_blocks) in
   wait_for_min_block_depth min_block_length
-  >>= get_contract_address_for_client_exn
+  >>= get_contract_address
   >>= fun contract_address ->
                 Logging.log "Before emit_withdraw_operation";
                 emit_withdraw_operation
@@ -628,7 +555,7 @@ module TransactionTracker = struct
               (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
               let amount = TokenAmount.(add deposit_amount deposit_fee)
 
-              in begin get_contract_address_for_client ()
+              in begin get_contract_address_exn ()
                 >>= fun contract_address ->
                   return @@ Operator_contract.pre_deposit ~operator ~amount ~contract_address
                 >>= fun pre_tx ->

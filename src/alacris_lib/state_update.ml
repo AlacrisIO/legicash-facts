@@ -29,14 +29,15 @@ let post_state_update : operator:Address.t -> operator_revision:Revision.t -> op
     (if state_update_log then
        Logging.log "New hash, doing a state_update";
      last_hash := operator_digest;
-     let operation = make_state_update_call operator_digest operator_revision in
+     get_contract_address ()
+     >>= fun contract_address ->
+     let operation = make_state_update_call ~contract_address ~operator_digest ~operator_revision in
      Ethereum_user.post_operation ~operation:operation ~sender:operator ~value_send:TokenAmount.zero
      >>= fun _ ->
      if state_update_log then
        Logging.log "After the post_operation of post_state_update";
      return ()
     )
-
 
 
 let post_state_update_nocheck : operator:Address.t -> operator_revision:Revision.t -> operator_digest:Digest.t -> unit Lwt_exn.t =
@@ -74,3 +75,10 @@ let post_state_update_nocheck : operator:Address.t -> operator_revision:Revision
        Logging.log "After the post_operation of post_state_update";
      return ()
     )
+
+
+
+(* Alert to take care of:
+   ---lack of gas
+   ---transaction not passed
+ *)

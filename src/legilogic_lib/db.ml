@@ -182,7 +182,8 @@ let start_server ~db_name ~db () =
         Lwt_mvar.take db_mailbox >>= function
         | Put {key;value} ->
           if db_log then
-            Logging.log "key=(omit) value=(omit)";
+            Logging.log "key=%s value=%s" key value;
+          (*            Logging.log "key=(omit) value=(omit)";*)
           LevelDB.Batch.put batch key value;
           inner_loop ~ready ~triggered ~held
 
@@ -234,9 +235,13 @@ let start_server ~db_name ~db () =
   outer_loop 0 (Lwt.return ([],[])) ()
 
 let open_connection db_name =
+  if db_log then
+    Logging.log "DB: Beginning of open_connection db_name=%s" db_name;
   match !the_connection_ref with
   | Some x ->
-    if x.db_name = db_name then
+     if db_log then
+       Logging.log "DB: open_connection, Some x case";
+     if x.db_name = db_name then
       (if db_log then
          Logging.log "Process already has a LevelDB connection to db %s, won't start another one" db_name;
        Lwt.return_unit)
@@ -245,6 +250,8 @@ let open_connection db_name =
         db_name x.db_name
 
   | None ->
+     if db_log then
+       Logging.log "DB: open_connection, None case";
     let db = LevelDB.open_db db_name in
     the_connection_ref := Some { db_name ; db };
     Lwt.async (start_server ~db_name ~db);
@@ -276,10 +283,19 @@ let commit_hook key action =
 let has_key key =
   LevelDB.mem (the_db ()) key
 
-let get key =
+let get : string -> string option =
+  fun key ->
   if db_log then
-    Logging.log "Db.get access for key=(omit)";
-  LevelDB.get (the_db ()) key
+    Logging.log "Db.get access for key=%s" key;
+  (*    Logging.log "Db.get access for key=(omit)";*)
+  let value = LevelDB.get (the_db ()) key in
+  match value with
+  | None -> (if db_log then
+               Logging.log "None case";
+             value)
+  | Some x -> (if db_log then
+                 Logging.log "Some x =%s" x;
+               value)
 (* Uncomment the following to spy on db read accesses:
     |> function
       | None ->
@@ -295,7 +311,8 @@ let get key =
 
 let put key value =
   if db_log then
-    Logging.log "Db.put key=(omit) value=(omit)";
+    Logging.log "Db.put key=%s value=%s" key value;
+  (*    Logging.log "Db.put key=(omit) value=(omit)";*)
   Put {key; value} |> request
 
 let put_many list =

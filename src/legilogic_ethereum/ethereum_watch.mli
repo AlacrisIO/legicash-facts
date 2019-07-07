@@ -15,10 +15,6 @@ val main_chain_block_notification_stream :
     stream of notifications that a new block has been observed, based on polling
     geth every [delay] seconds, and starting with block [start] *)
 
-val sleep_delay_exn : float -> unit Lwt_exn.t
-(** This function allows to wait for a delay (in seconds) before continuing the computation.
-    It handles exceptions *)
-
 val wait_for_min_block_depth : Revision.t -> unit Lwt_exn.t
 (** We wait for a specific block depth. If it fails, we retry 1 second later and so on *)
 

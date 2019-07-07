@@ -50,10 +50,6 @@ let main_chain_block_notification_stream
 
 
 
-(* Reverse operation: Turning a Lwt.t into a Lwt_exn.t *)
-let sleep_delay_exn : float -> unit Lwt_exn.t = Lwt_exn.of_lwt Lwt_unix.sleep
-
-
 
 let wait_for_min_block_depth : Revision.t -> unit Lwt_exn.t =
   fun min_block_depth ->
@@ -130,7 +126,7 @@ let string_of_option_digest : Digest.t option -> string =
 
 
 (* We will iterate over the logs. Search for the ones matching the topics, event values and maybe
-   transaction hash. 
+   transaction hash.
    There are two options:
    ---We iterate until we find at least one entry that matches.
    ---We have a maximum number of iteration and exit when failing.

@@ -141,6 +141,8 @@ let validate_user_transaction_request :
     let AccountState.{balance; account_revision} = (operator_account_lens requester).get state in
     let OperatorState.{fee_schedule} = state in
     let open Lwt_exn in
+    get_contract_address ()
+    >>= fun contract_address ->
     let check (test: bool) (exngen: unit -> string) =
       fun x ->
         if test then return x
@@ -173,7 +175,7 @@ let validate_user_transaction_request :
               (fun () -> Printf.sprintf "Insufficient deposit fee %s, requiring at least %s"
                            (to_string deposit_fee) (to_string fee_schedule.deposit_fee))
         >>> Ethereum_transaction.check_transaction_confirmation
-              ~sender:requester ~recipient:(get_contract_address ())
+              ~sender:requester ~recipient:contract_address
               main_chain_deposit main_chain_deposit_confirmation
       | UserOperation.Payment {payment_invoice; payment_fee; payment_expedited=_payment_expedited} ->
         check (payment_invoice.recipient != requester)
@@ -426,7 +428,7 @@ let rec inner_state_update_periodic_loop : Address.t -> unit Lwt_exn.t =
   let open Lwt_exn in
   retrieve_validated_rev_digest ()
   >>= fun (operator_revision, operator_digest) -> post_state_update ~operator ~operator_revision ~operator_digest
-  >>= fun () -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+  >>= fun () -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
   >>= fun () -> inner_state_update_periodic_loop operator
 
 let rec inner_state_update_nocheck_periodic_loop : Address.t -> unit Lwt_exn.t =
@@ -434,10 +436,10 @@ let rec inner_state_update_nocheck_periodic_loop : Address.t -> unit Lwt_exn.t =
   let open Lwt_exn in
   retrieve_validated_rev_digest ()
   >>= fun (operator_revision, operator_digest) -> post_state_update_nocheck ~operator ~operator_revision ~operator_digest
-  >>= fun () -> Ethereum_watch.sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+  >>= fun () -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
   >>= fun () -> inner_state_update_nocheck_periodic_loop operator
 
-let start_state_update_periodic_operator address =
+let start_state_update_periodic_daemon address =
   if side_chain_operator_log then
     Logging.log "Beginning of start_state_update_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
   Lwt.async (fun () -> inner_state_update_periodic_loop address);

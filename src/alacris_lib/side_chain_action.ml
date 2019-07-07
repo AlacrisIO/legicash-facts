@@ -1,5 +1,4 @@
 open Legilogic_lib
-open Hex
 open Signing
 open Types
 open Action
@@ -11,50 +10,29 @@ open Side_chain_user
 
 let contract_address_key = "alacris.contract-address"
 
-exception Invalid_contract
-
-(* TODO: Issue a warning if it wasn't confirmed yet? *)
-let check_side_chain_contract_created contract_address =
-  Ethereum_json_rpc.(eth_get_code (contract_address, BlockParameter.Latest))
-  >>= fun code ->
-  let code_red = remove_0x_from_string (Hex.unparse_0x_bytes code) in
-  let contract_code_red = remove_0x_from_string (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes) in
-  let len_red = String.length code_red in
-  let contract_len_red = String.length contract_code_red in
-  let contract_code_red_sub = String.sub contract_code_red (contract_len_red - len_red) len_red in
-  if code_red = contract_code_red_sub then
-    return (contract_address, Revision.zero) (* Clearly wrong. We need the revision on input *)
-  else
-    (let addr = Address.to_0x contract_address in
-     Logging.log "Saved contract address %s invalid" addr;
-     Printf.eprintf
-       "Found contract address %s, but it doesn't contain the contract we expect:
-        It contains code %s
-        but we expected: %s
-        Did you reset the state of the test ethereum network without resetting the
-        state of the test side-chain? If so, kill the side_chain_server and the
-        side_chain_client, and try again after resetting their state with `make clean`.\n"
-       addr
-       (Hex.unparse_0x_bytes code)
-       (Hex.unparse_0x_bytes Operator_contract_binary.contract_bytes);
-     fail Invalid_contract)
-
-
-
-
 let print_and_retrieve_transaction_hash : Digest.t -> (Address.t * Revision.t) Lwt_exn.t =
   fun transaction_hash ->
-  Operator_contract.retrieve_contract_address_quadruple transaction_hash
-  >>= fun (contract_address, code_hash, creation_hash, creation_block) ->
-  Logging.log "contract_address=%s" (Address.to_0x contract_address);
-  Logging.log "code_hash=%s" (Digest.to_0x code_hash);
-  Logging.log "creation_hash=%s" (Digest.to_0x creation_hash);
-  Logging.log "creation_block=%s" (Revision.to_string creation_block);
-  Logging.log "E N T R I E S to put in the side_chain_client_config.json file";
-  Logging.log "  \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": %s," (Address.to_0x contract_address) (Digest.to_0x code_hash) (Digest.to_0x creation_hash) (Revision.to_string creation_block);
-  Address.to_0x contract_address
+  Operator_contract.retrieve_contract_config transaction_hash
+  >>= fun config ->
+  let strContractAddress = Address.to_0x config.contract_address in
+(*  let strCodeHash = Hex.remove_0x_from_string (Digest.to_0x config.code_hash) in
+  let strCreationHash = Hex.remove_0x_from_string (Digest.to_0x config.creation_hash) in *)
+  let strCodeHash = Digest.to_0x config.code_hash in
+  let strCreationHash = Digest.to_0x config.creation_hash in
+  let strCreationBlock = Revision.to_0x config.creation_block in
+  Logging.log "contract_address=%s" strContractAddress;
+  Logging.log "code_hash=%s" strCodeHash;
+  Logging.log "creation_hash=%s" strCreationHash;
+  Logging.log "creation_block=%s" strCreationBlock;
+  Logging.log "E N T R I E S to put in the contract_address.json file";
+  Logging.log "  \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": \"%s\"," strContractAddress strCodeHash strCreationHash strCreationBlock;
+  let fileout = "/tmp/contract_address.json" in
+  let oc = Pervasives.open_out fileout in
+  Printf.fprintf oc "{ \"contract_address\": \"%s\",\n  \"code_hash\": \"%s\",\n  \"creation_hash\": \"%s\",\n  \"creation_block\": \"%s\"\n}\n" strContractAddress strCodeHash strCreationHash strCreationBlock;
+  Pervasives.close_out oc;
+  Address.to_0x config.contract_address
   |> of_lwt Lwter.(Db.put contract_address_key >>> Db.commit)
-  >>= const (contract_address, creation_block)
+  >>= const (config.contract_address, config.creation_block)
 
 let create_side_chain_contract (installer_address : Address.t) : (Address.t*Revision.t) Lwt_exn.t =
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
@@ -64,17 +42,12 @@ let create_side_chain_contract (installer_address : Address.t) : (Address.t*Revi
   print_and_retrieve_transaction_hash confirmation.transaction_hash
 
 
+
+
 let ensure_side_chain_contract_created (installer_address : Address.t) : Address.t Lwt_exn.t =
   Logging.log "Ensuring the contract is installed...";
-  (match Db.get contract_address_key with
-   | Some addr ->
-     addr |> catching_arr Address.of_0x >>= check_side_chain_contract_created
-   | None ->
-     Logging.log "Not found, creating the contract...";
-     create_side_chain_contract installer_address)
-  >>= fun (contract_address, contract_block_number) ->
-  Operator_contract.set_contract_address contract_address;
-  Operator_contract.set_contract_block_number contract_block_number;
+  create_side_chain_contract installer_address
+  >>= fun (contract_address, _contract_block_number) ->
   return contract_address
 
 module Test = struct
@@ -100,16 +73,9 @@ module Test = struct
     Lwt_exn.run
       (fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 1";
-        of_lwt Db.open_connection "unit_test_db" >>= fun () ->
+        of_lwt Db.open_connection "unit_test_db"
+        >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 2";
-
-        (* TODO replace mutable contract address plumbing w/ more elegant +
-         * functional style *)
-        get_contract_address_for_client_exn () >>= fun contract_address ->
-        Logging.log "deposit_and_payment_and_withdrawal, step 3";
-        Operator_contract.set_contract_address contract_address;
-        let operator = trent_address in
-        register_keypair "zander" Signing.Test.zander_keys;
         (* TODO consolidate integration tests into single entry point with
          * shared initialization phase rather than leaving them scattered about
          * the repo. One problem with the present setup is we cannot shut down
@@ -121,9 +87,8 @@ module Test = struct
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
         Mkb_json_rpc.init_mkb_server ()
-(*        >>= fun () ->
-        load_operator_state operator *)
         >>= fun _ ->
+        let operator = trent_address in
         start_operator_nocheck_test operator
         >>= fun () -> start_state_update_nocheck_periodic_operator operator
         >>= fun () ->
