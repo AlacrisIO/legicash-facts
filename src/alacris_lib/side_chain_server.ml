@@ -106,8 +106,8 @@ let _ =
       if side_chain_server_log then
         Logging.log "Beginning of side_chain_server";
       Mkb_json_rpc.init_mkb_server ()
-      (*      >>= fun () -> State_update.start_state_update_operator () *)
-      >>= fun () -> Side_chain_operator.start_state_update_periodic_operator ()
+      (*      >>= fun () -> State_update.start_state_update_daemon () *)
+      >>= fun () -> Side_chain_operator.start_state_update_periodic_daemon ()
       >>= fun () ->
       if side_chain_server_log then
         Logging.log "Before the Db.open_connection";
@@ -115,9 +115,8 @@ let _ =
       >>= fun () ->
       if side_chain_server_log then
         Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
-      Side_chain_action.ensure_side_chain_contract_created Side_chain_server_config.operator_address
+      Operator_contract.get_contract_address ()
       >>= fun contract_address ->
-      assert (contract_address = Operator_contract.get_contract_address ());
       if side_chain_server_log then
         Logging.log "Using contract %s" (Address.to_0x contract_address);
       load_operator_state Side_chain_server_config.operator_address

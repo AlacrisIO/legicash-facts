@@ -1,0 +1,13 @@
+;; dune file for Alacris sources
+;; TODO: rename side_chain_* to alacris_*
+;; TODO: make alacris_lib the code common to client and server only (mostly type definitions),
+;; and move client and server code to their respective directories.
+
+(env (dev (flags (:standard -w -39))))  ;; Unused rec flag
+
+(executable
+ (name setup_contract)
+ (modules setup_contract)
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
+ (libraries legilogic_lib alacris_lib ppx_deriving_yojson.runtime yojson))
+
