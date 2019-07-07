@@ -127,7 +127,7 @@ let retrieve_contract_config : Digest.t -> contract_address_config Lwt_exn.t =
      return {contract_address; code_hash; creation_hash=transaction_hash; creation_block=contract_block_number}
 
 
-let get_contract_address_general : unit -> Address.t Lwt_exn.t =
+let get_contract_address_internal : unit -> Address.t Lwt_exn.t =
   fun () ->
   let open Lwt_exn in
   (Lwt_exn.of_lwt get_contract_address_config_iter) ()
@@ -155,7 +155,7 @@ let get_contract_address : unit -> Address.t Lwt_exn.t =
   | Some x -> Lwt_exn.return x
   | None ->
      (let open Lwt_exn in
-      get_contract_address_general ()
+      get_contract_address_internal ()
       >>= fun contract_address ->
       contract_address_ref := Some contract_address;
       Lwt_exn.return contract_address)
