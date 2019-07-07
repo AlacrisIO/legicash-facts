@@ -51,7 +51,7 @@ val oper_post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
 val oper_post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
 
 
-val start_state_update_periodic_operator : unit -> unit Lwt_exn.t
+val start_state_update_periodic_daemon : unit -> unit Lwt_exn.t
 (** start of the operator that do state_update at frequent date
     (for example every 25s). *)
 

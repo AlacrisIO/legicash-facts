@@ -88,9 +88,9 @@ let inner_state_update_request_loop () =
   in inner_loop ()
 
 
-let start_state_update_operator () =
+let start_state_update_daemon () =
   if state_update_log then
-    Logging.log "Beginning of start_state_update_operator";
+    Logging.log "Beginning of start_state_update_daemon";
   Lwt.async inner_state_update_request_loop;
   Lwt_exn.return ()
 

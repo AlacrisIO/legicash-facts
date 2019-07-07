@@ -434,8 +434,8 @@ let rec inner_state_update_periodic_loop : unit -> unit Lwt_exn.t =
   >>= inner_state_update_periodic_loop
 
 
-let start_state_update_periodic_operator () =
-  Logging.log "Beginning of start_state_update_periodic_operator";
+let start_state_update_periodic_daemon () =
+  Logging.log "Beginning of start_state_update_periodic_daemon";
   Lwt.async inner_state_update_periodic_loop;
   Lwt_exn.return ()
 

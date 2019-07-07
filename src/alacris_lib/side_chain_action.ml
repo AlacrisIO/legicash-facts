@@ -84,7 +84,7 @@ module Test = struct
          * the following reactor once flipping it on, meaning we're likely to
          * encounter subtle time-dependent bugs in future tests (until we
          * reorganize) *)
-        State_update.start_state_update_operator ()
+        State_update.start_state_update_daemon ()
         >>= fun _ ->
         Logging.log "deposit_and_payment_and_withdrawal, step 4";
         fund_accounts ()
@@ -94,7 +94,7 @@ module Test = struct
         >>= fun () ->
         let operator = trent_address in
         start_operator operator
-        >>= fun () -> start_state_update_periodic_operator ()
+        >>= fun () -> start_state_update_periodic_daemon ()
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 6";
         let initial_alice_balance = get_alice_balance () in
