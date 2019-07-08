@@ -7,9 +7,12 @@ open Legilogic_ethereum
 open Operator_contract
 open Digesting
 open Ethereum_chain
+open Side_chain_operator
+open Side_chain_server_config
 
 let state_update_log = true
 
+let status_null_operation = ref 0
 
 let last_hash = ref Digest.zero
 let first_nontrivial_hash = ref Digest.zero
@@ -22,8 +25,9 @@ let post_state_update : operator:Address.t -> operator_revision:Revision.t -> op
     Logging.log "post_state_update operator_revision=%s digest=%s" (Revision.to_string operator_revision) (Digest.to_0x operator_digest);
   if (String.equal (Digest.to_string !last_hash) (Digest.to_string operator_digest)) then
     (if state_update_log then
-       Logging.log "Same hash as before. No need to do anything";
-     return ()
+       Logging.log "Same hash as before. No need to do state_update. Instead doing small_money_transfer";
+     status_null_operation := 1 - !status_null_operation;
+     Side_chain_null_operation.small_money_transfer !status_null_operation
     )
   else
     (if state_update_log then
@@ -77,6 +81,36 @@ let post_state_update_nocheck : operator:Address.t -> operator_revision:Revision
        Logging.log "After the post_operation of post_state_update";
      return ()
     )
+
+
+(* TODO for a state_update_deadline_in_blocks somewhere *)
+let rec inner_state_update_periodic_loop : Address.t -> unit Lwt_exn.t =
+  fun operator ->
+  let open Lwt_exn in
+  retrieve_validated_rev_digest ()
+  >>= fun (operator_revision, operator_digest) -> post_state_update ~operator ~operator_revision ~operator_digest
+  >>= fun () -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+  >>= fun () -> inner_state_update_periodic_loop operator
+
+let rec inner_state_update_nocheck_periodic_loop : Address.t -> unit Lwt_exn.t =
+  fun operator ->
+  let open Lwt_exn in
+  retrieve_validated_rev_digest ()
+  >>= fun (operator_revision, operator_digest) -> post_state_update_nocheck ~operator ~operator_revision ~operator_digest
+  >>= fun () -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+  >>= fun () -> inner_state_update_nocheck_periodic_loop operator
+
+let start_state_update_periodic_daemon address =
+  if state_update_log then
+    Logging.log "Beginning of start_state_update_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
+  Lwt.async (fun () -> inner_state_update_periodic_loop address);
+  Lwt_exn.return ()
+
+let start_state_update_nocheck_periodic_operator address =
+  if state_update_log then
+    Logging.log "Beginning of start_state_update_nocheck_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
+  Lwt.async (fun () -> inner_state_update_nocheck_periodic_loop address);
+  Lwt_exn.return ()
 
 
 

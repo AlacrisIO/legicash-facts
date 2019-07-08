@@ -11,6 +11,8 @@ let side_chain_null_operation_log = true
 
 let small_money_transfer_first_second : recipient:Address.t -> sender:Address.t -> unit Lwt_exn.t =
   fun ~recipient ~sender ->
+  if side_chain_null_operation_log then
+    Logging.log "small_money_transfer_first_second";
   let open Lwt_exn in
   let transfer_amount = TokenAmount.of_string "500000000000" in
   let pre_transaction = Ethereum_user.transfer_tokens ~recipient transfer_amount in
@@ -20,6 +22,8 @@ let small_money_transfer_first_second : recipient:Address.t -> sender:Address.t 
 
 let small_money_transfer : int -> unit Lwt_exn.t =
   fun pos ->
+  if side_chain_null_operation_log then
+    Logging.log "small_money_transfer. Doing pos=%i" pos;
   let alice_address = Signing.Test.alice_address in
   let bob_address = Signing.Test.bob_address in
   if (pos == 0) then

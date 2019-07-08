@@ -41,6 +41,10 @@ val start_operator : (Address.t, unit) Lwt_exn.arr
 (** start the background operator processes for given operator address *)
 val start_operator_nocheck_test : (Address.t, unit) Lwt_exn.arr
 
+val retrieve_validated_rev_digest : unit -> StateUpdate.t Lwt_exn.t
+(** retrieving the confirmed_state / confirmed_revision from the side chain operator
+    and returning it *)
+
 (** [oper_post_user_transaction_request request] asynchronously processes [request] (not forced)
     returning a [Transaction.t] on success.
 *)
@@ -54,14 +58,6 @@ val oper_post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
     returning a [Transaction] on success. *)
 val oper_post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
 
-
-val start_state_update_periodic_daemon : Address.t -> unit Lwt_exn.t
-(** start of the operator that do state_update at frequent date
-    (for example every 25s). *)
-
-val start_state_update_nocheck_periodic_operator : Address.t -> unit Lwt_exn.t
-(** start of the operator that do state_update at frequent date
-    (for example every 25s). This is for tests. *)
 
 (*
    (** For a operator, commit the state of the side-chain to the main-chain *)

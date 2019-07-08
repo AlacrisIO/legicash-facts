@@ -6,6 +6,7 @@ open Lwt_exn
 open Legilogic_ethereum
 open Side_chain
 open Side_chain_operator
+open State_update
 open Side_chain_user
 
 let contract_address_key = "alacris.contract-address"

@@ -13,6 +13,7 @@ open Operator_contract
 open Side_chain
 open Side_chain_operator
 open Side_chain_user
+open State_update
 
 let side_chain_vigilantism_log = true
 
