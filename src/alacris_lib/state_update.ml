@@ -101,6 +101,8 @@ let rec inner_state_update_nocheck_periodic_loop : Address.t -> unit Lwt_exn.t =
   >>= fun () -> inner_state_update_nocheck_periodic_loop operator
 
 let start_state_update_periodic_daemon address =
+  register_keypair "alice" Signing.Test.alice_keys;
+  register_keypair "bob" Signing.Test.bob_keys;
   if state_update_log then
     Logging.log "Beginning of start_state_update_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
   Lwt.async (fun () -> inner_state_update_periodic_loop address);
