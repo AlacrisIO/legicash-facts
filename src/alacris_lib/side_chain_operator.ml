@@ -416,7 +416,7 @@ let post_validated_transaction_request :
       `Confirm (request, resolver))
 
 
-let retrieve_validated_rev_digest : unit -> StateUpdate.t Lwt_exn.t =
+let retrieve_validated_state_update : unit -> StateUpdate.t Lwt_exn.t =
   simple_client inner_transaction_request_mailbox
     (fun ((_, resolv) : (unit * StateUpdate.t OrExn.t Lwt.u)) ->
       `GetCurrentRevisionDigest resolv)
@@ -665,13 +665,13 @@ let inner_transaction_request_loop =
                   Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
                   request_batch operator_state size
                (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
-               | `GetCurrentRevisionDigest (rev_digest_resolver : StateUpdate.t OrExn.t Lwt.u) ->
+               | `GetCurrentRevisionDigest (state_update_u : StateUpdate.t OrExn.t Lwt.u) ->
                   if side_chain_operator_log then
                     Logging.log "inner_transaction_request, CASE : GetCurrentRevisionDigest";
                   (* Lwt.wakeup_later notify_batch_committed_u (); *)
                   let digest = (State.digest !operator_state_ref.current) in
                   let rev_oper = !operator_state_ref.current.operator_revision in
-                  Lwt.wakeup_later rev_digest_resolver (Ok(rev_oper, digest));
+                  Lwt.wakeup_later state_update_u (Ok(rev_oper, digest));
                   request_batch operator_state size
                | `Flush (id : int) ->
                  assert (id = batch_id);

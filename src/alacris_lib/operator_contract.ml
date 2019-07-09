@@ -190,9 +190,9 @@ let rec get_contract_address_exn : unit -> Address.t Lwt.t =
 
 
 
-let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator ~operator_revision ~value ~confirmed_pair ->
-  let (confirmed_revision, confirmed_state) = confirmed_pair in
+let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator ~operator_revision ~value ~confirmed_state_update ->
+  let (confirmed_revision, confirmed_state) = confirmed_state_update in
   if operator_contract_log then
     Logging.log "Beginning of make_claim_withdrawal_call";
   let parameters = [ abi_address operator
@@ -205,9 +205,9 @@ let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.
 
 
 
-let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
-  let (confirmed_revision, confirmed_state) = confirmed_pair in
+let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_state_update ->
+  let (confirmed_revision, confirmed_state) = confirmed_state_update in
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
@@ -220,9 +220,9 @@ let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> ope
 
 
 
-let make_challenge_withdrawal_too_large_revision : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
-  let (confirmed_revision, confirmed_state) = confirmed_pair in
+let make_challenge_withdrawal_too_large_revision : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_state_update ->
+  let (confirmed_revision, confirmed_state) = confirmed_state_update in
   let parameters = [ abi_address operator
                    ; abi_address claimant
                    ; abi_revision operator_revision
@@ -234,9 +234,9 @@ let make_challenge_withdrawal_too_large_revision : contract_address:Address.t ->
   Operation.CallFunction (contract_address, call)
 
 
-let make_operation_has_claim_been_rejected : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_pair:StateUpdate.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_pair ->
-  let (confirmed_revision, confirmed_state) = confirmed_pair in
+let make_operation_has_claim_been_rejected : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_state_update ->
+  let (confirmed_revision, confirmed_state) = confirmed_state_update in
   let parameters = [ abi_address operator
                    ; abi_address claimant
                    ; abi_revision operator_revision

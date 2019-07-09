@@ -41,7 +41,7 @@ val start_operator : (Address.t, unit) Lwt_exn.arr
 (** start the background operator processes for given operator address *)
 val start_operator_nocheck_test : (Address.t, unit) Lwt_exn.arr
 
-val retrieve_validated_rev_digest : unit -> StateUpdate.t Lwt_exn.t
+val retrieve_validated_state_update : unit -> StateUpdate.t Lwt_exn.t
 (** retrieving the confirmed_state / confirmed_revision from the side chain operator
     and returning it *)
 
