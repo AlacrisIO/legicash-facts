@@ -65,7 +65,7 @@ module Side_chain_server_config = struct
 
   type side_chain_server_config =
     { port                : int
-    ; run_small_activity  : bool
+    ; need_keep_alive     : bool
     ; ethereum_config     : ethereum_config_t
     ; leveldb_config      : leveldb_config_t
     ; sidechain_config    : sidechain_config_t
@@ -133,5 +133,5 @@ module Side_chain_server_config = struct
 
   let (bond_value_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.bond_value
 
-  let (run_small_activity : bool) = config.run_small_activity
+  let (need_keep_alive : bool) = config.need_keep_alive
 end
