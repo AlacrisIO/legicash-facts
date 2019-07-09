@@ -45,15 +45,24 @@ let get_keypair_of_address user =
   Lwt_exn.catching_arr keypair_of_address user
 
 
-
-
-
-
-let get_option : 'a -> 'a option -> 'a =
-  fun x_val x_opt ->
-  match x_opt with
-  | None -> x_val
+let get_or_bork : string -> 'a option -> 'a =
+  fun msg value_opt ->
+  match value_opt with
+  | None -> bork "Failure to get value in option for msg=%s" msg;
   | Some x -> x
+
+
+let retrieve_confirmation_or_bork_from_logobject : LogObject.t -> Ethereum_chain.Confirmation.t =
+  fun log_object ->
+  Ethereum_chain.Confirmation.
+    { transaction_hash  = get_or_bork "transactionHash" log_object.transactionHash
+    ; transaction_index = get_or_bork "transactionIndex" log_object.transactionIndex
+    ; block_number      = get_or_bork "blockNumbre" log_object.blockNumber
+    ; block_hash        = get_or_bork "blockHash" log_object.blockHash
+    }
+  
+
+
 
 
 let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Digest.t -> Ethereum_chain.Confirmation.t Lwt_exn.t =
@@ -67,22 +76,12 @@ let wait_for_operator_state_update : operator:Address.t -> transaction_hash:Dige
     ~topics:[topic_of_state_update]
     [Address; Bytes 32; Uint 64]
     [Some (Address_value operator); None; None]
-  >>= fun x ->
-  let (log_object, vals) = x in
-  (* TODO defaulting to zero is wrong and the presence of `null`s indicates
-   * something's broken with the confirmation data; we should instead capture
-   * the possibility of invalid state at the type level and force consuming
-   * code to deal with it explicitly and unambiguously.
-   * TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
+  >>= fun (log_object, _vals) ->
+  return (retrieve_confirmation_or_bork_from_logobject log_object)
+  (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
    * but don't return a fake Confirmation. Maybe have separate functions for one
    * and the other, or for one and the work that remains to do for the other.
    *)
-  return Ethereum_chain.Confirmation.
-    { transaction_hash  = Option.get log_object.transactionHash
-    ; transaction_index = Option.get log_object.transactionIndex
-    ; block_number      = Option.get log_object.blockNumber
-    ; block_hash        = Option.get log_object.blockHash
-    }
 
 
 (* This function search from a revision of the state of the operator with a minimal value
@@ -119,23 +118,17 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
                            compare oper_rev operator_revision >= 0) llogs in
     if (List.length llogs_filter > 0) then
       let (log_object, vals) = List.nth llogs_filter 0 in
-      let transhash : Digest.t = Option.get log_object.transactionHash in
       let operator_revision = retrieve_revision_from_abi_value (List.nth vals 2) in
       let operator_digest = retrieve_digest_from_abi_value (List.nth vals 1) in
       let pair_rev_dig = (operator_revision, operator_digest) in
-      let eth_confirmation = Ethereum_chain.Confirmation.
-      { transaction_hash  = Option.get log_object.transactionHash
-      ; transaction_index = Option.get log_object.transactionIndex
-      ; block_number      = Option.get log_object.blockNumber
-      ; block_hash        = Option.get log_object.blockHash
-      } in
+      let eth_confirmation = retrieve_confirmation_or_bork_from_logobject log_object in
       let pair_return = (pair_rev_dig, eth_confirmation) in
       (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
        * but don't return a fake Confirmation. Maybe have separate functions for one
        * and the other, or for one and the work that remains to do for the other.
        *)
       if side_chain_user_log then
-        Logging.log "search_for_state_update_min_revision,  transhash=%s" (Digest.to_0x transhash);
+        Logging.log "search_for_state_update_min_revision, returning";
       return pair_return
     else
       (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
