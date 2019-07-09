@@ -27,7 +27,7 @@ let treat_individual_claim : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
   let bond = retrieve_tokenamount_from_abi_value (List.nth x_abi_list 4) in
   let confirmed_state = retrieve_digest_from_abi_value (List.nth x_abi_list 5) in
   let confirmed_revision = retrieve_revision_from_abi_value (List.nth x_abi_list 6) in
-  let confirmed_state_update = (confirmed_revision, confirmed_state) in
+  let confirmed_state_update : StateUpdate.t = {revision=confirmed_revision; state=confirmed_state} in
   get_contract_address ()
   >>= fun contract_address ->
   if (Revision.compare operator_revision confirmed_revision) > 0 then
@@ -214,7 +214,7 @@ module Test = struct
                                   operator_revision; spending_limit;
                                   accounts; main_chain_transactions_posted; signature;
                                   state_digest } in
-        let confirmed_state_update = (Revision.zero, Digest.zero) in
+        let confirmed_state_update : StateUpdate.t = {revision=Revision.zero; state=Digest.zero} in
         Logging.log "deposit_withdraw_wrong_operator_version, step 9 address=%s" (Address.to_0x operator);
         Logging.log "deposit_withdraw_wrong_operator_version, step 10 user_address=%s" (Address.to_0x user_address);
         post_claim_withdrawal_operation_exn ~confirmed_state_update tc ~sender:user_address ~operator

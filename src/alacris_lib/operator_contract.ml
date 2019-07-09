@@ -192,14 +192,13 @@ let rec get_contract_address_exn : unit -> Address.t Lwt.t =
 
 let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t =
   fun ~contract_address ~operator ~operator_revision ~value ~confirmed_state_update ->
-  let (confirmed_revision, confirmed_state) = confirmed_state_update in
   if operator_contract_log then
     Logging.log "Beginning of make_claim_withdrawal_call";
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
-                   ; abi_digest confirmed_state
-                   ; abi_revision confirmed_revision ] in
+                   ; abi_digest confirmed_state_update.state
+                   ; abi_revision confirmed_state_update.revision ] in
   let call = encode_function_call { function_name = "claim_withdrawal"; parameters } in
   Operation.CallFunction (contract_address, call)
 
@@ -207,13 +206,12 @@ let make_claim_withdrawal_call : contract_address:Address.t -> operator:Address.
 
 let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t =
   fun ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_state_update ->
-  let (confirmed_revision, confirmed_state) = confirmed_state_update in
   let parameters = [ abi_address operator
                    ; abi_revision operator_revision
                    ; abi_token_amount value
                    ; abi_token_amount bond
-                   ; abi_digest confirmed_state
-                   ; abi_revision confirmed_revision ] in
+                   ; abi_digest confirmed_state_update.state
+                   ; abi_revision confirmed_state_update.revision ] in
   let call = encode_function_call { function_name = "withdraw"; parameters } in
   Operation.CallFunction (contract_address, call)
 
@@ -222,46 +220,39 @@ let make_withdraw_call : contract_address:Address.t -> operator:Address.t -> ope
 
 let make_challenge_withdrawal_too_large_revision : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t =
   fun ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_state_update ->
-  let (confirmed_revision, confirmed_state) = confirmed_state_update in
   let parameters = [ abi_address operator
                    ; abi_address claimant
                    ; abi_revision operator_revision
                    ; abi_token_amount value
                    ; abi_token_amount bond
-                   ; abi_digest confirmed_state
-                   ; abi_revision confirmed_revision ] in
+                   ; abi_digest confirmed_state_update.state
+                   ; abi_revision confirmed_state_update.revision ] in
   let call = encode_function_call { function_name = "challenge_withdrawal__too_large_revision"; parameters } in
   Operation.CallFunction (contract_address, call)
 
 
 let make_operation_has_claim_been_rejected : contract_address:Address.t -> claimant:Address.t -> operator:Address.t -> operator_revision:Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t =
   fun ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_state_update ->
-  let (confirmed_revision, confirmed_state) = confirmed_state_update in
   let parameters = [ abi_address operator
                    ; abi_address claimant
                    ; abi_revision operator_revision
                    ; abi_token_amount value
                    ; abi_token_amount bond
-                   ; abi_digest confirmed_state
-                   ; abi_revision confirmed_revision ] in
+                   ; abi_digest confirmed_state_update.state
+                   ; abi_revision confirmed_state_update.revision ] in
   let call = encode_function_call { function_name = "has_claim_been_rejected"; parameters } in
   Operation.CallFunction (contract_address, call)
 
 
 
 
-let make_state_update_call : contract_address:Address.t -> operator_digest:Digest.t -> operator_revision:Revision.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator_digest ~operator_revision ->
+let make_state_update_call : contract_address:Address.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t =
+  fun ~contract_address ~confirmed_state_update ->
   if operator_contract_log then
     Logging.log "Beginning of make_state_update_call";
-  let parameters = [ abi_digest operator_digest; abi_revision operator_revision] in
+  let parameters = [ abi_digest confirmed_state_update.state;
+                     abi_revision confirmed_state_update.revision] in
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
-  Operation.CallFunction (contract_address, call)
-
-let make_state_update_call_nocheck : contract_address:Address.t -> operator_digest:Digest.t -> operator_revision:Revision.t -> Ethereum_chain.Operation.t =
-  fun ~contract_address ~operator_digest ~operator_revision ->
-  let parameters = [ abi_digest operator_digest; abi_revision operator_revision] in
-  let (call : bytes) = encode_function_call { function_name = "claim_state_update_nocheck"; parameters } in
   Operation.CallFunction (contract_address, call)
 
 

@@ -333,7 +333,7 @@ end
 
 module StateUpdate : sig
   [@warning "-39-32"]
-  type t = Revision.t * Digest.t 
+  type t = {revision: Revision.t; state: Digest.t}
   [@@deriving yojson, rlp]
   include PersistableS with type t := t
 end

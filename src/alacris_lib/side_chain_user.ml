@@ -120,9 +120,9 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
       let (log_object, vals) = List.nth llogs_filter 0 in
       let operator_revision = retrieve_revision_from_abi_value (List.nth vals 2) in
       let operator_digest = retrieve_digest_from_abi_value (List.nth vals 1) in
-      let pair_rev_dig = (operator_revision, operator_digest) in
+      let confirmed_state_update : StateUpdate.t = {revision=operator_revision; state=operator_digest} in
       let eth_confirmation = retrieve_confirmation_or_bork_from_logobject log_object in
-      let pair_return = (pair_rev_dig, eth_confirmation) in
+      let pair_return = (confirmed_state_update, eth_confirmation) in
       (* TODO: Either only return a TransactionCommitment, or actually wait for Confirmation,
        * but don't return a fake Confirmation. Maybe have separate functions for one
        * and the other, or for one and the work that remains to do for the other.
@@ -143,15 +143,14 @@ let wait_for_claim_withdrawal_event : contract_address:Address.t -> claimant:Add
      Logging.log "wait_for_claim_withdrawal_event contract_address=%s" (Address.to_0x contract_address)
     );
   let (topics : Bytes.t option list) = [topic_of_claim_withdrawal] in
-  let (confirmed_revision, confirmed_state) = confirmed_state_update in
   let (list_data_type : abi_type list) = [Address; Address; Uint 64; Uint 256; Uint 256; Bytes 32; Uint 64] in
   let (data_value_search : abi_value option list) = [Some (Address_value operator);
                                                      Some (Address_value claimant);
                                                      Some (abi_value_from_revision operator_revision);
                                                      Some (abi_value_from_tokenamount value);
                                                      Some (abi_value_from_tokenamount bond);
-                                                     Some (abi_value_from_digest confirmed_state);
-                                                     Some (abi_value_from_revision confirmed_revision)] in
+                                                     Some (abi_value_from_digest confirmed_state_update.state);
+                                                     Some (abi_value_from_revision confirmed_state_update.revision)] in
   let (transaction_hash_val : Digest.t option) = Some transaction_hash in
   let open Lwt_exn in
   if side_chain_user_log then

@@ -671,7 +671,7 @@ let inner_transaction_request_loop =
                   (* Lwt.wakeup_later notify_batch_committed_u (); *)
                   let digest = (State.digest !operator_state_ref.current) in
                   let rev_oper = !operator_state_ref.current.operator_revision in
-                  Lwt.wakeup_later state_update_u (Ok(rev_oper, digest));
+                  Lwt.wakeup_later state_update_u (Ok {revision=rev_oper; state=digest});
                   request_batch operator_state size
                | `Flush (id : int) ->
                  assert (id = batch_id);

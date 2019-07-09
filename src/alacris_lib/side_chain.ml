@@ -341,7 +341,7 @@ end
 (** What we need for the system is the pair of Revision and state digest *)
 module StateUpdate = struct
   [@warning "-39"]
-  type t = Revision.t * Digest.t
+  type t = {revision: Revision.t; state: Digest.t}
   [@@deriving yojson, rlp]
   module PrePersistable = struct
     type nonrec t = t
