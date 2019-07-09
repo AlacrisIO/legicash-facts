@@ -399,26 +399,12 @@ module Test = struct
       ""
   let zander_address = zander_keys.address
 
-  let croesus_keys =
-    keypair_of_0x
-      "0xd56984dc083d769701714eeb1d4c47a454255a3bbc3e9f4484208c52bda3b64e"
-      "0x0423a7cd9a03fa9c5857e514ae5acb18ca91e07d69453ed85136ea6a00361067b860a5b20f1153333aef2d1ba13b1d7a52de2869d1f62371bf81bf803c21c67aca"
-      ""
-  let croesus_address = croesus_keys.address
-
   let heckle_keys =
     keypair_of_0x
       "0x0ec0f556cdb3c7aacc9e64eaa943296a70e878da2d891b63728a1186df643efc"
       "0x04f07b78cf4f11044e75ecc88c9b41e9ddd406ecaa050882203558ec3316a8cd68aef2e4bb14d21ddd99878399a12060fad6fb4322e2905fe6bea418b08d0368ae"
       ""
   let heckle_address = heckle_keys.address
-
-  let jeckle_keys =
-    keypair_of_0x
-      "0x98b2ead93f43e20e2dd0d337567993adb7de1685c4017be5648e2b8add61b35c"
-      "0x043c9d639da67a664f16f49f13160a02c90e1e7e9b4eb62c6a27d4850040d49ef92dffb52f078063f20019a8fc8051b2f6d2ed2b952e91e2a564a1ab4ef57085aa"
-      ""
-  let jeckle_address = jeckle_keys.address
 
 
   let register_test_keypairs () =

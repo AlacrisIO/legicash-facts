@@ -15,12 +15,16 @@ let state_update_log = true
 let last_hash = ref Digest.zero
 let first_nontrivial_hash = ref Digest.zero
 
+
+(** TODO: This function small_money_transfer is done in order to ensure that
+    there is always some activity going on in the ethereum blockchain.
+    Better code is possible, maybe by putting it in ethereum_user or ethereum_chain *)
 let small_money_transfer : recipient:Address.t -> sender:Address.t -> unit Lwt_exn.t =
   fun ~recipient ~sender ->
   if state_update_log then
     Logging.log "small_money_transfer_recipient_sender";
   let open Lwt_exn in
-  let transfer_amount = TokenAmount.of_string "500000000000" in
+  let transfer_amount = TokenAmount.of_string "1" in
   let pre_transaction = Ethereum_user.transfer_tokens ~recipient transfer_amount in
   Ethereum_user.post_pretransaction pre_transaction sender
   >>= fun _ -> return ()
@@ -65,7 +69,6 @@ let rec inner_state_update_periodic_loop : Address.t -> unit Lwt_exn.t =
 
 let start_state_update_periodic_daemon address =
   register_keypair "heckle" Signing.Test.heckle_keys;
-  register_keypair "jeckle" Signing.Test.jeckle_keys;
   if state_update_log then
     Logging.log "Beginning of start_state_update_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
   Lwt.async (fun () -> inner_state_update_periodic_loop address);
