@@ -176,5 +176,11 @@ module Test : sig
   val alice_address : address
   val bob_keys : keypair
   val bob_address : address
+  val croesus_keys : keypair
+  val croesus_address : address
+  val heckle_keys : keypair
+  val heckle_address : address
+  val jeckle_keys : keypair
+  val jeckle_address : address
   val register_test_keypairs : unit -> unit
 end

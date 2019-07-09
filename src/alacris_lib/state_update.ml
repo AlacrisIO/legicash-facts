@@ -12,10 +12,20 @@ open Side_chain_server_config
 
 let state_update_log = true
 
-let status_null_operation = ref 0
-
 let last_hash = ref Digest.zero
 let first_nontrivial_hash = ref Digest.zero
+
+
+let small_money_transfer : recipient:Address.t -> sender:Address.t -> unit Lwt_exn.t =
+  fun ~recipient ~sender ->
+  if state_update_log then
+    Logging.log "small_money_transfer_first_second";
+  let open Lwt_exn in
+  let transfer_amount = TokenAmount.of_string "500000000000" in
+  let pre_transaction = Ethereum_user.transfer_tokens ~recipient transfer_amount in
+  Ethereum_user.post_pretransaction pre_transaction sender
+  >>= fun _ -> return ()
+
 
 
 let post_state_update : operator:Address.t -> confirmed_state_update:StateUpdate.t -> unit Lwt_exn.t =
@@ -26,8 +36,8 @@ let post_state_update : operator:Address.t -> confirmed_state_update:StateUpdate
   if (String.equal (Digest.to_string !last_hash) (Digest.to_string confirmed_state_update.state)) then
     (if state_update_log then
        Logging.log "Same hash as before. No need to do state_update. Instead doing small_money_transfer";
-     status_null_operation := 1 - !status_null_operation;
-     Side_chain_null_operation.small_money_transfer !status_null_operation
+     let used_address = Signing.Test.croesus_address in
+     small_money_transfer ~recipient:used_address ~sender:used_address
     )
   else
     (if state_update_log then
@@ -54,8 +64,7 @@ let rec inner_state_update_periodic_loop : Address.t -> unit Lwt_exn.t =
   >>= fun () -> inner_state_update_periodic_loop operator
 
 let start_state_update_periodic_daemon address =
-  register_keypair "alice" Signing.Test.alice_keys;
-  register_keypair "bob" Signing.Test.bob_keys;
+  register_keypair "croesus" Signing.Test.croesus_keys;
   if state_update_log then
     Logging.log "Beginning of start_state_update_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
   Lwt.async (fun () -> inner_state_update_periodic_loop address);
