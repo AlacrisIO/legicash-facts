@@ -1,4 +1,5 @@
 { "port" : 8095,
+  "need_keep_alive": true,
   "ethereum_config" : {
       "minimal_height_block_for_confirmation" : 0,
       "max_connection_geth" : 1,

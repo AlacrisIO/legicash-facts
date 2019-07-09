@@ -73,8 +73,9 @@ let post_admin_query_request (request : AdminQueryRequest.t) =
  *)
 
 
-let post_user_transaction_request_to_server (request : UserTransactionRequest.t signed) : TransactionCommitment.t OrExn.t Lwt.t =
-  let (external_request : ExternalRequest.t) = `UserTransaction request in
+let post_user_transaction_request_to_server : UserTransactionRequest.t signed -> TransactionCommitment.t Lwt_exn.t =
+  fun signed_request ->
+  let (external_request : ExternalRequest.t) = `UserTransaction signed_request in
   with_connection (Lazy.force sockaddr)
     (fun (in_channel, out_channel) ->
       let (eval : string) = ExternalRequest.marshal_string external_request in
@@ -90,8 +91,8 @@ let post_user_transaction_request_to_server (request : UserTransactionRequest.t 
 let post_user_transaction_request_hook = ref post_user_transaction_request_to_server
 
 
-let post_user_transaction_request (request : UserTransactionRequest.t signed) =
-  request |> !post_user_transaction_request_hook
+let post_user_transaction_request (signed_request : UserTransactionRequest.t signed) =
+  signed_request |> !post_user_transaction_request_hook
 
 module Test = struct
   let post_query_hook = post_query_hook

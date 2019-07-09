@@ -13,17 +13,17 @@ open Persisting
 open Signing
 open Types
 open Merkle_trie
-open State_update
 
 open Legilogic_ethereum
 open Side_chain_server_config
 open Operator_contract
-open Ethereum_json_rpc
 
 open Side_chain
 
 exception Operator_not_found of string
 exception Malformed_request  of string
+
+let side_chain_operator_log = true
 
 module OperatorState = struct
   [@warning "-39"]
@@ -89,9 +89,6 @@ module OperatorAsyncAction = AsyncAction(OperatorState)
 
 type account_lens = (OperatorState.t, AccountState.t) Lens.t
 
-(* type transport_data = Digest.t *)
-type transport_data = (TransactionReceipt.t * Digest.t) option
-
 type validated_transaction_request =
   [ `Confirm of TransactionRequest.t * (Transaction.t * unit Lwt.t) or_exn Lwt.u ]
 
@@ -100,7 +97,7 @@ type inner_transaction_request =
   | `Flush of int
   | `Committed of State.t signed * unit Lwt.u
   | `GetCurrentDigest of Digest.t Lwt.u
-  | `GetCurrentRevisionDigest of (Revision.t*Digest.t) OrExn.t Lwt.u ]
+  | `GetCurrentRevisionDigest of StateUpdate.t OrExn.t Lwt.u ]
 
 let inner_transaction_request_mailbox : inner_transaction_request Lwt_mvar.t = Lwt_mvar.create_empty ()
 
@@ -419,25 +416,11 @@ let post_validated_transaction_request :
       `Confirm (request, resolver))
 
 
-let retrieve_validated_rev_digest : unit -> (Revision.t * Digest.t) Lwt_exn.t =
+let retrieve_validated_state_update : unit -> StateUpdate.t Lwt_exn.t =
   simple_client inner_transaction_request_mailbox
-    (fun ((_, resolv) : (unit * (Revision.t * Digest.t) OrExn.t Lwt.u)) ->
+    (fun ((_, resolv) : (unit * StateUpdate.t OrExn.t Lwt.u)) ->
       `GetCurrentRevisionDigest resolv)
 
-(* TODO for a state_update_deadline_in_blocks somewhere *)
-let rec inner_state_update_periodic_loop : unit -> unit Lwt_exn.t =
-  fun () ->
-  let open Lwt_exn in
-  retrieve_validated_rev_digest ()
-  >>= uncurry post_state_update
-  >>= fun _ -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
-  >>= inner_state_update_periodic_loop
-
-
-let start_state_update_periodic_daemon () =
-  Logging.log "Beginning of start_state_update_periodic_daemon";
-  Lwt.async inner_state_update_periodic_loop;
-  Lwt_exn.return ()
 
 let process_validated_transaction_request : (TransactionRequest.t, Transaction.t) OperatorAction.arr =
   function
@@ -491,8 +474,8 @@ let process_user_transaction_request :
 
 
 let oper_post_user_transaction_request : UserTransactionRequest.t signed -> TransactionCommitment.t Lwt_exn.t =
-  fun request ->
-  (*stateless_parallelize*) process_user_transaction_request (request, false)
+  fun signed_request ->
+  (*stateless_parallelize*) process_user_transaction_request (signed_request, false)
 
 type main_chain_account_state =
   { address : Address.t
@@ -682,11 +665,13 @@ let inner_transaction_request_loop =
                   Lwt.wakeup_later digest_resolver (State.digest !operator_state_ref.current);
                   request_batch operator_state size
                (* Lwt.return (operator_state, batch_id, batch_committed_t) *)
-               | `GetCurrentRevisionDigest (rev_digest_resolver : (Revision.t * Digest.t) OrExn.t Lwt.u) ->
+               | `GetCurrentRevisionDigest (state_update_u : StateUpdate.t OrExn.t Lwt.u) ->
+                  if side_chain_operator_log then
+                    Logging.log "inner_transaction_request, CASE : GetCurrentRevisionDigest";
                   (* Lwt.wakeup_later notify_batch_committed_u (); *)
                   let digest = (State.digest !operator_state_ref.current) in
                   let rev_oper = !operator_state_ref.current.operator_revision in
-                  Lwt.wakeup_later rev_digest_resolver (Ok(rev_oper, digest));
+                  Lwt.wakeup_later state_update_u (Ok {revision=rev_oper; state=digest});
                   request_batch operator_state size
                | `Flush (id : int) ->
                  assert (id = batch_id);
@@ -733,6 +718,34 @@ let initial_operator_state address =
     ; current= initial_side_chain_state
     ; fee_schedule= initial_fee_schedule }
 
+
+let load_operator_state address =
+  let open Lwt_exn in
+  if side_chain_operator_log then
+    Logging.log "Loading the side_chain state...";
+  Db.check_connection ();
+  trying (catching_arr OperatorState.load) address
+  >>= handling
+        (function
+         | Operator_not_found _ ->
+            if side_chain_operator_log then
+              Logging.log "Side chain not found, generating a new demo side chain";
+            let initial_state = initial_operator_state address in
+            let open Lwt in
+            OperatorState.save initial_state
+            >>= Db.commit
+            >>= fun () ->
+            Lwt_exn.return initial_state
+         | e -> fail e)
+  >>= fun operator_state ->
+  if side_chain_operator_log then
+    Logging.log "Done loading side chain state";
+  return operator_state
+
+
+
+
+
 (* TODO: make it a PersistentActivity. *)
 (* TODO: don't create a new operator unless explicitly requested? *)
 let start_operator address =
@@ -757,6 +770,10 @@ let start_operator address =
      Lwt_exn.return ()
 
 
+
+
+
+
 (* Need to create a thread, persistent activity
    for the merging operation to the main chain.
    ---Polled by the users for their transaction.
@@ -766,6 +783,19 @@ let start_operator address =
 module Test = struct
   open Signing.Test
 
+  let start_operator_for_test address =
+    let open Lwt_exn in
+    let operator_state =
+      (* TODO: don't create a new operator unless explicitly requested? *)
+      try
+        OperatorState.load address
+      with Not_found -> initial_operator_state address
+    in
+    let state_ref = ref operator_state in
+    the_operator_service_ref := Some { address; state_ref };
+    Lwt.async (const state_ref >>> inner_transaction_request_loop);
+    Lwt_exn.return ()
+    
   let get_operator_state = get_operator_state
 
   (* a sample operator state *)

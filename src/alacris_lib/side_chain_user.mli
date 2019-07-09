@@ -73,8 +73,8 @@ module OngoingTransactionStatus : sig
     | Requested            of UserTransactionRequest.t signed
     | SignedByOperator     of TransactionCommitment.t
     | PostedToRegistry     of TransactionCommitment.t
-    | PostedToMainChain    of TransactionCommitment.t * Ethereum_chain.Confirmation.t
-    | ConfirmedOnMainChain of TransactionCommitment.t * Revision.t * Ethereum_chain.Confirmation.t
+    | PostedToMainChain    of TransactionCommitment.t * StateUpdate.t * Ethereum_chain.Confirmation.t
+    | ConfirmedOnMainChain of TransactionCommitment.t * StateUpdate.t * Revision.t * Ethereum_chain.Confirmation.t
 
   include PersistableS with type t := t
 
@@ -263,3 +263,4 @@ val payment : (PaymentWanted.t, TransactionTracker.t) UserAsyncAction.arr
 
    val collect_account_liquidation_funds : (unit, Ethereum_chain.Transaction.t) UserAsyncAction.arr
 *)
+val post_claim_withdrawal_operation_exn : confirmed_state_update:StateUpdate.t -> TransactionCommitment.t -> sender:Address.t -> operator:Address.t -> Revision.t Lwt_exn.t

@@ -5,7 +5,6 @@ open Action
 open Lwt_exn
 open Marshaling
 open Types
-open Signing
 
 open Alacris_lib
 open Legilogic_ethereum
@@ -19,7 +18,7 @@ let _ =
 let _init_random =
   Random.self_init
 
-let side_chain_server_log = false
+let side_chain_server_log = true
 
 
 (* TODO: pass request id, so we can send a JSON RPC style reply? *)
@@ -42,10 +41,10 @@ let process_request_exn _client_address (in_channel,out_channel) =
        if side_chain_server_log then
          Logging.log "process_request_exn : UserQuery";
        (oper_post_user_query_request request |> Lwt.bind) (encode_response yojson_marshaling.marshal)
-    | Ok (`UserTransaction request) ->
+    | Ok (`UserTransaction signed_request) ->
        if side_chain_server_log then
          Logging.log "process_request_exn : UserTransaction";
-      (oper_post_user_transaction_request request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
+      (oper_post_user_transaction_request signed_request |> Lwt.bind) (encode_response TransactionCommitment.marshal)
     | Ok (`AdminQuery request) ->
        if side_chain_server_log then
          Logging.log "process_request_exn : AdminQuery";
@@ -75,27 +74,6 @@ let process_request client_address channels =
                    return ()))
     channels
 
-let load_operator_state address =
-  if side_chain_server_log then
-    Logging.log "Loading the side_chain state...";
-  Db.check_connection ();
-  trying (catching_arr OperatorState.load) address
-  >>= handling
-        (function
-         | Operator_not_found _ ->
-            if side_chain_server_log then
-              Logging.log "Side chain not found, generating a new demo side chain";
-            let initial_state = initial_operator_state address in
-            let open Lwt in
-            OperatorState.save initial_state
-            >>= Db.commit
-            >>= fun () ->
-            Lwt_exn.return initial_state
-         | e -> fail e)
-  >>= fun operator_state ->
-  if side_chain_server_log then
-    Logging.log "Done loading side chain state";
-  return operator_state
 
 let sockaddr = Unix.(ADDR_INET (inet_addr_any, Side_chain_server_config.config.port))
 
@@ -106,20 +84,13 @@ let _ =
       if side_chain_server_log then
         Logging.log "Beginning of side_chain_server";
       Mkb_json_rpc.init_mkb_server ()
-      (*      >>= fun () -> State_update.start_state_update_daemon () *)
-      >>= fun () -> Side_chain_operator.start_state_update_periodic_daemon ()
+      >>= fun () -> Side_chain_vigilantism.start_vigilantism_state_update_daemon Side_chain_server_config.operator_address
+      >>= fun () -> State_update.start_state_update_periodic_daemon Side_chain_server_config.operator_address
       >>= fun () ->
       if side_chain_server_log then
         Logging.log "Before the Db.open_connection";
       of_lwt Db.open_connection "alacris_server_db"
-      >>= fun () ->
-      if side_chain_server_log then
-        Logging.log "Side_chain_server_config.operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
-      Operator_contract.get_contract_address ()
-      >>= fun contract_address ->
-      if side_chain_server_log then
-        Logging.log "Using contract %s" (Address.to_0x contract_address);
-      load_operator_state Side_chain_server_config.operator_address
+      >>= fun () -> load_operator_state Side_chain_server_config.operator_address
       >>= fun _operator_state ->
       let%lwt _server = Lwt_io.establish_server_with_client_address sockaddr process_request in
       start_operator Side_chain_server_config.operator_address

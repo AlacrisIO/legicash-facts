@@ -63,7 +63,6 @@ module Test = struct
   let get_alice_balance () = get_user_balance alice_address
   let get_bob_balance () = get_user_balance bob_address
 
-
   (* deposit, payment and withdrawal test *)
   let%test "deposit_and_payment_and_withdrawal" =
     Signing.Test.register_test_keypairs ();
@@ -77,31 +76,27 @@ module Test = struct
         of_lwt Db.open_connection "unit_test_db"
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 2";
-
         (* TODO consolidate integration tests into single entry point with
          * shared initialization phase rather than leaving them scattered about
          * the repo. One problem with the present setup is we cannot shut down
          * the following reactor once flipping it on, meaning we're likely to
          * encounter subtle time-dependent bugs in future tests (until we
          * reorganize) *)
-        State_update.start_state_update_daemon ()
-        >>= fun _ ->
         Logging.log "deposit_and_payment_and_withdrawal, step 4";
+        let operator = trent_address in
         fund_accounts ()
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
         Mkb_json_rpc.init_mkb_server ()
-        >>= fun () ->
-        let operator = trent_address in
-        start_operator operator
-        >>= fun () -> start_state_update_periodic_daemon ()
+        >>= fun _ -> start_operator_for_test operator
+        >>= fun () -> State_update.Test.start_state_update_for_test_periodic_daemon operator
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 6";
         let initial_alice_balance = get_alice_balance () in
         let initial_bob_balance = get_bob_balance () in
 
         (* 1- Test deposit *)
-        Logging.log "deposit_and_payment_and_withdrawal, step 7";
+        Logging.log "deposit_and_payment_and_withdrawal, step 7 alice_address=%s" (Address.to_0x alice_address);
         let deposit_amount = TokenAmount.of_string "500000000000000000" in
         User.transaction
           alice_address

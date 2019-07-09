@@ -3,7 +3,6 @@ open Yojsoning
 open Persisting
 open Action
 open Signing
-
 open Side_chain
 
 exception Operator_not_found of string
@@ -25,6 +24,8 @@ end
 
 val initial_operator_state : Address.t -> OperatorState.t
 
+val load_operator_state : Address.t -> OperatorState.t Lwt_exn.t
+
 module OperatorAction : ActionS with type state = OperatorState.t
 module OperatorAsyncAction : AsyncActionS with type state = OperatorState.t
 
@@ -36,6 +37,10 @@ val operator_account_lens : Address.t -> account_lens
 
 (** start the background operator processes for given operator address *)
 val start_operator : (Address.t, unit) Lwt_exn.arr
+
+val retrieve_validated_state_update : unit -> StateUpdate.t Lwt_exn.t
+(** retrieving the confirmed_state / confirmed_revision from the side chain operator
+    and returning it *)
 
 (** [oper_post_user_transaction_request request] asynchronously processes [request] (not forced)
     returning a [Transaction.t] on success.
@@ -50,10 +55,6 @@ val oper_post_user_query_request : (UserQueryRequest.t, yojson) Lwt_exn.arr
     returning a [Transaction] on success. *)
 val oper_post_admin_query_request : (AdminQueryRequest.t, yojson) Lwt_exn.arr
 
-
-val start_state_update_periodic_daemon : unit -> unit Lwt_exn.t
-(** start of the operator that do state_update at frequent date
-    (for example every 25s). *)
 
 (*
    (** For a operator, commit the state of the side-chain to the main-chain *)
@@ -75,5 +76,9 @@ module Test : sig
       NB 2: Thou shalt only use it but by permission of the owner.
       It is NOT OK to probe into other people's internals except for e.g. testing and debugging.
   *)
+
+  (** start the background operator processes for given operator address for the tests *)
+  val start_operator_for_test : (Address.t, unit) Lwt_exn.arr
+  
   val get_operator_state : unit -> OperatorState.t
 end

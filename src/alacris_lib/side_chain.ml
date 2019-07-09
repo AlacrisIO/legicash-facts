@@ -338,6 +338,21 @@ module OperatorFeeSchedule = struct
   include (Persistable (PrePersistable) : PersistableS with type t := t)
 end
 
+(** What we need for the system is the pair of Revision and state digest *)
+module StateUpdate = struct
+  [@warning "-39"]
+  type t = {revision: Revision.t; state: Digest.t}
+  [@@deriving yojson, rlp]
+  module PrePersistable = struct
+    type nonrec t = t
+    let marshaling = marshaling_of_rlping rlping
+    let yojsoning = {to_yojson;of_yojson}
+  end
+  include (TrivialPersistable (PrePersistable) : PersistableS with type t := t)
+end
+
+
+
 module TransactionCommitment = struct
   [@warning "-39"]
   type t =

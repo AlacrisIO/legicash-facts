@@ -330,6 +330,18 @@ module OperatorFeeSchedule : sig
   include PersistableS with type t := t
 end
 
+
+module StateUpdate : sig
+  [@warning "-39-32"]
+  type t = {revision: Revision.t; state: Digest.t}
+  [@@deriving yojson, rlp]
+  include PersistableS with type t := t
+end
+
+
+
+
+
 (** An attestation to commitment of a tx via a Merkle proof.
     The state that is root of the Merkle proof is not necessarily committed to the main chain,
     but is signed by Trent.

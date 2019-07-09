@@ -661,14 +661,9 @@ let call_function ~sender ~contract ~call ?gas_limit ~value =
 let get_status_receipt : TransactionReceipt.t -> bool =
   fun tr -> TokenAmount.equal tr.status TokenAmount.one
 
-let post_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
-  fun operation sender value ->
-  let gas_limit_val = None in (* Some kind of arbitrary choice *)
-  if ethereum_user_log then
-    Logging.log "post_operation_general_kernel : before make_pre_transaction";
-  make_pre_transaction ~sender operation ?gas_limit:gas_limit_val ~value
-  >>= fun x_pretrans ->
-  add_ongoing_transaction ~user:sender (Wanted x_pretrans)
+let post_pretransaction : PreTransaction.t -> Address.t -> TransactionReceipt.t Lwt_exn.t =
+  fun pre_transaction sender ->
+  add_ongoing_transaction ~user:sender (Wanted pre_transaction)
   >>= fun (tracker_key, _, _) ->
   let (_, promise, _) = TransactionTracker.get () tracker_key in
   (Lwt.bind promise (function
@@ -679,11 +674,22 @@ let post_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmou
        Logging.log "transaction status=%B" (get_status_receipt receipt);
      Lwt_exn.return receipt))
 
-let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value:TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
-  fun ~operation ~sender ~value ->
+
+
+let post_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+  fun operation sender value ->
+  let gas_limit_val = None in (* Some kind of arbitrary choice *)
+  if ethereum_user_log then
+    Logging.log "post_operation_general_kernel : before make_pre_transaction";
+  make_pre_transaction ~sender operation ?gas_limit:gas_limit_val ~value
+  >>= fun pre_transaction ->
+  post_pretransaction pre_transaction sender
+
+let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value_send:TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+  fun ~operation ~sender ~value_send ->
   let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
     fun () ->
-    post_operation_kernel operation sender value
+    post_operation_kernel operation sender value_send
     >>= fun ereceipt ->
     if get_status_receipt ereceipt then
       return ereceipt

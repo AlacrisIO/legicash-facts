@@ -81,18 +81,25 @@ contract Claims {
     function is_claim_status_pending(int _status) internal view returns(bool) {
         return _status > get_block_number();
     }
-
     /** Check that a claim is still pending */
-    /*
     function require_claim_pending(bytes32 _claim) internal view {
         require(is_claim_status_pending(claim_status[_claim]));
-    }*/
+    }
+
+
+
+
+    function is_claim_rejected(bytes32 _claim) internal view returns(bool) {
+      return claim_status[_claim] == REJECTED;
+    }
+
+
 
     /** True if a claim is accepted as valid */
     function is_status_accepted(int _status) internal view returns(bool) {
-        return _status >= 3 && _status <= get_block_number();
+        return _status >= ACCEPTABLE && _status <= get_block_number();
     }
-
+    /** Check that a claim is still pending */
     function is_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
       return is_status_accepted(claim_status[_claim]);
     }
@@ -109,22 +116,22 @@ contract Claims {
      *
      * Usage Pattern: make_claim(digest_claim(operator, tag, keccak256(abi.encodePacked(x, y, z)))).
      */
-    function make_claim(bytes32 _claim) internal returns(uint64) {
-        if (claim_status[_claim]==0) { // The claim must not have been made before
-          claim_status[_claim] = get_block_number() + challenge_period_in_blocks; // Register the claim
-          return 1;
-        }
-        else {
-          return 0;
-        }
+    function make_claim(bytes32 _claim) internal {
+        require(claim_status[_claim]==0); // The claim must not have been made before
+        claim_status[_claim] = get_block_number() + challenge_period_in_blocks;
     }
 
+
+
     /** Reject a pending claim as invalid. */
-    /* TODO: Actually implement the functionality for the rejection of claims.
     function reject_claim(bytes32 _claim) internal {
         require_claim_pending(_claim);
         claim_status[_claim] = REJECTED;
-    }*/
+    }
+
+    function is_claim_rejectable(bytes32 _claim) internal view returns(bool) {
+      return claim_status[_claim] != REJECTED;
+    }
 
     function set_claim_consumed(bytes32 _claim) internal {
         claim_status[_claim] = CONSUMED;
@@ -137,7 +144,6 @@ contract Claims {
         require_claim_accepted(_claim);
         set_claim_consumed(_claim);
     }*/
-
 
 
 

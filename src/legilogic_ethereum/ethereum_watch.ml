@@ -7,7 +7,7 @@ open Ethereum_json_rpc
 open Ethereum_abi
 open Side_chain_server_config
 
-let ethereum_watch_log = false
+let ethereum_watch_log = true
 
 (* TODO capturing start_revision in a state monad
  * much better approach than using mutable global state *)
@@ -54,10 +54,12 @@ let main_chain_block_notification_stream
 let wait_for_min_block_depth : Revision.t -> unit Lwt_exn.t =
   fun min_block_depth ->
   let open Lwt_exn in
+  Logging.log "wait_for_min_block_depth target=%s" (Revision.to_string min_block_depth);
   let rec check_current_depth : unit -> unit Lwt_exn.t =
     fun () ->
     eth_block_number ()
     >>= fun x ->
+    Logging.log "check_current_depth found=%s min_block_depth=%s" (Revision.to_string x) (Revision.to_string min_block_depth);
     if x > min_block_depth then
       return ()
     else

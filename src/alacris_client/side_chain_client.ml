@@ -17,7 +17,7 @@ open Actions
 (* Side_chain also has a Request module *)
 module Request = Scgi.Request
 
-let side_chain_client_log = false
+let side_chain_client_log = true
 
 let _ = Config.set_application_name "alacris"
 (* let _ = set_log_file "logs/alacris-client.log" *)
@@ -113,6 +113,7 @@ let throw_if_err = function
   | Error e -> raise e
 
 let trent_address = Signing.Test.trent_address
+let zander_address = Signing.Test.zander_address
 
 let _ =
   if side_chain_client_log then
