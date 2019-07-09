@@ -770,19 +770,6 @@ let start_operator address =
      Lwt_exn.return ()
 
 
-let start_operator_nocheck_test address =
-  let open Lwt_exn in
-  let operator_state =
-    (* TODO: don't create a new operator unless explicitly requested? *)
-    try
-      OperatorState.load address
-    with Not_found -> initial_operator_state address
-  in
-  let state_ref = ref operator_state in
-  the_operator_service_ref := Some { address; state_ref };
-  Lwt.async (const state_ref >>> inner_transaction_request_loop);
-  Lwt_exn.return ()
-
 
 
 
@@ -796,6 +783,19 @@ let start_operator_nocheck_test address =
 module Test = struct
   open Signing.Test
 
+  let start_operator_for_test address =
+    let open Lwt_exn in
+    let operator_state =
+      (* TODO: don't create a new operator unless explicitly requested? *)
+      try
+        OperatorState.load address
+      with Not_found -> initial_operator_state address
+    in
+    let state_ref = ref operator_state in
+    the_operator_service_ref := Some { address; state_ref };
+    Lwt.async (const state_ref >>> inner_transaction_request_loop);
+    Lwt_exn.return ()
+    
   let get_operator_state = get_operator_state
 
   (* a sample operator state *)

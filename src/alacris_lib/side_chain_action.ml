@@ -88,7 +88,7 @@ module Test = struct
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
         Mkb_json_rpc.init_mkb_server ()
-        >>= fun _ -> start_operator_nocheck_test operator
+        >>= fun _ -> start_operator_for_test operator
         >>= fun () -> State_update.Test.start_state_update_for_test_periodic_daemon operator
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 6";

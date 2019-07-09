@@ -38,9 +38,6 @@ val operator_account_lens : Address.t -> account_lens
 (** start the background operator processes for given operator address *)
 val start_operator : (Address.t, unit) Lwt_exn.arr
 
-(** start the background operator processes for given operator address *)
-val start_operator_nocheck_test : (Address.t, unit) Lwt_exn.arr
-
 val retrieve_validated_state_update : unit -> StateUpdate.t Lwt_exn.t
 (** retrieving the confirmed_state / confirmed_revision from the side chain operator
     and returning it *)
@@ -79,5 +76,9 @@ module Test : sig
       NB 2: Thou shalt only use it but by permission of the owner.
       It is NOT OK to probe into other people's internals except for e.g. testing and debugging.
   *)
+
+  (** start the background operator processes for given operator address for the tests *)
+  val start_operator_for_test : (Address.t, unit) Lwt_exn.arr
+  
   val get_operator_state : unit -> OperatorState.t
 end
