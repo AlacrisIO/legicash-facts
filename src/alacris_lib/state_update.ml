@@ -44,45 +44,6 @@ let post_state_update : operator:Address.t -> confirmed_state_update:StateUpdate
     )
 
 
-let post_state_update_for_test : operator:Address.t -> confirmed_state_update:StateUpdate.t -> unit Lwt_exn.t =
-  fun ~operator ~confirmed_state_update ->
-  let open Lwt_exn in
-  if state_update_log then
-    Logging.log "post_state_update beginning";
-  let null_oper = ref false in
-  if (String.equal (Digest.to_string !last_hash) (Digest.to_string confirmed_state_update.state)) then
-    (if state_update_log then
-       Logging.log "previous hash identical to this one. Nothing to be done";
-     null_oper := true
-    );
-  if (String.equal (Digest.to_string !last_hash) (Digest.to_string Digest.zero)) then
-    (if state_update_log then
-       Logging.log "previous hash is zero. So first commit. Nothing to be done";
-     first_nontrivial_hash := confirmed_state_update.state;
-     null_oper := true
-    );
-  if (String.equal (Digest.to_string !first_nontrivial_hash) (Digest.to_string confirmed_state_update.state)) then
-    (if state_update_log then
-       Logging.log "confirmed_state_update.state is the same as first_nontrivial_hash. Nothing to be done";
-     null_oper := true
-    );
-  last_hash := confirmed_state_update.state;
-  if !null_oper then
-    return ()
-  else
-    (get_contract_address ()
-     >>= fun contract_address ->
-     let operation = make_state_update_call ~contract_address ~confirmed_state_update in
-     if state_update_log then
-       Logging.log "post_state_update revision=%s digest=%s" (Revision.to_string confirmed_state_update.revision) (Digest.to_0x confirmed_state_update.state);
-     Ethereum_user.post_operation ~operation:operation ~sender:operator ~value_send:TokenAmount.zero
-     >>= fun _ ->
-     if state_update_log then
-       Logging.log "After the post_operation of post_state_update";
-     return ()
-    )
-
-
 (* TODO for a state_update_deadline_in_blocks somewhere *)
 let rec inner_state_update_periodic_loop : Address.t -> unit Lwt_exn.t =
   fun operator ->
@@ -92,14 +53,6 @@ let rec inner_state_update_periodic_loop : Address.t -> unit Lwt_exn.t =
   >>= fun () -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
   >>= fun () -> inner_state_update_periodic_loop operator
 
-let rec inner_state_update_for_test_periodic_loop : Address.t -> unit Lwt_exn.t =
-  fun operator ->
-  let open Lwt_exn in
-  retrieve_validated_state_update ()
-  >>= fun confirmed_state_update -> post_state_update_for_test ~operator ~confirmed_state_update
-  >>= fun () -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
-  >>= fun () -> inner_state_update_for_test_periodic_loop operator
-
 let start_state_update_periodic_daemon address =
   register_keypair "alice" Signing.Test.alice_keys;
   register_keypair "bob" Signing.Test.bob_keys;
@@ -108,13 +61,62 @@ let start_state_update_periodic_daemon address =
   Lwt.async (fun () -> inner_state_update_periodic_loop address);
   Lwt_exn.return ()
 
-let start_state_update_for_test_periodic_daemon address =
-  if state_update_log then
-    Logging.log "Beginning of start_state_update_for_test_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
-  Lwt.async (fun () -> inner_state_update_for_test_periodic_loop address);
-  Lwt_exn.return ()
 
+module Test = struct
 
+  let post_state_update_for_test : operator:Address.t -> confirmed_state_update:StateUpdate.t -> unit Lwt_exn.t =
+    fun ~operator ~confirmed_state_update ->
+    let open Lwt_exn in
+    if state_update_log then
+      Logging.log "post_state_update beginning";
+    let null_oper = ref false in
+    if (String.equal (Digest.to_string !last_hash) (Digest.to_string confirmed_state_update.state)) then
+      (if state_update_log then
+         Logging.log "previous hash identical to this one. Nothing to be done";
+       null_oper := true
+      );
+    if (String.equal (Digest.to_string !last_hash) (Digest.to_string Digest.zero)) then
+      (if state_update_log then
+         Logging.log "previous hash is zero. So first commit. Nothing to be done";
+       first_nontrivial_hash := confirmed_state_update.state;
+       null_oper := true
+      );
+    if (String.equal (Digest.to_string !first_nontrivial_hash) (Digest.to_string confirmed_state_update.state)) then
+      (if state_update_log then
+         Logging.log "confirmed_state_update.state is the same as first_nontrivial_hash. Nothing to be done";
+       null_oper := true
+      );
+    last_hash := confirmed_state_update.state;
+    if !null_oper then
+      return ()
+    else
+      (get_contract_address ()
+       >>= fun contract_address ->
+       let operation = make_state_update_call ~contract_address ~confirmed_state_update in
+       if state_update_log then
+         Logging.log "post_state_update revision=%s digest=%s" (Revision.to_string confirmed_state_update.revision) (Digest.to_0x confirmed_state_update.state);
+       Ethereum_user.post_operation ~operation:operation ~sender:operator ~value_send:TokenAmount.zero
+       >>= fun _ ->
+       if state_update_log then
+         Logging.log "After the post_operation of post_state_update";
+       return ()
+      )
+
+  let rec inner_state_update_for_test_periodic_loop : Address.t -> unit Lwt_exn.t =
+    fun operator ->
+    let open Lwt_exn in
+    retrieve_validated_state_update ()
+    >>= fun confirmed_state_update -> post_state_update_for_test ~operator ~confirmed_state_update
+    >>= fun () -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
+    >>= fun () -> inner_state_update_for_test_periodic_loop operator
+
+  let start_state_update_for_test_periodic_daemon address =
+    if state_update_log then
+      Logging.log "Beginning of start_state_update_for_test_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
+    Lwt.async (fun () -> inner_state_update_for_test_periodic_loop address);
+    Lwt_exn.return ()
+
+end
 
 (* Alert to take care of:
    ---lack of gas

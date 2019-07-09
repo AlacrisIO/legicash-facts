@@ -6,7 +6,6 @@ open Lwt_exn
 open Legilogic_ethereum
 open Side_chain
 open Side_chain_operator
-open State_update
 open Side_chain_user
 
 let contract_address_key = "alacris.contract-address"
@@ -90,7 +89,7 @@ module Test = struct
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
         Mkb_json_rpc.init_mkb_server ()
         >>= fun _ -> start_operator_nocheck_test operator
-        >>= fun () -> start_state_update_for_test_periodic_daemon operator
+        >>= fun () -> State_update.Test.start_state_update_for_test_periodic_daemon operator
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 6";
         let initial_alice_balance = get_alice_balance () in

@@ -13,7 +13,6 @@ open Operator_contract
 open Side_chain
 open Side_chain_operator
 open Side_chain_user
-open State_update
 
 let side_chain_vigilantism_log = true
 
@@ -160,7 +159,7 @@ module Test = struct
         start_vigilantism_state_update_daemon operator
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 6";
-        start_state_update_for_test_periodic_daemon operator
+        State_update.Test.start_state_update_for_test_periodic_daemon operator
         >>= fun () ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 7";
         let deposit_amount = TokenAmount.of_string "500000000000000000" in
