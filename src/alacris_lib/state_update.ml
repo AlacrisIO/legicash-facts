@@ -44,7 +44,7 @@ let post_state_update : operator:Address.t -> operator_revision:Revision.t -> op
     )
 
 
-let post_state_update_nocheck : operator:Address.t -> operator_revision:Revision.t -> operator_digest:Digest.t -> unit Lwt_exn.t =
+let post_state_update_for_test : operator:Address.t -> operator_revision:Revision.t -> operator_digest:Digest.t -> unit Lwt_exn.t =
   fun ~operator ~operator_revision ~operator_digest ->
   let open Lwt_exn in
   if state_update_log then
@@ -92,13 +92,13 @@ let rec inner_state_update_periodic_loop : Address.t -> unit Lwt_exn.t =
   >>= fun () -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
   >>= fun () -> inner_state_update_periodic_loop operator
 
-let rec inner_state_update_nocheck_periodic_loop : Address.t -> unit Lwt_exn.t =
+let rec inner_state_update_for_test_periodic_loop : Address.t -> unit Lwt_exn.t =
   fun operator ->
   let open Lwt_exn in
   retrieve_validated_state_update ()
-  >>= fun (operator_revision, operator_digest) -> post_state_update_nocheck ~operator ~operator_revision ~operator_digest
+  >>= fun (operator_revision, operator_digest) -> post_state_update_for_test ~operator ~operator_revision ~operator_digest
   >>= fun () -> sleep_delay_exn Side_chain_server_config.state_update_period_in_seconds_f
-  >>= fun () -> inner_state_update_nocheck_periodic_loop operator
+  >>= fun () -> inner_state_update_for_test_periodic_loop operator
 
 let start_state_update_periodic_daemon address =
   register_keypair "alice" Signing.Test.alice_keys;
@@ -108,10 +108,10 @@ let start_state_update_periodic_daemon address =
   Lwt.async (fun () -> inner_state_update_periodic_loop address);
   Lwt_exn.return ()
 
-let start_state_update_nocheck_periodic_operator address =
+let start_state_update_for_test_periodic_daemon address =
   if state_update_log then
-    Logging.log "Beginning of start_state_update_nocheck_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
-  Lwt.async (fun () -> inner_state_update_nocheck_periodic_loop address);
+    Logging.log "Beginning of start_state_update_for_test_periodic_operator wait=%f" Side_chain_server_config.state_update_period_in_seconds_f;
+  Lwt.async (fun () -> inner_state_update_for_test_periodic_loop address);
   Lwt_exn.return ()
 
 

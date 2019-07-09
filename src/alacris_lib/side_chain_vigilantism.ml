@@ -160,7 +160,7 @@ module Test = struct
         start_vigilantism_state_update_daemon operator
         >>= fun () ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 6";
-        start_state_update_nocheck_periodic_operator operator
+        start_state_update_for_test_periodic_daemon operator
         >>= fun () ->
 	Logging.log "deposit_withdraw_wrong_operator_version, step 7";
         let deposit_amount = TokenAmount.of_string "500000000000000000" in

@@ -1,5 +1,5 @@
 { "port" : 8095,
-  "run_null_operation": true,
+  "run_small_activity": true,
   "ethereum_config" : {
       "minimal_height_block_for_confirmation" : 0,
       "max_connection_geth" : 1,

@@ -84,14 +84,13 @@ module Test = struct
          * encounter subtle time-dependent bugs in future tests (until we
          * reorganize) *)
         Logging.log "deposit_and_payment_and_withdrawal, step 4";
+        let operator = trent_address in
         fund_accounts ()
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
         Mkb_json_rpc.init_mkb_server ()
-        >>= fun _ ->
-        let operator = trent_address in
-        start_operator_nocheck_test operator
-        >>= fun () -> start_state_update_nocheck_periodic_operator operator
+        >>= fun _ -> start_operator_nocheck_test operator
+        >>= fun () -> start_state_update_for_test_periodic_daemon operator
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 6";
         let initial_alice_balance = get_alice_balance () in

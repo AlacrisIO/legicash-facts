@@ -44,7 +44,7 @@ let rec infinite_loop_transfer : int -> unit Lwt_exn.t =
 let start_null_operation_thread () =
   if side_chain_null_operation_log then
     Logging.log "Beginning of the null_operation_thread";
-  if Side_chain_server_config.run_null_operation then
+  if Side_chain_server_config.run_small_activity then
     Lwt.async (fun () -> infinite_loop_transfer 0);
   Lwt_exn.return ()
 
