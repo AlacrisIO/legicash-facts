@@ -15,7 +15,7 @@ let state_update_log = true
 let last_hash = ref Digest.zero
 let first_nontrivial_hash = ref Digest.zero
 
-let small_money_transfer_recipient_sender : recipient:Address.t -> sender:Address.t -> unit Lwt_exn.t =
+let small_money_transfer : recipient:Address.t -> sender:Address.t -> unit Lwt_exn.t =
   fun ~recipient ~sender ->
   if state_update_log then
     Logging.log "small_money_transfer_recipient_sender";
@@ -25,19 +25,6 @@ let small_money_transfer_recipient_sender : recipient:Address.t -> sender:Addres
   Ethereum_user.post_pretransaction pre_transaction sender
   >>= fun _ -> return ()
 
-let small_money_transfer : int -> unit Lwt_exn.t =
-  fun pos ->
-  if state_update_log then
-    Logging.log "small_money_transfer. Doing pos=%i" pos;
-  let heckle_address = Signing.Test.heckle_address in
-  let jeckle_address = Signing.Test.jeckle_address in
-  if (pos == 0) then
-    small_money_transfer_recipient_sender ~recipient:heckle_address ~sender:jeckle_address
-  else
-    small_money_transfer_recipient_sender ~recipient:jeckle_address ~sender:heckle_address
-
-let small_transfer_status_ref = ref 0
-
 let post_state_update : operator:Address.t -> confirmed_state_update:StateUpdate.t -> unit Lwt_exn.t =
   fun ~operator ~confirmed_state_update ->
   let open Lwt_exn in
@@ -46,8 +33,8 @@ let post_state_update : operator:Address.t -> confirmed_state_update:StateUpdate
   if (String.equal (Digest.to_string !last_hash) (Digest.to_string confirmed_state_update.state)) then
     (if state_update_log then
        Logging.log "Same hash as before. No need to do state_update. Instead doing small_money_transfer";
-     small_transfer_status_ref := 1 - !small_transfer_status_ref;
-     small_money_transfer !small_transfer_status_ref
+     let heckle_address = Signing.Test.heckle_address in
+     small_money_transfer ~recipient:heckle_address ~sender:heckle_address
     )
   else
     (if state_update_log then
