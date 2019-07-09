@@ -90,7 +90,6 @@ let _ =
       if side_chain_server_log then
         Logging.log "Before the Db.open_connection";
       of_lwt Db.open_connection "alacris_server_db"
-      (*      >>= fun _ -> Side_chain_null_operation.start_null_operation_thread ()*)
       >>= fun () -> load_operator_state Side_chain_server_config.operator_address
       >>= fun _operator_state ->
       let%lwt _server = Lwt_io.establish_server_with_client_address sockaddr process_request in

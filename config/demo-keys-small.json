@@ -158,11 +158,13 @@
   "Heckle": {
     "address": "0xa2c135590e32906364396f0243cf4737bd984b54",
     "public_key": "04f07b78cf4f11044e75ecc88c9b41e9ddd406ecaa050882203558ec3316a8cd68aef2e4bb14d21ddd99878399a12060fad6fb4322e2905fe6bea418b08d0368ae",
-    "private_key": "0ec0f556cdb3c7aacc9e64eaa943296a70e878da2d891b63728a1186df643efc"
+    "private_key": "0ec0f556cdb3c7aacc9e64eaa943296a70e878da2d891b63728a1186df643efc",
+    "password": ""
   },
   "Jeckle": {
     "address": "0x15f8f7ef6b86cbbb16f78aacfd5b8ac469113d72",
-    "public_key": "043c9d639da67a664f16f49f13160a02c90e1e7e9b4eb62c6a27d4850040d49ef92dffb52f078063f20019a8fc8051b2f6d2ed2b952e91e2a564a1ab4ef57085aa"e,
-    "private_key": "98b2ead93f43e20e2dd0d337567993adb7de1685c4017be5648e2b8add61b35c"
+    "public_key": "043c9d639da67a664f16f49f13160a02c90e1e7e9b4eb62c6a27d4850040d49ef92dffb52f078063f20019a8fc8051b2f6d2ed2b952e91e2a564a1ab4ef57085aa",
+    "private_key": "98b2ead93f43e20e2dd0d337567993adb7de1685c4017be5648e2b8add61b35c",
+    "password": ""
   }
 }
