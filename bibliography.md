@@ -1,5 +1,7 @@
 # Bibliography
 
+"You can save hours reading papers with months of hard work on your project."
+
 * [Plasma](https://plasma.io/),
   [Plasma Group](https://plasma.group/),
   [ETH Research on Plasma](https://ethresear.ch/search?q=plasma),
@@ -27,6 +29,10 @@
 * OCaml metaprogramming:
  [Oleg's Reconciling Abstraction with High Performance: A MetaOCaml approach](https://www.nowpublishers.com/article/Details/PGL-038).
 
+* OCaml to JavaScript: BuckleScript, ReasonML.
+  [nix-shell for BuckleScript](https://github.com/reazen/relude/blob/master/default.nix),
+  [tablecloth, An ergonomic, cross-platform, standard library for ReasonML and OCaml](https://github.com/darklang/tablecloth)
+
 * Purely Functional Data Structures:
  [Okasaki's book](https://www.cs.cmu.edu/~rwh/theses/okasaki.pdf),
  [a follow-up](https://cstheory.stackexchange.com/questions/1539/whats-new-in-purely-functional-data-structures-since-okasaki)
@@ -34,7 +40,8 @@
 * [Computability Logic](http://www.csc.villanova.edu/~japaridz/CL/)
 
 * [K Framework](http://www.kframework.org/index.php/Main_Page),
-  [KEVM: Semantics of EVM in K](https://github.com/kframework/evm-semantics).
+  [KEVM: Semantics of EVM in K](https://github.com/kframework/evm-semantics),
+  and the [Jello Paper](https://jellopaper.org/)
 
 * Session Types for conversations:
  * [Parametrized Extensible Effects and Session Types](http://okmij.org/ftp/Haskell/extensible/param-eff.pdf)
@@ -73,6 +80,7 @@
   [opcodes](https://ethereum.stackexchange.com/questions/119/what-opcodes-are-available-for-the-ethereum-evm),
   [old Ethereum block hashes](https://github.com/amiller/ethereum-blockhashes),
   [Zeppelin: deconstructing a solidity contract](https://blog.zeppelin.solutions/deconstructing-a-solidity-contract-part-ii-creation-vs-runtime-6b9d60ecb44c),
+  [Proxy libraries](https://blog.zeppelin.solutions/proxy-libraries-in-solidity-79fbe4b970fd),
   [Security Audit by QuantStamp](https://quantstamp.com/start),
   [Towards verifying ethereum smart contract bytecode in Isabelle/HOL](https://dl.acm.org/citation.cfm?doid=3176245.3167084),
   [the Parity Light Protocol](https://wiki.parity.io/The-Parity-Light-Protocol-%28PIP%29)
@@ -83,18 +91,26 @@
   [The Challenges of Building Ethereum Infrastructure](https://medium.com/@lopp/the-challenges-of-building-ethereum-infrastructure-87e443e47a4b).
 
 * Compiling to the EVM:
-  [Pirapira's Bamboo](https://github.com/pirapira/bamboo).
+  [pirapira's efforts](https://github.com/pirapira/ethereum-formal-verification-overview/blob/master/README.md) including
+  [eth-isabelle](https://github.com/pirapira/eth-isabelle) and
+  [Bamboo](https://github.com/cornellblockchain/bamboo),
+  [EtherVM](https://ethervm.io/),
+  [Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf),
+  [Jello Paper](https://jellopaper.org/evm/).
 
 * Formal Methods:
   [What do Formal Methods actually Guarantee?](https://medium.com/alacris/what-do-formal-methods-actually-guarantee-d94ae8802be2)
-  [Formally Verified Software in the Real World](https://cacm.acm.org/magazines/2018/10/231372-formally-verified-software-in-the-real-world/fulltext).
+  [Formally Verified Software in the Real World](https://cacm.acm.org/magazines/2018/10/231372-formally-verified-software-in-the-real-world/fulltext),
+  [Z3 tutorial](https://rise4fun.com/z3/tutorial).
 
 * Formalization for smart contracts:
   [Scilla-coq](https://github.com/ilyasergey/scilla-coq)
   (see paper [Scilla: a Smart Contract Intermediate-Level LAnguage](http://ilyasergey.net/papers/scilla-overview.pdf)),
   [TezosCoq](https://github.com/tezos/tezoscoq),
   [Ergo](https://ergo.readthedocs.io/en/latest/Overview.html),
-  [Russell O'Connor: "Simplicity: A New Language for Blockchains"](https://arxiv.org/abs/1711.03028).
+  [Russell O'Connor: "Simplicity: A New Language for Blockchains"](https://arxiv.org/abs/1711.03028),
+  [Peng Wang](https://people.csail.mit.edu/wangpeng/)['s](https://www.csail.mit.edu/event/type-system-resource-bounds-type-preserving-compilation-and-its-application-ethereum-smart) [thesis](https://people.csail.mit.edu/wangpeng/phd-thesis.pdf) ([code](https://github.com/wangpengmit/phd-thesis-supplemental), [timl](https://github.com/mit-plv/timl)),
+  [ERC777-K](https://runtimeverification.com/blog/erc777-k-formal-executable-specification-of-erc777/).
 
 * Atomic swaps:
   [Ethereum atomic swaps with Bitcoin and most other coins, about to hit release](https://www.reddit.com/r/ethereum/comments/865e0l/ethereum_atomic_swaps_with_bitcoin_and_most_other/),
@@ -133,8 +149,23 @@
 * Homomorphic encryption:
   [Reusable Non-Interactive Secure Computation](https://eprint.iacr.org/2018/940.pdf),
   [Efficent Multi-Party computation toolkit](https://github.com/emp-toolkit),
-  [Jonathan Katz](http://www.cs.umd.edu/~jkatz/papers.html).
+  [Jonathan Katz](http://www.cs.umd.edu/~jkatz/papers.html),
+  ... something in F* or Coq from MSR Cambridge?
 
 * Algorand:
-  [Vault](https://eprint.iacr.org/2018/269.pdf)
+  See the original whitepaper,
+  [Vault](https://eprint.iacr.org/2018/269.pdf),
+  and their bibliography...
+  also [flaws?](https://hackernoon.com/a-fatal-flaw-in-algorand-professor-yongge-wang-takes-apart-their-renown-consensus-agreement-4c111286cdbb)
 
+* More Coq: [Bedrock](https://github.com/mit-plv/bedrock2)
+
+* Contracts on BCH:
+  [New Bitcoin Cash Opcode Shows an Onchain Game of Chess is Possible](https://news.bitcoin.com/new-bitcoin-cash-opcode-shows-an-onchain-game-of-chess-is-possible/)
+
+* Other bibliographies:
+  [Bitcoin History](https://infominer.id/bitcoin-history/),
+  [IOHK papers](https://iohk.io/research/papers/),
+  [CoinMetrics resources](https://coinmetrics.io/resources/),
+  (some old timer once published a link to a trove of papers... where?),
+  ...
