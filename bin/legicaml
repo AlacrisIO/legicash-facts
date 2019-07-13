@@ -14,7 +14,7 @@ LIB=
 
 use_lib () {
     for lib ; do
-        LIB=(${LIB[@]} -I "$build/src/$lib/.$lib.objs" -open "${lib^}")
+        LIB=(${LIB[@]} -I "$build/src/$lib/.$lib.objs/byte" -open "${lib^}")
     done
 }
 
