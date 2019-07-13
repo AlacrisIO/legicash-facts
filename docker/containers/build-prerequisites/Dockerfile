@@ -48,24 +48,11 @@ ENV PATH /home/appuser/opt/opam-full-2.0.5/bin:${PATH}
 #ENV OCAML_VERSION ocaml-base-compiler.4.07.1 ### <= use this format to distinguish from system-provided ocaml of same version
 ENV OCAML_VERSION 4.07.1
 
-# NB: Pinning the `integers` package is currently necessary due to this bug:
-# https://github.com/ocamllabs/ocaml-integers/issues/26
-#    : opam pin -y dune 1.6.3 && \
-
 RUN opam init -a --disable-sandboxing && \
     opam switch create ${OCAML_VERSION} && \
-    opam pin -y integers 0.2.2 && \
     opam install -y \
     bisect_ppx cohttp cohttp-lwt-unix cryptokit cstruct dune integers lens \
     leveldb lwt lwt_ppx ppx_blob ppx_deriving ppx_tools_versioned ppx_core \
     ppx_driver ppx_inline_test qcheck scgi secp256k1 yojson ; \
     :
 ENV PATH /home/appuser/.opam/${OCAML_VERSION}/bin:${PATH}
-
-# Install Scgi library in OPAM
-#RUN git clone https://github.com/bikallem/ocaml-scgi.git && \
-#    cd ocaml-scgi && \
-#    git checkout bb810ad74ff0900e34eadedfb1bf5aee2066edc8 && \
-#    make && \
-#    opam pin -y add scgi . -n && \
-#    opam install scgi
