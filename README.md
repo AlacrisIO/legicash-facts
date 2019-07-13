@@ -1,9 +1,8 @@
 # Legicash FaCTS
 
-Legicash FaCTS is a Plasma-style side-chain using the Ethereum main-chain as a
-"court system", with a "smart contract" that uses game semantics for "smart
-legal arguments", and a Shared Knowledge Network as a "smart court registry" to
-prevent block-withholding attacks,
+Legicash FaCTS is a side-chain using the Ethereum main-chain as a "court system",
+with a "smart contract" that uses game semantics for "smart legal arguments",
+and a Mutual Knowledge Network as a "smart court registry" to prevent block-withholding attacks.
 
 You may visit our live demo at [wallet.alacris.io](https://wallet.alacris.io).
 
