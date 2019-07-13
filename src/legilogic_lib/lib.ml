@@ -45,6 +45,7 @@ let int_of_bool b = if b then 1 else 0
 module Option = struct
   type +'a t = 'a option
 
+  let default default    = function None -> default         | Some x -> x
   let defaulting default = function None -> default ()      | Some x -> x
   let get                = function None -> raise Not_found | Some x -> x
   let is_some            = function None -> false           | Some _ -> true

@@ -65,6 +65,9 @@ module Option : sig
   type +'a t = 'a option
 
   (** Unwrap an option with a default if None *)
+  val default : 'a -> 'a t -> 'a
+
+  (** Unwrap an option with a default if None *)
   val defaulting : (unit -> 'a) -> 'a t -> 'a
 
   (** Unwrap an option, throwing Not_found if None *)
