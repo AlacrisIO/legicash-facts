@@ -58,7 +58,7 @@ module TransactionCondition : sig
 end
 
 (** Parameters for a transaction as per Ethereum JSON RPC interface for
-    eth_estimateGas, eth_sendTransaction, eth_signTransaction, personal_sign_transaction *)
+    eth_estimateGas, eth_sendTransaction, eth_signTransaction, personal_signTransaction *)
 module TransactionParameters : sig
   type t =
     { from: Address.t (* 20 Bytes - The address the transaction is send from. *)

@@ -288,6 +288,7 @@ module Lwt_exn = struct
       | Error e ->
         if (match max_retries with None -> true | Some n -> n > 1) then
           let retry_window = min retry_window max_window in
+          (* TODO: don't have a linear random distribution but something better? *)
           Lwt_unix.sleep (Random.float retry_window)
           >>= fun () ->
             retry ~retry_window:(retry_window *. 2.0)
