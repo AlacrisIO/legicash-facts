@@ -3,8 +3,8 @@
 
 # Identify where to run things from where this script is.
 HERE=$(dirname "$0")
-cd "$HERE/../../" # Change to toplevel directory of legicash-facts
-TOPDIR=$(pwd) # Top directory for the legicash-facts project
+cd "$HERE/../../" # Change to toplevel directory of git repository
+TOPDIR=$(pwd) # Top directory for the git repository
 
 # First, kill any previously existing geth
 killall geth > /dev/null 2>&1 || true
@@ -37,9 +37,17 @@ geth \
     --datadir $DATADIR \
     --nodiscover \
     --maxpeers 0 \
-    --rpc --rpcapi "db,eth,net,debug,web3,light,personal" --rpcport $RPCPORT --rpccorsdomain "*" \
+    --rpc --rpcapi "db,eth,net,debug,web3,light,personal,admin" --rpcport $RPCPORT --rpccorsdomain "*" \
     --port $PORT \
+    --nousb \
     --networkid 17 \
     --nat "any" \
     --ipcpath .ethereum/geth.ipc \
     > $LOGDIR/testnet.log 2>&1 &
+
+while ! curl -sSf -X POST \
+  -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0", "method": "web3_clientVersion", "params":[], "id":67}' http://localhost:$RPCPORT ; do
+    echo "Geth not started yet, waiting..."
+    sleep 1
+done
