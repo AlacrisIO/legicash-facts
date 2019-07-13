@@ -1,2 +1,7 @@
-(lang dune 1.0)
+(lang dune 1.9)
+
 (name ppx_deriving_rlp)
+
+;; Remove that after splitting ppx_deriving_rlp/src into subdirectories such that
+;; each has a single preprocess directive.
+(allow_approximate_merlin)

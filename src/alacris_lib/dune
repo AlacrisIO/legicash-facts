@@ -22,6 +22,6 @@
 (executable
  (name side_chain_server)
  (modules side_chain_server)
- (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx))
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx ppx_deriving_rlp))
  (libraries legilogic_lib alacris_lib ppx_deriving_yojson.runtime yojson))
 

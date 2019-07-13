@@ -28,7 +28,7 @@
  (name alacris_top)
  (modules
   version)
- (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_deriving_rlp ppx_inline_test lens.ppx_deriving lwt_ppx))
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx ppx_deriving_rlp))
  (libraries legilogic_lib legilogic_ethereum alacris_lib)
  (inline_tests
     ; (flags (:standard -verbose))
@@ -38,6 +38,7 @@
 (executable
  (name toplevel)
  (modules toplevel)
+ (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_inline_test lens.ppx_deriving lwt_ppx ppx_deriving_rlp))
  (libraries  compiler-libs.toplevel legilogic_lib legilogic_ethereum alacris_lib alacris_top ppx_deriving_rlp)
  (link_flags -linkall -cclib -lintegers -I +threads)
  (modes byte))
