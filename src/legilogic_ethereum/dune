@@ -13,6 +13,8 @@
    ethereum_transaction
    ethereum_watch
    ethereum_user
+   assembly
+   batch
    side_chain_server_config
    ethereum_patricia_merkle
    test_txpool_content)
