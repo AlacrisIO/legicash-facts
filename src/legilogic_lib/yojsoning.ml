@@ -6,7 +6,8 @@ let yojson_of_string s = Yojson.Safe.from_string s
 type yojson = Yojson.Safe.t
 [@@deriving rlp { rlping = rlping_by_isomorphism yojson_of_string string_of_yojson string_rlping }]
 
-let yojson_of_file fn = Yojson.Safe.from_file fn
+let yojson_of_file filename = Yojson.Safe.from_file filename
+let yojson_to_file filename yojson = Yojson.Safe.to_file ~std:true filename yojson
 
 let pp_yojson formatter x = Format.fprintf formatter "%s" (string_of_yojson x)
 let show_yojson x = Format.asprintf "%a" pp_yojson x

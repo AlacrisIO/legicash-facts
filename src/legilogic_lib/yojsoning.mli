@@ -7,6 +7,7 @@ val string_of_yojson : yojson -> string
 val yojson_of_string : string -> yojson
 
 val yojson_of_file : string -> yojson
+val yojson_to_file : string -> yojson -> unit
 
 val pp_yojson : Format.formatter -> yojson -> unit
 val show_yojson : yojson -> string
