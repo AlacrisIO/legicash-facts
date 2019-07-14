@@ -65,11 +65,14 @@ let ensure_prefunded prefunded_address amount string =
       address
 
     >>= fun () ->
-      with_error_logging
-        (fun () -> Printf.sprintf "Error trying to register key for %s"
-          (nicknamed_string_of_address address))
-        Ethereum_transaction.ensure_eth_signing_address
-        address)
+    match get_nickname_of_address address with
+    | Error _ -> return ()
+    | Ok _ ->
+       with_error_logging
+         (fun () -> Printf.sprintf "Error trying to register key for %s"
+                      (nicknamed_string_of_address address))
+         Ethereum_transaction.ensure_eth_signing_address
+         address)
 
 let _ =
   parse_argv Sys.argv
