@@ -8,9 +8,6 @@ open Ethereum_chain
 open Side_chain
 open Action
 
-val topic_of_address:  Address.t     -> Bytes.t option
-val topic_of_revision: Revision.t    -> Bytes.t option
-val topic_of_amount:   TokenAmount.t -> Bytes.t option
 val topic_of_hash:     Digest.t      -> Bytes.t option
 
 val topic_of_deposited : Bytes.t option
@@ -18,22 +15,7 @@ val topic_of_state_update : Bytes.t option
 val topic_of_claim_withdrawal : Bytes.t option
 val topic_of_withdraw : Bytes.t option
 
-type contract_address_config =
-  { contract_address : Address.t
-  ; code_hash : Digest.t
-  ; creation_hash : Digest.t
-  ; creation_block : Revision.t
-  }
-
-
-val retrieve_contract_config : Digest.t -> contract_address_config Lwt_exn.t
-
-
-
 val get_contract_address : unit -> Address.t Lwt_exn.t
-(** get the contract address of the contract on Ethereum *)
-
-val get_contract_address_exn : unit -> Address.t Lwt.t
 (** get the contract address of the contract on Ethereum *)
 
 val pre_deposit : operator:Address.t -> amount:TokenAmount.t -> contract_address:Address.t -> PreTransaction.t
@@ -71,10 +53,8 @@ val make_challenge_withdrawal_too_large_revision
   -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "challenge_withdrawal_too_large_revision"
     function of the operator contract arguments:
-    this is a way to provide some challenge 
+    this is a way to provide some challenge
 *)
-
-
 
 val make_operation_has_claim_been_rejected
    : contract_address:Address.t
@@ -87,12 +67,8 @@ val make_operation_has_claim_been_rejected
   -> Ethereum_chain.Operation.t
 (** build the encoding of a call to the "challenge_withdrawal_too_large_revision"
     function of the operator contract arguments:
-    this is a way to provide some challenge 
+    this is a way to provide some challenge
 *)
-
-
-
-
 
 val make_state_update_call : contract_address:Address.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)

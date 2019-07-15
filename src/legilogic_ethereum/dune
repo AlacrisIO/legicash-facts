@@ -13,6 +13,7 @@
    ethereum_transaction
    ethereum_watch
    ethereum_user
+   contract_config
    assembly
    batch
    side_chain_server_config

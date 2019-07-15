@@ -169,14 +169,14 @@ let emit_claim_withdrawal_operation : contract_address:Address.t -> sender:Addre
   if side_chain_user_log then
     Logging.log "post_claim_withdrawal_operation : beginning of operation bond=%s" (TokenAmount.to_string bond);
   let operation = make_claim_withdrawal_call ~contract_address ~operator ~operator_revision ~value ~confirmed_state_update in
-  Ethereum_user.post_operation ~operation ~sender ~value_send:bond
+  Ethereum_user.post_operation ~operation ~sender ~value:bond
 
 let emit_withdraw_operation : contract_address:Address.t -> sender:Address.t -> operator:Address.t -> Revision.t -> value:TokenAmount.t -> bond:TokenAmount.t -> confirmed_state_update:StateUpdate.t -> TransactionReceipt.t Lwt_exn.t =
   fun ~contract_address ~sender ~operator operator_revision ~value ~bond ~confirmed_state_update ->
   if side_chain_user_log then
     Logging.log "post_withdraw_operation contract_address=%s" (Address.to_0x contract_address);
   let operation = make_withdraw_call ~contract_address ~operator ~operator_revision ~value ~bond ~confirmed_state_update in
-  Ethereum_user.post_operation ~operation ~sender ~value_send:TokenAmount.zero
+  Ethereum_user.post_operation ~operation ~sender ~value:TokenAmount.zero
 
 
 let post_operation_deposit : TransactionCommitment.t -> Address.t -> unit Lwt_exn.t =
@@ -547,7 +547,7 @@ module TransactionTracker = struct
               (* TODO: have a single transaction for queueing the Wanted and the DepositPosted *)
               let amount = TokenAmount.(add deposit_amount deposit_fee)
 
-              in begin get_contract_address_exn ()
+              in begin Lwt_exn.run_lwt get_contract_address ()
                 >>= fun contract_address ->
                   return @@ Operator_contract.pre_deposit ~operator ~amount ~contract_address
                 >>= fun pre_tx ->

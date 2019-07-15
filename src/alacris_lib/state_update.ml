@@ -50,7 +50,7 @@ let post_state_update : operator:Address.t -> confirmed_state_update:StateUpdate
      get_contract_address ()
      >>= fun contract_address ->
      let operation = make_state_update_call ~contract_address ~confirmed_state_update in
-     Ethereum_user.post_operation ~operation:operation ~sender:operator ~value_send:TokenAmount.zero
+     Ethereum_user.post_operation ~operation:operation ~sender:operator ~value:TokenAmount.zero
      >>= fun _ ->
      if state_update_log then
        Logging.log "After the post_operation of post_state_update";
@@ -108,7 +108,7 @@ module Test = struct
        let operation = make_state_update_call ~contract_address ~confirmed_state_update in
        if state_update_log then
          Logging.log "post_state_update revision=%s digest=%s" (Revision.to_string confirmed_state_update.revision) (Digest.to_0x confirmed_state_update.state);
-       Ethereum_user.post_operation ~operation:operation ~sender:operator ~value_send:TokenAmount.zero
+       Ethereum_user.post_operation ~operation:operation ~sender:operator ~value:TokenAmount.zero
        >>= fun _ ->
        if state_update_log then
          Logging.log "After the post_operation of post_state_update";

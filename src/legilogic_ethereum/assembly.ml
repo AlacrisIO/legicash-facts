@@ -5,6 +5,7 @@ open Signing
 (* In the future, segments can be nested, and
    offset would be relative to a subsegment of a segment,
    to be fully resolved when the segment size is finalized.
+   (Also, a non-embedded front-end syntax.)
 
    For now, everything is fixed size and we don't compute
    label offsets much less optimize segment layout:

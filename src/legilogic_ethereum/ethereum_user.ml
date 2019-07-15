@@ -685,11 +685,11 @@ let post_operation_kernel : Ethereum_chain.Operation.t -> Address.t -> TokenAmou
   >>= fun pre_transaction ->
   post_pretransaction pre_transaction sender
 
-let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value_send:TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
-  fun ~operation ~sender ~value_send ->
+let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t -> value:TokenAmount.t -> TransactionReceipt.t Lwt_exn.t =
+  fun ~operation ~sender ~value ->
   let rec submit_operation : unit -> TransactionReceipt.t Lwt_exn.t =
     fun () ->
-    post_operation_kernel operation sender value_send
+    post_operation_kernel operation sender value
     >>= fun ereceipt ->
     if get_status_receipt ereceipt then
       return ereceipt
@@ -701,19 +701,10 @@ let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t ->
       ) in
   submit_operation ()
 
-(*
-let Option.default : 'a -> 'a option -> 'a =
-  fun val_return val_opt ->
-  match val_opt with
-  | None -> val_return
-  | Some x -> x
- *)
-
 module Test = struct
   open Lwt_exn
   (* open Hex *)
   open Digesting
-  open Signing.Test
   (* open Ethereum_abi *)
 
   let prefunded_address_mutex = Lwt_mutex.create ()
@@ -734,46 +725,6 @@ module Test = struct
                  "") with address};
            prefunded_address := Some address;
            return address)
-
-  let display_balance display address balance =
-    display
-      (nicknamed_string_of_address address)
-      (TokenAmount.to_0x balance)
-
-  let ensure_address_prefunded prefunded_address amount address =
-    let open TokenAmount in
-    eth_get_balance (address, BlockParameter.Pending)
-    >>= fun balance ->
-    Logging.log "address=%s" (nicknamed_string_of_address address);
-    Logging.log "Now working something balance=%s" (TokenAmount.to_string balance);
-    if compare balance amount >= 0 then
-      display_balance (printf "Account %s contains %s wei.\n") address balance
-    else
-      begin
-        display_balance (printf "Account %s only contains %s wei. Funding.\n") address balance
-        >>= fun () ->
-        Logging.log "Before transfer_tokens";
-        transfer_tokens ~recipient:address (sub amount balance)
-        |> confirm_pre_transaction prefunded_address
-        >>= fun _ ->
-        Logging.log "Before call to eth_get_balance";
-        eth_get_balance (address, BlockParameter.Pending)
-        >>= fun balance -> display_balance (printf "Account %s now contains %s wei.\n") address balance
-      end
-
-  (* create accounts, fund them *)
-  let ensure_test_account
-        ?(min_balance=TokenAmount.of_string "1000000000000000000") prefunded_address (nickname, keypair) =
-    register_keypair nickname keypair;
-    Ethereum_transaction.ensure_private_key keypair
-    >>= ensure_address_prefunded prefunded_address min_balance
-
-  let fund_accounts ?min_balance () =
-    get_prefunded_address ()
-    >>= fun prefunded_address ->
-    list_iter_s (ensure_test_account ?min_balance prefunded_address)
-      [("Alice", alice_keys); ("Bob", bob_keys); ("Trent", trent_keys)]
-
 
   (** Has a transaction given by a hash successfully executed,
       and does the Ethereum network report information that match what we expected? *)

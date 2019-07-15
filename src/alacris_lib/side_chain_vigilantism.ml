@@ -31,7 +31,7 @@ let treat_individual_claim : (LogObject.t * abi_value list) -> unit Lwt_exn.t =
   >>= fun contract_address ->
   if (Revision.compare operator_revision confirmed_revision) > 0 then
     (let operation = make_challenge_withdrawal_too_large_revision ~contract_address ~claimant ~operator ~operator_revision ~value ~bond ~confirmed_state_update in
-     Ethereum_user.post_operation ~operation ~sender:operator ~value_send:TokenAmount.zero
+     Ethereum_user.post_operation ~operation ~sender:operator ~value:TokenAmount.zero
      >>= fun _ -> return ()
     )
   else
@@ -103,7 +103,7 @@ let inner_vigilant_thread operator =
     Lwt_unix.sleep Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
     >>= fun () -> do_search contract_address return_ref
   in
-  get_contract_address_exn ()
+  Lwt_exn.run_lwt get_contract_address ()
   >>= fun contract_address ->
   do_search contract_address Revision.zero
 
@@ -123,7 +123,7 @@ let get_keypair_of_address_noexn : Address.t -> keypair =
 
 module Test = struct
   open Signing.Test
-  open Ethereum_user.Test
+  open Batch.Test
   open Side_chain_operator.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
@@ -148,8 +148,8 @@ module Test = struct
         Logging.log "deposit_withdraw_wrong_operator_version, step 2";
         let user_address = alice_address in
         Logging.log "deposit_withdraw_wrong_operator_version, step 3";
-        fund_accounts ()
-        >>= fun () ->
+        ensure_test_accounts ()
+        >>= fun _ ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 4";
         Mkb_json_rpc.init_mkb_server ()
         >>= fun _ ->
