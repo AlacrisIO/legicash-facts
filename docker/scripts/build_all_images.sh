@@ -13,33 +13,39 @@ run() {
   fi
 }
 
+if [ "${USE_DOCKER_CACHE:-}" = y ] ; then
+    unset CACHE_FLAGS
+else
+    CACHE_FLAGS=--no-cache
+fi
+
 echo "Building build prerequisite image"
 run docker build \
-  --no-cache \
+  ${CACHE_FLAGS} \
   -t gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 \
   -f docker/containers/build-prerequisites/Dockerfile .
 
 echo "Building client runtime prerequisite image"
 run docker build \
-  --no-cache \
+  ${CACHE_FLAGS} \
   -t gcr.io/legicash-demo-1950/legicash-demo/alacris_client_container:v1 \
   -f docker/containers/alacris_client_container/Dockerfile .
 
 echo "Building side chain manager runtime prerequisite image"
 run docker build \
-  --no-cache \
+  ${CACHE_FLAGS} \
   -t gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1 \
   -f docker/containers/alacris_side_chain_manager_container/Dockerfile .
 
 echo "Building Ethereum test network image"
 run docker build \
-  --no-cache \
+  ${CACHE_FLAGS} \
   -t gcr.io/legicash-demo-1950/legicash-demo/alacris_private_ethereum_node:v1 \
   -f docker/containers/alacris_private_ethereum_node/Dockerfile .
 
 echo "Building frontend ${FRONTEND_BRANCH:-master} branch for ${ENVIRONMENT:-dev} env"
 run docker build \
-  --no-cache \
+  ${CACHE_FLAGS} \
   -t gcr.io/legicash-demo-1950/legicash-demo/alacris_frontend:v1 \
   --build-arg FRONTEND_BRANCH="${FRONTEND_BRANCH:-master}" --build-arg ENVIRONMENT="${ENVIRONMENT:-dev}" \
   -f docker/containers/alacris_frontend/Dockerfile .
@@ -50,7 +56,7 @@ echo "Cleanup of state and log directories"
 echo "Creating new log and state directories"
 run mkdir -p /tmp/legilogs/{alacris_client_db,alacris_server_db,ethereum_prefunder_db,_ethereum}
 
-echo "Seting permissions"
+echo "Setting permissions"
 run chmod -R a+rwX /tmp/legilogs
 
 echo "Building application images"
