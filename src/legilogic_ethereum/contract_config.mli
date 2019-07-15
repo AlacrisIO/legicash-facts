@@ -4,8 +4,6 @@ open Signing
 open Persisting
 open Types
 
-open Ethereum_chain
-
 module ContractConfig : sig
   type t =
     { contract_address : Address.t
@@ -25,8 +23,6 @@ val contract_config_to_config_file : string -> ContractConfig.t -> unit Lwt_exn.
 val contract_config_of_db : string -> ContractConfig.t
 
 val contract_config_to_db : string -> ContractConfig.t -> unit Lwt_exn.t
-
-val contract_config_of_creation_hash : Digest.t -> ContractConfig.t Lwt_exn.t
 
 val verify_contract_config : ContractConfig.t -> ContractConfig.t Lwt_exn.t
 
