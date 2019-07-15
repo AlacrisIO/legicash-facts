@@ -32,6 +32,13 @@ let with_error_logging : (unit -> string) -> ('i, unit) Lwt_exn.arr -> ('i, unit
   | Ok _ -> Lwt_exn.return ()
   | Error e -> Logging.log "%s: %s" (make_msg ()) (exn_to_yojson e |> string_of_yojson); Lwt_exn.return ()
 
+let ensure_signing_address address =
+  with_error_logging
+    (fun () -> Printf.sprintf "Error trying to register key for %s"
+                 (nicknamed_string_of_address address))
+    Ethereum_transaction.ensure_eth_signing_address
+    address
+
 let argument_addresses string =
   try_first_match string
     [ Address.of_0x >> singleton
@@ -57,10 +64,6 @@ let _ =
   let open Lwt_exn in
   Logging.log "Ethereum Prefunder";
   Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/ethereum_prefunder_db")
-    (retry ~retry_window:1.0 ~max_window:1.0 ~max_retries:(Some 60)
-       (fun () -> Logging.log "connecting to geth";
-                  get_prefunded_address ())
-     >>> fun croesus ->
-     Logging.log "Prefunded address %s" (nicknamed_string_of_address croesus);
      let addresses = List.concat (List.map argument_addresses (List.rev !args)) in
-     ensure_addresses_prefunded croesus amount addresses)
+     ensure_addresses_prefunded amount addresses >>= fun _ ->
+     list_iter_s ensure_signing_address addresses

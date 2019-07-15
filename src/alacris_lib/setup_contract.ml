@@ -9,7 +9,7 @@ open Alacris_lib
 open Legilogic_ethereum
 open Side_chain_server_config
 
-let setup_contract_log = false
+let setup_contract_log = true
 
 let _ =
   Lwt_exn.run
