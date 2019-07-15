@@ -11,6 +11,8 @@ module Quantity : UIntS with type t = UInt256.t
 
 module TokenAmount : UIntS with type t = UInt256.t
 
+val one_ether : TokenAmount.t
+
 module Nonce : UIntS with type t = Revision.t
 
 module AccountMap : (MerkleTrieS with type key = Address.t and type value = TokenAmount.t)

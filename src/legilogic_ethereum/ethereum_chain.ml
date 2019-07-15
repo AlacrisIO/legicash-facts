@@ -21,6 +21,8 @@ module Quantity = UInt256
 *)
 module TokenAmount = UInt256
 
+let one_ether = TokenAmount.of_string "1000000000000000000" (* 1 ETH = 10^18 wei *)
+
 (* The API maximum is 256 bits, but it'll most probably fit in 32 bits, definitely in 64 bits. *)
 module Nonce = Revision
 
