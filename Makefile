@@ -113,7 +113,7 @@ $(BUILD_DIR)/$(SIDE_CHAIN_SERVER): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Alacris side chain server executable"
 	$(HIDE) dune build $(SIDE_CHAIN_SERVER)
 
-SETUP_CONTRACT:=src/alacris_contract/setup_contract.exe
+SETUP_CONTRACT:=src/alacris_lib/setup_contract.exe
 setup_contract: $(BUILD_DIR)/$(SETUP_CONTRACT)
 $(BUILD_DIR)/$(SETUP_CONTRACT): $(ML_SOURCES) $(CONTRACT)
 	$(SHOW) "Building Alacris setup contract executable"
