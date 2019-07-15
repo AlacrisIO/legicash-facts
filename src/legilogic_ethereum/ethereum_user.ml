@@ -703,9 +703,9 @@ let post_operation : operation:Ethereum_chain.Operation.t -> sender:Address.t ->
 
 module Test = struct
   open Lwt_exn
-  (* open Hex *)
   open Digesting
-  (* open Ethereum_abi *)
+  open Signing.Test
+  open Ethereum_abi
 
   let prefunded_address_mutex = Lwt_mutex.create ()
   let prefunded_address = ref None
@@ -751,7 +751,6 @@ module Test = struct
                info.to_ = Some contract_address && info.input = call_input) ;
     return true
 
-  (* TODO re-enable
   let%test "Ethereum-testnet-transfer" =
     Logging.log "\nTEST: Ethereum-testnet-transfer\n";
     Lwt_exn.run
@@ -765,22 +764,18 @@ module Test = struct
         >>= fun (transaction, _signed_tx, TransactionReceipt.{transaction_hash}) ->
         check_transaction_execution transaction_hash transaction)
       ()
-      *)
 
-  (*
   let test_contract_code () =
     "contracts/test/HelloWorld.bin"
     |> Config.get_build_filename
     |> read_file
-    |> parse_hex_string
+    |> Hex.parse_hex_string
     |> Bytes.of_string
 
-  let list_only_element = function
+  let list_only_element = function (* TODO: move to Legilogic_lib ? *)
     | [x] -> x
     | _ -> Lib.bork "list isn't a singleton"
-  *)
 
-(* TODO re-enable
   let%test "Ethereum-testnet-contract-failure" =
     (Logging.log "\nTEST: contract-failure-on-Ethereum-testnet!!\n";
     Lwt_exn.run
@@ -792,7 +787,7 @@ module Test = struct
         let code = test_contract_code () in
         create_contract ~sender ~code
         (* Failure due to bogus gas_limit *)
-        ~gas_limit:(TokenAmount.of_int 100000) TokenAmount.zero
+        ~gas_limit:(TokenAmount.of_int 100000) ~value:TokenAmount.zero
         >>= (trying (confirm_pre_transaction sender)
         >>> (function
         | Ok _    -> return false
@@ -800,9 +795,7 @@ module Test = struct
         | Error TransactionFailed (_, _) -> return true
         | Error _ -> return false))))
     ()
- *)
 
-  (* TODO re-enable
   let%test "Ethereum-testnet-contract-success" =
     Logging.log "\nTEST: contract-success-on-Ethereum-testnet!!\n";
     Logging.log "SUBTEST: create the contract\n";
@@ -820,21 +813,21 @@ module Test = struct
         >>= fun contract ->
         Logging.log "SUBTEST: call contract function hello with no argument\n";
         let call = encode_function_call { function_name = "hello"; parameters = [] } in
-        call_function ~sender ~contract ~call  ~value:TokenAmount.zero
+        call_function ~sender ~contract ~call ?gas_limit:None ~value:TokenAmount.zero
         >>= confirm_pre_transaction sender
         >>= fun (tx, _, {block_number}) ->
         eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
         >>= fun data ->
-        Logging.log "hello replied: %s\n" (unparse_0x_data data);
+        Logging.log "hello replied: %s\n" (Hex.unparse_0x_data data);
         Logging.log "SUBTEST: call contract function mul42 with one number argument\n";
         let call = encode_function_call
                      { function_name = "mul42"; parameters = [ abi_uint (Z.of_int 47) ] } in
-         call_function ~sender ~contract ~call ~value:TokenAmount.zero
+         call_function ~sender ~contract ~call ?gas_limit:None ~value:TokenAmount.zero
          >>= confirm_pre_transaction sender
          >>= fun (tx, _, {block_number}) ->
          eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
          >>= fun data ->
-         Logging.log "mul42 replied: %s\n" (unparse_0x_data data);
+         Logging.log "mul42 replied: %s\n" (Hex.unparse_0x_data data);
          let mul42_encoding =
            let tuple_value, tuple_ty = abi_tuple_of_abi_values [abi_uint (Z.of_int 1974)] in
            encode_abi_value tuple_value tuple_ty in
@@ -844,7 +837,7 @@ module Test = struct
          let call = encode_function_call
                       { function_name = "greetings";
                         parameters = [ abi_string "Croesus" ] } in
-         call_function ~sender ~contract ~call ~value:TokenAmount.zero
+         call_function ~sender ~contract ~call ?gas_limit:None ~value:TokenAmount.zero
          >>= confirm_pre_transaction sender
          >>= fun (tx, _, {block_number; logs}) ->
          let receipt_log = list_only_element logs in
@@ -855,20 +848,19 @@ module Test = struct
          let greetings_encoding =
            let tuple_value, tuple_ty = abi_tuple_of_abi_values [greetings_croesus] in
            encode_abi_value tuple_value tuple_ty in
-         Logging.log "expecting:        %s\n" (unparse_0x_bytes greetings_encoding);
+         Logging.log "expecting:        %s\n" (Hex.unparse_0x_bytes greetings_encoding);
          let function_signature = {function_name= "greetingsEvent"; parameters= [greetings_croesus]} in
          let function_signature_digest = function_signature |> function_signature_digest in
          assert (Digest.equal topic_event function_signature_digest) ;
          (* the log data is the encoding of the parameter passed to the event *)
          let data = receipt_log.data in
-         Logging.log "receipt log data: %s\n" (unparse_0x_bytes data);
+         Logging.log "receipt log data: %s\n" (Hex.unparse_0x_bytes data);
          eth_call (CallParameters.of_transaction tx, Block_number Revision.(sub block_number one))
          >>= fun result ->
-         Logging.log "computed reply:   %s\n" (unparse_0x_data result);
+         Logging.log "computed reply:   %s\n" (Hex.unparse_0x_data result);
          assert (result = Bytes.to_string data);
          assert (data = greetings_encoding);
          (* TODO: add a stateful function, and check the behavior of eth_call wrt block_number *)
          return true)
      ()
-     *)
 end
