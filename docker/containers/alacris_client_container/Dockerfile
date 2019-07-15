@@ -1,5 +1,5 @@
 # Create new image
-FROM ubuntu
+FROM ubuntu:rolling
 
 LABEL maintainer="vedr@nlebo.com"
 

@@ -1,6 +1,5 @@
 # Set the base image
-FROM ubuntu:disco
-#FROM debian:testing-slim
+FROM ubuntu:rolling
 # TODO: before we go to production, use a reproducible build with NixOS instead of Ubuntu
 
 # Original author: Paul Steckler
