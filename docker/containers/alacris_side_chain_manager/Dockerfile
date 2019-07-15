@@ -22,7 +22,7 @@ FROM gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_containe
 COPY --from=build /var/www/app/legicash-facts/_build/default/src/alacris_lib/side_chain_server.exe /var/www/app/legicash-facts/_run/side_chain_server.exe
 
 # copy binary the previous image
-COPY --from=build /var/www/app/legicash-facts/_build/default/src/alacris_contract/setup_contract.exe /var/www/app/legicash-facts/_run/setup_contract.exe
+COPY --from=build /var/www/app/legicash-facts/_build/default/src/alacris_lib/setup_contract.exe /var/www/app/legicash-facts/_run/setup_contract.exe
 
 # copy prefunder binary from the previous image
 COPY --from=build /var/www/app/legicash-facts/_build/default/src/legilogic_ethereum/ethereum_prefunder.exe /var/www/app/legicash-facts/_run/ethereum_prefunder.exe
