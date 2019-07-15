@@ -214,3 +214,27 @@ module PersistentActivity (Base: PersistentActivityBaseS) = struct
        resume context key state)
     (*|> fun obj -> Logging.log "GOT prefix %s key %s obj %d" key_prefix (Key.to_yojson_string key) (0 + Obj.magic obj); obj*)
 end
+
+module type CachedValueBaseS = sig
+  module Key : PersistableS
+  module Value : PersistableS
+  val key_prefix : string
+  val make : Key.t -> Value.t Lwt_exn.t
+end
+module type CachedValueS = sig
+  module Key : PersistableS
+  module Value : PersistableS
+  val get : Key.t -> Value.t Lwt_exn.t
+end
+module CachedValue (Base: CachedValueBaseS) = struct
+  include Base
+  let get key =
+    let open Lwt_exn in
+    let db_key = key_prefix ^ Key.marshal_string key in
+    match Db.get db_key with
+    | Some v -> return (Value.unmarshal_string v)
+    | None -> trying make key >>= function
+                | Ok v -> of_lwt (Db.put db_key) (Value.marshal_string v) >>= fun _ ->
+                          of_lwt Db.committing v
+                | Error e -> fail e
+end

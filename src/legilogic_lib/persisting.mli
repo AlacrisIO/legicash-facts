@@ -211,3 +211,18 @@ module PersistentActivity (Base: PersistentActivityBaseS) :
    that only close over marshalable data that is part of the name.
    There probably needs be a monadic type for such functions.
 *)
+
+
+module type CachedValueBaseS = sig
+  module Key : PersistableS
+  module Value : PersistableS
+  val key_prefix : string
+  val make : Key.t -> Value.t Lwt_exn.t
+end
+module type CachedValueS = sig
+  module Key : PersistableS
+  module Value : PersistableS
+  val get : Key.t -> Value.t Lwt_exn.t
+end
+module CachedValue (Base: CachedValueBaseS) :
+  CachedValueS with module Key = Base.Key and module Value = Base.Value
