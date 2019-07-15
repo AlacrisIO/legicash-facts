@@ -245,8 +245,8 @@ module Lwt_exn = struct
 
   let (>>=|) x f = Lwt.bind x (function Ok v -> return v | Error _ -> f ())
 
-  let list_iter_s f = of_lwt (Lwt_list.iter_s (run_lwt f))
-  let list_iter_p f = of_lwt (Lwt_list.iter_p (run_lwt f))
+  let list_iter_s f = catching_lwt (Lwt_list.iter_s (run_lwt f))
+  let list_iter_p f = catching_lwt (Lwt_list.iter_p (run_lwt f))
 
   (*****)
   let with_errs ls = flip List.filter ls @@ function
