@@ -64,6 +64,8 @@ let _ =
   let open Lwt_exn in
   Logging.log "Ethereum Prefunder";
   Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/ethereum_prefunder_db")
-     let addresses = List.concat (List.map argument_addresses (List.rev !args)) in
-     ensure_addresses_prefunded amount addresses >>= fun _ ->
-     list_iter_s ensure_signing_address addresses
+    (fun () ->
+      get_prefunded_address () >>= fun prefunded_address ->
+      let addresses = List.concat (List.map argument_addresses (List.rev !args)) in
+      ensure_addresses_prefunded prefunded_address amount addresses >>= fun _ ->
+      list_iter_s ensure_signing_address addresses)
