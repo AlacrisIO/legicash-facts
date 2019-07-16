@@ -15,11 +15,11 @@ SHOW:=@echo
 # use HIDE to run commands invisibly, unless VERBOSE defined
 HIDE:=$(if $(VERBOSE),,@)
 
-# Invoking `NO_CACHE=1 make docker-build` will cause containers to be built
+# Invoking `NO_DOCKER_CACHE=1 make docker-build` will cause containers to be built
 # from scratch (as we do in CI) but will take considerably longer to complete;
 # by default we skip this option for local development as a convenience
-ifdef NO_CACHE
-NO_CACHE="--no-cache"
+ifdef NO_DOCKER_CACHE
+NO_DOCKER_CACHE="--no-cache"
 endif
 
 ifndef FRONTEND_BRANCH
@@ -287,19 +287,19 @@ docker-build-all:
 	$(HIDE) docker/scripts/build_all_images.sh
 
 docker-build: ## Build all or c=<name> containers in foreground
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(NO_CACHE) $(c)
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(NO_DOCKER_CACHE) $(c)
 
 docker-build-geth: ## Build private ethereum node
 	$(SHOW) "Building Ethereum test network image"
 	$(HIDE) docker build \
-	  --no-cache \
+	  $(NO_DOCKER_CACHE) \
 	  -t gcr.io/legicash-demo-1950/legicash-demo/alacris_private_ethereum_node:v1 \
 	  -f docker/containers/alacris_private_ethereum_node/Dockerfile .
 
 docker-build-frontend: ## Build frontend app image
 	$(SHOW) "Building frontend ${FRONTEND_BRANCH} branch for ${ENVIRONMENT} env"
 	$(HIDE) docker build \
-	  --no-cache \
+	  $(NO_DOCKER_CACHE) \
 	  -t gcr.io/legicash-demo-1950/legicash-demo/alacris_frontend:v1 \
 	  --build-arg FRONTEND_BRANCH=${FRONTEND_BRANCH} --build-arg ENVIRONMENT=${ENVIRONMENT} \
 	  -f docker/containers/alacris_frontend/Dockerfile .
