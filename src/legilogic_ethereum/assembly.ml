@@ -284,7 +284,7 @@ let eREVERT = byte 0xfd (* Stop execution and revert state changes, without cons
 let eINVALID = byte 0xfe (* Designated invalid instruction	-	0 *)
 let eSELFDESTRUCT = byte 0xff (* Halt execution and register account for later deletion	-	5000* *)
 
-let jumpdest l asm =
+let jumplabel l asm =
   label l asm; eJUMPDEST asm
 
 let pushlabel1 l n asm =
@@ -297,14 +297,16 @@ let jump1 l n asm =
   pushlabel1 l n asm; eJUMP asm
 
 let jump2 l n asm =
-  pushlabel1 2 n asm; eJUMP asm
+  pushlabel2 l n asm; eJUMP asm
 
 let jumpi1 l n asm =
   pushlabel1 l n asm; eJUMPI asm
 
 let jumpi2 l n asm =
-  pushlabel1 2 n asm; eJUMPI asm
+  pushlabel2 l n asm; eJUMPI asm
 
+(* NB: fixed size for now, even if the address starts with zeros,
+   because the current assembler cannot deal with dynamic sizes *)
 let push_address address asm =
   ePUSH20 asm; string (Address.to_big_endian_bits address) asm
 
@@ -325,9 +327,6 @@ let rec push_int n asm =
     (ePUSH1 asm; byte n asm)
   else
     push_z (Z.of_int n) asm
-
-let push_address x asm =
-  push_z (Address.z_of x) asm
 
 type program = directive list
 

@@ -1,4 +1,5 @@
 open Legilogic_lib
+open Lib
 open Action
 open Lwt_exn
 open Signing
@@ -44,13 +45,13 @@ let batch_contract_runtime (owner : Address.t) : string =
       eDUP1; eREVERT;
 
       (* Initialize the loop invariant *)
-      jumplabel "loop_init"; (* @ 29 -- 0 *);
+      jumplabel "loop_init" (* @ 29 -- 0 *);
       push_int 1; push_int 96; push_int 2; eEXP; eDUP2; eDUP2; eSUB; eCALLDATASIZE; eDUP5;
       (* -- 0 size 2**96-1 2**96 1 0 *)
       jump1 "loop_entry" 49; (* jump to entry, skipping inter-loop action *)
 
       (* The loop: inter-loop action *)
-      jumplabel "loop"; (* @ 45 *);
+      jumplabel "loop" (* @ 45 *);
       push_int 32; eADD;
 
       (* The entry point of the loop: check condition *)
