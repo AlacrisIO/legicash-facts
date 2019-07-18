@@ -6,8 +6,8 @@ echo "SETUP: Before prefund.sh"
 echo "SETUP: After prefund.sh"
 /setup_contract.sh
 echo "SETUP: After setup_contract.sh"
-mv /tmp/contract_address.json /var/www/app/legicash-facts/config/contract_address.json
-#/CreateNewConfigFile /tmp/LOG_setup_contract > /var/www/app/legicash-facts/config/contract_address.json
+mv /tmp/contract_config.json /var/www/app/legicash-facts/config/contract_config.json
+#/CreateNewConfigFile /tmp/LOG_setup_contract > /var/www/app/legicash-facts/config/contract_config.json
 echo "SETUP: After move operation"
 
 
