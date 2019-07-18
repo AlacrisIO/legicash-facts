@@ -64,8 +64,17 @@ let _ =
   let open Lwt_exn in
   Logging.log "Ethereum Prefunder";
   Db.run ~db_name:(Config.get_application_home_dir () ^ "/_run/ethereum_prefunder_db")
-    (fun () ->
-      get_prefunded_address () >>= fun prefunded_address ->
-      let addresses = List.concat (List.map argument_addresses (List.rev !args)) in
-      ensure_addresses_prefunded prefunded_address amount addresses >>= fun _ ->
-      list_iter_s ensure_signing_address addresses)
+    (retry ~retry_window:1.0 ~max_window:1.0 ~max_retries:(Some 60)
+       (* Retry connecting -- important to avoid race condition
+          when testing over several docker images. *)
+       (fun () -> Logging.log "connecting to geth";
+                  get_prefunded_address ())
+     >>> fun croesus ->
+     let addresses = List.concat (List.map argument_addresses (List.rev !args)) in
+     ensure_addresses_prefunded croesus amount addresses >>= fun _ ->
+     list_iter_s ensure_signing_address addresses)
+
+(* TODO: separate the three steps above into separate programs:
+  1. Waiting for the private geth network to be up and running and responding to requests.
+  2. Prefunding the addresses we care about.
+  3. Ensure that all the addresses we care about are registered with geth with their password. *)
