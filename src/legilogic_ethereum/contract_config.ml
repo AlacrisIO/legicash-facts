@@ -30,7 +30,8 @@ let contract_config_of_config_file config_filename =
   full_filename |> yojson_of_file |> ContractConfig.of_yojson_exn
 
 let contract_config_to_config_file config_filename =
-  catching_arr (ContractConfig.to_yojson >> yojson_to_file config_filename)
+  let full_filename = Config.get_config_filename config_filename in
+  catching_arr (ContractConfig.to_yojson >> yojson_to_file full_filename)
 
 let contract_config_of_db db_key =
   match Db.get db_key with
