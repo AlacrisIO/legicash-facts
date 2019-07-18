@@ -9,45 +9,98 @@ open Assembly
 open Ethereum_user
 open Contract_config
 
+(** EVM Contract for batch transfers.
+
+    Instead of sending a series of N transactions, have a single transaction that does it all.
+    The advantage is that you have only one transaction to nurse to completion,
+    which is a much less complex thing to do, with fewer and simpler failure scenarios to handle.
+    This is especially important if your transaction posting code needs to deal with
+    FOMO3D-style block-buying attacks, or other rapid gas price increase events.
+
+    The input data format does not use the Solidity ABI; we use a simpler and cheaper style:
+    Just a raw vector of 32-byte records each comprised of a 20-byte address and a 12-byte value.
+    No 4-byte header to identify a "function" to call; there's only one "function".
+    No 32-byte vector count as first implicit argument; the size is taken from CALLDATASIZE.
+    We never copy anything to memory; we just extract data to the stack.
+
+    Before we execute any transfer, we check that the sender matches the declared owner.
+    Thus, if any money is sent to the contract or left in it, only the sender can later
+    transfer that money out of the contract.
+
+    If any single transfer in the batch fails (because of lack of either funds or gas),
+    revert the entire transaction (which cancels all the transfers that previously succeeded).
+    *)
+
 let batch_log = true
 
-let batch_contract owner =
+(** Create the runtime code for a batch contract associated to given owner *)
+let batch_contract_runtime (owner : Address.t) : string =
   assemble [
-      eGETPC; (* at instruction 0, so push 0 on stack while it's cheap! -- 0 *)
-      (* check that the caller is the contract's owner *)
-      ePUSH20; string (Address.to_big_endian_bits owner); eCALLER; eEQ;
-      ePUSH1; fixup 1 (Label "loop_init") 29; eJUMPI;
-      eDUP1; eREVERT; (* abort *)
-      label "loop_init"; (* @ 30 -- 0 *) eJUMPDEST;
+      (* At instruction 0, so push 0 on stack while it's extra cheap! *)
+      eGETPC; (* -- 0 *)
+
+      (* Abort if the caller isn't the contract's owner *)
+      push_address owner; eCALLER; eEQ; jumpi1 "loop_init" 29;
+      eDUP1; eREVERT;
+
+      (* Initialize the loop invariant *)
+      jumplabel "loop_init"; (* @ 29 -- 0 *);
       push_int 1; push_int 96; push_int 2; eEXP; eDUP2; eDUP2; eSUB; eCALLDATASIZE; eDUP5;
-      (* -- 0 1 2**96 2**96-1 datasize 0 *)
-      ePUSH1; fixup 1 (Label "loop_entry") 49; eJUMP;
-      label "loop"; (* @ 45 *) eJUMPDEST;
+      (* -- 0 size 2**96-1 2**96 1 0 *)
+      jump1 "loop_entry" 49; (* jump to entry, skipping inter-loop action *)
+
+      (* The loop: inter-loop action *)
+      jumplabel "loop"; (* @ 45 *);
       push_int 32; eADD;
-      label "loop_entry"; (* @ 49 -- cursor size 2**96-1 2**96 1 0 *) eJUMPDEST;
-      eDUP2; eDUP2; eLT; (* -- size-current cursor size 2**96-1 2**96 1 0 *)
-      ePUSH1; fixup 1 (Label "loop_body") 57; eJUMPI; (* if less then loop_body, else return *)
-      eSTOP; (* 0 1 2**96 2**96-1 datasize current_index -- return *)
-      label "loop_body"; (* @ 57 -- 0 1 2**96 2**96-1 datasize current_index *) eJUMPDEST;
+
+      (* The entry point of the loop: check condition *)
+      jumplabel "loop_entry"; (* @ 49 -- cursor size 2**96-1 2**96 1 0 *)
+      (* If less then continue to loop_body, else return *)
+      eDUP2; eDUP2; eLT; jumpi1 "loop_body" 57; eSTOP;
+
+      (* Loop body: take the next 256-bit argument.
+         Top 160 are address, lower 96 are value in wei.
+         Prepare the arguments to a transfer call. *)
+      jumplabel "loop_body"; (* @ 57 -- cursor size 2**96-1 2**96 1 0 *)
       eDUP6; eDUP1; eDUP1; eDUP1; eDUP5; eCALLDATALOAD; eDUP1; eDUP9; eAND;
-      (* -- 0 1 2**96 2**96-1 datasize current_index 0 0 0 0 data value *)
+      (* -- value data 0 0 0 0 cursor size 2**96-1 2**96 1 0 *)
       eSWAP1; eDUP10; eSWAP1; eDIV; eGAS;
-      (* -- 0 1 2**96 2**96-1 datasize current_index 0 0 0 0 value address gas *)
-      eCALL; ePUSH1; fixup 1 (Label "loop") 45; eJUMPI; (* transfer, loop if successful *)
-      (* 0 1 2**96 2**96-1 datasize current_index -- *)
+      (* Transfer! -- gas address value 0 0 0 0 cursor size 2**96-1 2**96 1 0 *)
+      eCALL;
+
+      (* loop if successful, revert everything if failed. *)
+      jumpi1 "loop" 45;
+      (* -- cursor size 2**96-1 2**96 1 0 *)
       eDUP6; eDUP1; eREVERT]
 
-let batch_contract_init owner =
-  let runtime = batch_contract owner in
+(** Given a constant contract runtime of length below 255,
+    that doesn't need any memory initialization,
+    return a contract initialization string, to be passed as parameter
+    to a CreateContract operation, to register the contract.
+    Beware: the code produced is not relocatable.
+ *)
+let constant_contract_init_1 : string -> string =
+  fun contract_runtime ->
   assemble [
-    (* Push args for RETURN -- 0 length *)
-    push_int (String.length runtime); push_int 0;
-    (* Push args for CODECOPY -- 0 start length 0 length *)
-    eDUP2; ePUSH1; fixup 1 (Label "runtime_start") 10; eDUP3;
-    eCODECOPY; eRETURN;
-    label "runtime_start"; (* @ 10 *)
-    string runtime]
+    (* Push args for RETURN; doing it in this order saves one byte and some gas *)
+    push_int (String.length contract_runtime); push_int 0 (* memory address for the code *);
+    (* -- 0 length *)
 
+    (* Push args for CODECOPY; the DUP's for length and memory target are where the savings are *)
+    eDUP2 (* length *); pushlabel1 "runtime_start" 10; eDUP3 (* memory target address: 0 *);
+    (* -- 0 start length 0 length *)
+
+    (* Initialize the contract by returning the memory array containing the runtime code *)
+    eCODECOPY; eRETURN;
+
+    (* Inline code for the runtime as a code constant in the init code *)
+    label "runtime_start" (* @ 10 *); string contract_runtime]
+
+(** Create the runtime code for a batch contract associated to given owner *)
+let batch_contract_init = batch_contract_runtime >> constant_contract_init_1
+
+(** Register "the" batch transfer contract associated with the owner,
+    and return the transaction hash for the contract creation. *)
 let register_batch_contract owner =
   if batch_log then
     Logging.log "creating batch contract for %s" (Address.to_0x owner);
@@ -57,6 +110,9 @@ let register_batch_contract owner =
     ~value:TokenAmount.zero
   >>= fun receipt -> return receipt.transaction_hash
 
+(** Ensure that there is a batch transfer contract associated with the owner
+    on the blockchain and saved to the working database, and
+    return the ContractConfig for that contract. *)
 let ensure_batch_contract owner =
   ensure_contract_of_db ("BATC" ^ Address.to_big_endian_bits owner)
     (fun () -> register_batch_contract owner)
@@ -132,5 +188,4 @@ module Test = struct
     let addresses = List.map (fun (nickname, keypair) ->
                         register_keypair nickname keypair; keypair.address) accounts in
     ensure_addresses_prefunded prefunded_address min_balance addresses
-
 end

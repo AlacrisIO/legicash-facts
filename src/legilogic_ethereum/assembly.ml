@@ -124,7 +124,6 @@ let label l asm =
        let lbl = Label.{ offset=Some (current_offset asm); fixups= [] } in
        Hashtbl.add asm.labels l lbl
 
-
 let eSTOP = byte 0x00 (* Halts execution	-	0 *)
 let eADD = byte 0x01 (* Addition operation	-	3 *)
 let eMUL = byte 0x02 (* Multiplication operation	-	5 *)
@@ -284,6 +283,30 @@ let eTXEXECGAS = byte 0xfc (* Not in yellow paper FIXME	-	- *)
 let eREVERT = byte 0xfd (* Stop execution and revert state changes, without consuming all provided gas and providing a reason	-	0 *)
 let eINVALID = byte 0xfe (* Designated invalid instruction	-	0 *)
 let eSELFDESTRUCT = byte 0xff (* Halt execution and register account for later deletion	-	5000* *)
+
+let jumpdest l asm =
+  label l asm; eJUMPDEST asm
+
+let pushlabel1 l n asm =
+  ePUSH1 asm; fixup 1 (Label l) n asm
+
+let pushlabel2 l n asm =
+  ePUSH2 asm; fixup 2 (Label l) n asm
+
+let jump1 l n asm =
+  pushlabel1 l n asm; eJUMP asm
+
+let jump2 l n asm =
+  pushlabel1 2 n asm; eJUMP asm
+
+let jumpi1 l n asm =
+  pushlabel1 l n asm; eJUMPI asm
+
+let jumpi2 l n asm =
+  pushlabel1 2 n asm; eJUMPI asm
+
+let push_address address asm =
+  ePUSH20 asm; string (Address.to_big_endian_bits address) asm
 
 let rec push_z z asm =
   let s = Z.sign z in
