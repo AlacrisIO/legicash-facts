@@ -21,3 +21,8 @@ val get_build_filename : string -> string
 (** Get full path of build file, relies on home directory environment variable.
     This function and its result must be used at build time only:
     the build directory might not exist at run-time. *)
+
+val get_run_filename : string -> string
+(** Get full path of runtime data file, relies on home directory environment variable.
+    This function and its result must be used at runtime only:
+    the run directory might not exist at build-time. *)

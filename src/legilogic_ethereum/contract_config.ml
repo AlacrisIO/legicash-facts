@@ -22,16 +22,19 @@ end
 
 exception Not_found_because of string
 
+let run_config_filename filename = Config.get_run_filename ("config/" ^ filename)
+
 let contract_config_of_config_file config_filename =
-  let full_filename = Config.get_config_filename config_filename in
+  let full_filename = run_config_filename config_filename in
   if not (Sys.file_exists full_filename) then
     raise @@ Not_found_because
                (Printf.sprintf "Contract configuration file %s does not exist" full_filename);
   full_filename |> yojson_of_file |> ContractConfig.of_yojson_exn
 
-let contract_config_to_config_file config_filename =
-  let full_filename = Config.get_config_filename config_filename in
-  catching_arr (ContractConfig.to_yojson >> yojson_to_file full_filename)
+let contract_config_to_file config_full_filename =
+  catching_arr (ContractConfig.to_yojson >> yojson_to_file config_full_filename)
+
+let contract_config_to_config_file = run_config_filename >> contract_config_to_file
 
 let contract_config_of_db db_key =
   match Db.get db_key with
@@ -65,17 +68,28 @@ let verify_contract_config (config : ContractConfig.t) =
 
 let ensure_contract : ('a -> ContractConfig.t) -> ('a -> ContractConfig.t -> unit Lwt_exn.t) -> 'a
                       -> (unit -> Digest.t Lwt_exn.t) -> ContractConfig.t Lwt_exn.t
-                                                           = fun getter setter arg maker ->
+  = fun getter setter arg maker ->
+  (*Logging.log "ensure_contract looking for contract";*)
   OrExn.catching_arr getter arg |>
     function
-    | Ok config -> verify_contract_config config
-    | Error (Not_found_because _) -> maker () >>= contract_config_of_creation_hash >>=
-                                       fun config -> setter arg config >>= const config
-    | Error e -> fail e
+    | Ok config ->
+       (*Logging.log "ensure_contract: found\n%s" (ContractConfig.to_yojson_string config);*)
+       verify_contract_config config
+    | Error (Not_found_because _) ->
+       (*Logging.log "ensure_contract: making a new one";*)
+       maker () >>=
+         contract_config_of_creation_hash >>= fun config ->
+       (*Logging.log "ensure_contract: made one\n%s" (ContractConfig.to_yojson_string config);*)
+       setter arg config >>= const config
+    | Error e ->
+       (*Logging.log "ensure_contract: failed with %s" (Printexc.to_string e);*)
+       fail e
 
 let ensure_contract_of_config_file =
+  (fun filename -> Printf.printf "In ensure_contract_of_config_file %S\n%!" filename; filename) >>
   ensure_contract contract_config_of_config_file contract_config_to_config_file
 
 let ensure_contract_of_db =
+  (fun db_key -> Printf.printf "In ensure_contract_of_db %s\n%!" (Hex.unparse_hex_string db_key); db_key) >>
   ensure_contract contract_config_of_db contract_config_to_db
 

@@ -12,6 +12,7 @@ open Side_chain_server_config
 let setup_contract_log = true
 
 let _ =
+  (*Logging.set_log_channel stderr;*)
   Lwt_exn.run
     (fun () ->
       if setup_contract_log then

@@ -1,5 +1,7 @@
-#!/bin/bash
+#!/bin/bash -ux
 
-cd /var/www/app/legicash-facts/_run && ./setup_contract.exe | tee /tmp/LOG_setup_contract
+ls -l /var/www/app/legicash-facts/config/ /var/www/app/legicash-facts/_run/config/
 
-cp -fv /var/www/app/legicash-facts/config/contract_config.json /tmp/contract_config.json
+cd /var/www/app/legicash-facts/_run && ./setup_contract.exe 2>&1 | tee /tmp/LOG_setup_contract
+
+cp -fv /var/www/app/legicash-facts/_run/config/contract_config.json /tmp/contract_config.json

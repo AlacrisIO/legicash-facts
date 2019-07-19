@@ -18,6 +18,8 @@ val contract_config_of_creation_hash : Digest.t -> ContractConfig.t Lwt_exn.t
 
 val contract_config_of_config_file : string -> ContractConfig.t
 
+val contract_config_to_file : string -> ContractConfig.t -> unit Lwt_exn.t
+
 val contract_config_to_config_file : string -> ContractConfig.t -> unit Lwt_exn.t
 
 val contract_config_of_db : string -> ContractConfig.t

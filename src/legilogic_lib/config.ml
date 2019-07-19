@@ -27,3 +27,9 @@ let get_build_dir () =
 
 let get_build_filename file =
   get_build_dir () ^ "/" ^ file
+
+let get_run_dir () =
+  get_application_home_dir () ^ "/_run"
+
+let get_run_filename file =
+  get_run_dir () ^ "/" ^ file
