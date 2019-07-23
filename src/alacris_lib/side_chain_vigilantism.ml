@@ -140,7 +140,7 @@ module Test = struct
     let open Lwt_exn in
     Lwt_exn.run
       (fun () ->
-        Logging.log "deposit_withdraw_wrong_operator_version, step 1";
+        Logging.log "TEST deposit_withdraw_wrong_operator_version, step 1";
         let operator = trent_address in
         register_keypair "yolanda" Signing.Test.yolanda_keys;
         of_lwt Db.open_connection "unit_test_db"
@@ -163,7 +163,7 @@ module Test = struct
         Logging.log "deposit_withdraw_wrong_operator_version, step 6";
         State_update.Test.start_state_update_for_test_periodic_daemon operator
         >>= fun () ->
-	Logging.log "deposit_withdraw_wrong_operator_version, step 7";
+        Logging.log "deposit_withdraw_wrong_operator_version, step 7";
         let deposit_amount = TokenAmount.of_string "500000000000000000" in
         User.transaction
           user_address
@@ -173,7 +173,7 @@ module Test = struct
                         ; request_guid = Types.RequestGuid.nil
                         ; requested_at = Types.Timestamp.now () }
         >>= fun (commitment, _confirmation) ->
-	Logging.log "deposit_withdraw_wrong_operator_version, step 8";
+        Logging.log "deposit_withdraw_wrong_operator_version, step 8";
         Logging.log "Making the fake transaction that should be rejected";
         let balance_before = get_user_balance user_address in
         let withdrawal_amount = TokenAmount.of_string "100000000000000000" in
@@ -220,13 +220,16 @@ module Test = struct
         Logging.log "deposit_withdraw_wrong_operator_version, step 10 user_address=%s" (Address.to_0x user_address);
         post_claim_withdrawal_operation_exn ~confirmed_state_update tc ~sender:user_address ~operator
         >>= fun block_nbr ->
-	Logging.log "deposit_withdraw_wrong_operator_version, step 11";
+        Logging.log "deposit_withdraw_wrong_operator_version, step 11";
         let addi_term = (Revision.add Side_chain_server_config.challenge_period_in_blocks (Revision.of_int 2)) in
         let min_block_length =  (Revision.add block_nbr addi_term) in
         wait_for_min_block_depth min_block_length
         >>= fun () ->
-	Logging.log "deposit_withdraw_wrong_operator_version, step 12";
+        Logging.log "deposit_withdraw_wrong_operator_version, step 12";
         let balance_after = get_user_balance user_address in
-        return (TokenAmount.equal balance_after balance_before))
+        assert (TokenAmount.equal balance_after balance_before);
+
+        Logging.log "deposit_withdraw_wrong_operator_version, DONE";
+        return true)
       ()
 end

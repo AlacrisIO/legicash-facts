@@ -32,7 +32,7 @@ module Test = struct
 
     Lwt_exn.run
       (fun () ->
-        Logging.log "deposit_and_payment_and_withdrawal, step 1";
+        Logging.log "TEST deposit_and_payment_and_withdrawal, step 1";
         of_lwt Db.open_connection "unit_test_db"
         >>= fun () ->
         Logging.log "deposit_and_payment_and_withdrawal, step 2";
@@ -108,6 +108,7 @@ module Test = struct
                          (add payment_amount payment_fee));
 
         (* 3- Test Withdrawal -- withdraw all that was deposited *)
+        Logging.log "deposit_and_payment_and_withdrawal, step 12";
         let withdrawal_amount = TokenAmount.sub payment_amount fee_schedule.withdrawal_fee in
         User.transaction
           bob_address
@@ -118,13 +119,14 @@ module Test = struct
                            ; requested_at = Types.Timestamp.now () }
 
         >>= fun (_commitment, _confirmation) ->
-        Logging.log "deposit_and_payment_and_withdrawal, step 12";
+        Logging.log "deposit_and_payment_and_withdrawal, step 13";
         let bob_balance_after_withdrawal = get_bob_balance () in
         expect_equal "Bob balance after withdrawal" TokenAmount.to_string
           bob_balance_after_withdrawal
           initial_bob_balance;
         (* TODO: check main-chain balance, too! *)
 
+        Logging.log "deposit_and_payment_and_withdrawal, DONE";
         return true)
       ()
 end
