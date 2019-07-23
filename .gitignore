@@ -15,6 +15,7 @@ a.out
 alacris.install
 ppx_deriving_rlp.install
 src/alacris_lib/operator_contract_binary.ml
+config/contract_config.json
 foo
 dependencies/
 .DS_Store

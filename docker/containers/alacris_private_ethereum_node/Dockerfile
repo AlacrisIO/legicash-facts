@@ -11,11 +11,6 @@ RUN apk add bash g++ git make supervisor
 RUN addgroup -g 1100 -S appuser && \
     adduser -u 1100 -S appuser -G appuser
 
-# Create supervisord log and Ethereum log dir
-RUN mkdir -p /var/www/app/alacris-private-ethereum-node/_run/logs/ && \
-    mkdir -p /var/www/app/alacris-private-ethereum-node/_ethereum && \
-    touch /tmp/supervisord.log
-
 # Install run scripts
 ADD docker/containers/alacris_private_ethereum_node/files/scripts/run-ethereum.sh /usr/local/bin/run-ethereum
 
@@ -23,17 +18,16 @@ ADD docker/containers/alacris_private_ethereum_node/files/scripts/run-ethereum.s
 ADD docker/containers/alacris_private_ethereum_node/files/conf/supervisord.conf /etc/supervisord.conf
 
 # Set permissions for appuser
-RUN chown -R appuser:appuser /var/www/app/alacris-private-ethereum-node/_run/logs/  \
-                          /var/www/app/  \
-                          /var/run/  \
-                          /tmp/supervisord.log
+RUN chown -R appuser:appuser \
+    /var/www/app/ \
+    /var/run/
 
 USER appuser
 
 # Override geth entrypoint
 ENTRYPOINT
 
-WORKDIR /tmp
+WORKDIR /var/www/app/alacris-private-ethereum-node/_run
 
 EXPOSE 8000 8545
 

@@ -8,6 +8,9 @@ open Ethereum_chain
 open Side_chain
 open Action
 
+open Legilogic_ethereum
+open Contract_config
+
 val topic_of_hash:     Digest.t      -> Bytes.t option
 
 val topic_of_deposited : Bytes.t option
@@ -72,3 +75,7 @@ val make_operation_has_claim_been_rejected
 
 val make_state_update_call : contract_address:Address.t -> confirmed_state_update:StateUpdate.t -> Ethereum_chain.Operation.t
 (** Operator address, contract address, and the ethereum main chain *)
+
+val create_side_chain_contract : Address.t -> ContractConfig.t Lwt_exn.t
+(** Checks that there is no contract config file yet, registers a contract on the blockchain
+    and creates a new config file with its config data, with the given address as creator. *)

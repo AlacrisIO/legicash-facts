@@ -6,9 +6,7 @@ LABEL maintainer="vedr@nlebo.com"
 USER root
 
 # Copy app source to container and set permissions for appuser
-COPY . /var/www/app/legicash-facts
-
-RUN chown -R appuser:appuser /var/www/app/legicash-facts
+COPY --chown=appuser:appuser . /var/www/app/legicash-facts
 
 # Build SCGI server
 USER appuser
@@ -21,7 +19,7 @@ RUN make
 FROM gcr.io/legicash-demo-1950/legicash-demo/alacris_client_container:v1
 
 # Copy binary from previous image
-COPY --from=alacris_client_build /var/www/app/legicash-facts/_build/default/src/alacris_client/side_chain_client.exe /var/www/app/legicash-facts/_run/side_chain_client.exe
+COPY --from=alacris_client_build /var/www/app/legicash-facts/_build/default/src/alacris_client/side_chain_client.exe /var/www/app/legicash-facts/_bin/side_chain_client.exe
 
 # Install supervisor config
 ADD docker/containers/alacris_client/files/conf/supervisord.conf /etc/supervisord.conf

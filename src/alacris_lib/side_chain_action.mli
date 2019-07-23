@@ -1,11 +1,3 @@
-open Legilogic_lib
-open Action
-open Signing
-open Types
-
-open Legilogic_ethereum
-open Contract_config
-
 (* the "flows" mentioned here are those mentioned in the file "demo.md" *)
 
 (*
@@ -55,11 +47,3 @@ open Contract_config
    OperatorState.t -> Confirmation.t signed -> conversation -> unit or_exn
 *)
 
-val create_side_chain_contract : Address.t -> Digest.t Lwt_exn.t
-(** Given an address for whoever will pay to install it (its keys and password already registered),
-    installs the operator contract on main chain, enabling the side chain *)
-
-val ensure_side_chain_contract : Address.t -> ContractConfig.t Lwt_exn.t
-(** Given an address for whoever will pay to install it (its keys and password already registered),
-    ensures that a suitable contract is installed on the main chain,
-    enabling corresponding actions on side chain *)

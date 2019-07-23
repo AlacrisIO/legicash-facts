@@ -6,8 +6,8 @@ services:
     hostname: "alacris-private-ethereum-node"
     container_name: "alacris-private-ethereum-node"
     volumes:
-      - /tmp/legilogs/_ethereum:/var/www/app/alacris-private-ethereum-node/_ethereum
-      - /tmp/legilogs/:/var/www/app/alacris-private-ethereum-node/_run/logs
+      - /tmp/legilogic/alacris-private-ethereum-node/_ethereum:/var/www/app/alacris-private-ethereum-node/_ethereum
+      - /tmp/legilogic/alacris-private-ethereum-node/_run:/var/www/app/alacris-private-ethereum-node/_run
     networks:
       legicash-demo:
         ipv4_address: 10.5.0.4
@@ -25,10 +25,8 @@ services:
     environment:
       - ALACRIS_HOME=/var/www/app/legicash-facts
     volumes:
-      - /tmp/legilogs:/var/www/app/legicash-facts/_run/logs
-      - /tmp/legilogs/alacris_server_db:/var/www/app/legicash-facts/_run/alacris_server_db
-      - /tmp/legilogs/ethereum_prefunder_db:/var/www/app/legicash-facts/_run/ethereum_prefunder_db
-      - ../docker/config/:/var/www/app/legicash-facts/config/
+      - /tmp/legilogic/alacris_side_chain_manager/_run:/var/www/app/legicash-facts/_run
+      - /tmp/legilogic/config/:/var/www/app/legicash-facts/config/
     networks:
       legicash-demo:
         ipv4_address: 10.5.0.5
@@ -45,9 +43,8 @@ services:
     hostname: "alacris-client"
     container_name: "alacris-client"
     volumes:
-      - /tmp/legilogs:/var/www/app/legicash-facts/_run/logs
-      - /tmp/legilogs/alacris_client_db:/var/www/app/legicash-facts/_run/alacris_client_db
-      - ../docker/config/:/var/www/app/legicash-facts/config/
+      - /tmp/legilogic/alacris_client/_run:/var/www/app/legicash-facts/_run
+      - /tmp/legilogic/config/:/var/www/app/legicash-facts/config/
     networks:
       legicash-demo:
         ipv4_address: 10.5.0.6

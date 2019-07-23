@@ -21,4 +21,4 @@ let _ =
       >>= fun () ->
       if setup_contract_log then
         Logging.log "Setup_contract operator_address=%s" (Address.to_0x Side_chain_server_config.operator_address);
-      Side_chain_action.ensure_side_chain_contract Side_chain_server_config.operator_address) ()
+      Operator_contract.create_side_chain_contract Side_chain_server_config.operator_address) ()

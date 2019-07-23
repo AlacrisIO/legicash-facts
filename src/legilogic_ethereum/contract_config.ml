@@ -22,10 +22,8 @@ end
 
 exception Not_found_because of string
 
-let run_config_filename filename = Config.get_run_filename ("config/" ^ filename)
-
 let contract_config_of_config_file config_filename =
-  let full_filename = run_config_filename config_filename in
+  let full_filename = Config.get_config_filename config_filename in
   if not (Sys.file_exists full_filename) then
     raise @@ Not_found_because
                (Printf.sprintf "Contract configuration file %s does not exist" full_filename);
@@ -34,7 +32,7 @@ let contract_config_of_config_file config_filename =
 let contract_config_to_file config_full_filename =
   catching_arr (ContractConfig.to_yojson >> yojson_to_file config_full_filename)
 
-let contract_config_to_config_file = run_config_filename >> contract_config_to_file
+let contract_config_to_config_file = Config.get_config_filename >> contract_config_to_file
 
 let contract_config_of_db db_key =
   match Db.get db_key with

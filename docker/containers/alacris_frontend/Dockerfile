@@ -13,11 +13,10 @@ WORKDIR /var/www/app
 ENV PATH /var/www/app/node_modules/.bin:$PATH
 
 # Make sure domain is accepted
-RUN mkdir -p /home/appuser/.ssh/ && touch /home/appuser/.ssh/known_hosts
-RUN ssh-keyscan github.com >> /home/appuser/.ssh/known_hosts
+RUN mkdir -p /home/appuser/.ssh/ && touch /home/appuser/.ssh/known_hosts && \
+    ssh-keyscan github.com >> /home/appuser/.ssh/known_hosts
 
-RUN chown -R appuser:appuser /var/www/app/
-RUN chown -R appuser:appuser /home/appuser/
+RUN chown -R appuser:appuser /var/www/app/ /home/appuser/
 
 USER appuser
 

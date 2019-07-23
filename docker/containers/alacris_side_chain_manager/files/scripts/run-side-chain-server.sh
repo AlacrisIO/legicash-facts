@@ -1,3 +1,4 @@
-#!/bin/bash
+#!/bin/bash -eu
 
-cd /var/www/app/legicash-facts/_run && ./side_chain_server.exe
+cd /var/www/app/legicash-facts/_run
+../_bin/side_chain_server.exe

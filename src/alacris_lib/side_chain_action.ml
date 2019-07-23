@@ -7,19 +7,7 @@ open Legilogic_ethereum
 open Side_chain
 open Side_chain_operator
 open Side_chain_user
-open Contract_config
 
-let create_side_chain_contract installer =
-  (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
-  Ethereum_user.create_contract ~sender:installer ~code:Operator_contract_binary.contract_bytes ?gas_limit:None ~value:TokenAmount.zero
-  >>= Ethereum_user.confirm_pre_transaction installer
-  >>= fun (_tx, _, confirmation) -> return confirmation.transaction_hash
-
-(* TODO: for compatibility with our current Docker setup, we look for the file in the config/
-   directory, but create it in the _run/config/ directory. We need a better story. *)
-let ensure_side_chain_contract installer =
-  ensure_contract_of_config_file "contract_config.json"
-    (fun () -> create_side_chain_contract installer)
 
 module Test = struct
   open Lib.Test

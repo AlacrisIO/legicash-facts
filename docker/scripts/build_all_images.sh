@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Build prerequisites image used for building side chain manager and client
-echo "Building prerequisites images....please wait, this might take a while depending on your Internet connection speed"
+echo "Building prerequisites images... please wait, this might take a while depending on your Internet connection speed"
+
+# Identify where to run things from where this script is.
+HERE=$(dirname "$0")
+cd "$HERE/../../" # Change to toplevel directory of git repository
+TOPDIR=$(pwd) # Top directory for the git repository
 
 run() {
   $*
@@ -48,14 +53,7 @@ run docker build \
   --build-arg FRONTEND_BRANCH="${FRONTEND_BRANCH:-master}" --build-arg ENVIRONMENT="${ENVIRONMENT:-dev}" \
   -f docker/containers/alacris_frontend/Dockerfile .
 
-echo "Cleanup of state and log directories"
-[ -d /tmp/legilogs ] && run rm -rf /tmp/legilogs || true
-
-echo "Creating new log and state directories"
-run mkdir -p /tmp/legilogs/{alacris_client_db,alacris_server_db,ethereum_prefunder_db,_ethereum}
-
-echo "Setting permissions"
-run chmod -R a+rwX /tmp/legilogs
+${TOPDIR}/docker/script/reset_state.sh
 
 echo "Building application images"
 run docker-compose -f docker/docker-compose.yml build ${NO_DOCKER_CACHE}

@@ -128,6 +128,22 @@ let contract_address =
 let get_contract_address : unit -> Address.t Lwt_exn.t =
   Lwt_exn.catching_arr (fun () -> Lazy.force contract_address)
 
+let is_contract_config_file_present () =
+  "contract_config.json" |> Config.get_config_filename |> Sys.file_exists
+
+let create_side_chain_contract installer =
+  let open Lwt_exn in
+  assert (not (is_contract_config_file_present ()));
+  (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
+  Ethereum_user.create_contract ~sender:installer ~code:Operator_contract_binary.contract_bytes ?gas_limit:None ~value:TokenAmount.zero
+  >>= Ethereum_user.confirm_pre_transaction installer
+  >>= fun (_tx, _, confirmation) ->
+  contract_config_of_creation_hash confirmation.transaction_hash
+  >>= fun config ->
+  contract_config_to_config_file "contract_config.json" config
+  >>= const config
+
+
 (* TODO Add support for including a bond with the claim.
    Which routine to include? Bonds contains:
    ---get_gas_cost_estimate
