@@ -79,3 +79,14 @@ val make_state_update_call : contract_address:Address.t -> confirmed_state_updat
 val create_side_chain_contract : Address.t -> ContractConfig.t Lwt_exn.t
 (** Checks that there is no contract config file yet, registers a contract on the blockchain
     and creates a new config file with its config data, with the given address as creator. *)
+
+val register_side_chain_contract : ContractConfig.t -> unit Lwt_exn.t
+(** Registers the contract configuration to its regular config file *)
+
+module Test : sig
+  val register_test_side_chain_contract : Address.t -> unit Lwt_exn.t
+  (** Create a test contract with given creator address, register it
+      as the contract to use in the current image only,
+      to get with the usual get_contract_address.
+      Must be run *before* get_contract_address. *)
+end

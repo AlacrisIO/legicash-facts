@@ -10,6 +10,8 @@ LABEL maintainer="vedr@nlebo.com"
 ### Trying to be (probably overly) clever with:
 ### COPY --chown=appuser:appuser . /var/www/app/legicash-facts/
 ### The main issue being to skip _build, _run and probably also .git
+### If we prefer to go back to COPY --chown=appuser:appuser . /var/www/app/legicash-facts/
+### though, then in the image we should make sure to git clean -xfd
 COPY --chown=appuser:appuser \
      Makefile META alacris.opam dune-project \
      /var/www/app/legicash-facts/
@@ -22,8 +24,7 @@ COPY --chown=appuser:appuser src /var/www/app/legicash-facts/src
 
 WORKDIR /var/www/app/legicash-facts
 USER appuser
-RUN git clean -xfd ; \
-    make
+RUN make
 
 # Create new image
 FROM gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1

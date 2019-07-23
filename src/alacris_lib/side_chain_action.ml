@@ -14,6 +14,7 @@ module Test = struct
   open Signing.Test
   open Batch.Test
   open Side_chain_operator.Test
+  open Operator_contract.Test
 
   let%test "move logs aside" = Logging.set_log_file "test.log"; true
 
@@ -44,6 +45,8 @@ module Test = struct
         Logging.log "deposit_and_payment_and_withdrawal, step 4";
         let operator = trent_address in
         ensure_test_accounts ()
+        >>= fun _ ->
+        register_test_side_chain_contract trent_address
         >>= fun _ ->
         Logging.log "deposit_and_payment_and_withdrawal, step 5";
         Mkb_json_rpc.init_mkb_server ()

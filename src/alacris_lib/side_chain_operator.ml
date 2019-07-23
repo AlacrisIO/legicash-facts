@@ -541,7 +541,7 @@ let get_account_balances (operator_state:OperatorState.t) =
    *)
   let open Lwt_exn in
   AccountMap.bindings operator_state.current.accounts
-  |> List.filter (fst >> ((<>) Test.trent_address)) (* Exclude Trent *)
+  |> List.filter (fst >> ((<>) Signing.Test.trent_address)) (* Exclude Trent *)
   |> list_map_p (fun (addr, _) ->
          get_account_status addr operator_state
         >>= fun d -> return (Address.to_0x addr, d))

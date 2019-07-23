@@ -122,27 +122,25 @@ let make_state_update_call : contract_address:Address.t -> confirmed_state_updat
   let (call : bytes) = encode_function_call { function_name = "claim_state_update"; parameters } in
   Operation.CallFunction (contract_address, call)
 
-let contract_address =
-  lazy (contract_config_of_config_file "contract_config.json").contract_address
+let contract_address = ref None
 
 let get_contract_address : unit -> Address.t Lwt_exn.t =
-  Lwt_exn.catching_arr (fun () -> Lazy.force contract_address)
+  Lwt_exn.catching_arr
+    (fun () -> match !contract_address with
+               | Some x -> x
+               | None -> let config = contract_config_of_config_file "contract_config.json" in
+                         contract_address := Some config.contract_address;
+                         config.contract_address)
 
-let is_contract_config_file_present () =
-  "contract_config.json" |> Config.get_config_filename |> Sys.file_exists
+let register_side_chain_contract = contract_config_to_config_file "contract_config.json"
 
 let create_side_chain_contract installer =
   let open Lwt_exn in
-  assert (not (is_contract_config_file_present ()));
   (** TODO: persist this signed transaction before to send it to the network, to avoid double-send *)
   Ethereum_user.create_contract ~sender:installer ~code:Operator_contract_binary.contract_bytes ?gas_limit:None ~value:TokenAmount.zero
   >>= Ethereum_user.confirm_pre_transaction installer
   >>= fun (_tx, _, confirmation) ->
   contract_config_of_creation_hash confirmation.transaction_hash
-  >>= fun config ->
-  contract_config_to_config_file "contract_config.json" config
-  >>= const config
-
 
 (* TODO Add support for including a bond with the claim.
    Which routine to include? Bonds contains:
@@ -150,3 +148,15 @@ let create_side_chain_contract installer =
    ---minimum_bond
    ---require_bond
  *)
+
+module Test = struct
+  open Lwt_exn
+
+  let register_test_side_chain_contract installer =
+    match !contract_address with
+    | Some _ -> Lwt_exn.return ()
+    | None -> create_side_chain_contract installer
+              >>= fun config ->
+              contract_address := Some config.contract_address;
+              return ()
+end

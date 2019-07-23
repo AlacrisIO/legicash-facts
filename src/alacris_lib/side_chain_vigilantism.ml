@@ -145,6 +145,8 @@ module Test = struct
         register_keypair "yolanda" Signing.Test.yolanda_keys;
         of_lwt Db.open_connection "unit_test_db"
         >>= fun () ->
+        Operator_contract.Test.register_test_side_chain_contract operator
+        >>= fun _ ->
         Logging.log "deposit_withdraw_wrong_operator_version, step 2";
         let user_address = alice_address in
         Logging.log "deposit_withdraw_wrong_operator_version, step 3";

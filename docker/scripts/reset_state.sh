@@ -5,6 +5,20 @@ HERE=$(dirname "$0")
 cd "$HERE/../../" # Change to toplevel directory of git repository
 TOPDIR=$(pwd) # Top directory for the git repository
 
+APP_DIR=/var/www/app/legicash-facts
+DOCKER_IMAGE=gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1
+
+echo "Resetting configuration"
+docker run \
+  --rm \
+  -i \
+  -w $APP_DIR \
+  -v $PWD:$APP_DIR \
+  -v /tmp:/tmp \
+  --network=docker_legicash-demo \
+  -u 0 \
+  $DOCKER_IMAGE \
+  /bin/bash -ceu '\
 run() {
   $*
   if [ $? -ne 0 ]
@@ -16,8 +30,6 @@ run() {
   fi
 }
 
-# TODO: use docker run and/or sudo to chown everything to appuser (1100)
-
 echo "Cleanup of state and log directories"
 [ -d /tmp/legilogic ] && run rm -rf /tmp/legilogic || true
 
@@ -28,8 +40,8 @@ run mkdir -p \
     /tmp/legilogic/config
 
 echo "Copying configuration"
-run rsync -a docker/config/ /tmp/legilogic/config/
+run cp -a /var/www/app/legicash-facts/docker/config/. /tmp/legilogic/config/
 
-# TODO: This is not safe on multiuser machines. We need a better solution.
 echo "Setting permissions"
-run chmod -R a+rwX /tmp/legilogic
+run chown -R appuser:appuser /tmp/legilogic
+'
