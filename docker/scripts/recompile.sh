@@ -52,8 +52,7 @@ docker run \
   -u 1100 \
   $DOCKER_IMAGE \
   /bin/bash -c "\
-rm -rf /tmp/legilogic/alacris_side_chain_manager /tmp/legilogic/alacris_client && \
-mkdir -p /tmp/legilogic/alacris_side_chain_manager/_run/logs /tmp/legilogic/alacris_client/_run/logs
+rm -f /tmp/legilogic/{alacris_side_chain_manager,alacris_client}/_run/*/* && \
 "
 
 echo "Starting side chain manager and client"
