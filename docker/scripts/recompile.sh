@@ -58,3 +58,5 @@ rm -f /tmp/legilogic/{alacris_side_chain_manager,alacris_client}/_run/*/*
 echo "Starting side chain manager and client"
 docker exec alacris-side-chain-manager supervisorctl start side-chain-server
 docker exec alacris-client supervisorctl start alacris-client
+
+echo "Recompile successful, including tests!"
