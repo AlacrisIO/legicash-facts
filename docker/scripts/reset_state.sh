@@ -36,7 +36,8 @@ echo "Cleanup of state and log directories"
 echo "Creating new log and state directories"
 run mkdir -p \
     /tmp/legilogic/alacris-private-ethereum-node/{_ethereum,_run/logs} \
-    /tmp/legilogic/{alacris_side_chain_manager,alacris_client}/_run/logs \
+    /tmp/legilogic/alacris_side_chain_manager/_run/{logs,side_chain_server,supervisord} \
+    /tmp/legilogic/alacris_client/_run/{alacris_client,logs,nginx,supervisord} \
     /tmp/legilogic/config
 
 echo "Copying configuration"

@@ -20,4 +20,5 @@ ADD docker/containers/alacris_client/files/scripts/run-scgi.sh /usr/local/bin/ru
 EXPOSE 8081 8800
 
 # command when running image
+WORKDIR /var/www/app/legicash-facts/_run/supervisord
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisord.conf"]

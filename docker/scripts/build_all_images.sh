@@ -59,7 +59,7 @@ run docker build \
   --build-arg FRONTEND_BRANCH="${FRONTEND_BRANCH:-master}" --build-arg ENVIRONMENT="${ENVIRONMENT:-dev}" \
   -f docker/containers/alacris_frontend/Dockerfile .
 
-${TOPDIR}/docker/script/reset_state.sh
+${TOPDIR}/docker/scripts/reset_state.sh
 
 echo "Building application images"
 run docker-compose -f docker/docker-compose.yml build ${NO_DOCKER_CACHE}

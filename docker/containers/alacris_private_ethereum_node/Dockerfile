@@ -19,7 +19,6 @@ ADD docker/containers/alacris_private_ethereum_node/files/conf/supervisord.conf 
 
 # Set permissions for appuser
 RUN chown -R appuser:appuser \
-    /var/www/app/ \
     /var/run/
 
 USER appuser

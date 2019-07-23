@@ -19,10 +19,11 @@ COPY docker/containers/alacris_side_chain_manager/files/scripts/prefund.sh \
      docker/containers/alacris_side_chain_manager/files/scripts/setup_contract.sh \
      docker/containers/alacris_side_chain_manager/files/scripts/prefund_setup_create.sh \
      /
-RUN mkdir -p /var/www/app/legicash-facts/_run/
 
 ENTRYPOINT ["/prefund_setup_create.sh"]
 
 EXPOSE 8095
+
 # command when running image
+WORKDIR /var/www/app/legicash-facts/_run/supervisord
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisord.conf"]

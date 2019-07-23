@@ -11,12 +11,12 @@ RUN groupadd -g 1100 appuser && \
 RUN apt-get update -y && \
     apt-get install -y \
     aspcud dh-autoreconf libgdbm-dev libgmp-dev libleveldb-dev libpcre3-dev \
-    libsnappy-dev git supervisor nginx
+    libsnappy-dev git software-properties-common supervisor nginx
 
-# Install Secp256k1 libraries
-RUN git clone https://github.com/bitcoin-core/secp256k1.git && \
-    cd secp256k1 && ./autogen.sh && ./configure --prefix=/usr --enable-module-recovery && \
-    make && make install
+# Install Secp256k1 libraries from the Ethereum repository, for geth and solidity (add-apt-repository depends on software-properties-common)
+RUN add-apt-repository ppa:ethereum/ethereum && \
+    apt-get update -y && \
+    apt-get install -y libsecp256k1-dev geth solc
 
 # Allow running nginx to use directories
 RUN chown -R appuser:appuser /var/log/ /var/lib/nginx /var/log/supervisor /var/run/
