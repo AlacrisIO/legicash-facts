@@ -38,11 +38,12 @@ geth \
     --nodiscover \
     --maxpeers 0 \
     --rpc --rpcapi "db,eth,net,debug,web3,light,personal,admin" --rpcport $RPCPORT --rpccorsdomain "*" \
+    --shh \
     --port $PORT \
     --nousb \
     --networkid 17 \
     --nat "any" \
-    --ipcpath .ethereum/geth.ipc \
+    --ipcpath $GETH_RUNDIR/geth.ipc \
     > $LOGDIR/testnet.log 2>&1 &
 
 while ! curl -sSf -X POST \
