@@ -7,8 +7,6 @@ LABEL maintainer="vedr@nlebo.com"
 RUN groupadd -g 1100 appuser && \
     useradd -r -u 1100 -g appuser appuser
 
-RUN touch /var/www/app/legicash-facts/supervisord.log
-
 # Install dependecies
 RUN apt-get update -y && \
     apt-get install -y \

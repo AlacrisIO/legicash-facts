@@ -28,13 +28,19 @@ run docker build \
   -t gcr.io/legicash-demo-1950/legicash-demo/build-prerequisites:v1 \
   -f docker/containers/build-prerequisites/Dockerfile .
 
-echo "Building client runtime prerequisite image"
+echo "Building build image"
+run docker build \
+  ${NO_DOCKER_CACHE} \
+  -t gcr.io/legicash-demo-1950/legicash-demo/build:v1 \
+  -f docker/containers/build/Dockerfile .
+
+echo "Building client runtime container image"
 run docker build \
   ${NO_DOCKER_CACHE} \
   -t gcr.io/legicash-demo-1950/legicash-demo/alacris_client_container:v1 \
   -f docker/containers/alacris_client_container/Dockerfile .
 
-echo "Building side chain manager runtime prerequisite image"
+echo "Building side chain manager runtime container image"
 run docker build \
   ${NO_DOCKER_CACHE} \
   -t gcr.io/legicash-demo-1950/legicash-demo/alacris_side_chain_manager_container:v1 \
