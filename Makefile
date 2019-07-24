@@ -272,7 +272,6 @@ wc: force
 	$(HIDE) for i in src/*/ ; do printf "%9s    %s\n" "$$(wc -l $$(find $$i -name '*.ml*') | tail -1 | (read a b ; echo $$a))" "$$i" ; done
 	$(HIDE) printf "%9s    %s\n" "$$(wc -l $$(find ./src -name '*.ml*') | tail -1 | (read a b ; echo $$a))" total
 
-
 # Docker part
 DOCKER_COMPOSE = docker-compose
 DOCKER_COMPOSE_FILE = docker/docker-compose.yml
@@ -287,7 +286,8 @@ docker-build-all:
 	$(HIDE) docker/scripts/build_all_images.sh
 
 docker-build: ## Build all or c=<name> containers in foreground
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(NO_DOCKER_CACHE) $(c)
+	$(HIDE) docker/scripts/source.sh
+	$(HIDE) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build $(NO_DOCKER_CACHE) $(c)
 
 docker-build-geth: ## Build private ethereum node
 	$(SHOW) "Building Ethereum test network image"
