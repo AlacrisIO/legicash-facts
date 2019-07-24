@@ -60,7 +60,7 @@ let watch_withdrawal_claims : contract_address:Address.t -> operator:Address.t -
   fun ~contract_address ~operator rev_in ->
   let open Lwt_exn in
   retrieve_relevant_list_logs_data
-    ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    ~delay:(Lazy.force Ethereum_config.polling_delay_in_seconds)
     ~start_revision:rev_in
     ~max_number_iteration:None
     ~contract_address
@@ -100,7 +100,7 @@ let inner_vigilant_thread operator =
       Logging.log "Begin of do_search in inner_vigilant_thread";
     watch_withdrawal_claims_exn ~contract_address ~operator start_ref
     >>= fun return_ref ->
-    Lwt_unix.sleep Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    Lwt_unix.sleep (Lazy.force Ethereum_config.polling_delay_in_seconds)
     >>= fun () -> do_search contract_address return_ref
   in
   Lwt_exn.run_lwt get_contract_address ()

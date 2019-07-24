@@ -8,26 +8,7 @@ open Signing
 open Types
 
 open Ethereum_chain
-
-type ethereum_rpc_config =
-  { scheme : string
-  ; host : string
-  ; port : int }
-[@@deriving of_yojson]
-
-let ethereum_rpc_config =
-  lazy
-    (let config_file = Config.get_config_filename "ethereum_config.json" in
-     match yojson_of_file config_file
-           |> ethereum_rpc_config_of_yojson with
-     | Ok config -> config
-     | Error msg -> bork "Error loading Ethereum JSON RPC configuration: %s" msg)
-
-(** Network parameters for geth or other node on localhost *)
-let ethereum_net =
-  lazy
-    (let lazy { scheme; host; port } = ethereum_rpc_config in
-     Uri.make ~scheme ~host ~port ())
+open Ethereum_config
 
 (* Use a mutex for access to geth, not to overload it and get timeouts.
    TODO: have a pool of a small number of connections to geth rather than just one.

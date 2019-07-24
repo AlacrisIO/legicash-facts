@@ -7,6 +7,7 @@
  (modules
    ethereum_chain
    ethereum_util
+   ethereum_config
    ethereum_json_rpc
    ethereum_rlp
    ethereum_abi
@@ -16,7 +17,6 @@
    contract_config
    assembly
    batch
-   side_chain_server_config
    ethereum_patricia_merkle
    test_txpool_content)
  (preprocess (

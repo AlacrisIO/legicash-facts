@@ -8,8 +8,8 @@ open Lwt_exn
 open Json_rpc
 
 open Ethereum_chain
+open Ethereum_config
 open Ethereum_json_rpc
-open Side_chain_server_config
 
 let ensure_private_key ?timeout ?log (keypair : Keypair.t) =
   Logging.log "ethereum_transaction : ensure_private_key";
@@ -59,15 +59,10 @@ let check_transaction_receipt_status (receipt : TransactionReceipt.t) =
       else
         return receipt
 
-(** Number of blocks required for a transaction to be considered confirmed *)
-(* The value should be set in side_chain_server_config.json file.
-   For production, use 100, not 0. Put it as configuration file on input *)
-(* let block_depth_for_receipt = Revision.of_int 0 *)
-let block_depth_for_receipt = Side_chain_server_config.minNbBlockConfirm
-
 let is_receipt_sufficiently_confirmed (receipt : TransactionReceipt.t) block_number =
-  Revision.(is_add_valid receipt.block_number block_depth_for_receipt
-            && compare block_number (add receipt.block_number block_depth_for_receipt) >= 0)
+  let lazy confirmation_height = minimal_confirmation_height_in_blocks in
+  Revision.(is_add_valid receipt.block_number confirmation_height
+            && compare block_number (add receipt.block_number confirmation_height) >= 0)
 
 exception Still_pending
 exception Invalid_transaction_confirmation of string

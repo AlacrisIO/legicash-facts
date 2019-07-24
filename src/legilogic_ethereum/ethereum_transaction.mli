@@ -30,10 +30,6 @@ exception TransactionRejected
 
 val check_transaction_receipt_status : TransactionReceipt.t -> TransactionReceipt.t Lwt_exn.t
 
-val block_depth_for_receipt : Revision.t
-(** How many additional blocks should one wait for before to consider a transaction receipt
-    after it was included in the blockchain? *)
-
 exception Still_pending
 (** Exception thrown when you depend on a transaction being confirmed, but it's still pending *)
 

@@ -6,7 +6,6 @@ open Signing
 open Lwt_exn
 
 open Alacris_lib
-open Legilogic_ethereum
 open Side_chain_server_config
 open Operator_contract
 

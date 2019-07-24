@@ -3,9 +3,9 @@ open Lib
 open Types
 open Action
 open Signing
+
 open Ethereum_json_rpc
 open Ethereum_abi
-open Side_chain_server_config
 
 let ethereum_watch_log = true
 
@@ -63,8 +63,8 @@ let wait_for_min_block_depth : Revision.t -> unit Lwt_exn.t =
     if x > min_block_depth then
       return ()
     else
-      (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
-       >>= fun () -> check_current_depth ())
+      (sleep_delay_exn (Lazy.force Ethereum_config.polling_delay_in_seconds)
+       >>= check_current_depth)
   in check_current_depth ()
 
 (* Look for some event logs from a starting point from a specific contract address.
@@ -75,7 +75,7 @@ let retrieve_last_entries : Revision.t -> contract_address:Address.t -> topics:B
   let open Lwt_exn in
   eth_block_number ()
   >>= fun current_block ->
-  let block_depth_for_receipt = Side_chain_server_config.minNbBlockConfirm in
+  let lazy block_depth_for_receipt = Ethereum_config.minimal_confirmation_height_in_blocks in
   let to_block = Revision.sub current_block block_depth_for_receipt in
   if ethereum_watch_log then
     Logging.log "retrieve_last_entries. Before call to eth_get_logs";
@@ -220,7 +220,7 @@ let wait_for_contract_event : contract_address:Address.t -> transaction_hash:Dig
   if ethereum_watch_log then
     Logging.log "Beginning of wait_for_contract_event";
   retrieve_relevant_single_logs_data
-    ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    ~delay:(Lazy.force Ethereum_config.polling_delay_in_seconds)
     ~contract_address
     ~transaction_hash
     ~topics

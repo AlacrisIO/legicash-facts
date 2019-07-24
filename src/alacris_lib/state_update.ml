@@ -37,7 +37,7 @@ let post_state_update : operator:Address.t -> confirmed_state_update:StateUpdate
   if (String.equal (Digest.to_string !last_hash) (Digest.to_string confirmed_state_update.state)) then
     (if state_update_log then
        Logging.log "Same hash as before. No need to do state_update. Instead doing small_money_transfer";
-     if Side_chain_server_config.need_keep_alive then
+     if Lazy.force Ethereum_config.need_keep_alive then
        (let heckle_address = Signing.Test.heckle_address in
         small_money_transfer ~recipient:heckle_address ~sender:heckle_address)
      else

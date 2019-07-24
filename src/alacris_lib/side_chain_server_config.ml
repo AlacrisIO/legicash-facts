@@ -5,11 +5,12 @@
    * move this module to alacris_lib, it doesn't belong in legilogic_ethereum
  *)
 
-
 open Legilogic_lib
 open Types
 open Action
 open Signing
+
+open Legilogic_ethereum
 open Ethereum_chain
 
 module Side_chain_server_config = struct
@@ -32,17 +33,6 @@ module Side_chain_server_config = struct
     register_keypair nickname keypair;
     address
 
-  type ethereum_config_t =
-    { minimal_height_block_for_confirmation : int
-    ; max_connection_geth                   : int
-    ; deposit_gas_limit                     : int
-    ; time_state_update_in_seconds          : float
-    (* TODO:
-    ; network_id : int (* will be v parameter for TransactionData pre-signature *)
-    ; chain_id : char (* will be v parameter for TransactionData pre-signature; or should we get it from eth_chainId ? *)
-       *)
-    } [@@deriving of_yojson]
-
   type leveldb_config_t =
     { batch_timeout_trigger_in_seconds : float
     ; batch_size_trigger_in_requests   : int
@@ -50,9 +40,10 @@ module Side_chain_server_config = struct
 
   type sidechain_config_t =
     { num_timestamps                       : int
-    ; delay_wait_ethereum_watch_in_seconds : float
     ; challenge_period_in_blocks           : int
     ; state_update_period_in_seconds       : int
+    ; time_state_update_in_seconds         : float
+    ; deposit_gas_limit                    : int
     } [@@deriving of_yojson]
 
   type fee_schedule_config_t =
@@ -65,8 +56,6 @@ module Side_chain_server_config = struct
 
   type side_chain_server_config =
     { port                : int
-    ; need_keep_alive     : bool
-    ; ethereum_config     : ethereum_config_t
     ; leveldb_config      : leveldb_config_t
     ; sidechain_config    : sidechain_config_t
     ; fee_schedule_config : fee_schedule_config_t
@@ -95,9 +84,6 @@ module Side_chain_server_config = struct
 
   let config = get_server_config ()
 
-  let (minNbBlockConfirm : Revision.t) = Revision.of_int
-    config.ethereum_config.minimal_height_block_for_confirmation
-
   let (batch_timeout_trigger_in_seconds : float) =
     config.leveldb_config.batch_timeout_trigger_in_seconds
 
@@ -106,11 +92,9 @@ module Side_chain_server_config = struct
 
   let (deposit_gas_limit : TokenAmount.t) = TokenAmount.of_int 100000
 
-  let (time_state_update_sec : float) = config.ethereum_config.time_state_update_in_seconds
+  let (time_state_update_sec : float) = config.sidechain_config.time_state_update_in_seconds
 
   let (num_timestamps : int) = config.sidechain_config.num_timestamps
-
-  let (delay_wait_ethereum_watch_in_seconds : float) = config.sidechain_config.delay_wait_ethereum_watch_in_seconds
 
   let (challenge_period_in_blocks : Revision.t) = Revision.of_int config.sidechain_config.challenge_period_in_blocks
 
@@ -132,6 +116,4 @@ module Side_chain_server_config = struct
   let (fee_per_billion_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.fee_per_billion
 
   let (bond_value_v : TokenAmount.t) = TokenAmount.of_string config.fee_schedule_config.bond_value
-
-  let (need_keep_alive : bool) = config.need_keep_alive
 end

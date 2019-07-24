@@ -1,4 +1,8 @@
-{ "scheme" : "http",
-  "host" : "localhost",
-  "port" : 8545
-}
+{ "node_address" : {
+    "scheme" : "http",
+    "host" : "localhost",
+    "port" : 8545 },
+  "need_keep_alive": true,
+  "minimal_confirmation_height_in_blocks" : 0,
+  "max_connections" : 1,
+  "polling_delay_in_seconds" : 0.5 }

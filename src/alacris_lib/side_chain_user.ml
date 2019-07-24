@@ -100,7 +100,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
   fun ~operator  ~operator_revision ->
   if side_chain_user_log then
     Logging.log "Beginning of search_for_state_update_min_revision  operator=%s operator_revision=%s" (Address.to_0x operator) (Revision.to_string operator_revision);
-  let delay = Side_chain_server_config.delay_wait_ethereum_watch_in_seconds in
+  let lazy delay = Ethereum_config.polling_delay_in_seconds in
   let rec get_matching : Revision.t -> (StateUpdate.t * Ethereum_chain.Confirmation.t) Lwt_exn.t =
     fun start_ref ->
     let open Lwt_exn in
@@ -131,7 +131,7 @@ let search_for_state_update_min_revision : operator:Address.t -> operator_revisi
         Logging.log "search_for_state_update_min_revision, returning";
       return pair_return
     else
-      (sleep_delay_exn Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+      (sleep_delay_exn (Lazy.force Ethereum_config.polling_delay_in_seconds)
        >>= fun () -> get_matching end_block)
   in get_matching Revision.zero
 
@@ -273,7 +273,7 @@ let execute_withdraw_operation_spec : TransactionCommitment.t -> block_nbr:Revis
     ; Some (abi_value_from_revision tc.tx_proof.key)
     ; None ; None ; None ] in
   retrieve_relevant_list_logs_data
-    ~delay:Side_chain_server_config.delay_wait_ethereum_watch_in_seconds
+    ~delay:(Lazy.force Ethereum_config.polling_delay_in_seconds)
     ~start_revision:Revision.zero
     ~max_number_iteration:None
     ~contract_address

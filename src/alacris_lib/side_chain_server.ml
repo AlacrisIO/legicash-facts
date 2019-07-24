@@ -7,7 +7,6 @@ open Marshaling
 open Types
 
 open Alacris_lib
-open Legilogic_ethereum
 open Side_chain
 open Side_chain_operator
 open Side_chain_server_config
