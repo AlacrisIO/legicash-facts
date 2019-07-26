@@ -1,5 +1,5 @@
 # Set the base image (uses Alpine)
-FROM ethereum/client-go
+FROM ethereum/client-go:v1.8.21
 
 LABEL maintainer="vedr@nlebo.com"
 
