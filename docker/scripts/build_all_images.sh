@@ -37,7 +37,7 @@ run docker build \
   ${NO_DOCKER_CACHE-} \
   -t gcr.io/legicash-demo-1950/legicash-demo/build:v1 \
   -f docker/containers/build/Dockerfile .
-rm -f source.tar.gz
+rm -f .source.tar.gz
 
 echo "Building client runtime container image"
 run docker build \

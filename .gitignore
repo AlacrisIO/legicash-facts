@@ -20,4 +20,4 @@ foo
 dependencies/
 .DS_Store
 node_modules/
-source.tar.gz
+.source.tar.gz

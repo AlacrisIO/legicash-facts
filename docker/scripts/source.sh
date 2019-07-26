@@ -21,6 +21,6 @@ tar cf - $FILES | (
     tar xf -
     touch -d '1970-01-01T00:00:00 UTC' $FILES
     tar zcf - --owner appuser --group appuser $FILES
-    ) > source.tar.gz
+    ) > .source.tar.gz
 
 rm -rf _build/source
