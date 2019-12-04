@@ -8,7 +8,10 @@
   [Construction of a Plasma Chain 0x1](https://blog.omisego.network/construction-of-a-plasma-chain-0x1-614f6ebd1612) ([MVP git](https://github.com/omisego/plasma-mvp.git)),
   [Joseph Poon's talk at Deconomy 2018: "Consensus and Cryptoeconomic Incentive Mechanisms"](https://youtu.be/nZKdy7kZGBc).
 
-* [Efficiently Bridging EVM Blockchains Relay Networks V2](https://blog.gridplus.io/efficiently-bridging-evm-blockchains-8421504e9ced) by Alex Miller
+* Interoperability:
+  [Efficiently Bridging EVM Blockchains Relay Networks V2](https://blog.gridplus.io/efficiently-bridging-evm-blockchains-8421504e9ced) by Alex Miller,
+  [Dogethereum: Retrofitting a two-way peg between blockchains](http://people.cs.uchicago.edu/~teutsch/papers/dogethereum.pdf),
+  [Cosmos Inter-Blockchain Communication (IBC) Protocol](https://cosmos.network/docs/spec/ibc/).
 
 * [Alice and Bob](https://en.wikipedia.org/wiki/Alice_and_Bob)
 
@@ -59,7 +62,8 @@
 
 * Byzantine Fault Tolerance:
  [Papers selected by Rick Dudley](https://medium.com/@AFDudley/byzantine-fault-tolerant-consensus-papers-1b4b47d27463) (2015);
- [A Guide to 99% Fault Tolerant Consensus, by Vitalik Buterin](https://vitalik.ca/general/2018/08/07/99_fault_tolerant.html).
+ [A Guide to 99% Fault Tolerant Consensus, by Vitalik Buterin](https://vitalik.ca/general/2018/08/07/99_fault_tolerant.html);
+ [Recycling the Agreement: Distributed Consensus on DAGs, by Aleph Zero's Adam Gagol](https://medium.com/aleph-zero-foundation/recycling-the-agreement-distributed-consensus-on-dags-b415e4ebc6d)
 
 * Scaling:
  [Ethereum wiki Sharding FAQ](https://github.com/ethereum/wiki/wiki/Sharding-FAQ),
@@ -81,6 +85,7 @@
   [old Ethereum block hashes](https://github.com/amiller/ethereum-blockhashes),
   [Zeppelin: deconstructing a solidity contract](https://blog.zeppelin.solutions/deconstructing-a-solidity-contract-part-ii-creation-vs-runtime-6b9d60ecb44c),
   [Proxy libraries](https://blog.zeppelin.solutions/proxy-libraries-in-solidity-79fbe4b970fd),
+  [DelegateProxy](https://blog.gnosis.pm/solidity-delegateproxy-contracts-e09957d0f201),
   [Security Audit by QuantStamp](https://quantstamp.com/start),
   [Towards verifying ethereum smart contract bytecode in Isabelle/HOL](https://dl.acm.org/citation.cfm?doid=3176245.3167084),
   [the Parity Light Protocol](https://wiki.parity.io/The-Parity-Light-Protocol-%28PIP%29)
@@ -88,7 +93,9 @@
   [Consensys Labs' Ethereum developer tools list](https://github.com/ConsenSysLabs/ethereum-developer-tools-list),
   [Solium, linter and formatter for Solidity](https://github.com/duaraghav8/solium),
   [Ethertrust, analysis tool for smart contracts](https://www.netidee.at/ethertrust),
-  [The Challenges of Building Ethereum Infrastructure](https://medium.com/@lopp/the-challenges-of-building-ethereum-infrastructure-87e443e47a4b).
+  [The Challenges of Building Ethereum Infrastructure](https://medium.com/@lopp/the-challenges-of-building-ethereum-infrastructure-87e443e47a4b),
+  [Ethereum Smart Contract Best Practices](https://consensys.github.io/smart-contract-best-practices/) including
+  [Solidity Recommendations](https://consensys.github.io/smart-contract-best-practices/recommendations/).
 
 * Compiling to the EVM:
   [pirapira's efforts](https://github.com/pirapira/ethereum-formal-verification-overview/blob/master/README.md) including
@@ -101,7 +108,8 @@
 * Formal Methods:
   [What do Formal Methods actually Guarantee?](https://medium.com/alacris/what-do-formal-methods-actually-guarantee-d94ae8802be2)
   [Formally Verified Software in the Real World](https://cacm.acm.org/magazines/2018/10/231372-formally-verified-software-in-the-real-world/fulltext),
-  [Z3 tutorial](https://rise4fun.com/z3/tutorial).
+  [Z3 tutorial](https://rise4fun.com/z3/tutorial),
+  [DeepHOL](https://deepai.org/publication/holist-an-environment-for-machine-learning-of-higher-order-theorem-proving).
 
 * Formalization for smart contracts:
   [Scilla-coq](https://github.com/ilyasergey/scilla-coq)
@@ -110,7 +118,9 @@
   [Ergo](https://ergo.readthedocs.io/en/latest/Overview.html),
   [Russell O'Connor: "Simplicity: A New Language for Blockchains"](https://arxiv.org/abs/1711.03028),
   [Peng Wang](https://people.csail.mit.edu/wangpeng/)['s](https://www.csail.mit.edu/event/type-system-resource-bounds-type-preserving-compilation-and-its-application-ethereum-smart) [thesis](https://people.csail.mit.edu/wangpeng/phd-thesis.pdf) ([code](https://github.com/wangpengmit/phd-thesis-supplemental), [timl](https://github.com/mit-plv/timl)),
-  [ERC777-K](https://runtimeverification.com/blog/erc777-k-formal-executable-specification-of-erc777/).
+  [ERC777-K](https://runtimeverification.com/blog/erc777-k-formal-executable-specification-of-erc777/),
+  [Formal Verification of OpenZeppelin's ERC20 Token Contract](https://github.com/runtimeverification/verified-smart-contracts/blob/master/erc20/zeppelin/README.md),
+  [ERC20: Missing return value bug](https://medium.com/coinmonks/missing-return-value-bug-at-least-130-tokens-affected-d67bf08521ca).
 
 * Atomic swaps:
   [Ethereum atomic swaps with Bitcoin and most other coins, about to hit release](https://www.reddit.com/r/ethereum/comments/865e0l/ethereum_atomic_swaps_with_bitcoin_and_most_other/),
@@ -163,9 +173,16 @@
 * Contracts on BCH:
   [New Bitcoin Cash Opcode Shows an Onchain Game of Chess is Possible](https://news.bitcoin.com/new-bitcoin-cash-opcode-shows-an-onchain-game-of-chess-is-possible/)
 
+* Operating Systems: [Alexia Massalin's Synthesis](http://valerieaurora.org/synthesis/SynthesisOS/),
+  [Mainframe](https://docs.mainframeos.com/docs/introduction/)
+
 * Other bibliographies:
   [Bitcoin History](https://infominer.id/bitcoin-history/),
   [IOHK papers](https://iohk.io/research/papers/),
   [CoinMetrics resources](https://coinmetrics.io/resources/),
   (some old timer once published a link to a trove of papers... where?),
   ...
+
+* [Enigma](https://enigma.co/discovery-documentation/), [Elixxir](https://elixxir.io/introduction)...
+
+* ["Common Knowledge vs Mutual Knowledge", as illustrated by Friends](https://youtu.be/AksTw43U998)
