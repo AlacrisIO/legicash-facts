@@ -1,4 +1,4 @@
-pragma solidity ^0.5.2;
+pragma solidity ^0.6.4;
 
 /**
  * Contract support for acting on claims that can be rejected.
@@ -55,19 +55,6 @@ contract Claims {
      */
     int constant internal challenge_period_in_blocks = 2;
 
-    /* This code computes the block number for the challenge period */
-    function get_block_number() internal view returns(int) {
-      int nbr;
-      assembly {
-        let y := number
-        nbr := y
-      }
-      return nbr;
-    }
-
-
-
-
     /** @dev expiry delay, in seconds.
      *
      * Claims may disappear after this delay.
@@ -79,7 +66,7 @@ contract Claims {
 
     /** True if a claim is still pending */
     function is_claim_status_pending(int _status) internal view returns(bool) {
-        return _status > get_block_number();
+        return _status > int(block.number);
     }
     /** Check that a claim is still pending */
     function require_claim_pending(bytes32 _claim) internal view {
@@ -97,7 +84,7 @@ contract Claims {
 
     /** True if a claim is accepted as valid */
     function is_status_accepted(int _status) internal view returns(bool) {
-        return _status >= ACCEPTABLE && _status <= get_block_number();
+      return _status >= ACCEPTABLE && _status <= int(block.number);
     }
     /** Check that a claim is still pending */
     function is_claim_status_accepted(bytes32 _claim) internal view returns(bool) {
@@ -118,7 +105,7 @@ contract Claims {
      */
     function make_claim(bytes32 _claim) internal {
         require(claim_status[_claim]==0); // The claim must not have been made before
-        claim_status[_claim] = get_block_number() + challenge_period_in_blocks;
+        claim_status[_claim] = int(block.number) + challenge_period_in_blocks;
     }
 
 
@@ -149,6 +136,6 @@ contract Claims {
 
     /** True if a claim was accepted but is now expired */
     function is_claim_status_expired(int _status) internal view returns(bool) {
-        return _status >= 3 && _status <= get_block_number() - expiry_delay;
+      return _status >= 3 && _status <= int(block.number) - expiry_delay;
     }
 }
