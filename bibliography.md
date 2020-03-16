@@ -3,7 +3,7 @@
 "You can save hours reading papers with months of hard work on your project."
 
 * [Plasma](https://plasma.io/),
-  [Plasma Group](https://plasma.group/),
+  [Plasma Group](https://plasma.group/) ([RIP](https://medium.com/plasma-group/on-to-new-beginnings-e9d76b170752)),
   [ETH Research on Plasma](https://ethresear.ch/search?q=plasma),
   [Construction of a Plasma Chain 0x1](https://blog.omisego.network/construction-of-a-plasma-chain-0x1-614f6ebd1612) ([MVP git](https://github.com/omisego/plasma-mvp.git)),
   [Joseph Poon's talk at Deconomy 2018: "Consensus and Cryptoeconomic Incentive Mechanisms"](https://youtu.be/nZKdy7kZGBc).
@@ -186,3 +186,5 @@
 * [Enigma](https://enigma.co/discovery-documentation/), [Elixxir](https://elixxir.io/introduction)...
 
 * ["Common Knowledge vs Mutual Knowledge", as illustrated by Friends](https://youtu.be/AksTw43U998)
+
+* [Ant Routing scalability for the Lightning Network](https://arxiv.org/pdf/2002.01374.pdf)
