@@ -1,4 +1,4 @@
-pragma solidity ^0.5.2;
+pragma solidity ^0.6.4;
 //pragma experimental ABIEncoderV2;
 
 /* This contract checks that operators do maintain a valid patricia tree of Ethereum blocks
