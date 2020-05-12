@@ -168,7 +168,7 @@
   and their bibliography...
   also [flaws?](https://hackernoon.com/a-fatal-flaw-in-algorand-professor-yongge-wang-takes-apart-their-renown-consensus-agreement-4c111286cdbb)
 
-* More Coq: [Bedrock](https://github.com/mit-plv/bedrock2)
+* More Coq for operating systems: [Bedrock](https://github.com/mit-plv/bedrock2), [CertiKOS](https://www.cs.yale.edu/flint/certikos/)
 
 * Contracts on BCH:
   [New Bitcoin Cash Opcode Shows an Onchain Game of Chess is Possible](https://news.bitcoin.com/new-bitcoin-cash-opcode-shows-an-onchain-game-of-chess-is-possible/)
