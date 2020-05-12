@@ -440,7 +440,7 @@ module AsyncAction (State : TypeS) = struct
             let retry_window   = min retry_window max_window
             and sleep_duration = Random.float retry_window
             in Logging.log "Sleeping %f seconds before retry" sleep_duration;
-            Lwt_unix.sleep (Random.float retry_window)
+            Lwt_unix.sleep sleep_duration
               >>= fun () -> retry
                 ~retry_window:(retry_window *. 2.0)
                 ~max_window
