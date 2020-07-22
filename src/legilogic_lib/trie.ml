@@ -399,6 +399,7 @@ module Trie
         else
           r child_height left (fun t -> k (make_branch height t right))
       | Skip {child; bits; length} ->
+        (* FIXME: handle the buggy case where the bits don't match! *)
         r (height - length) child (fun t -> k (make_skip height length bits t))
     in
     match trie_height trie with
@@ -699,6 +700,7 @@ module Trie
 
   type 'a path = {costep: costep; steps: 'a step list}
 
+  (* FIXME: ensure t is the proper height! *)
   let path_apply : ('trunk, 'branch) unstep -> 'trunk -> 'branch path -> ('trunk * costep) =
     fun unstep t {costep; steps} ->
     List.fold_left (step_apply unstep) (t, costep) steps
@@ -730,6 +732,7 @@ module Trie
 
   let zip t = (t, {costep={index=Key.zero; height=trie_height t}; steps=[]})
 
+  (* FIXME: unzip, path_apply and/or step_apply must ensure_height for the trie *)
   let unzip =
     let unstep = symmetric_unstep ~branch:(konstant make_branch) ~skip:(konstant make_skip) in
     fun (t, path) -> make_head (fst (path_apply unstep t path))
@@ -764,7 +767,7 @@ module Trie
         let hh = height - 1 in
         let left = make_skip hh (hh-h) Key.zero t in
         (empty,
-         {costep={index=Key.shift_left Key.one hh; height=Some hh};
+         {costep={index=Key.shift_left Key.one hh; height=Some hh}; (* FIXME: is the height correct? *)
           steps=[RightBranch{left}]})
       else
         let rec f (trie, path) = match (Wrap.get trie, path) with
@@ -840,11 +843,11 @@ module Trie
       let ri = right_index i height in
       if Key.has_bit bits l1 then
         onlyak ~i ~anode:left ~k:(fun left ->
-          recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child)
+          recursek ~i:ri ~treea:right ~treeb:(make_skip height l1 bits child) (* FIXME: is height right??? *)
             ~k:(fun right ->
               branchk ~i ~height ~leftr:left ~rightr:right ~k))
       else
-        recursek ~i ~treea:left ~treeb:(make_skip height l1 bits child)
+        recursek ~i ~treea:left ~treeb:(make_skip height l1 bits child) (* FIXME: check height *)
           ~k:(fun left ->
             onlyak ~i:ri ~anode:right ~k:(fun right ->
               branchk ~i ~height ~leftr:left ~rightr:right ~k))
