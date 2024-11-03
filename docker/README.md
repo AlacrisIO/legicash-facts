@@ -246,3 +246,20 @@ $ docker exec -ti -u 0 containername bash
 Application logs that are not in `stdout` of running containers are for now
 mounted in `/tmp/legilogs` on local machines until we agree on a final
 destination.
+
+## Shell functions
+```
+dockit_tmp () {
+  docker run --rm -it -v `pwd`:/src -p 8081:8081 registry.gitlab.com/legicash/legicash-facts:build-env
+}
+
+dockit () {
+  docker run --name mystate -it -v /home/fare/src:/src -p 8081:8081 registry.gitlab.com/legicash/legicash-facts:build-env
+}
+#docker start mystate
+#docker attach mystate
+#docker exec -it mystate /bin/bash
+#docker rm mystate
+# --cpuset-cpu=0-3
+# for i in lwt lwt_ppx lwt_react ; do opam pin add $i /src/ocaml/lwt ; done
+```
