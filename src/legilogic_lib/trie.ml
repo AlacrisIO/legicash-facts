@@ -921,7 +921,7 @@ module Trie
         ~i ~treea:a ~treeb:b ~k in
     m ~i:Key.zero ~treea:a ~treeb:b ~k:(konstant 0)
 
-  let equal eq a b =
+  let equal eq a b = (* TODO: call ensure_same_height (bug found in the Scheme port!) *)
     let rec loop ~i ~treea:a ~treeb:b ~k =
       if a == b then k () else
         iterate_over_tree_pair
